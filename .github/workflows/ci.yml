@@ -1,4 +1,4 @@
-name: Frontend CI
+name: CI
 
 on:
   push:
@@ -7,8 +7,9 @@ on:
     branches: [main]
 
 jobs:
+  # ── Unit tests + type check + build (runs on every push & PR) ────────────
   unit:
-    name: TypeScript + Unit Tests + Coverage + Build
+    name: TypeScript + Unit Tests + Build
     runs-on: ubuntu-latest
 
     steps:
@@ -38,12 +39,17 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          NEXT_PUBLIC_BACKEND_URL: http://localhost:8080
+          NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080' }}
 
+# ── E2E tests — manual trigger only ──────────────────────────────────────────
+# E2E requires a real Cognito staging pool (stagingauth.eventiapp.com.mx),
+# TEST_EMAIL / TEST_PASSWORD secrets, and the full auth flow.
+# Run manually when you have the staging environment ready.
   e2e:
     name: E2E Tests (Playwright)
     runs-on: ubuntu-latest
     needs: unit
+    if: github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -62,12 +68,18 @@ jobs:
       - name: Build app
         run: npm run build
         env:
-          NEXT_PUBLIC_BACKEND_URL: http://localhost:8080
+          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
+          COGNITO_REGION: ${{ secrets.COGNITO_REGION }}
+          COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          COGNITO_DOMAIN: ${{ secrets.COGNITO_DOMAIN }}
+          COGNITO_REDIRECT_URI: ${{ secrets.COGNITO_REDIRECT_URI }}
+          COGNITO_LOGOUT_REDIRECT_URI: ${{ secrets.COGNITO_LOGOUT_REDIRECT_URI }}
 
       - name: Start app
         run: npm run start &
         env:
-          NEXT_PUBLIC_BACKEND_URL: http://localhost:8080
+          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
           PORT: 3000
 
       - name: Wait for app to be ready
@@ -76,7 +88,9 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
         env:
-          NEXT_PUBLIC_BACKEND_URL: http://localhost:8080
+          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
+          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
           CI: true
 
       - name: Upload Playwright report
