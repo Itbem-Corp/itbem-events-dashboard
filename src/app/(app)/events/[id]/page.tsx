@@ -988,7 +988,7 @@ export default function EventDetailPage() {
 
           {/* ── ANALÍTICAS ──────────────────────────────────────────────────── */}
           {activeTab === 'analiticas' && (
-            <EventAnalyticsPanel eventId={event.id} />
+            <EventAnalyticsPanel eventId={event.id} eventIdentifier={event.identifier} />
           )}
 
           {/* ── CONFIGURACIÓN ───────────────────────────────────────────────── */}
