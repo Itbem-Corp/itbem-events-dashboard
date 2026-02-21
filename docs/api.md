@@ -98,6 +98,7 @@ toast.error('Failed')
 
 | Method | Path | Notes |
 |---|---|---|
+| GET | `/events/all` | All events (public, Redis-cached) — SWR key `/events/all` |
 | GET | `/events?client_id=` | Events for client (query param) |
 | GET | `/events/:id` | Event detail |
 | POST | `/events` | Create event |
@@ -110,6 +111,7 @@ toast.error('Failed')
 | POST | `/events/:id/sections` | Create section |
 | PUT | `/sections/:id` | Update section |
 | DELETE | `/sections/:id` | Delete section |
+| GET | `/events/:id/invitations` | List all invitations for an event (protected) |
 
 ### Guests
 
@@ -117,19 +119,39 @@ toast.error('Failed')
 |---|---|---|
 | GET | `/guests/:identifier` | List guests for an event by its public identifier — used by the dashboard to load the invitados/RSVP tabs |
 | POST | `/guests` | Create single guest |
-| POST | `/guests/batch` | Bulk-create guests (atomic) — also creates RSVP invitations and tokens for each |
+| POST | `/guests/batch` | Bulk-create guests (atomic) — also creates RSVP invitations and access tokens; rate-limited ~10 req/min |
 | PUT | `/guests/:id` | Update guest |
 | DELETE | `/guests/:id` | Delete guest |
 
 > SWR key for the guest list: `/guests/${event.identifier}` (uses public identifier, not numeric ID).
+> Guest responses include all fields including rich profile (`bio`, `headline`, `signature`, image URLs) and RSVP tracking (`rsvp_status`, `rsvp_at`, `rsvp_method`, `rsvp_guest_count`).
 
-### Moments
+### Section Attendees
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/events/section/:sectionId/attendees` | Public attendee list for a specific section (e.g. GraduatesList) |
+
+### Invitations (protected)
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/invitations/:id/resend` | Log a manual resend of an invitation (creates `InvitationLog` entry, sets `InvitationSent = true`) |
+
+### Moments (dashboard — protected)
 
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/moments?event_id=:id` | List all moments for an event |
 | PUT | `/moments/:id` | Update moment — used to approve (`is_approved: true`) |
 | DELETE | `/moments/:id` | Delete moment |
+
+### Moments (public — no auth)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/events/:identifier/moments` | List approved moments for an event — used by cafetton MomentWall |
+| POST | `/events/:identifier/moments` | Submit guest photo — multipart: `file`, `pretty_token` (required), `description` (optional); rate-limited ~10/min; `IsApproved: false` until moderated |
 
 ### Resources (files/media)
 

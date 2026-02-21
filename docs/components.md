@@ -527,7 +527,8 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 - Response rate progress bar + stat grid
 - Filter by PENDING/CONFIRMED/DECLINED with counts
 - Bulk WhatsApp send panel
-- Per-guest actions: copy link, WhatsApp, email
+- Per-guest actions: copy link, WhatsApp, email, **resend** (ArrowPathIcon, only shown when `guest.invitation_id` present)
+  - Resend calls `POST /invitations/:id/resend`, shows spinner while in flight, toast on success/error
 - CSV export of invitation tracking data
 - Pending badge counter on tab
 
