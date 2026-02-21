@@ -16,7 +16,6 @@ export function QRScanner({ onScan, onClose }: Props) {
 
   useEffect(() => {
     let active = true
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let codeReader: any = null
 
     async function startScanner() {
@@ -37,8 +36,7 @@ export function QRScanner({ onScan, onClose }: Props) {
         await codeReader.decodeFromVideoDevice(
           deviceId,
           videoRef.current!,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (result: any, err: any) => {
+            (result: any, err: any) => {
             if (!active) return
             if (result) {
               const text: string = result.getText()
