@@ -581,7 +581,27 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 - Auto-refreshes guest list every 10 seconds
 - Filter: Todos / Esperados / Llegaron
 - "Llegó" button calls PUT `/guests/:id` with `CONFIRMED` status_id
-- Sticky header with search + progress bar + stats footer
+- Sticky header with QR scanner button + search + progress bar + stats footer
+- **QR Scanner button** ("Escanear QR") opens `QRScanner` overlay; on scan matches guest by `rsvp_token_id`, `email`, or `first_name-last_name`; calls PUT `/guests/:id` then mutates SWR cache; toast success or not-found
+
+### QRScanner (`events/qr-scanner.tsx`)
+
+Full-screen camera overlay for scanning guest QR codes at check-in.
+
+```tsx
+<QRScanner
+  onScan={(token) => handleQRScan(token)}
+  onClose={() => setShowScanner(false)}
+/>
+```
+
+- Renders at `z-[60]` (above the check-in page's `z-50` overlay)
+- Dynamically imports `@zxing/browser` (`BrowserMultiFormatReader`) — no SSR impact
+- Prefers back/rear/environment camera on mobile devices
+- Extracts `token` from QR text: parses `?token=` query param if present, otherwise uses raw text
+- Animated scan frame: four corner brackets + emerald scanning line (`motion.div`, loops top→bottom→top in 2s)
+- Error state shown inline when camera access is denied or no camera found
+- Calls `onScan(token)` on first successful read, then stops scanning; calls `onClose` to dismiss
 
 ## New Event Components
 
