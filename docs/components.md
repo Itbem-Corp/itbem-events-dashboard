@@ -506,7 +506,7 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 
 ### EventSectionsManager (redesigned)
 `src/components/events/event-sections-manager.tsx`
-- **SDUI section types** aligned with public frontend: CountdownHeader, GraduationHero, EventVenue, Reception, GraduatesList, PhotoGrid, RSVPConfirmation + classic HERO/TEXT/GALLERY/MAP/SCHEDULE/MUSIC
+- **SDUI section types** aligned with public frontend: CountdownHeader, GraduationHero, EventVenue, Reception, GraduatesList, PhotoGrid, RSVPConfirmation, Agenda + classic HERO/TEXT/GALLERY/MAP/SCHEDULE/MUSIC
 - **Config editor per type** — inline form that expands per section row (⚙ button)
 - **Media manager per section** — image upload slots per SDUI type (📷 button), shows expected positions with progress
 - **component_type + config** fields sent to backend
@@ -568,6 +568,7 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
     - `TEXT` / `HERO`: content / title + subtitle
     - `MAP`: mapUrl
     - `PhotoGrid` / `RSVPConfirmation` / `GALLERY`: no-config notice
+    - `Agenda`: title input + dynamic list of agenda items (time, icon select, title, location, delete); "Agregar actividad" adds a new row
     - fallback: raw JSON textarea
   - Save calls PUT `/sections/:id` with merged `config` JSONB, then refreshes preview
 - **Ajustes panel**: 8 Switch toggles + welcome/thank-you message textareas — calls PUT `/events/:id/config`
