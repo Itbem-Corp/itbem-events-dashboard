@@ -460,16 +460,18 @@ Read-only sharing hub showing event public URLs, guest contact stats, and a mail
 
 ### EventAnalyticsPanel (`events/event-analytics-panel.tsx`)
 
-KPI dashboard for event analytics. Fetches `GET /events/:id/analytics` via SWR.
+KPI dashboard with recharts charts for event analytics. Fetches `GET /events/:id/analytics` and `GET /guests/:identifier` via SWR.
 
 ```tsx
-<EventAnalyticsPanel eventId={event.id} />
+<EventAnalyticsPanel eventId={event.id} eventIdentifier={event.identifier} />
 ```
 
-- 5 animated stat cards: Vistas · RSVP Confirmados · RSVP Declinados · Fotos subidas · Mensajes
-- Animated progress bar for RSVP response rate (shown when total > 0)
-- Skeleton loader: 5 pulsing cards while loading
-- Empty state message when backend has no analytics data yet
+- 4 KPI cards: Vistas · Confirmados · Declinaron · Tasa respuesta %
+- Horizontal `BarChart` (recharts): RSVP funnel — Invitados / Respondieron / Confirmados / Declinaron
+- Donut `PieChart` (recharts): guest composition by role (graduate/guest/vip/speaker/staff/host), color-coded
+- Moments upload callout card — shown only when `moment_uploads > 0`
+- Skeleton loader (grid of 4 + 2 tall placeholder blocks) while either SWR call is loading
+- Named export: `export function EventAnalyticsPanel`
 - Wired to 'analiticas' tab in event detail page
 
 ---
@@ -590,4 +592,7 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 
 ## Guest Form Enhancements
 - Added fields: `role` (graduate/guest/host/vip/speaker/staff), `is_host` (boolean), `notes` (textarea), `max_guests` (number)
+- **Perfil público** collapsible section (auto-opens on edit when data exists): `headline` (role/title), `bio` (short profile text), `signature` (dedication/closing phrase)
+  - These fields feed the `GraduatesList` SDUI section on the public event page
+  - Section auto-expands when editing a guest who already has profile data
 - Uses `Controller` from react-hook-form for the Headless UI Checkbox
