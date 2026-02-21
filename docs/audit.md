@@ -189,6 +189,11 @@ Layout es un componente cliente que bloquea el render hasta `profileLoaded`. Rev
 
 ---
 
+### 16. Double-toast on network errors and 403
+`api.ts` response interceptor already fires `toast.error('Sin conexión...')` on network errors and `toast.error('Sin permisos...')` on HTTP 403. Components that also `toast.error(...)` in their catch blocks will show two toasts for the same failure. Pattern exists across `event-form-modal.tsx`, `invitation-tracker.tsx`, and others. Fix globally: either move all user-facing error toasts to the interceptor, or suppress catch-block toasts for status codes the interceptor already handles (401, 403, network). See `src/lib/api.ts` lines 81-88.
+
+---
+
 ### 15. Spinner en lugar de skeleton loaders
 `clients/page.tsx` y `users/page.tsx` usan un spinner centrado durante la carga:
 ```typescript
