@@ -89,10 +89,10 @@ toast.error('Failed')
 | POST | `/clients` | Create — FormData (name, client_type_id, logo?) |
 | PUT | `/clients/:id` | Update — FormData |
 | DELETE | `/clients/:id` | Delete |
-| GET | `/clients/members` | Client members |
-| POST | `/clients/members` | Add member |
-| PUT | `/clients/members/:user_id` | Update member role |
-| DELETE | `/clients/members/:user_id` | Remove member |
+| GET | `/clients/members?client_id=:id` | List client members — SWR key includes query param |
+| POST | `/clients/invite` | Invite a user to a client by email + role |
+| PUT | `/clients/members/:userId?client_id=:id` | Update member role — `client_id` as query param |
+| DELETE | `/clients/members/:userId?client_id=:id` | Remove member — `client_id` as query param |
 
 ### Events
 
@@ -103,6 +103,7 @@ toast.error('Failed')
 | POST | `/events` | Create event |
 | PUT | `/events/:id` | Update event |
 | DELETE | `/events/:id` | Delete event |
+| GET | `/events/:id/analytics` | Event analytics — views, RSVPs, moment counts |
 | GET | `/events/:id/config` | Event configuration |
 | PUT | `/events/:id/config` | Update configuration |
 | GET | `/events/:id/sections` | Event sections |
@@ -114,10 +115,21 @@ toast.error('Failed')
 
 | Method | Path | Notes |
 |---|---|---|
+| GET | `/guests/:identifier` | List guests for an event by its public identifier — used by the dashboard to load the invitados/RSVP tabs |
 | POST | `/guests` | Create single guest |
-| POST | `/guests/batch` | Create multiple (atomic) |
+| POST | `/guests/batch` | Bulk-create guests (atomic) — also creates RSVP invitations and tokens for each |
 | PUT | `/guests/:id` | Update guest |
 | DELETE | `/guests/:id` | Delete guest |
+
+> SWR key for the guest list: `/guests/${event.identifier}` (uses public identifier, not numeric ID).
+
+### Moments
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/moments?event_id=:id` | List all moments for an event |
+| PUT | `/moments/:id` | Update moment — used to approve (`is_approved: true`) |
+| DELETE | `/moments/:id` | Delete moment |
 
 ### Resources (files/media)
 
@@ -139,4 +151,23 @@ toast.error('Failed')
 ---
 
 > **Not used by this dashboard** (public event guest-facing routes):
-> `GET /events/:key` · `GET /guests/:key` · `GET /invitations/ByToken/:token` · `POST /invitations/rsvp`
+> `GET /events/:key` · `GET /invitations/ByToken/:token` · `POST /invitations/rsvp`
+>
+> Note: `GET /guests/:identifier` **is** used by the dashboard (invitados/RSVP tabs) — its path looks public but it is called with the admin auth token.
+
+---
+
+## New Endpoints Used (added)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/resources/section/:sectionId` | List resources for a section (images by position) |
+| POST | `/resources` | Upload file for section (multipart: file, event_section_id, position, title, alt_text, resource_type_id) |
+| DELETE | `/resources/:id` | Delete a resource |
+| GET | `/catalogs/resource-types` | Get resource type codes (IMAGE, VIDEO, etc.) |
+
+## EventSection - SDUI fields
+When creating/updating sections, always send:
+- `component_type`: SDUI type string (CountdownHeader, GraduationHero, EventVenue, etc.)
+- `type`: same as component_type (backward compat)  
+- `config`: Record<string, unknown> — JSON config for that section type

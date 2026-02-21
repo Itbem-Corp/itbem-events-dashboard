@@ -226,4 +226,5 @@ The agent will:
 | `GET /api/users` | — | *pending* |
 | `GET /api/clients` | — | *pending* |
 | `GET /api/events?client_id=` | — | *pending* |
-| Response envelope shape | — | *pending* |
+| `GET /api/events/:id/analytics` | 2026-02-21 | Protected. Returns EventAnalytics model (views, rsvp_confirmed, rsvp_declined, moment_uploads, moment_comments). |
+| Response envelope shape | 2026-02-21 | `{ data: T }` — fetcher unwraps with `r.data?.data ?? r.data` |
