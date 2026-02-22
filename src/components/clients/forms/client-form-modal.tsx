@@ -32,9 +32,11 @@ interface ClientFormModalProps {
     isOpen: boolean
     setIsOpen: (open: boolean) => void
     client?: Client | null
+    parentId?: string          // pre-fill parent when creating sub-client
+    restrictTypeCode?: string  // hide other types (e.g. 'AGENCY' or 'CUSTOMER')
 }
 
-export function ClientFormModal({ isOpen, setIsOpen, client }: ClientFormModalProps) {
+export function ClientFormModal({ isOpen, setIsOpen, client, parentId, restrictTypeCode }: ClientFormModalProps) {
     const { data: clientTypes = [] } = useSWR<ClientType[]>('/catalogs/client-types', fetcher)
 
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -70,6 +72,7 @@ export function ClientFormModal({ isOpen, setIsOpen, client }: ClientFormModalPr
         const formData = new FormData()
         formData.append('name', data.name)
         formData.append('client_type_id', data.client_type_id)
+        if (parentId) formData.append('parent_id', parentId)
 
         // LÓGICA DE ARCHIVOS:
         if (selectedFile instanceof File) {
@@ -156,11 +159,13 @@ export function ClientFormModal({ isOpen, setIsOpen, client }: ClientFormModalPr
                             <Description>Define la jerarquía y permisos de esta cuenta.</Description>
                             <Select {...register('client_type_id')}>
                                 <option value="">Selecciona una categoría...</option>
-                                {clientTypes.map((type: ClientType) => (
-                                    <option key={type.id} value={type.id}>
-                                        {type.name}
-                                    </option>
-                                ))}
+                                {clientTypes
+                                    .filter((t) => !restrictTypeCode || t.code === restrictTypeCode)
+                                    .map((type: ClientType) => (
+                                        <option key={type.id} value={type.id}>
+                                            {type.name}
+                                        </option>
+                                    ))}
                             </Select>
                             {errors.client_type_id && <ErrorMessage>{errors.client_type_id.message}</ErrorMessage>}
                         </Field>

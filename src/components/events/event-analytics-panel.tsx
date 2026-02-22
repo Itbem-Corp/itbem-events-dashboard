@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import useSWR from 'swr'
 import { fetcher } from '@/lib/fetcher'
 import {
@@ -23,6 +24,8 @@ const ROLE_COLORS: Record<string, string> = {
   host:     '#ec4899',
   '':       '#71717a',
 }
+
+const DIETARY_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ec4899', '#3b82f6', '#a78bfa', '#71717a']
 
 function Skeleton() {
   return (
@@ -82,6 +85,18 @@ export function EventAnalyticsPanel({ eventId, eventIdentifier }: Props) {
     .map(([name, value]) => ({ name: name || 'sin rol', value, color: ROLE_COLORS[name] ?? '#71717a' }))
     .sort((a, b) => b.value - a.value)
 
+  const dietaryData = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const g of guests) {
+      const key = g.dietary_restrictions?.trim() || 'Ninguna'
+      counts[key] = (counts[key] ?? 0) + 1
+    }
+    return Object.entries(counts)
+      .map(([name, value], i) => ({ name, value, color: DIETARY_COLORS[i % DIETARY_COLORS.length] }))
+      .sort((a, b) => b.value - a.value)
+  }, [guests])
+  const hasDietary = guests.some(g => g.dietary_restrictions?.trim())
+
   const tooltipStyle = {
     backgroundColor: '#18181b',
     border: '1px solid #3f3f46',
@@ -117,6 +132,21 @@ export function EventAnalyticsPanel({ eventId, eventIdentifier }: Props) {
             <PieChart>
               <Pie data={roleData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
                 {roleData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+              <Tooltip contentStyle={tooltipStyle} />
+              <Legend formatter={(value) => <span style={{ color: '#a1a1aa', fontSize: 12 }}>{value}</span>} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {hasDietary && (
+        <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-4">
+          <h3 className="text-sm font-medium text-zinc-400 mb-4">Restricciones alimentarias</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={dietaryData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                {dietaryData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
               <Tooltip contentStyle={tooltipStyle} />
               <Legend formatter={(value) => <span style={{ color: '#a1a1aa', fontSize: 12 }}>{value}</span>} />

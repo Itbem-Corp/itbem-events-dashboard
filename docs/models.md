@@ -10,7 +10,7 @@ All entities extend `BaseEntity` (`id: number`, `created_at`, `updated_at`, `del
 
 **Event** — `name` `identifier` (URL slug) `event_date_time` (ISO) `timezone` `location_name?` `location_address?` `max_guests?` `is_active` `client_id` `event_type_id` `event_type?` `config?` `analytics?` `cover_image?`
 
-**Guest** — `event_id` `first_name` `last_name` `email?` `phone?` `guests_count` (party size) `status_id` `status?` `table_number?` `dietary_restrictions?` `notes?`
+**Guest** — `event_id` `first_name` `last_name` `nickname?` `email?` `phone?` `show_contact_info?` · `guests_count` (party size) `max_guests?` · `status_id` `status?` · `table_number?` `dietary_restrictions?` `role?` (`graduate|guest|host|vip|speaker|staff`) `is_host?` `order?` · Rich profile: `bio?` `headline?` `signature?` `image_url?` `image_1_url?` `image_2_url?` `image_3_url?` · RSVP: `rsvp_status?` `rsvp_at?` `rsvp_method?` (`web|app|host`) `rsvp_guest_count?` `rsvp_token_id?` · `notes?`
 
 **Invitation** — `event_id` `guest_id` `token` `sent_at?` `opened_at?` `responded_at?` → has `access_tokens[]` `logs[]` `guest?`
 

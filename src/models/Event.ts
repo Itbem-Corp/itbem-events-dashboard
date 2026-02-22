@@ -18,6 +18,7 @@ export interface Event extends BaseEntity {
   // Media
   cover_image_url?: string;
   cover_image_url2?: string;
+  music_url?: string;
   custom_domain?: string;
 
   // Configuración
@@ -32,6 +33,7 @@ export interface Event extends BaseEntity {
   organizer_phone?: string;
 
   // Relaciones
+  client_id?: string;
   event_type_id: string;
   event_type?: EventType;
   config?: EventConfig;

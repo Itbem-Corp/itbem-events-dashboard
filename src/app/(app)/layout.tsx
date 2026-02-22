@@ -39,11 +39,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             return
         }
 
-        if (pathname.startsWith('/events') && isRoot) {
-            router.replace('/')
-            return
-        }
-
         // 🔒 SOLO AGENCY
         if (
             pathname.startsWith('/sub-clients') &&

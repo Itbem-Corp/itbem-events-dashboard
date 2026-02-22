@@ -19,6 +19,7 @@ import { fetcher } from '@/lib/fetcher'
 import { toast } from 'sonner'
 import type { Event } from '@/models/Event'
 import type { EventType } from '@/models/EventType'
+import { useStore } from '@/store/useStore'
 
 // Zonas horarias relevantes
 const TIMEZONES = [
@@ -45,11 +46,14 @@ const LANGUAGES = [
 const schema = z.object({
     name:              z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
     description:       z.string().optional(),
+    client_id:         z.string().optional(),
     event_type_id:     z.string().optional(),
     event_date_time:   z.string().min(1, 'La fecha es requerida'),
     timezone:          z.string().min(1, 'Selecciona una zona horaria'),
     language:          z.string().optional(),
     address:           z.string().optional(),
+    second_address:    z.string().optional(),
+    music_url:         z.string().url('URL inválida').optional().or(z.literal('')),
     organizer_name:    z.string().optional(),
     organizer_email:   z.string().email('Correo inválido').optional().or(z.literal('')),
     organizer_phone:   z.string().optional(),
@@ -58,6 +62,24 @@ const schema = z.object({
 })
 
 type FormValues = z.infer<typeof schema>
+
+// Converts "2026-02-27T16:03" + "America/Mexico_City" → "2026-02-27T16:03:00-06:00"
+function toRFC3339(localDT: string, tz: string): string {
+    if (!localDT) return localDT
+    const withSeconds = localDT.length === 16 ? localDT + ':00' : localDT
+    // Parse as UTC just to have a Date instance near the target date (for DST lookup)
+    const approxDate = new Date(withSeconds + 'Z')
+    const s = approxDate.toLocaleString('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
+    // s looks like: "2/27/2026, 4:03:00 PM GMT-6"
+    const match = s.match(/GMT([+-]\d+(?::\d+)?)$/)
+    if (!match) return withSeconds + 'Z'
+    const raw = match[1] // e.g. "-6" or "+5:30"
+    const negative = raw.startsWith('-')
+    const parts = raw.replace(/[+-]/, '').split(':')
+    const hh = parts[0].padStart(2, '0')
+    const mm = (parts[1] ?? '00').padStart(2, '0')
+    return `${withSeconds}${negative ? '-' : '+'}${hh}:${mm}`
+}
 
 interface Props {
     isOpen: boolean
@@ -68,6 +90,17 @@ interface Props {
 export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
     const [loading, setLoading] = useState(false)
     const isEdit = Boolean(event?.id)
+
+    const currentClient = useStore((s) => s.currentClient)
+    const user = useStore((s) => s.user)
+    const isRoot = Boolean(user?.is_root)
+
+    // For root users: fetch all clients to allow selecting which client to assign
+    const { data: allClients = [] } = useSWR<Array<{ id: string; name: string }>>(
+        isOpen && isRoot ? '/clients' : null,
+        fetcher,
+        { shouldRetryOnError: false }
+    )
 
     // GET /api/event-types — endpoint pendiente en el backend.
     // Cuando exista, este useSWR lo carga automáticamente.
@@ -89,11 +122,14 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
         defaultValues: {
             name:            '',
             description:     '',
+            client_id:       currentClient?.id ?? '',
             event_type_id:   '',
             event_date_time: '',
             timezone:        'America/Mexico_City',
             language:        'es',
             address:         '',
+            second_address:  '',
+            music_url:       '',
             organizer_name:  '',
             organizer_email: '',
             organizer_phone: '',
@@ -114,11 +150,14 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
             reset({
                 name:            event.name,
                 description:     event.description ?? '',
+                client_id:       event.client_id ?? currentClient?.id ?? '',
                 event_type_id:   event.event_type_id,
                 event_date_time: localDT,
                 timezone:        event.timezone ?? 'America/Mexico_City',
                 language:        event.language ?? 'es',
                 address:         event.address ?? '',
+                second_address:  event.second_address ?? '',
+                music_url:       event.music_url ?? '',
                 organizer_name:  event.organizer_name ?? '',
                 organizer_email: event.organizer_email ?? '',
                 organizer_phone: event.organizer_phone ?? '',
@@ -129,6 +168,7 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
             reset({
                 name:            '',
                 description:     '',
+                client_id:       currentClient?.id ?? '',
                 event_type_id:   '',
                 event_date_time: '',
                 timezone:        'America/Mexico_City',
@@ -146,17 +186,24 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
     const onSubmit = async (data: FormValues) => {
         setLoading(true)
 
+        // datetime-local gives "YYYY-MM-DDTHH:mm" — Go needs full RFC3339: "2026-02-27T16:03:00-06:00"
+        const payload = {
+            ...data,
+            event_date_time: toRFC3339(data.event_date_time, data.timezone ?? 'America/Mexico_City'),
+        }
+
         try {
             if (isEdit && event) {
-                await api.put(`/events/${event.id}`, data)
+                await api.put(`/events/${event.id}`, payload)
                 // Invalidar cache del evento editado y la lista general
                 await mutate(`/events/${event.id}`)
             } else {
-                await api.post('/events', data)
+                await api.post('/events', payload)
             }
 
-            // Invalidar la lista global (Redis key "all:events")
-            await mutate('/events/cache/all')
+            // Invalidar la lista de eventos (scoped + legacy)
+            await mutate('/events/all')
+            await mutate((key: string) => typeof key === 'string' && key.startsWith('/events'), undefined, { revalidate: true })
             setIsOpen(false)
             toast.success(isEdit ? 'Evento actualizado' : 'Evento creado')
         } catch {
@@ -185,6 +232,24 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
                         <Description>Opcional — aparecerá en la página pública del evento.</Description>
                         <Input {...register('description')} placeholder="Breve descripción del evento" />
                     </Field>
+
+                    {/* Cliente (visible para root o cuando no hay currentClient) */}
+                    {(isRoot || !currentClient) && (
+                        <Field>
+                            <Label>Organización</Label>
+                            <Select {...register('client_id')}>
+                                <option value="">Sin asignar</option>
+                                {(isRoot ? allClients : []).map((cl) => (
+                                    <option key={cl.id} value={cl.id}>
+                                        {cl.name}
+                                    </option>
+                                ))}
+                                {!isRoot && currentClient && (
+                                    <option value={currentClient.id}>{currentClient.name}</option>
+                                )}
+                            </Select>
+                        </Field>
+                    )}
 
                     {/* Tipo de evento */}
                     <Field>
@@ -234,9 +299,32 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
                     </Field>
 
                     {/* Dirección */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <Field>
+                            <Label>Dirección principal</Label>
+                            <Description>Lugar de la ceremonia o evento.</Description>
+                            <Input {...register('address')} placeholder="Calle, colonia, ciudad" />
+                        </Field>
+                        <Field>
+                            <Label>Dirección secundaria</Label>
+                            <Description>Lugar de recepción o fiesta (opcional).</Description>
+                            <Input {...register('second_address')} placeholder="Ej. Salón de Fiestas El Encanto" />
+                        </Field>
+                    </div>
+
+                    {/* Música de fondo */}
                     <Field>
-                        <Label>Dirección</Label>
-                        <Input {...register('address')} placeholder="Calle, colonia, ciudad" />
+                        <Label>URL de música de fondo</Label>
+                        <Description>
+                            URL de un archivo de audio (MP3, WAV) que se reproducirá en la página pública del evento.
+                            Usa S3, Cloudinary u otro CDN.
+                        </Description>
+                        <Input
+                            {...register('music_url')}
+                            type="url"
+                            placeholder="https://cdn.example.com/cancion.mp3"
+                        />
+                        {errors.music_url && <ErrorMessage>{errors.music_url.message}</ErrorMessage>}
                     </Field>
 
                     {/* Organizador */}

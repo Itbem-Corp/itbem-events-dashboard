@@ -2,111 +2,154 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
----
+## Project Overview
 
-## START OF SESSION — MANDATORY ORDER
+This is a Next.js 15 admin dashboard for event management, written in TypeScript. Administrators use it to manage events, review and approve guest-uploaded moments (photos and videos), view analytics, manage guest lists, and generate QR codes for the public-facing event upload pages. Data is fetched from a Go backend using SWR with automatic polling for live data. Authentication is handled by AWS Cognito. Core dependencies include SWR for data fetching, Tailwind CSS for styling, HeroIcons, Framer Motion for transitions, Recharts for analytics charts, and JSZip for bulk image downloads.
 
-```
-1. Read this file (done)
-2. Read ONLY the docs relevant to your task (see index below)
-3. Read ONLY the source files you actually need to touch
-4. Make changes
-5. Update the docs that changed (see Rules below)
-```
-
-**Never scan the full codebase. Docs come first — they exist to save tokens.**
-
----
-
-## Doc Index (read these, not the source)
-
-| Task type | Read first |
-|---|---|
-| New feature / architecture | `docs/architecture.md` |
-| Auth, session, middleware | `docs/auth.md` |
-| Store / state | `docs/state.md` |
-| API calls, SWR, mutations | `docs/api.md` |
-| TypeScript models / types | `docs/models.md` |
-| Components, layout, CRUD | `docs/components.md` |
-| Routes, navigation, guards | `docs/routing.md` |
-| UI, styling, animations | `docs/styling.md` |
-| Code patterns, standards | `docs/coding-standards.md` |
-| Agent roles & parallelism | `docs/agents.md` |
-| Backend validation/contract | `docs/backend-agent.md` |
-| Cross-project (both frontends) | `docs/frontend-integrator.md` |
-| E2E tests / QA | `docs/qa-agent.md` |
-
----
-
-## Doc Update Rules
-
-After every change, update the matching doc:
-
-| Changed | Update doc |
-|---|---|
-| Route or page | `routing.md` |
-| Component or UI pattern | `components.md` |
-| Store shape/action | `state.md` |
-| API endpoint | `api.md` |
-| Model / interface | `models.md` |
-| Auth flow | `auth.md` |
-| Style / animation | `styling.md` |
-| Code pattern | `coding-standards.md` |
-| Architecture | `architecture.md` |
-| Backend contract | `backend-agent.md` |
-| Cross-project contract | `frontend-integrator.md` (update both projects' docs) |
-| Bugs / deuda técnica | `audit.md` (actualizar cuando se resuelve un item) |
-| Nueva página o feature | Crear/actualizar `tests/e2e/{feature}.spec.ts` y ejecutar |
-
----
-
-## Auto-Approved Permissions
-
-No confirmation needed for:
-- Reading any file in the repo
-- Writing/editing files under `src/`, `docs/`, root config files
-- Running `npm run dev | build | start | lint`
-- Creating files inside existing directories
-
-Ask before: deleting files · `npm install/uninstall` · pushing · deploying
-
----
-
-## Commands
+## Development Commands
 
 ```bash
-npm run dev    # http://localhost:3000
-npm run build
-npm run lint   # ESLint
+# Install dependencies
+npm install
 
-# E2E tests (Playwright) — app must be running on :3000
-npm run test:e2e                                       # suite completa
-npm run test:e2e:file tests/e2e/clients.spec.ts        # archivo específico
-npm run test:e2e:headed                                # browser visible
-npm run test:e2e:ui                                    # Playwright UI
-npx playwright show-report                             # reporte HTML
+# Start local dev server (http://localhost:3000)
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm run start
+
+# Run Vitest unit tests
+npm run test
+
+# Run Vitest in watch mode
+npm run test:watch
 ```
 
-`.env.local` requires `NEXT_PUBLIC_BACKEND_URL=http://localhost:8080` — see `docs/auth.md` for Cognito vars.
-For E2E tests also add `TEST_EMAIL` and `TEST_PASSWORD` (Cognito staging test user) — see `docs/qa-agent.md`.
+## Architecture
 
----
+### Data Fetching
 
-## Project Scope
+All data fetching uses **SWR** (`swr`) with an Axios-based fetcher defined in `src/lib/fetcher.ts`. The Axios client in `src/lib/api.ts` attaches the Cognito `Authorization: Bearer` header to every request automatically.
 
-This repo is the **admin dashboard only** — management of clients, users, events, orders, analytics.
+Pattern used across components:
+```typescript
+const { data, error, isLoading } = useSWR<ApiResponse>(
+  '/endpoint',
+  fetcher,
+  { refreshInterval: 15000 } // 15-second polling for live data
+);
+```
 
-| Project | Path | GitHub |
-|---|---|---|
-| Public event frontend | `C:\Users\AndBe\Desktop\Projects\cafetton-casero` | `https://github.com/Itbem-Corp/itbem-events-frontend.git` |
-| Backend (Go) | `\\wsl.localhost\Ubuntu\var\www\itbem-events-backend` | `git@github.com:Itbem-Corp/itbem-events-backend.git` |
+Use `refreshInterval` on any component where real-time updates matter (e.g., MomentsWall, guest check-in status).
 
-Cross-project work → `docs/frontend-integrator.md` | Backend validation → `docs/backend-agent.md`
+### Authentication
 
----
+All pages under `src/app/(app)/` are protected by Cognito auth middleware configured in Next.js middleware (`middleware.ts`). Unauthenticated requests are redirected to the login page. The Axios client in `src/lib/api.ts` reads the session token and includes it in the `Authorization` header.
 
-## Non-Negotiable Standards (detail in docs)
+Do not add unauthenticated pages inside the `(app)` route group.
 
-**Style** — dark only (`zinc-950` bg), mobile-first, Motion animations, skeleton loaders → `docs/styling.md`
-**Code** — no `any`, no `useEffect` for fetching, `'use client'` on all app pages, Zod forms → `docs/coding-standards.md`
-**API** — always conditional SWR key (`null` when deps missing), always `mutate()` after write → `docs/api.md`
+### Component Patterns
+
+- **Page components** live in `src/app/(app)/` and are Next.js App Router pages. They are responsible for layout and passing route params to child components.
+- **Feature components** live in `src/components/events/` and contain the business logic (data fetching, filtering, user interactions) for event-specific features.
+- **Shared UI components** live in `src/components/ui/` and are generic, reusable, and stateless where possible (e.g., `EmptyState`).
+- **TypeScript models** live in `src/models/` and define the shape of all backend data structures.
+
+## Key Files Reference
+
+| File | Purpose |
+|------|---------|
+| `src/lib/api.ts` | Axios client instance with `Authorization` header; base URL from `NEXT_PUBLIC_BACKEND_URL` |
+| `src/lib/fetcher.ts` | SWR fetcher function that calls `api.ts` |
+| `src/models/Moment.ts` | Moment (photo/video upload) interface |
+| `src/models/Guest.ts` | Guest interface |
+| `src/models/Event.ts` | Event interface |
+| `src/app/(app)/` | Protected App Router pages (events list, event detail with tabs) |
+| `src/components/events/MomentsWall.tsx` | Moments management: filter tabs, lightbox viewer, QR modal, ZIP download, 15s auto-refresh |
+| `src/components/ui/EmptyState.tsx` | Generic empty state UI component |
+| `vitest.config.ts` | Vitest test configuration |
+| `tests/unit/components/` | Vitest + React Testing Library unit tests |
+| `.env.example` | Example environment variable file |
+
+### Moment Model
+
+The `Moment` interface in `src/models/Moment.ts` includes:
+```typescript
+interface Moment {
+  // ... id, event_id, guest_id, etc.
+  content_url: string;              // URL to the uploaded file (image or video)
+  description: string;              // Optional guest-provided caption
+  is_approved: boolean;             // Manual approval status
+  processing_status: '' | 'pending' | 'processing' | 'done' | 'failed';
+}
+```
+
+`processing_status` drives the status badge display in the MomentsWall. Videos go through backend processing; `'done'` means the video is ready to play.
+
+### MomentsWall Component
+
+`src/components/events/MomentsWall.tsx` is the most complex component in the dashboard. Key features:
+
+- **Filter tabs**: Todos / Pendientes / Aprobados / Errores — filters by `is_approved` and `processing_status`.
+- **Lightbox viewer**: Full-screen view with zoom, keyboard navigation (arrow keys, Escape), and video playback support.
+- **QR modal**: Uses `qrcode.react` to render a QR code pointing to the Astro upload page URL (`NEXT_PUBLIC_ASTRO_URL/events/{identifier}/upload`).
+- **ZIP download**: Bulk downloads approved images using JSZip. Videos are excluded from ZIP downloads.
+- **Auto-refresh**: SWR `refreshInterval: 15000` keeps the wall updated as guests upload.
+
+## Testing Approach
+
+Unit tests use **Vitest** and **React Testing Library**. Test files live in `tests/unit/components/` and mirror the component structure under `src/components/`.
+
+```typescript
+// Example test pattern
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import YourComponent from '@/components/YourComponent';
+
+describe('YourComponent', () => {
+  it('renders correctly', () => {
+    render(<YourComponent />);
+    expect(screen.getByText('Expected text')).toBeInTheDocument();
+  });
+});
+```
+
+When adding a new component, create a corresponding test file at `tests/unit/components/YourComponent.test.tsx`.
+
+There are currently no E2E tests in active use (`playwright.config.ts` exists but the test suite is not maintained). Focus testing effort on Vitest unit tests.
+
+## Important Notes
+
+### Environment Variables
+
+```bash
+# .env.local (local development)
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8080   # Go backend API
+NEXT_PUBLIC_ASTRO_URL=http://localhost:4321     # Astro public frontend (for QR code URLs)
+```
+
+Both variables are required. `NEXT_PUBLIC_ASTRO_URL` is used by MomentsWall to construct the QR code URL:
+```
+{NEXT_PUBLIC_ASTRO_URL}/events/{identifier}/upload
+```
+
+See `.env.example` for an up-to-date list of all required variables.
+
+### Adding a New Model
+
+Create a TypeScript interface in `src/models/YourModel.ts` matching the backend JSON response shape. Export it and import it into any component or SWR hook that needs the type.
+
+### Adding a New Page
+
+1. Create the page file under `src/app/(app)/your-page/page.tsx`.
+2. The page is automatically protected by the Cognito middleware — no extra configuration needed.
+3. Add navigation links in the sidebar/nav component if the page should be discoverable from the UI.
+
+### Adding a New Feature Component
+
+1. Create `src/components/events/YourFeature.tsx` (or `src/components/ui/` for generic UI).
+2. Use SWR for data fetching — do not use `useEffect` + `fetch` directly.
+3. Add a unit test at `tests/unit/components/YourFeature.test.tsx`.

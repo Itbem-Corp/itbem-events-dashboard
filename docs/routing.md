@@ -9,6 +9,8 @@
 | `/users` | `(app)/users/page.tsx` | `is_root` |
 | `/events` | `(app)/events/page.tsx` | non-root |
 | `/events/[id]` | `(app)/events/[id]/page.tsx` | non-root |
+| `/events/[id]/studio` | `(app)/events/[id]/studio/page.tsx` | non-root — fullscreen event studio editor |
+| `/events/[id]/checkin` | `(app)/events/[id]/checkin/page.tsx` | non-root — day-of check-in mode |
 | `/orders` | `(app)/orders/page.tsx` | non-root |
 | `/settings/profile` | `(app)/settings/profile/page.tsx` | session |
 | `/login` | `(auth)/login/page.tsx` | → redirects to `/auth/login` |
@@ -43,14 +45,17 @@ app/layout.tsx              Root — Inter font, dark colorScheme, title templat
 
 Defined in `src/components/application-layout.tsx`:
 
-| Item | Visible to |
-|---|---|
-| Home `/` | Everyone |
-| Events `/events` | Non-root |
-| Orders `/orders` | Non-root |
-| Clients `/clients` | Root |
-| Users `/users` | Root |
-| Sub Clients `/sub-clients` | AGENCY client type only |
+| Item | Visible to | Guard |
+|---|---|---|
+| Home `/` | Everyone | — |
+| Events `/events` | Non-root only | `!isRoot` in nav + redirect in layout |
+| Orders `/orders` | Non-root only | `!isRoot` in nav |
+| Users `/users` | Root only | `isRoot` in nav + redirect in layout |
+| Clients `/clients` | Root only | `isRoot` in nav + redirect in layout |
+
+Route guards are applied in two layers:
+1. **Nav visibility** (`application-layout.tsx`): items conditionally rendered by `isRoot`
+2. **Layout redirect** (`(app)/layout.tsx`): any direct URL access is redirected to `/` if role doesn't match
 
 ## Adding a Route
 
@@ -60,9 +65,34 @@ Defined in `src/components/application-layout.tsx`:
 4. Document endpoint in `docs/api.md`
 5. Update this file
 
+## Event Detail Page — Tabs
+
+`/events/[id]` renders a tabbed layout. The six tabs and their content components are:
+
+| Tab slug | Label | Main component(s) |
+|---|---|---|
+| `resumen` | Resumen | Event summary cards, `EventCoverUpload`, `EventSharePanel` |
+| `invitados` | Invitados | Guest table, `GuestFormModal`, `GuestDeleteModal`, `GuestBatchModal` |
+| `rsvp` | RSVP | `RSVPTracker` |
+| `momentos` | Momentos | `MomentsWall` |
+| `analiticas` | Analíticas | Analytics/KPI cards |
+| `configuracion` | Configuración | `EventConfigPanel`, `EventSectionsManager` |
+
+The active tab is tracked via local state (not URL query param). Default tab on load is `resumen`.
+
 ## URL Conventions
 
 - Lists: `/features` (plural noun)
 - Detail: `/features/[id]`
 - Nested settings: `/settings/section`
 - Filters as query params: `?client_id=` `?status=` `?page=`
+
+---
+
+## New Tabs - Event Detail `/events/[id]`
+
+| Tab ID | Label | Component | Description |
+|--------|-------|-----------|-------------|
+| `invitaciones` | Invitaciones | InvitationTracker | Per-guest RSVP tracking, bulk WhatsApp, CSV export |
+
+Tab order: Resumen → Invitados → Invitaciones → RSVP → Momentos → Analíticas → Config

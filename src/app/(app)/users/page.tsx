@@ -49,6 +49,7 @@ export default function UsersPage() {
     })
 
     const [search, setSearch] = useState('')
+    const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'ROOT'>('ALL')
     const [page, setPage] = useState(1)
     const [selectedUser, setSelectedUser] = useState<User | null>(null)
     const [isFormOpen, setIsFormOpen] = useState(false)
@@ -56,17 +57,23 @@ export default function UsersPage() {
 
     const debouncedSearch = useDebounce(search, 200)
 
-    // Reset page when search changes (after debounce settles)
-    useEffect(() => setPage(1), [debouncedSearch])
+    // Reset page when search/filter changes
+    useEffect(() => setPage(1), [debouncedSearch, statusFilter])
 
     const filteredUsers = useMemo(
         () =>
-            users.filter((u) =>
-                `${u.first_name} ${u.last_name} ${u.email}`
+            users.filter((u) => {
+                const matchesSearch = `${u.first_name} ${u.last_name} ${u.email}`
                     .toLowerCase()
                     .includes(debouncedSearch.toLowerCase())
-            ),
-        [users, debouncedSearch]
+                const matchesStatus =
+                    statusFilter === 'ALL' ||
+                    (statusFilter === 'ACTIVE' && u.is_active !== false) ||
+                    (statusFilter === 'INACTIVE' && u.is_active === false) ||
+                    (statusFilter === 'ROOT' && u.is_root)
+                return matchesSearch && matchesStatus
+            }),
+        [users, debouncedSearch, statusFilter]
     )
 
     const paginatedUsers = useMemo(
@@ -103,6 +110,32 @@ export default function UsersPage() {
                         Nuevo Usuario
                     </Button>
                 </div>
+
+                {/* QUICK STATS */}
+                {!isLoading && users.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {[
+                            { label: 'Total', value: users.length, filter: 'ALL' as const, color: 'text-zinc-100' },
+                            { label: 'Activos', value: users.filter(u => u.is_active !== false).length, filter: 'ACTIVE' as const, color: 'text-lime-400' },
+                            { label: 'Inactivos', value: users.filter(u => u.is_active === false).length, filter: 'INACTIVE' as const, color: 'text-zinc-500' },
+                            { label: 'Root', value: users.filter(u => u.is_root).length, filter: 'ROOT' as const, color: 'text-indigo-400' },
+                        ].map((s) => (
+                            <button
+                                key={s.label}
+                                onClick={() => setStatusFilter(s.filter)}
+                                className={[
+                                    'flex flex-col items-center rounded-xl border py-4 transition-all',
+                                    statusFilter === s.filter
+                                        ? 'border-indigo-500/50 bg-indigo-500/10'
+                                        : 'border-white/10 bg-zinc-900/50 hover:border-white/20',
+                                ].join(' ')}
+                            >
+                                <span className={`text-2xl font-bold ${s.color}`}>{s.value}</span>
+                                <span className="mt-1 text-xs text-zinc-500">{s.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 {/* SEARCH */}
                 {!isLoading && users.length > 0 && (

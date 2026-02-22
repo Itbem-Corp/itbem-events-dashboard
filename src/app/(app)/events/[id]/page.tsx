@@ -315,6 +315,22 @@ export default function EventDetailPage() {
     }
   }, [selectedIds, guests, guestStatuses, event])
 
+  const bulkDeleteGuests = useCallback(async () => {
+    if (!event || selectedIds.size === 0) return
+    if (!window.confirm(`¿Eliminar ${selectedIds.size} invitado${selectedIds.size !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) return
+    setBulkLoading(true)
+    try {
+      await api.delete('/guests/bulk', { data: { ids: Array.from(selectedIds) } })
+      await mutate(`/guests/${event.identifier}`)
+      toast.success(`${selectedIds.size} invitado${selectedIds.size !== 1 ? 's' : ''} eliminados`)
+      setSelectedIds(new Set())
+    } catch {
+      toast.error('Error al eliminar los invitados')
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [selectedIds, event])
+
   // Derived guest stats
   const confirmed = guests.filter((g) => g.status?.code === 'CONFIRMED')
   const pending = guests.filter((g) => g.status?.code === 'PENDING')
@@ -766,6 +782,13 @@ export default function EventDetailPage() {
                             </>
                           )}
                           <button
+                            onClick={bulkDeleteGuests}
+                            disabled={bulkLoading}
+                            className="flex items-center gap-1.5 rounded-lg bg-red-500/20 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                          >
+                            Eliminar
+                          </button>
+                          <button
                             onClick={() => setSelectedIds(new Set())}
                             className="ml-1 p-1 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors"
                           >
@@ -983,7 +1006,11 @@ export default function EventDetailPage() {
 
           {/* ── MOMENTOS ────────────────────────────────────────────────────── */}
           {activeTab === 'momentos' && (
-            <MomentsWall eventId={event.id} />
+            <MomentsWall
+              eventId={event.id}
+              eventIdentifier={event.identifier}
+              eventName={event.name}
+            />
           )}
 
           {/* ── ANALÍTICAS ──────────────────────────────────────────────────── */}

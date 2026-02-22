@@ -1,0 +1,695 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import useSWR, { mutate as globalMutate } from 'swr'
+import { QRCodeSVG } from 'qrcode.react'
+import { motion, AnimatePresence } from 'motion/react'
+import JSZip from 'jszip'
+
+import { api } from '@/lib/api'
+import { fetcher } from '@/lib/fetcher'
+import { toast } from 'sonner'
+import type { Moment } from '@/models/Moment'
+import { EmptyState } from '@/components/ui/empty-state'
+import {
+  PhotoIcon,
+  CheckIcon,
+  XMarkIcon,
+  ArrowDownTrayIcon,
+  QrCodeIcon,
+  MagnifyingGlassPlusIcon,
+  MagnifyingGlassMinusIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ClipboardDocumentIcon,
+  ExclamationTriangleIcon,
+  ArrowPathIcon,
+} from '@heroicons/react/24/outline'
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+function isVideo(url: string): boolean {
+  return /\.(mp4|webm|mov|avi|mkv|m4v)(\?|$)/i.test(url)
+}
+
+function processingLabel(status: Moment['processing_status']): string {
+  switch (status) {
+    case 'pending':     return 'En cola'
+    case 'processing':  return 'Procesando…'
+    case 'failed':      return 'Error al procesar'
+    default:            return ''
+  }
+}
+
+// ─── Lightbox ────────────────────────────────────────────────────────────────
+
+interface LightboxProps {
+  moments: Moment[]
+  index: number
+  onClose: () => void
+  onNext: () => void
+  onPrev: () => void
+  resolveUrl: (m: Moment) => string
+}
+
+function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: LightboxProps) {
+  const [scale, setScale] = useState(1)
+  const moment = moments[index]
+  const url = resolveUrl(moment)
+  const video = isVideo(url)
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'ArrowRight') { setScale(1); onNext() }
+      if (e.key === 'ArrowLeft')  { setScale(1); onPrev() }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose, onNext, onPrev])
+
+  const handleDownload = async () => {
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const ext = url.split('.').pop()?.split('?')[0] ?? 'jpg'
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `momento-${moment.id}.${ext}`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch {
+      toast.error('Error al descargar archivo')
+    }
+  }
+
+  return createPortal(
+    <motion.div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Visor de momentos"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      {/* Controls bar */}
+      <div
+        className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="text-sm text-white/70">
+          {index + 1} / {moments.length}
+          {moment.description && (
+            <span className="ml-3 text-white/50 italic line-clamp-1 max-w-sm">
+              &ldquo;{moment.description}&rdquo;
+            </span>
+          )}
+        </span>
+        <div className="flex items-center gap-2">
+          {!video && (
+            <>
+              <button
+                onClick={() => setScale((s) => Math.max(0.5, s - 0.25))}
+                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                title="Alejar"
+              >
+                <MagnifyingGlassMinusIcon className="size-5" />
+              </button>
+              <button
+                onClick={() => setScale((s) => Math.min(4, s + 0.25))}
+                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                title="Acercar"
+              >
+                <MagnifyingGlassPlusIcon className="size-5" />
+              </button>
+            </>
+          )}
+          <button
+            onClick={handleDownload}
+            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            title="Descargar"
+          >
+            <ArrowDownTrayIcon className="size-5" />
+          </button>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            title="Cerrar (Esc)"
+          >
+            <XMarkIcon className="size-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Prev */}
+      {moments.length > 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setScale(1); onPrev() }}
+          className="absolute left-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+        >
+          <ArrowLeftIcon className="size-5" />
+        </button>
+      )}
+
+      {/* Media */}
+      <motion.div
+        key={moment.id}
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+        className="max-h-[85vh] max-w-[85vw] overflow-auto"
+        style={{ transform: `scale(${scale})`, transformOrigin: 'center', transition: 'transform 0.2s' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {video ? (
+          <video
+            src={url}
+            controls
+            autoPlay
+            className="max-h-[85vh] max-w-[85vw] rounded-lg shadow-2xl"
+          />
+        ) : (
+          <img
+            src={url}
+            alt="Momento del evento"
+            className="max-h-[85vh] max-w-[85vw] rounded-lg shadow-2xl object-contain"
+          />
+        )}
+      </motion.div>
+
+      {/* Next */}
+      {moments.length > 1 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setScale(1); onNext() }}
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+        >
+          <ArrowRightIcon className="size-5" />
+        </button>
+      )}
+    </motion.div>,
+    document.body
+  )
+}
+
+// ─── QR Modal ────────────────────────────────────────────────────────────────
+
+function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false)
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="qr-modal-title"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        className="relative rounded-2xl bg-zinc-900 border border-white/10 p-6 w-full max-w-sm flex flex-col items-center gap-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          aria-label="Cerrar"
+          className="absolute top-3 right-3 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+        >
+          <XMarkIcon className="size-4" />
+        </button>
+
+        <div>
+          <h3 id="qr-modal-title" className="text-base font-semibold text-zinc-100 text-center">Código QR de subida</h3>
+          <p className="text-xs text-zinc-500 text-center mt-1">
+            Escanea para subir fotos/videos al evento
+          </p>
+        </div>
+
+        <div className="p-4 bg-white rounded-xl">
+          <QRCodeSVG value={url} size={180} level="M" />
+        </div>
+
+        <p className="text-xs text-zinc-500 break-all text-center px-2">{url}</p>
+
+        <button
+          onClick={copy}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+        >
+          <ClipboardDocumentIcon className="size-4" />
+          {copied ? '¡Copiado!' : 'Copiar enlace'}
+        </button>
+      </motion.div>
+    </motion.div>,
+    document.body
+  )
+}
+
+// ─── Processing status badge ──────────────────────────────────────────────────
+
+function ProcessingBadge({ status }: { status: Moment['processing_status'] }) {
+  if (!status || status === 'done') return null
+  const colors: Record<string, string> = {
+    pending:    'bg-sky-500/15 text-sky-400 ring-sky-500/25',
+    processing: 'bg-indigo-500/15 text-indigo-400 ring-indigo-500/25',
+    failed:     'bg-rose-500/15 text-rose-400 ring-rose-500/25',
+  }
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${colors[status] ?? ''}`}>
+      {status === 'processing' && <ArrowPathIcon className="size-3 animate-spin" />}
+      {status === 'failed' && <ExclamationTriangleIcon className="size-3" />}
+      {processingLabel(status)}
+    </span>
+  )
+}
+
+// ─── Moment Card ──────────────────────────────────────────────────────────────
+
+interface MomentCardProps {
+  moment: Moment
+  onApprove: (m: Moment) => Promise<void>
+  onDelete: (m: Moment) => Promise<void>
+  onOpenLightbox: (m: Moment) => void
+  resolveUrl: (m: Moment) => string
+}
+
+function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }: MomentCardProps) {
+  const [actioning, setActioning] = useState<'approve' | 'delete' | null>(null)
+  const url = resolveUrl(moment)
+  const hasMedia = !!url
+  const video = hasMedia && isVideo(url)
+  const isProcessing = moment.processing_status === 'pending' || moment.processing_status === 'processing'
+  const isFailed = moment.processing_status === 'failed'
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.2 }}
+      className="relative rounded-xl overflow-hidden border border-white/10 bg-zinc-900/60 group flex flex-col"
+    >
+      {/* Badges row — approval only; processing state is shown in the card body */}
+      <div className="absolute top-2.5 left-2.5 z-10">
+        {moment.is_approved ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-lime-500/20 px-2 py-0.5 text-xs font-medium text-lime-400 ring-1 ring-lime-500/30">
+            <CheckIcon className="size-3" /> Aprobado
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-400 ring-1 ring-amber-500/30">
+            Pendiente
+          </span>
+        )}
+      </div>
+
+      {/* Media */}
+      {isProcessing ? (
+        <div className="aspect-square flex flex-col items-center justify-center bg-gradient-to-br from-zinc-800/60 to-zinc-900 gap-3">
+          <ArrowPathIcon className="size-8 text-indigo-400 animate-spin opacity-60" />
+          <p className="text-xs text-zinc-500 text-center px-4">
+            {processingLabel(moment.processing_status)}
+          </p>
+        </div>
+      ) : isFailed ? (
+        <div className="aspect-square flex flex-col items-center justify-center bg-rose-950/30 gap-2 p-4">
+          <ExclamationTriangleIcon className="size-8 text-rose-500 opacity-70" />
+          <p className="text-xs text-rose-400 text-center">Error al procesar el archivo</p>
+          <button
+            onClick={async () => {
+              try {
+                await api.put(`/moments/${moment.id}/requeue`, {})
+                toast.success('Reintentando procesamiento…')
+              } catch {
+                toast.error('No se pudo reintentar. Intenta más tarde.')
+              }
+            }}
+            className="mt-2 flex items-center gap-1 text-xs text-rose-300 hover:text-rose-100 underline underline-offset-2 transition-colors"
+          >
+            <ArrowPathIcon className="size-3" />
+            Reintentar
+          </button>
+        </div>
+      ) : hasMedia ? (
+        <div
+          className="aspect-square relative overflow-hidden bg-zinc-800 cursor-pointer"
+          onClick={() => onOpenLightbox(moment)}
+          title="Abrir visor"
+        >
+          {video ? (
+            <video
+              src={url}
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <img
+              src={url}
+              alt="Momento del evento"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              loading="lazy"
+            />
+          )}
+          {/* Hover overlay */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+            <MagnifyingGlassPlusIcon className="size-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+          </div>
+        </div>
+      ) : moment.description ? (
+        <div className="aspect-square flex items-center justify-center bg-gradient-to-br from-zinc-800/80 to-zinc-900 p-6">
+          <p className="text-sm text-zinc-300 text-center leading-relaxed italic line-clamp-6">
+            &ldquo;{moment.description}&rdquo;
+          </p>
+        </div>
+      ) : (
+        <div className="aspect-square flex items-center justify-center bg-zinc-800/50">
+          <PhotoIcon className="size-12 text-zinc-600" />
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="p-3 flex-1 flex flex-col justify-between">
+        <div>
+          {/* Show description as caption only when there is also media — otherwise it's already the main content */}
+          {moment.description && hasMedia && !isProcessing && (
+            <p className="text-xs text-zinc-400 line-clamp-2 italic mb-1">
+              &ldquo;{moment.description}&rdquo;
+            </p>
+          )}
+          <p className="text-xs text-zinc-600">
+            {new Date(moment.created_at).toLocaleDateString('es-MX', {
+              day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+            })}
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 mt-3">
+          {!moment.is_approved && !isProcessing && (
+            <button
+              onClick={async () => { setActioning('approve'); await onApprove(moment); setActioning(null) }}
+              disabled={actioning !== null}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium bg-lime-500/10 text-lime-400 hover:bg-lime-500/20 transition-colors disabled:opacity-50"
+            >
+              <CheckIcon className="size-3.5" />
+              {actioning === 'approve' ? '…' : 'Aprobar'}
+            </button>
+          )}
+          <button
+            onClick={async () => { setActioning('delete'); await onDelete(moment); setActioning(null) }}
+            disabled={actioning !== null}
+            className={[
+              'flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-colors disabled:opacity-50',
+              'bg-pink-500/10 text-pink-400 hover:bg-pink-500/20',
+              moment.is_approved || isProcessing ? 'flex-1' : '',
+            ].join(' ')}
+          >
+            <XMarkIcon className="size-3.5" />
+            {actioning === 'delete' ? '…' : 'Eliminar'}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// ─── Main Wall ────────────────────────────────────────────────────────────────
+
+interface Props {
+  eventId: string
+  /** Used to construct the shared upload URL for QR code */
+  eventIdentifier: string
+  /** Displayed in the QR modal heading */
+  eventName?: string
+  /** When false, hides the QR upload button. Defaults to true. */
+  shareUploadsEnabled?: boolean
+}
+
+export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsEnabled = true }: Props) {
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'failed'>('all')
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const [showQR, setShowQR] = useState(false)
+  const [downloadingZip, setDownloadingZip] = useState(false)
+
+  const swrKey = eventId ? `/moments?event_id=${eventId}` : null
+  const { data: moments = [], isLoading, isValidating } = useSWR<Moment[]>(swrKey, fetcher, {
+    revalidateOnFocus: false,
+    // Poll every 15s so newly optimized moments appear automatically
+    refreshInterval: 15_000,
+  })
+
+  // S3 URLs are presigned — content_url may be a full URL or a key.
+  // If it's a key (no "http"), we serve it as-is (backend should return presigned URLs).
+  const resolveUrl = useCallback((m: Moment) => m.content_url ?? '', [])
+
+  const filteredMoments = moments.filter((m) => {
+    if (filter === 'pending')  return !m.is_approved && m.processing_status !== 'failed'
+    if (filter === 'approved') return m.is_approved
+    if (filter === 'failed')   return m.processing_status === 'failed'
+    return true
+  })
+
+  const pendingCount  = moments.filter((m) => !m.is_approved && m.processing_status !== 'failed').length
+  const approvedCount = moments.filter((m) => m.is_approved).length
+  const failedCount   = moments.filter((m) => m.processing_status === 'failed').length
+
+  // Moments eligible for lightbox (media present + not processing)
+  const lightboxMoments = filteredMoments.filter((m) =>
+    !!resolveUrl(m) && m.processing_status !== 'pending' && m.processing_status !== 'processing'
+  )
+
+  const handleApprove = async (moment: Moment) => {
+    try {
+      await api.put(`/moments/${moment.id}`, { ...moment, is_approved: true })
+      await globalMutate(swrKey)
+      toast.success('Momento aprobado')
+    } catch {
+      toast.error('Error al aprobar el momento')
+    }
+  }
+
+  const handleDelete = async (moment: Moment) => {
+    try {
+      await api.delete(`/moments/${moment.id}`)
+      await globalMutate(swrKey)
+      toast.success('Momento eliminado')
+    } catch {
+      toast.error('Error al eliminar el momento')
+    }
+  }
+
+  const handleOpenLightbox = (m: Moment) => {
+    const idx = lightboxMoments.findIndex((x) => x.id === m.id)
+    if (idx !== -1) setLightboxIndex(idx)
+  }
+
+  const handleDownloadZip = async () => {
+    const approved = moments.filter(
+      (m) => m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))
+    )
+    if (approved.length === 0) {
+      toast.info('No hay imágenes aprobadas para descargar')
+      return
+    }
+    setDownloadingZip(true)
+    try {
+      const zip = new JSZip()
+      const folder = zip.folder('momentos') ?? zip
+      await Promise.all(
+        approved.map(async (m, i) => {
+          try {
+            const res = await fetch(resolveUrl(m))
+            const blob = await res.blob()
+            const ext = resolveUrl(m).split('.').pop()?.split('?')[0] ?? 'jpg'
+            folder.file(`momento-${String(i + 1).padStart(3, '0')}.${ext}`, blob)
+          } catch {
+            // Skip failed individual files silently
+          }
+        })
+      )
+      const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 3 } })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(content)
+      a.download = `momentos-${eventIdentifier}.zip`
+      a.click()
+      URL.revokeObjectURL(a.href)
+      toast.success(`${approved.length} imágenes descargadas`)
+    } catch {
+      toast.error('Error al generar el ZIP')
+    } finally {
+      setDownloadingZip(false)
+    }
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_ASTRO_URL ?? ''
+  const uploadUrl = `${siteUrl}/events/${eventIdentifier}/upload`
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {[...Array(8)].map((_, i) => (
+          <div key={i} className="aspect-square skeleton rounded-xl" />
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        {/* Counts */}
+        <p className="text-sm text-zinc-400 flex-1 min-w-0">
+          {moments.length} momento{moments.length !== 1 ? 's' : ''} en total
+          {pendingCount > 0 && (
+            <span className="ml-2 inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400 ring-1 ring-amber-500/20">
+              {pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}
+            </span>
+          )}
+          {failedCount > 0 && (
+            <span className="ml-2 inline-flex items-center rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-400 ring-1 ring-rose-500/20">
+              {failedCount} con error
+            </span>
+          )}
+        </p>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {approvedCount > 0 && (
+            <button
+              onClick={handleDownloadZip}
+              disabled={downloadingZip}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors disabled:opacity-50 border border-white/10"
+              title="Descarga las imágenes aprobadas en un ZIP. Los videos no están incluidos."
+            >
+              {downloadingZip ? (
+                <ArrowPathIcon className="size-3.5 animate-spin" />
+              ) : (
+                <ArrowDownTrayIcon className="size-3.5" />
+              )}
+              {downloadingZip ? 'Generando…' : 'Descargar fotos (ZIP)'}
+            </button>
+          )}
+          {shareUploadsEnabled && (
+            <button
+              onClick={() => setShowQR(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 transition-colors border border-indigo-500/30"
+              title="Generar QR para subida compartida"
+            >
+              <QrCodeIcon className="size-3.5" />
+              QR de subida
+            </button>
+          )}
+        </div>
+
+        {/* Auto-refresh indicator */}
+        <div className="flex items-center gap-1.5 text-xs text-zinc-500 ml-auto">
+          {isValidating && (
+            <ArrowPathIcon className="size-3 animate-spin text-zinc-400" />
+          )}
+          <span className="hidden sm:inline">
+            {isValidating ? 'Actualizando…' : 'Auto-actualiza cada 15s'}
+          </span>
+        </div>
+
+        {/* Filters */}
+        <div role="tablist" className="flex rounded-lg overflow-hidden border border-white/10">
+          {([
+            { value: 'all',      label: 'Todos' },
+            { value: 'pending',  label: 'Pendientes' },
+            { value: 'approved', label: 'Aprobados' },
+            ...(failedCount > 0 ? [{ value: 'failed', label: 'Errores' }] : []),
+          ] as const).map((f) => (
+            <button
+              key={f.value}
+              role="tab"
+              aria-selected={filter === f.value}
+              onClick={() => setFilter(f.value as typeof filter)}
+              className={[
+                'px-3 py-1.5 text-xs font-medium transition-colors',
+                filter === f.value
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5',
+              ].join(' ')}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Grid ───────────────────────────────────────────────────────── */}
+      {filteredMoments.length === 0 ? (
+        <EmptyState
+          icon={PhotoIcon}
+          title="Sin momentos"
+          description={
+            filter === 'pending'
+              ? 'No hay momentos pendientes de aprobación.'
+              : filter === 'approved'
+                ? 'Aún no hay momentos aprobados.'
+                : filter === 'failed'
+                  ? 'No hay momentos con error de procesamiento.'
+                  : 'Los invitados aún no han compartido momentos, o están siendo procesados por Lambda.'
+          }
+        />
+      ) : (
+        <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" layout>
+          <AnimatePresence>
+            {filteredMoments.map((moment) => (
+              <MomentCard
+                key={moment.id}
+                moment={moment}
+                onApprove={handleApprove}
+                onDelete={handleDelete}
+                onOpenLightbox={handleOpenLightbox}
+                resolveUrl={resolveUrl}
+              />
+            ))}
+          </AnimatePresence>
+        </motion.div>
+      )}
+
+      {/* ── Lightbox portal ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {lightboxIndex !== null && lightboxMoments.length > 0 && (
+          <Lightbox
+            moments={lightboxMoments}
+            index={lightboxIndex}
+            resolveUrl={resolveUrl}
+            onClose={() => setLightboxIndex(null)}
+            onNext={() => setLightboxIndex((i) => ((i ?? 0) + 1) % lightboxMoments.length)}
+            onPrev={() => setLightboxIndex((i) => ((i ?? 0) - 1 + lightboxMoments.length) % lightboxMoments.length)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── QR portal ───────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showQR && <QRModal url={uploadUrl} onClose={() => setShowQR(false)} />}
+      </AnimatePresence>
+    </div>
+  )
+}

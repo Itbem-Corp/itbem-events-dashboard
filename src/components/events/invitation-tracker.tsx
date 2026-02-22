@@ -3,10 +3,10 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
+import { QRCodeSVG } from 'qrcode.react'
 import type { Guest } from '@/models/Guest'
 import type { Event } from '@/models/Event'
 
-import { Subheading } from '@/components/heading'
 import { EmptyState } from '@/components/ui/empty-state'
 import {
   EnvelopeIcon,
@@ -21,6 +21,9 @@ import {
   FunnelIcon,
   ArrowDownTrayIcon,
   ArrowPathIcon,
+  QrCodeIcon,
+  XMarkIcon,
+  ClipboardDocumentIcon,
 } from '@heroicons/react/20/solid'
 import { api } from '@/lib/api'
 
@@ -119,6 +122,73 @@ function InvitationStats({ guests }: { guests: Guest[] }) {
   )
 }
 
+// ─── QR Dialog ────────────────────────────────────────────────────────────────
+
+function QRDialog({
+  guestName,
+  rsvpUrl,
+  onClose,
+}: {
+  guestName: string
+  rsvpUrl: string
+  onClose: () => void
+}) {
+  const copyLink = async () => {
+    await navigator.clipboard.writeText(rsvpUrl)
+    toast.success('Link copiado')
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.92 }}
+        transition={{ duration: 0.15 }}
+        onClick={e => e.stopPropagation()}
+        className="relative w-full max-w-xs rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl space-y-4"
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/5 transition-colors"
+          aria-label="Cerrar"
+        >
+          <XMarkIcon className="size-4" />
+        </button>
+
+        <div className="text-center space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Invitación QR</p>
+          <p className="text-sm font-medium text-zinc-200">{guestName}</p>
+        </div>
+
+        <div className="flex justify-center">
+          <div className="rounded-xl bg-white p-3 shadow-lg">
+            <QRCodeSVG
+              value={rsvpUrl}
+              size={180}
+              level="M"
+              includeMargin={false}
+            />
+          </div>
+        </div>
+
+        <p className="text-xs text-zinc-600 text-center break-all">{rsvpUrl}</p>
+
+        <button
+          onClick={copyLink}
+          className="w-full flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-700 transition-colors"
+        >
+          <ClipboardDocumentIcon className="size-3.5" />
+          Copiar link
+        </button>
+      </motion.div>
+    </div>
+  )
+}
+
 // ─── Guest Row ────────────────────────────────────────────────────────────────
 
 interface GuestInvitationRowProps {
@@ -133,6 +203,7 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
   const method = getMethodIcon(guest.rsvp_method)
   const rsvpUrl = `${PUBLIC_FRONTEND_URL}/evento?token=invitation_${guest.id}`
   const [resending, setResending] = useState(false)
+  const [showQR, setShowQR] = useState(false)
 
   const resend = async () => {
     if (!guest.invitation_id || resending) return
@@ -173,6 +244,16 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
   }
 
   return (
+    <>
+    {showQR && (
+      <AnimatePresence>
+        <QRDialog
+          guestName={`${guest.first_name} ${guest.last_name}`}
+          rsvpUrl={rsvpUrl}
+          onClose={() => setShowQR(false)}
+        />
+      </AnimatePresence>
+    )}
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
@@ -231,6 +312,14 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
       {/* Actions */}
       <div className="flex items-center gap-1.5 shrink-0">
         <button
+          onClick={() => setShowQR(true)}
+          className="p-1.5 rounded-lg text-zinc-600 hover:text-violet-400 hover:bg-violet-500/10 transition-colors"
+          aria-label="Ver QR de invitación"
+          title="Ver código QR"
+        >
+          <QrCodeIcon className="size-4" />
+        </button>
+        <button
           onClick={copyLink}
           className="p-1.5 rounded-lg text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
           aria-label="Copiar link"
@@ -277,6 +366,7 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
         )}
       </div>
     </motion.div>
+    </>
   )
 }
 

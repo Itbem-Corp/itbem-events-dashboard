@@ -1,6 +1,8 @@
 'use client'
 
 import UserAvatar from '@/components/ui/UserAvatar'
+import { NotificationBell } from '@/components/ui/notification-bell'
+import { CommandPalette } from '@/components/ui/command-palette'
 
 import {
   Dropdown,
@@ -35,13 +37,14 @@ import {
 import {
   HomeIcon,
   Square2StackIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/20/solid'
 
 import { usePathname, useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import { fetcher } from '@/lib/fetcher'
 import { useStore } from '@/store/useStore'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Avatar } from '@/components/avatar'
 interface ClientRaw {
   id: string
@@ -103,10 +106,24 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
 
+  const [cmdOpen, setCmdOpen] = useState(false)
+
   const currentClient = useStore((s) => s.currentClient)
   const setCurrentClient = useStore((s) => s.setCurrentClient)
   const clearSession = useStore((s) => s.clearSession)
   const user = useStore((s) => s.user)
+
+  // ⌘K / Ctrl+K global shortcut
+  useEffect(() => {
+    function handle(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setCmdOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', handle)
+    return () => window.removeEventListener('keydown', handle)
+  }, [])
 
   const { data: clients, error: clientsError } = useSWR('/clients', fetcher)
   const isRoot = Boolean(user?.is_root)
@@ -131,11 +148,23 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   }, [clients, currentClient, isRoot, setCurrentClient, router, clientsError])
 
   return (
+    <>
       <SidebarLayout
           navbar={
             <Navbar>
               <NavbarSpacer />
               <NavbarSection>
+                {/* ⌘K quick search */}
+                <button
+                  onClick={() => setCmdOpen(true)}
+                  className="hidden sm:flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-900/50 px-3 py-1.5 text-xs text-zinc-500 hover:border-white/20 hover:text-zinc-300 transition-colors"
+                >
+                  <MagnifyingGlassIcon className="size-3.5" />
+                  Buscar…
+                  <kbd className="rounded border border-zinc-800 bg-zinc-800 px-1 py-0.5 font-mono text-[9px] text-zinc-700">⌘K</kbd>
+                </button>
+
+                <NotificationBell />
                 <Dropdown>
                   <DropdownButton as={NavbarItem}>
                     <UserAvatar user={user} size="sm" />
@@ -170,19 +199,35 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                   <DropdownMenu className="min-w-80 lg:min-w-64" anchor="bottom start">
                     <DropdownHeader>Mis organizaciones</DropdownHeader>
 
-                    {(Array.isArray(clients) ? (clients as ClientRaw[]) : []).map((client) => (
-                        <DropdownItem
-                            key={client.id}
-                            onClick={() => setCurrentClient(normalizeClient(client))}
-                        >
-                          <Avatar
-                              slot="icon"
-                              src={client.logo}
-                              initials={(client.name ?? '??').substring(0, 2).toUpperCase()}
-                          />
-                          <DropdownLabel>{client.name}</DropdownLabel>
-                        </DropdownItem>
-                    ))}
+                    {(['PLATFORM', 'AGENCY', 'CUSTOMER'] as const).map((typeCode) => {
+                      const group = (Array.isArray(clients) ? (clients as ClientRaw[]) : []).filter(
+                        (c) => (c.client_type?.code ?? '').toUpperCase() === typeCode
+                      )
+                      if (group.length === 0) return null
+                      const typeLabel = typeCode === 'PLATFORM' ? 'Plataformas' : typeCode === 'AGENCY' ? 'Agencias' : 'Clientes'
+                      return (
+                        <div key={typeCode}>
+                          <div className="px-3 pt-2 pb-1">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                              {typeLabel}
+                            </span>
+                          </div>
+                          {group.map((client) => (
+                            <DropdownItem
+                              key={client.id}
+                              onClick={() => setCurrentClient(normalizeClient(client))}
+                            >
+                              <Avatar
+                                slot="icon"
+                                src={client.logo}
+                                initials={(client.name ?? '??').substring(0, 2).toUpperCase()}
+                              />
+                              <DropdownLabel>{client.name}</DropdownLabel>
+                            </DropdownItem>
+                          ))}
+                        </div>
+                      )
+                    })}
                   </DropdownMenu>
                 </Dropdown>
               </SidebarHeader>
@@ -200,25 +245,31 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                     <SidebarLabel>Eventos</SidebarLabel>
                   </SidebarItem>
 
-                  <SidebarItem href="/orders" current={pathname.startsWith('/orders')}>
-                    <ShoppingCartIcon />
-                    <SidebarLabel>Órdenes</SidebarLabel>
-                  </SidebarItem>
+                  {!isRoot && (
+                    <SidebarItem href="/orders" current={pathname.startsWith('/orders')}>
+                      <ShoppingCartIcon />
+                      <SidebarLabel>Órdenes</SidebarLabel>
+                    </SidebarItem>
+                  )}
 
-                  <SidebarItem href="/users" current={pathname.startsWith('/users')}>
-                    <UsersIcon />
-                    <SidebarLabel>Usuarios</SidebarLabel>
-                  </SidebarItem>
+                  {isRoot && (
+                    <SidebarItem href="/users" current={pathname.startsWith('/users')}>
+                      <UsersIcon />
+                      <SidebarLabel>Usuarios</SidebarLabel>
+                    </SidebarItem>
+                  )}
                 </SidebarSection>
 
                 <SidebarSpacer />
 
-                <SidebarSection>
-                  <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
-                    <BuildingOfficeIcon />
-                    <SidebarLabel>Clientes</SidebarLabel>
-                  </SidebarItem>
-                </SidebarSection>
+                {isRoot && (
+                  <SidebarSection>
+                    <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
+                      <BuildingOfficeIcon />
+                      <SidebarLabel>Clientes</SidebarLabel>
+                    </SidebarItem>
+                  </SidebarSection>
+                )}
               </SidebarBody>
 
               {/* FOOTER USER */}
@@ -251,5 +302,8 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
       >
         {children}
       </SidebarLayout>
+
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
+    </>
   )
 }

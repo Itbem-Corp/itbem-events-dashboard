@@ -13,4 +13,6 @@ export interface Client extends BaseEntity {
   // Relations
   client_type_id: string;
   client_type?: ClientType;
+  parent_id?: string;
+  parent?: Client;
 }
