@@ -59,6 +59,19 @@ export function EventAnalyticsPanel({ eventId, eventIdentifier }: Props) {
     fetcher,
   )
 
+  // useMemo must be before any early returns (Rules of Hooks)
+  const dietaryData = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const g of guests) {
+      const key = g.dietary_restrictions?.trim() || 'Ninguna'
+      counts[key] = (counts[key] ?? 0) + 1
+    }
+    return Object.entries(counts)
+      .map(([name, value], i) => ({ name, value, color: DIETARY_COLORS[i % DIETARY_COLORS.length] }))
+      .sort((a, b) => b.value - a.value)
+  }, [guests])
+  const hasDietary = guests.some(g => g.dietary_restrictions?.trim())
+
   if (loadingA || loadingG) return <Skeleton />
 
   const totalGuests   = guests.length
@@ -84,18 +97,6 @@ export function EventAnalyticsPanel({ eventId, eventIdentifier }: Props) {
   const roleData = Object.entries(roleCounts)
     .map(([name, value]) => ({ name: name || 'sin rol', value, color: ROLE_COLORS[name] ?? '#71717a' }))
     .sort((a, b) => b.value - a.value)
-
-  const dietaryData = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const g of guests) {
-      const key = g.dietary_restrictions?.trim() || 'Ninguna'
-      counts[key] = (counts[key] ?? 0) + 1
-    }
-    return Object.entries(counts)
-      .map(([name, value], i) => ({ name, value, color: DIETARY_COLORS[i % DIETARY_COLORS.length] }))
-      .sort((a, b) => b.value - a.value)
-  }, [guests])
-  const hasDietary = guests.some(g => g.dietary_restrictions?.trim())
 
   const tooltipStyle = {
     backgroundColor: '#18181b',
