@@ -108,7 +108,7 @@ export default function EventsPage() {
         (event.organizer_name ?? '').toLowerCase().includes(debouncedSearch.toLowerCase())
 
       // Date filter
-      const days = getDaysUntil(event.event_date_time)
+      const days = getDaysUntil(event.event_date_time) ?? 0
       const matchesFilter =
         filter === 'all' ||
         (filter === 'upcoming' && days > 0) ||
@@ -120,11 +120,11 @@ export default function EventsPage() {
   }, [events, debouncedSearch, filter])
 
   const upcomingCount = useMemo(
-    () => events.filter((e) => getDaysUntil(e.event_date_time) > 0).length,
+    () => events.filter((e) => (getDaysUntil(e.event_date_time) ?? 0) > 0).length,
     [events]
   )
   const pastCount = useMemo(
-    () => events.filter((e) => getDaysUntil(e.event_date_time) < 0).length,
+    () => events.filter((e) => (getDaysUntil(e.event_date_time) ?? 0) < 0).length,
     [events]
   )
   const todayCount = useMemo(
@@ -271,7 +271,7 @@ export default function EventsPage() {
         <AnimatedList className="mt-6">
           <ul className="space-y-3">
             {filteredEvents.map((event) => {
-              const days = getDaysUntil(event.event_date_time)
+              const days = getDaysUntil(event.event_date_time) ?? 0
               const isPast = days < 0
 
               return (

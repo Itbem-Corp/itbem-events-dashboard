@@ -20,10 +20,12 @@ vi.mock('motion/react', () => ({
     AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
-// mock qrcode.react — renders a recognizable element for assertions
+// mock qrcode.react — renders recognizable elements for assertions
 vi.mock('qrcode.react', () => ({
     QRCodeSVG: ({ value }: { value: string }) =>
         <svg data-testid="qr-code" data-value={value} />,
+    QRCodeCanvas: ({ id, value }: { id?: string; value: string }) =>
+        <canvas id={id} data-testid="qr-canvas" data-value={value} />,
 }))
 
 // mock api (for resend)
@@ -128,11 +130,11 @@ describe('InvitationTracker — QR Dialog', () => {
         expect(value).toContain('token=')
     })
 
-    it('QR dialog has "Invitación QR" label', async () => {
+    it('QR dialog has "Invitación personal" label', async () => {
         await renderTracker()
         fireEvent.click(screen.getByTitle('Ver código QR'))
         await waitFor(() => {
-            expect(screen.getByText(/Invitación QR/i)).toBeInTheDocument()
+            expect(screen.getByText(/Invitación personal/i)).toBeInTheDocument()
         })
     })
 

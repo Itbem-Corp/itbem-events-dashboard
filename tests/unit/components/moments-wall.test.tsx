@@ -38,9 +38,10 @@ vi.mock('sonner', () => ({
     },
 }))
 
-// Mock qrcode.react so it doesn't render SVG in tests
+// Mock qrcode.react so it doesn't render real QR in tests
 vi.mock('qrcode.react', () => ({
     QRCodeSVG: ({ value }: { value: string }) => <div data-testid="qr-code" data-value={value} />,
+    QRCodeCanvas: ({ id, value }: { id?: string; value: string }) => <canvas id={id} data-testid="qr-canvas" data-value={value} />,
 }))
 
 // Mock JSZip
