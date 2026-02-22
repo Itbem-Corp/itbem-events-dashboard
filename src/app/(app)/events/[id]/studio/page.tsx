@@ -547,7 +547,7 @@ function SectionRow({
           <button
             onClick={() => onMoveUp(section)}
             disabled={isFirst}
-            className="p-1 rounded text-zinc-600 hover:text-zinc-300 disabled:opacity-30 transition-colors"
+            className="p-2 rounded text-zinc-600 hover:text-zinc-300 disabled:opacity-30 transition-colors"
             title="Subir"
           >
             <ArrowUpIcon className="size-3" />
@@ -555,7 +555,7 @@ function SectionRow({
           <button
             onClick={() => onMoveDown(section)}
             disabled={isLast}
-            className="p-1 rounded text-zinc-600 hover:text-zinc-300 disabled:opacity-30 transition-colors"
+            className="p-2 rounded text-zinc-600 hover:text-zinc-300 disabled:opacity-30 transition-colors"
             title="Bajar"
           >
             <ArrowDownIcon className="size-3" />
@@ -564,7 +564,7 @@ function SectionRow({
             onClick={handleToggle}
             disabled={togglingVisible}
             className={[
-              'p-1 rounded transition-colors',
+              'p-2 rounded transition-colors',
               section.is_visible ? 'text-zinc-400 hover:text-zinc-200' : 'text-zinc-700 hover:text-zinc-500',
             ].join(' ')}
             title={section.is_visible ? 'Ocultar' : 'Mostrar'}
@@ -733,6 +733,7 @@ export default function StudioPage() {
   const [publishing, setPublishing] = useState(false)
   const [published, setPublished] = useState(false)
   const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   const { data: event } = useSWR<Event>(
     id ? `/events/${id}` : null,
@@ -824,10 +825,14 @@ export default function StudioPage() {
   const sortedSections = [...sections].sort((a, b) => a.order - b.order)
 
   return (
-    <div className="fixed inset-0 z-50 flex overflow-hidden bg-zinc-950">
+    <div className="fixed inset-0 z-50 flex flex-col lg:flex-row overflow-hidden bg-zinc-950">
 
       {/* ── Left Sidebar ───────────────────────────────────────────────────── */}
-      <div className="flex flex-col w-72 shrink-0 border-r border-white/10 bg-zinc-950">
+      <div className={[
+        'flex flex-col w-full lg:w-72 shrink-0 border-b lg:border-b-0 lg:border-r border-white/10 bg-zinc-950',
+        // On mobile: show sidebar when not showing preview; on lg always show
+        showPreview ? 'hidden lg:flex' : 'flex',
+      ].join(' ')}>
 
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
@@ -839,10 +844,18 @@ export default function StudioPage() {
             Volver
           </a>
           <p className="flex-1 min-w-0 text-sm font-semibold text-zinc-200 truncate">{event?.name ?? '…'}</p>
+          {/* Mobile: toggle to preview */}
+          <button
+            onClick={() => setShowPreview(true)}
+            className="lg:hidden shrink-0 flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-white/5 transition-colors"
+          >
+            <EyeIcon className="size-3.5" />
+            <span className="sr-only">Ver preview</span>
+          </button>
         </div>
 
         {/* Panel tabs */}
-        <div className="flex border-b border-white/10">
+        <div className="flex overflow-x-auto border-b border-white/10 scrollbar-none">
           {([
             { id: 'sections' as PanelId, icon: ListBulletIcon, label: 'Secciones' },
             { id: 'config' as PanelId, icon: Cog6ToothIcon, label: 'Ajustes' },
@@ -852,7 +865,7 @@ export default function StudioPage() {
               key={tabId}
               onClick={() => setActivePanel(tabId)}
               className={[
-                'flex flex-1 flex-col items-center gap-0.5 py-2 px-1 text-[10px] font-medium transition-colors',
+                'flex shrink-0 flex-1 flex-col items-center gap-0.5 py-2 px-1 text-[10px] font-medium transition-colors',
                 activePanel === tabId
                   ? 'text-indigo-400 border-b-2 border-indigo-500'
                   : 'text-zinc-600 hover:text-zinc-400',
@@ -1013,10 +1026,22 @@ export default function StudioPage() {
       </div>
 
       {/* ── Preview Area ────────────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 bg-zinc-900">
+      <div className={[
+        'flex flex-col flex-1 min-w-0 bg-zinc-900',
+        // On mobile: only show when showPreview is true; on lg always show
+        showPreview ? 'flex' : 'hidden lg:flex',
+      ].join(' ')}>
 
         {/* Toolbar */}
-        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/10 bg-zinc-950">
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/10 bg-zinc-950">
+          {/* Mobile: back to editor button */}
+          <button
+            onClick={() => setShowPreview(false)}
+            className="lg:hidden shrink-0 flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-white/5 transition-colors"
+          >
+            <ChevronLeftIcon className="size-3.5" />
+            <span className="sr-only">Volver al editor</span>
+          </button>
           {/* Device toggles */}
           <div className="flex rounded-lg overflow-hidden border border-white/10">
             {([
@@ -1039,8 +1064,8 @@ export default function StudioPage() {
             ))}
           </div>
 
-          {/* URL bar */}
-          <div className="flex-1 flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5">
+          {/* URL bar — hidden on mobile to save space */}
+          <div className="hidden sm:flex flex-1 items-center gap-2 rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 min-w-0">
             <GlobeAltIcon className="size-3.5 text-zinc-600 shrink-0" />
             <span className="text-xs text-zinc-500 font-mono truncate">
               {previewUrl.replace(`?preview=1&t=${iframeKey}`, '?preview=1')}
@@ -1069,7 +1094,7 @@ export default function StudioPage() {
         </div>
 
         {/* IFrame container */}
-        <div className="flex-1 overflow-auto flex items-start justify-center p-4 bg-zinc-900">
+        <div className="flex-1 overflow-auto flex items-start justify-center p-2 sm:p-4 bg-zinc-900">
           <AnimatePresence mode="wait">
             <motion.div
               key={device}
@@ -1077,9 +1102,8 @@ export default function StudioPage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.97 }}
               transition={{ duration: 0.2 }}
-              className="relative rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-white"
+              className="relative rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-white w-full"
               style={{
-                width: DEVICE_DIMENSIONS[device].width,
                 maxWidth: DEVICE_DIMENSIONS[device].maxW,
                 minHeight: device === 'mobile' ? '812px' : '600px',
                 height: device === 'desktop' ? 'calc(100vh - 120px)' : 'auto',

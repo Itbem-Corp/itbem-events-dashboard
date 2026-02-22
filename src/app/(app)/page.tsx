@@ -65,7 +65,7 @@ export default function Home() {
       </div>
 
       {/* KPIs */}
-      <div className="mt-8 grid gap-8 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {isLoading ? (
           <>
             {[...Array(4)].map((_, i) => (
@@ -94,7 +94,7 @@ export default function Home() {
               transition={{ duration: 0.2 }}
               className="rounded-xl border border-indigo-500/25 bg-gradient-to-r from-indigo-500/5 to-violet-500/5 p-5 hover:border-indigo-500/40 hover:from-indigo-500/8 hover:to-violet-500/8 transition-all"
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <BoltIcon className="size-4 text-indigo-400 shrink-0" />
@@ -118,11 +118,11 @@ export default function Home() {
                     <p className="text-xs text-zinc-500 mt-0.5">días</p>
                   </div>
                   {/* Quick actions */}
-                  <div className="flex gap-1.5">
+                  <div className="flex flex-wrap gap-1.5">
                     <a
                       href={`/events/${nextEvent.id}/studio`}
                       onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-400 hover:bg-indigo-500/20 transition-colors"
+                      className="flex items-center gap-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2 py-1.5 text-[11px] font-medium text-indigo-400 hover:bg-indigo-500/20 transition-colors"
                     >
                       <PaintBrushIcon className="size-3" />
                       Studio
@@ -130,7 +130,7 @@ export default function Home() {
                     <a
                       href={`/events/${nextEvent.id}/checkin`}
                       onClick={(e) => e.stopPropagation()}
-                      className="flex items-center gap-1 rounded-lg border border-lime-500/30 bg-lime-500/10 px-2 py-1 text-[11px] font-medium text-lime-400 hover:bg-lime-500/20 transition-colors"
+                      className="flex items-center gap-1 rounded-lg border border-lime-500/30 bg-lime-500/10 px-2 py-1.5 text-[11px] font-medium text-lime-400 hover:bg-lime-500/20 transition-colors"
                     >
                       Check-in
                     </a>
@@ -140,7 +140,7 @@ export default function Home() {
 
               {/* Guest stats for next event */}
               {nextEventGuests.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-white/5 flex items-center gap-5 text-xs">
+                <div className="mt-4 pt-4 border-t border-white/5 flex flex-wrap items-center gap-4 text-xs">
                   <span className="flex items-center gap-1.5 text-zinc-500">
                     <UsersIcon className="size-3.5 text-zinc-600" />
                     {nextEventGuests.length} invitados
