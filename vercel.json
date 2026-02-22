@@ -2,19 +2,5 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install",
-  "env": {
-    "NEXT_PUBLIC_BACKEND_URL": "@next_public_backend_url"
-  },
-  "build": {
-    "env": {
-      "NEXT_PUBLIC_BACKEND_URL": "@next_public_backend_url",
-      "COGNITO_REGION": "@cognito_region",
-      "COGNITO_USER_POOL_ID": "@cognito_user_pool_id",
-      "COGNITO_CLIENT_ID": "@cognito_client_id",
-      "COGNITO_DOMAIN": "@cognito_domain",
-      "COGNITO_REDIRECT_URI": "@cognito_redirect_uri",
-      "COGNITO_LOGOUT_REDIRECT_URI": "@cognito_logout_redirect_uri"
-    }
-  }
+  "installCommand": "npm install"
 }
