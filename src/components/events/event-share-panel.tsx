@@ -3,15 +3,15 @@
 import { useState } from 'react'
 import { motion } from 'motion/react'
 import { toast } from 'sonner'
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import type { Event } from '@/models/Event'
 import type { Guest } from '@/models/Guest'
 
 import {
-  LinkIcon,
-  QrCodeIcon,
   EnvelopeIcon,
   DevicePhoneMobileIcon,
   GlobeAltIcon,
+  ArrowDownTrayIcon,
 } from '@heroicons/react/20/solid'
 
 const PUBLIC_FRONTEND_URL =
@@ -73,6 +73,18 @@ interface Props {
 export function EventSharePanel({ event, guests }: Props) {
   const eventUrl = `${PUBLIC_FRONTEND_URL}/e/${event.identifier}`
   const rsvpUrl = `${PUBLIC_FRONTEND_URL}/rsvp/${event.identifier}`
+
+  const downloadQR = () => {
+    const canvasEl = document.getElementById(
+      `qr-download-canvas-${event.id}`
+    ) as HTMLCanvasElement | null
+    if (!canvasEl) return
+    const url = canvasEl.toDataURL('image/png')
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `qr-${event.identifier}.png`
+    a.click()
+  }
 
   const confirmedWithEmail = guests.filter(
     (g) => g.status?.code === 'CONFIRMED' && g.email
@@ -170,19 +182,50 @@ export function EventSharePanel({ event, guests }: Props) {
         </motion.div>
       )}
 
-      {/* QR code hint */}
+      {/* QR code */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.18 }}
-        className="rounded-xl border border-white/10 bg-zinc-900/30 p-4 flex items-center gap-3"
+        className="rounded-xl border border-white/10 bg-zinc-900/50 p-5"
       >
-        <QrCodeIcon className="size-8 text-zinc-600 shrink-0" />
-        <div>
-          <p className="text-sm text-zinc-400">Código QR del evento</p>
-          <p className="text-xs text-zinc-600 mt-0.5">
-            El QR para el evento está disponible en la página pública o puedes generarlo con cualquier servicio de QR usando la URL del evento.
-          </p>
+        <p className="text-sm font-medium text-zinc-300 mb-4">Código QR del evento</p>
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          {/* Visible QR (SVG) */}
+          <div className="rounded-xl overflow-hidden bg-white p-3 inline-block shrink-0">
+            <QRCodeSVG
+              value={eventUrl}
+              size={160}
+              bgColor="#ffffff"
+              fgColor="#18181b"
+              level="M"
+            />
+          </div>
+
+          <div className="flex-1 space-y-3 w-full sm:w-auto">
+            <p className="text-xs text-zinc-500">
+              Los invitados pueden escanear este código para acceder al evento.
+            </p>
+            <button
+              onClick={downloadQR}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg bg-zinc-800 border border-white/10 px-4 py-2 text-sm font-medium text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700 transition-colors"
+            >
+              <ArrowDownTrayIcon className="size-4" />
+              Descargar QR
+            </button>
+          </div>
+        </div>
+
+        {/* Hidden high-res canvas used for PNG download */}
+        <div className="absolute -left-[9999px] -top-[9999px]" aria-hidden>
+          <QRCodeCanvas
+            id={`qr-download-canvas-${event.id}`}
+            value={eventUrl}
+            size={512}
+            bgColor="#ffffff"
+            fgColor="#18181b"
+            level="M"
+          />
         </div>
       </motion.div>
     </div>
