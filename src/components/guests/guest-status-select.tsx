@@ -32,7 +32,7 @@ interface Props {
   statuses?: GuestStatus[]
 }
 
-export function GuestStatusSelect({ guest, eventIdentifier, statuses }: Props) {
+export function GuestStatusSelect({ guest, eventIdentifier, eventId, statuses }: Props) {
   const [loading, setLoading] = useState(false)
   const currentCode = guest.status?.code ?? 'PENDING'
   const colorClass = STATUS_BG[currentCode] ?? 'bg-zinc-800 text-zinc-400 border-white/10'

@@ -42,12 +42,13 @@ function getStatusInfo(code?: string) {
 interface GuestCheckinCardProps {
   guest: Guest
   eventIdentifier: string
+  eventId?: string
   confirmedStatusId: string
   declinedStatusId: string
   pendingStatusId: string
 }
 
-function GuestCheckinCard({ guest, eventIdentifier, confirmedStatusId, declinedStatusId, pendingStatusId }: GuestCheckinCardProps) {
+function GuestCheckinCard({ guest, eventIdentifier, eventId, confirmedStatusId, declinedStatusId, pendingStatusId }: GuestCheckinCardProps) {
   const [loading, setLoading] = useState(false)
   const status = getStatusInfo(guest.status?.code)
   const StatusIcon = status.icon
@@ -58,7 +59,7 @@ function GuestCheckinCard({ guest, eventIdentifier, confirmedStatusId, declinedS
     setLoading(true)
     try {
       await api.put(`/guests/${guest.id}`, { ...guest, status_id: statusId })
-      await mutate(`/guests/all:${event?.id}`)
+      await mutate(`/guests/all:${eventId}`)
     } catch {
       toast.error('Error al actualizar')
     } finally {
@@ -334,6 +335,7 @@ export default function CheckinPage() {
                   key={guest.id}
                   guest={guest}
                   eventIdentifier={event?.identifier ?? ''}
+                  eventId={event?.id}
                   confirmedStatusId={confirmedStatusId}
                   declinedStatusId={declinedStatusId}
                   pendingStatusId={pendingStatusId}
