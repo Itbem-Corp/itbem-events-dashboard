@@ -7,6 +7,8 @@ import { fetcher } from '@/lib/fetcher'
 import { useParams } from 'next/navigation'
 import type { Event } from '@/models/Event'
 import type { Guest } from '@/models/Guest'
+import { getEffectiveStatus } from '@/lib/guest-utils'
+import { eventTypeLabel } from '@/lib/event-type-label'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -23,6 +25,9 @@ import { EventSectionsManager } from '@/components/events/event-sections-manager
 import { EventCoverUpload } from '@/components/events/event-cover-upload'
 import { EventSharePanel } from '@/components/events/event-share-panel'
 import { EventAnalyticsPanel } from '@/components/events/event-analytics-panel'
+import { EventErrorBoundary } from '@/components/events/event-error-boundary'
+import { useEventHealthCheck } from '@/hooks/useEventHealthCheck'
+import { sanitizeEvent } from '@/lib/sanitize-event'
 
 const EventDesignPicker = dynamic(
   () => import('@/components/events/event-design-picker').then((m) => m.EventDesignPicker),
@@ -61,7 +66,7 @@ import {
   ClipboardDocumentCheckIcon,
 } from '@heroicons/react/20/solid'
 
-const PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://www.eventiapp.com.mx'
+const PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_ASTRO_URL ?? 'https://www.eventiapp.com.mx'
 
 // Lazy-loaded modals & heavy components
 const EventFormModal = dynamic(
@@ -221,11 +226,16 @@ export default function EventDetailPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
 
-  // Data fetching
-  const { data: event, isLoading, error } = useSWR<Event>(
+  // Data fetching — backend wraps single event in an array, so unwrap it
+  const { data: rawEvent, isLoading, error } = useSWR<Event | Event[]>(
     id ? `/events/${id}` : null,
     fetcher
   )
+  const rawUnwrapped = Array.isArray(rawEvent) ? rawEvent[0] : rawEvent
+  const event = rawUnwrapped ? sanitizeEvent(rawUnwrapped) : undefined
+
+  // Self-healing: detect and repair data issues transparently
+  useEventHealthCheck(rawUnwrapped)
 
   const { data: rawGuests, isLoading: guestsLoading } = useSWR(
     event?.id ? `/guests/all:${event.id}` : null,
@@ -233,6 +243,13 @@ export default function EventDetailPage() {
     { revalidateOnFocus: false }
   )
   const guests: Guest[] = Array.isArray(rawGuests) ? rawGuests : (rawGuests?.data ?? rawGuests ?? [])
+
+  // Event types catalog — for resolving event_type_id to a name
+  const { data: eventTypes } = useSWR<import('@/models/EventType').EventType[]>(
+    '/event-types',
+    fetcher,
+    { shouldRetryOnError: false, revalidateOnFocus: false }
+  )
 
   // Guest status catalog — graceful fallback if endpoint doesn't exist
   const { data: guestStatuses } = useSWR<import('@/models/GuestStatus').GuestStatus[]>(
@@ -261,8 +278,8 @@ export default function EventDetailPage() {
       g.email ?? '',
       g.phone ?? '',
       g.table_number ?? '',
-      String(g.guests_count ?? 1),
-      g.status?.code ?? 'PENDING',
+      String(g.guests_count ?? 0),
+      getEffectiveStatus(g),
       g.dietary_restrictions ?? '',
     ])
     const csvContent = [headers, ...rows]
@@ -337,9 +354,9 @@ export default function EventDetailPage() {
   }, [selectedIds, event])
 
   // Derived guest stats
-  const confirmed = guests.filter((g) => g.status?.code === 'CONFIRMED')
-  const pending = guests.filter((g) => g.status?.code === 'PENDING')
-  const declined = guests.filter((g) => g.status?.code === 'DECLINED')
+  const confirmed = guests.filter((g) => getEffectiveStatus(g) === 'CONFIRMED')
+  const pending = guests.filter((g) => getEffectiveStatus(g) === 'PENDING')
+  const declined = guests.filter((g) => getEffectiveStatus(g) === 'DECLINED')
   const totalAttendees = confirmed.reduce((sum, g) => sum + (g.guests_count ?? 1), 0)
 
   const filteredGuests = guests
@@ -349,7 +366,7 @@ export default function EventDetailPage() {
         `${g.first_name} ${g.last_name}`.toLowerCase().includes(guestSearch.toLowerCase()) ||
         (g.email ?? '').toLowerCase().includes(guestSearch.toLowerCase()) ||
         (g.table_number ?? '').toLowerCase().includes(guestSearch.toLowerCase())
-      const matchesStatus = guestFilter === 'ALL' || g.status?.code === guestFilter
+      const matchesStatus = guestFilter === 'ALL' || getEffectiveStatus(g) === guestFilter
       return matchesSearch && matchesStatus
     })
     .sort((a, b) => {
@@ -357,7 +374,7 @@ export default function EventDetailPage() {
       if (sortCol === 'name') {
         cmp = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
       } else if (sortCol === 'status') {
-        cmp = (a.status?.code ?? '').localeCompare(b.status?.code ?? '')
+        cmp = getEffectiveStatus(a).localeCompare(getEffectiveStatus(b))
       } else if (sortCol === 'table') {
         cmp = (a.table_number ?? '').localeCompare(b.table_number ?? '')
       } else if (sortCol === 'guests_count') {
@@ -389,83 +406,116 @@ export default function EventDetailPage() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
+    <EventErrorBoundary eventId={id}>
     <PageTransition>
-      {/* Breadcrumb */}
-      <div className="max-lg:hidden">
-        <Link
-          href="/events"
-          className="inline-flex items-center gap-2 text-sm/6 text-zinc-500 hover:text-zinc-300 transition-colors"
-        >
-          <ChevronLeftIcon className="size-4 fill-zinc-500" />
-          Eventos
-        </Link>
-      </div>
+      {/* Banner header with cover image */}
+      <div className="relative overflow-hidden rounded-2xl border border-white/10">
+        {/* Cover image background */}
+        {event.cover_image_url && (
+          <img
+            src={event.cover_image_url}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
 
-      {/* Header */}
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <Heading>{event.name}</Heading>
-          <Badge color={event.is_active ? 'lime' : 'zinc'}>
-            {event.is_active ? 'Activo' : 'Inactivo'}
-          </Badge>
-        </div>
-        {/* Fix 1: flex-wrap so buttons stack on mobile */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <a
-            href={`/events/${id}/studio`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-sm font-medium text-indigo-400 hover:bg-indigo-500/20 hover:border-indigo-500/50 transition-colors"
-          >
-            <PaintBrushIcon className="size-4" />
-            Studio
-          </a>
-          <a
-            href={`${PUBLIC_FRONTEND_URL}/e/${event.identifier}?preview=1`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900/50 px-3 py-2 text-sm font-medium text-zinc-400 hover:border-white/20 hover:text-zinc-200 transition-colors"
-          >
-            <ArrowTopRightOnSquareIcon className="size-4" />
-            Vista previa
-          </a>
-          <a
-            href={`/events/${id}/checkin`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-lime-500/30 bg-lime-500/10 px-3 py-2 text-sm font-medium text-lime-400 hover:bg-lime-500/20 hover:border-lime-500/50 transition-colors"
-          >
-            <ClipboardDocumentCheckIcon className="size-4" />
-            Check-in
-          </a>
-          <Button outline onClick={() => setIsEditOpen(true)}>
-            Editar evento
-          </Button>
-        </div>
-      </div>
+        {/* Gradient overlay */}
+        <div
+          className={
+            event.cover_image_url
+              ? 'absolute inset-0 bg-gradient-to-r from-zinc-950/95 via-zinc-950/80 to-zinc-950/60'
+              : 'absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-900/95 to-zinc-800/90'
+          }
+        />
 
-      {/* Event meta */}
-      <p className="mt-2 text-sm/6 text-zinc-500">
-        {formatEventDate(event.event_date_time, event.timezone)}
-        {event.address && (
-          <>
+        {/* Content */}
+        <div className="relative px-6 py-6 sm:py-8">
+          {/* Breadcrumb */}
+          <div className="max-lg:hidden mb-4">
+            <Link
+              href="/events"
+              className="inline-flex items-center gap-2 text-sm/6 text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              <ChevronLeftIcon className="size-4 fill-zinc-400" />
+              Eventos
+            </Link>
+          </div>
+
+          {/* Title + Badge */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Heading>{event.name}</Heading>
+            <Badge color={event.is_active ? 'lime' : 'zinc'}>
+              {event.is_active ? 'Activo' : 'Inactivo'}
+            </Badge>
+            {(() => {
+              const typeLabel = eventTypeLabel(event.event_type?.name || eventTypes?.find((et) => et.id === event.event_type_id)?.name)
+              return typeLabel ? (
+                <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-zinc-300">
+                  {typeLabel}
+                </span>
+              ) : null
+            })()}
+          </div>
+
+          {/* Meta line */}
+          <p className="mt-2 text-sm/6 text-zinc-400 break-words">
+            {formatEventDate(event.event_date_time, event.timezone)}
+            {event.address && (
+              <>
+                <span aria-hidden="true" className="hidden sm:inline"> · </span>
+                <br className="sm:hidden" />
+                {event.address}
+              </>
+            )}
             <span aria-hidden="true"> · </span>
-            {event.address}
-          </>
-        )}
-        <span aria-hidden="true"> · </span>
-        {daysUntil === null ? (
-          <span className="text-zinc-500">Sin fecha</span>
-        ) : daysUntil === 0 ? (
-          <span className="text-amber-400 font-medium">¡Hoy!</span>
-        ) : isPast ? (
-          <span className="text-zinc-600">Hace {Math.abs(daysUntil)} días</span>
-        ) : daysUntil <= 7 ? (
-          <span className="text-amber-400 font-medium">En {daysUntil} día{daysUntil !== 1 ? 's' : ''}</span>
-        ) : (
-          <span>En {daysUntil} días</span>
-        )}
-      </p>
+            {daysUntil === null ? (
+              <span className="text-zinc-500">Sin fecha</span>
+            ) : daysUntil === 0 ? (
+              <span className="text-amber-400 font-medium">¡Hoy!</span>
+            ) : isPast ? (
+              <span className="text-zinc-500">Hace {Math.abs(daysUntil)} días</span>
+            ) : daysUntil <= 7 ? (
+              <span className="text-amber-400 font-medium">En {daysUntil} día{daysUntil !== 1 ? 's' : ''}</span>
+            ) : (
+              <span>En {daysUntil} días</span>
+            )}
+          </p>
+
+          {/* Action buttons */}
+          <div className="mt-4 flex flex-wrap items-center gap-2 sm:gap-3">
+            <a
+              href={`/events/${id}/studio`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-sm font-medium text-indigo-400 hover:bg-indigo-500/20 hover:border-indigo-500/50 transition-colors"
+            >
+              <PaintBrushIcon className="size-4" />
+              Studio
+            </a>
+            <a
+              href={`${PUBLIC_FRONTEND_URL}/e/${event.identifier}?preview=1`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-zinc-300 hover:border-white/20 hover:text-zinc-100 transition-colors"
+            >
+              <ArrowTopRightOnSquareIcon className="size-4" />
+              Vista previa
+            </a>
+            <a
+              href={`/events/${id}/checkin`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-lime-500/30 bg-lime-500/10 px-3 py-2 text-sm font-medium text-lime-400 hover:bg-lime-500/20 hover:border-lime-500/50 transition-colors"
+            >
+              <ClipboardDocumentCheckIcon className="size-4" />
+              Check-in
+            </a>
+            <Button outline onClick={() => setIsEditOpen(true)}>
+              Editar evento
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* Tab navigation */}
       {/* Fix 2: tabs already have overflow-x-auto scrollbar-none; add shrink-0 whitespace-nowrap to each tab button */}
-      <div className="mt-8 border-b border-white/10">
+      <div className="mt-6 border-b border-white/10">
         <nav className="flex gap-0.5 overflow-x-auto pb-px scrollbar-none" aria-label="Tabs">
           {TABS.map((tab) => {
             const Icon = tab.icon
@@ -491,7 +541,7 @@ export default function EventDetailPage() {
                 {tab.id === 'invitaciones' && guests.length > 0 && (
                   (() => {
                     const pendingCount = guests.filter(
-                      (g) => !['CONFIRMED', 'DECLINED'].includes((g.rsvp_status ?? g.status?.code ?? 'PENDING').toUpperCase())
+                      (g) => getEffectiveStatus(g) === 'PENDING'
                     ).length
                     return pendingCount > 0 ? (
                       <span className="ml-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-xs text-amber-400">
@@ -535,11 +585,12 @@ export default function EventDetailPage() {
                   },
                   {
                     label: 'Confirmados',
-                    value: guests.length > 0
-                      ? `${confirmed.length} (${totalAttendees} tot.)`
-                      : '—',
+                    value: `${confirmed.length} (${totalAttendees} tot.)`,
                   },
-                  { label: 'Tipo de evento', value: event.event_type?.name || '—' },
+                  {
+                    label: 'Tipo de evento',
+                    value: eventTypeLabel(event.event_type?.name || eventTypes?.find((et) => et.id === event.event_type_id)?.name) || '—',
+                  },
                   {
                     label: isPast ? 'Días desde el evento' : 'Días para el evento',
                     value: daysUntil === null ? '—' : daysUntil === 0 ? '¡Hoy!' : String(Math.abs(daysUntil)),
@@ -618,9 +669,10 @@ export default function EventDetailPage() {
               {/* Cover image */}
               <div>
                 <Subheading>Imagen de portada</Subheading>
-                <div className="mt-3">
-                  <EventCoverUpload event={event} />
-                </div>
+                <p className="mt-1 text-sm text-zinc-500 mb-3">
+                  La imagen aparece como fondo en el encabezado del evento.
+                </p>
+                <EventCoverUpload event={event} />
               </div>
 
               {/* Go to guests CTA */}
@@ -759,18 +811,18 @@ export default function EventDetailPage() {
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 8 }}
-                        className="sticky top-2 z-10 mb-3 flex items-center justify-between gap-3 rounded-xl border border-indigo-500/30 bg-indigo-950/80 px-4 py-2.5 backdrop-blur-sm shadow-lg"
+                        className="sticky top-2 z-10 mb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 rounded-xl border border-indigo-500/30 bg-indigo-950/80 px-4 py-3 sm:py-2.5 backdrop-blur-sm shadow-lg"
                       >
                         <span className="text-sm font-medium text-indigo-300">
                           {selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           {guestStatuses && (
                             <>
                               <button
                                 onClick={() => bulkUpdateStatus('CONFIRMED')}
                                 disabled={bulkLoading}
-                                className="flex items-center gap-1.5 rounded-lg bg-lime-500/20 px-3 py-1.5 text-xs font-medium text-lime-400 hover:bg-lime-500/30 transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1.5 rounded-lg bg-lime-500/20 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-lime-400 hover:bg-lime-500/30 transition-colors disabled:opacity-50"
                               >
                                 <CheckIcon className="size-3.5" />
                                 Confirmar
@@ -778,14 +830,14 @@ export default function EventDetailPage() {
                               <button
                                 onClick={() => bulkUpdateStatus('DECLINED')}
                                 disabled={bulkLoading}
-                                className="flex items-center gap-1.5 rounded-lg bg-pink-500/20 px-3 py-1.5 text-xs font-medium text-pink-400 hover:bg-pink-500/30 transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1.5 rounded-lg bg-pink-500/20 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-pink-400 hover:bg-pink-500/30 transition-colors disabled:opacity-50"
                               >
                                 Declinar
                               </button>
                               <button
                                 onClick={() => bulkUpdateStatus('PENDING')}
                                 disabled={bulkLoading}
-                                className="flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/30 transition-colors disabled:opacity-50"
+                                className="flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/30 transition-colors disabled:opacity-50"
                               >
                                 Pendiente
                               </button>
@@ -794,13 +846,13 @@ export default function EventDetailPage() {
                           <button
                             onClick={bulkDeleteGuests}
                             disabled={bulkLoading}
-                            className="flex items-center gap-1.5 rounded-lg bg-red-500/20 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                            className="flex items-center gap-1.5 rounded-lg bg-red-500/20 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50"
                           >
                             Eliminar
                           </button>
                           <button
                             onClick={() => setSelectedIds(new Set())}
-                            className="ml-1 p-1 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors"
+                            className="ml-auto sm:ml-1 p-1 rounded-lg text-zinc-500 hover:text-zinc-300 transition-colors"
                           >
                             <XMarkIcon className="size-4" />
                           </button>
@@ -1157,5 +1209,6 @@ export default function EventDetailPage() {
         eventIdentifier={event.identifier}
       />
     </PageTransition>
+    </EventErrorBoundary>
   )
 }
