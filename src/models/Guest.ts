@@ -33,6 +33,7 @@ export interface Guest extends BaseEntity {
   // Logistics
   order?: number;           // display order in guest lists / programs
   table_number?: string;
+  table_id?: string | null;
   dietary_restrictions?: string;
   role?: string;            // graduate | guest | host | vip | speaker | staff
   is_host?: boolean;
