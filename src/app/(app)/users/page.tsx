@@ -43,10 +43,11 @@ const PAGE_SIZE = 10
 export default function UsersPage() {
     const router = useRouter()
 
-    const { data: users = [], isLoading, error } = useSWR<User[]>('/users/all', fetcher, {
+    const { data: rawData, isLoading, error } = useSWR('/users/all', fetcher, {
         revalidateOnFocus: false,
         revalidateIfStale: false,
     })
+    const users: User[] = Array.isArray(rawData) ? rawData : (rawData?.data ?? [])
 
     const [search, setSearch] = useState('')
     const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'ROOT'>('ALL')
