@@ -154,7 +154,7 @@ function InvitadosTabSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
       {/* Stats mini-grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="flex flex-col items-center rounded-xl border border-white/10 bg-zinc-900/50 py-4 gap-2">
             <div className="h-7 w-10 bg-zinc-800 rounded" />
@@ -405,7 +405,8 @@ export default function EventDetailPage() {
             {event.is_active ? 'Activo' : 'Inactivo'}
           </Badge>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Fix 1: flex-wrap so buttons stack on mobile */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <a
             href={`/events/${id}/studio`}
             className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-sm font-medium text-indigo-400 hover:bg-indigo-500/20 hover:border-indigo-500/50 transition-colors"
@@ -457,6 +458,7 @@ export default function EventDetailPage() {
       </p>
 
       {/* Tab navigation */}
+      {/* Fix 2: tabs already have overflow-x-auto scrollbar-none; add shrink-0 whitespace-nowrap to each tab button */}
       <div className="mt-8 border-b border-white/10">
         <nav className="flex gap-0.5 overflow-x-auto pb-px scrollbar-none" aria-label="Tabs">
           {TABS.map((tab) => {
@@ -467,7 +469,7 @@ export default function EventDetailPage() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={[
-                  'relative flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+                  'relative flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
                   isActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5',
                 ].join(' ')}
                 aria-selected={isActive}
@@ -635,9 +637,9 @@ export default function EventDetailPage() {
           {activeTab === 'invitados' && (
             guestsLoading ? <InvitadosTabSkeleton /> :
             <div>
-              {/* Stats summary */}
+              {/* Fix 3: Stats summary — grid-cols-2 lg:grid-cols-4 */}
               {guests.length > 0 && (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-6">
                   {[
                     { label: 'Total', value: guests.length, color: 'text-zinc-100' },
                     { label: 'Confirmados', value: confirmed.length, color: 'text-lime-400' },
@@ -657,8 +659,8 @@ export default function EventDetailPage() {
 
               {/* Toolbar */}
               <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
-                {/* Search */}
-                <div className="relative flex-1 min-w-[180px] max-w-xs">
+                {/* Fix 7: Search — w-full sm:max-w-xs */}
+                <div className="relative w-full sm:max-w-xs">
                   <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-500" />
                   <input
                     type="search"
@@ -669,7 +671,8 @@ export default function EventDetailPage() {
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
+                {/* Fix 4: filter buttons + actions — flex-wrap */}
+                <div className="flex flex-wrap items-center gap-2">
                   {/* Status filter */}
                   <div className="flex rounded-lg overflow-hidden border border-white/10">
                     {[
@@ -800,7 +803,67 @@ export default function EventDetailPage() {
                     )}
                   </AnimatePresence>
 
-                  <div className="overflow-x-auto rounded-xl border border-white/10">
+                  {/* Fix 6: Mobile guest card view */}
+                  <div className="sm:hidden space-y-2 mb-2">
+                    {paginatedGuests.map((guest) => (
+                      <div key={guest.id} className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-zinc-100 truncate">
+                              {guest.first_name} {guest.last_name}
+                            </p>
+                            {guest.email && (
+                              <p className="text-xs text-zinc-500 truncate mt-0.5">{guest.email}</p>
+                            )}
+                            {guest.phone && (
+                              <p className="text-xs text-zinc-500 mt-0.5">{guest.phone}</p>
+                            )}
+                          </div>
+                          {/* Fix 5: icon buttons p-2 for 32px touch targets */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={async () => {
+                                const rsvpUrl = `${PUBLIC_FRONTEND_URL}/rsvp/${event.identifier}`
+                                await navigator.clipboard.writeText(rsvpUrl)
+                                toast.success('Link RSVP copiado')
+                              }}
+                              className="p-2 rounded-lg text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                              aria-label="Copiar link RSVP"
+                              title="Copiar link RSVP"
+                            >
+                              <LinkIcon className="size-3.5" />
+                            </button>
+                            <button
+                              onClick={() => openEditGuest(guest)}
+                              className="p-2 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+                              aria-label={`Editar a ${guest.first_name}`}
+                            >
+                              <PencilIcon className="size-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setGuestToDelete(guest)}
+                              className="p-2 rounded-lg text-zinc-600 hover:text-pink-400 hover:bg-pink-500/10 transition-colors"
+                              aria-label={`Eliminar a ${guest.first_name}`}
+                            >
+                              <TrashIcon className="size-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <GuestStatusBadge status={guest.status} />
+                          {guest.table_number && (
+                            <span className="text-xs text-zinc-500">Mesa {guest.table_number}</span>
+                          )}
+                          {(guest.guests_count ?? 0) > 0 && (
+                            <span className="text-xs text-zinc-500">+{guest.guests_count}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Fix 6: Desktop table — hidden on mobile */}
+                  <div className="hidden sm:block overflow-x-auto rounded-xl border border-white/10">
                     <Table>
                       <TableHead>
                         <TableRow>
@@ -911,6 +974,7 @@ export default function EventDetailPage() {
                                   />
                                 </TableCell>
                                 <TableCell>
+                                  {/* Fix 5: p-2 on all icon-only buttons for 32px touch target */}
                                   <div className="flex items-center gap-1">
                                     {/* Copy RSVP link */}
                                     <button
@@ -919,7 +983,7 @@ export default function EventDetailPage() {
                                         await navigator.clipboard.writeText(rsvpUrl)
                                         toast.success('Link RSVP copiado')
                                       }}
-                                      className="p-1.5 rounded-lg text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                                      className="p-2 rounded-lg text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
                                       aria-label="Copiar link RSVP"
                                       title="Copiar link RSVP"
                                     >
@@ -936,7 +1000,7 @@ export default function EventDetailPage() {
                                           const phone = guest.phone!.replace(/\D/g, '')
                                           window.open(`https://wa.me/${phone}?text=${msg}`, '_blank')
                                         }}
-                                        className="p-1.5 rounded-lg text-zinc-600 hover:text-lime-400 hover:bg-lime-500/10 transition-colors"
+                                        className="p-2 rounded-lg text-zinc-600 hover:text-lime-400 hover:bg-lime-500/10 transition-colors"
                                         aria-label="Enviar por WhatsApp"
                                         title="Enviar invitación por WhatsApp"
                                       >
@@ -947,14 +1011,14 @@ export default function EventDetailPage() {
                                     )}
                                     <button
                                       onClick={() => openEditGuest(guest)}
-                                      className="p-1.5 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+                                      className="p-2 rounded-lg text-zinc-600 hover:text-zinc-300 hover:bg-white/5 transition-colors"
                                       aria-label={`Editar a ${guest.first_name}`}
                                     >
                                       <PencilIcon className="size-3.5" />
                                     </button>
                                     <button
                                       onClick={() => setGuestToDelete(guest)}
-                                      className="p-1.5 rounded-lg text-zinc-600 hover:text-pink-400 hover:bg-pink-500/10 transition-colors"
+                                      className="p-2 rounded-lg text-zinc-600 hover:text-pink-400 hover:bg-pink-500/10 transition-colors"
                                       aria-label={`Eliminar a ${guest.first_name}`}
                                     >
                                       <TrashIcon className="size-3.5" />
