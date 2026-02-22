@@ -47,7 +47,7 @@ function ShareLinkRow({ icon: Icon, label, url, description }: ShareLinkRowProps
         <div className="min-w-0">
           <p className="text-sm font-medium text-zinc-200">{label}</p>
           {description && <p className="text-xs text-zinc-500 mt-0.5">{description}</p>}
-          <p className="text-xs text-zinc-600 font-mono mt-1 truncate max-w-[300px]">{url}</p>
+          <p className="text-xs text-zinc-600 font-mono mt-1 truncate max-w-[180px] sm:max-w-[300px]">{url}</p>
         </div>
       </div>
       <button

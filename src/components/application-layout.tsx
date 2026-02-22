@@ -196,7 +196,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                     <ChevronDownIcon />
                   </DropdownButton>
 
-                  <DropdownMenu className="min-w-80 lg:min-w-64" anchor="bottom start">
+                  <DropdownMenu className="min-w-80 max-w-[90vw] lg:min-w-64" anchor="bottom start">
                     <DropdownHeader>Mis organizaciones</DropdownHeader>
 
                     {(['PLATFORM', 'AGENCY', 'CUSTOMER'] as const).map((typeCode) => {

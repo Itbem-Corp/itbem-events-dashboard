@@ -105,7 +105,7 @@ function InvitationStats({ guests }: { guests: Guest[] }) {
       </div>
 
       {/* Stat grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         {stats.map((s) => (
           <motion.div
             key={s.label}
@@ -313,7 +313,7 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
       <div className="flex items-center gap-1.5 shrink-0">
         <button
           onClick={() => setShowQR(true)}
-          className="p-1.5 rounded-lg text-zinc-600 hover:text-violet-400 hover:bg-violet-500/10 transition-colors"
+          className="p-2 rounded-lg text-zinc-600 hover:text-violet-400 hover:bg-violet-500/10 transition-colors"
           aria-label="Ver QR de invitación"
           title="Ver código QR"
         >
@@ -321,7 +321,7 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
         </button>
         <button
           onClick={copyLink}
-          className="p-1.5 rounded-lg text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+          className="p-2 rounded-lg text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
           aria-label="Copiar link"
           title="Copiar link de invitación"
         >
@@ -331,7 +331,7 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
         {guest.phone && (
           <button
             onClick={sendWhatsApp}
-            className="p-1.5 rounded-lg text-zinc-600 hover:text-lime-400 hover:bg-lime-500/10 transition-colors"
+            className="p-2 rounded-lg text-zinc-600 hover:text-lime-400 hover:bg-lime-500/10 transition-colors"
             aria-label="Enviar por WhatsApp"
             title="Enviar por WhatsApp"
           >
@@ -344,7 +344,7 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
         {guest.email && (
           <button
             onClick={sendEmail}
-            className="p-1.5 rounded-lg text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+            className="p-2 rounded-lg text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
             aria-label="Enviar por correo"
             title="Enviar por correo"
           >
@@ -357,7 +357,7 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
             type="button"
             onClick={resend}
             disabled={resending}
-            className="p-1.5 rounded-lg text-zinc-600 hover:text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+            className="p-2 rounded-lg text-zinc-600 hover:text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-40"
             aria-label="Registrar reenvío"
             title="Registrar reenvío de invitación"
           >

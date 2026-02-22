@@ -180,13 +180,13 @@ export default function EventsPage() {
       {!isLoading && events.length > 0 && (
         <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           {/* Date filter tabs */}
-          <div className="flex rounded-xl overflow-hidden border border-white/10 self-start">
+          <div className="flex rounded-xl overflow-x-auto border border-white/10 self-start">
             {FILTER_TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setFilter(tab.id)}
                 className={[
-                  'flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium transition-colors',
+                  'shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium transition-colors',
                   filter === tab.id
                     ? 'bg-indigo-600 text-white'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5',
@@ -339,7 +339,7 @@ export default function EventsPage() {
                             })}
                           </span>
                           {event.address && (
-                            <span className="flex items-center gap-1 text-xs text-zinc-600 truncate max-w-[220px]">
+                            <span className="flex items-center gap-1 text-xs text-zinc-600 truncate max-w-[140px] sm:max-w-[220px]">
                               <MapPinIcon className="size-3 shrink-0" />
                               {event.address}
                             </span>
@@ -354,7 +354,7 @@ export default function EventsPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <CountdownBadge dateString={event.event_date_time} />
                         <div title={event.is_active ? 'Desactivar evento' : 'Activar evento'}>
                           <EventActiveToggle event={event} />

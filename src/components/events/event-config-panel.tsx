@@ -48,13 +48,13 @@ interface SettingRowProps {
 
 function SettingRow({ icon: Icon, title, description, checked, onChange, disabled, badge }: SettingRowProps) {
   return (
-    <div className="flex items-center justify-between gap-6 py-4">
-      <div className="flex items-start gap-3">
+    <div className="flex items-center justify-between gap-3 sm:gap-6 py-4">
+      <div className="flex items-start gap-3 min-w-0 flex-1 mr-3">
         <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-zinc-800">
           <Icon className="size-4 text-zinc-400" />
         </div>
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-medium text-zinc-200">{title}</p>
             {badge && (
               <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
