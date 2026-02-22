@@ -198,7 +198,12 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
                 // Invalidar cache del evento editado y la lista general
                 await mutate(`/events/${event.id}`)
             } else {
-                await api.post('/events', payload)
+                const res = await api.post('/events', payload)
+                const created = res.data?.data ?? res.data
+                if (created?.id) {
+                    // Navigate to the newly created event
+                    window.location.href = `/events/${created.id}`
+                }
             }
 
             // Invalidar la lista de eventos (scoped + legacy)

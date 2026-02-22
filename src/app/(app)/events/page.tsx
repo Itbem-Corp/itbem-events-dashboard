@@ -41,14 +41,16 @@ const EventDuplicateModal = dynamic(
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getDaysUntil(dateString: string): number {
-  return Math.ceil(
-    (new Date(dateString).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-  )
+function getDaysUntil(dateString: string | undefined | null): number | null {
+  if (!dateString) return null
+  const ms = new Date(dateString).getTime()
+  if (isNaN(ms)) return null
+  return Math.ceil((ms - Date.now()) / (1000 * 60 * 60 * 24))
 }
 
 function CountdownBadge({ dateString }: { dateString: string }) {
   const days = getDaysUntil(dateString)
+  if (days === null) return <Badge color="zinc">Sin fecha</Badge>
   if (days === 0) return <Badge color="amber">Hoy</Badge>
   if (days < 0) return <Badge color="zinc">Hace {Math.abs(days)}d</Badge>
   if (days <= 7) return <Badge color="amber">En {days}d</Badge>

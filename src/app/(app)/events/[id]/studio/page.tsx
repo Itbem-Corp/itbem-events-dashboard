@@ -31,7 +31,7 @@ import {
 } from '@heroicons/react/20/solid'
 import { Switch } from '@/components/switch'
 
-const PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://itbem.events'
+const PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://www.eventiapp.com.mx'
 
 // ─── Section type labels / colors ─────────────────────────────────────────────
 

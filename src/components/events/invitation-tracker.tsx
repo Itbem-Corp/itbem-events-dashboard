@@ -3,11 +3,11 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
-import { QRCodeSVG } from 'qrcode.react'
 import type { Guest } from '@/models/Guest'
 import type { Event } from '@/models/Event'
 
 import { EmptyState } from '@/components/ui/empty-state'
+import { BrandedQR } from '@/components/ui/branded-qr'
 import {
   EnvelopeIcon,
   DevicePhoneMobileIcon,
@@ -27,7 +27,7 @@ import {
 } from '@heroicons/react/20/solid'
 import { api } from '@/lib/api'
 
-const PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://itbem.events'
+const PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://www.eventiapp.com.mx'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -149,7 +149,7 @@ function QRDialog({
         exit={{ opacity: 0, scale: 0.92 }}
         transition={{ duration: 0.15 }}
         onClick={e => e.stopPropagation()}
-        className="relative w-full max-w-xs rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl space-y-4"
+        className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl space-y-4"
       >
         <button
           onClick={onClose}
@@ -159,31 +159,26 @@ function QRDialog({
           <XMarkIcon className="size-4" />
         </button>
 
-        <div className="text-center space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Invitación QR</p>
-          <p className="text-sm font-medium text-zinc-200">{guestName}</p>
+        <BrandedQR
+          value={rsvpUrl}
+          title="Invitación personal"
+          subtitle="Presenta este QR en la entrada"
+          caption={guestName}
+          downloadName={`invitacion-${guestName.replace(/\s+/g, '-').toLowerCase()}`}
+          size={180}
+          dark
+        />
+
+        <div className="space-y-2 pt-2">
+          <p className="text-xs text-zinc-600 text-center break-all px-2">{rsvpUrl}</p>
+          <button
+            onClick={copyLink}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-zinc-800 px-3 py-2.5 text-xs font-medium text-zinc-300 hover:bg-zinc-700 transition-colors"
+          >
+            <ClipboardDocumentIcon className="size-3.5" />
+            Copiar link
+          </button>
         </div>
-
-        <div className="flex justify-center">
-          <div className="rounded-xl bg-white p-3 shadow-lg">
-            <QRCodeSVG
-              value={rsvpUrl}
-              size={180}
-              level="M"
-              includeMargin={false}
-            />
-          </div>
-        </div>
-
-        <p className="text-xs text-zinc-600 text-center break-all">{rsvpUrl}</p>
-
-        <button
-          onClick={copyLink}
-          className="w-full flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-700 transition-colors"
-        >
-          <ClipboardDocumentIcon className="size-3.5" />
-          Copiar link
-        </button>
       </motion.div>
     </div>
   )

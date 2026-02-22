@@ -61,7 +61,7 @@ import {
   ClipboardDocumentCheckIcon,
 } from '@heroicons/react/20/solid'
 
-const PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://itbem.events'
+const PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://www.eventiapp.com.mx'
 
 // Lazy-loaded modals & heavy components
 const EventFormModal = dynamic(
@@ -106,14 +106,18 @@ type TabId = (typeof TABS)[number]['id']
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getDaysUntil(dateString: string): number {
-  const now = new Date()
-  const eventDate = new Date(dateString)
-  return Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+function getDaysUntil(dateString: string | undefined | null): number | null {
+  if (!dateString) return null
+  const ms = new Date(dateString).getTime()
+  if (isNaN(ms)) return null
+  return Math.ceil((ms - Date.now()) / (1000 * 60 * 60 * 24))
 }
 
-function formatEventDate(dateString: string, timezone: string) {
-  return new Date(dateString).toLocaleString('es-MX', {
+function formatEventDate(dateString: string | undefined | null, timezone: string) {
+  if (!dateString) return 'Sin fecha'
+  const d = new Date(dateString)
+  if (isNaN(d.getTime())) return 'Fecha inválida'
+  return d.toLocaleString('es-MX', {
     dateStyle: 'long',
     timeStyle: 'short',
     timeZone: timezone || 'UTC',
@@ -380,7 +384,7 @@ export default function EventDetailPage() {
   }
 
   const daysUntil = getDaysUntil(event.event_date_time)
-  const isPast = daysUntil < 0
+  const isPast = daysUntil !== null && daysUntil < 0
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -446,7 +450,9 @@ export default function EventDetailPage() {
           </>
         )}
         <span aria-hidden="true"> · </span>
-        {daysUntil === 0 ? (
+        {daysUntil === null ? (
+          <span className="text-zinc-500">Sin fecha</span>
+        ) : daysUntil === 0 ? (
           <span className="text-amber-400 font-medium">¡Hoy!</span>
         ) : isPast ? (
           <span className="text-zinc-600">Hace {Math.abs(daysUntil)} días</span>
@@ -536,7 +542,7 @@ export default function EventDetailPage() {
                   { label: 'Tipo de evento', value: event.event_type?.name || '—' },
                   {
                     label: isPast ? 'Días desde el evento' : 'Días para el evento',
-                    value: daysUntil === 0 ? '¡Hoy!' : String(Math.abs(daysUntil)),
+                    value: daysUntil === null ? '—' : daysUntil === 0 ? '¡Hoy!' : String(Math.abs(daysUntil)),
                   },
                 ].map((stat, i) => (
                   <motion.div

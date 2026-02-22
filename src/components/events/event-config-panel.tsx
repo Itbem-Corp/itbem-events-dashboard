@@ -87,7 +87,7 @@ interface Props {
 }
 
 export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
-  const { data: config, isLoading } = useSWR<EventConfig>(
+  const { data: config, isLoading, error: configError } = useSWR<EventConfig>(
     eventId ? `/events/${eventId}/config` : null,
     fetcher,
     { revalidateOnFocus: false }
@@ -127,7 +127,7 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
   const [isDirty, setIsDirty] = useState(false)
 
   // Public URL
-  const publicUrl = `${process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://itbem.events'}/e/${eventIdentifier}`
+  const publicUrl = `${process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://www.eventiapp.com.mx'}/e/${eventIdentifier}`
 
   useEffect(() => {
     if (!config) return
@@ -200,7 +200,7 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
     }
   }
 
-  if (isLoading) {
+  if (isLoading && !configError) {
     return (
       <div className="space-y-4">
         {[...Array(6)].map((_, i) => (
@@ -210,7 +210,7 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
     )
   }
 
-  if (!config) {
+  if (configError || !config) {
     return (
       <div className="py-12 text-center text-sm text-zinc-500">
         No se pudo cargar la configuración del evento.

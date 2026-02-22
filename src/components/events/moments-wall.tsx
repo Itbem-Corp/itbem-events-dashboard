@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import useSWR, { mutate as globalMutate } from 'swr'
-import { QRCodeSVG } from 'qrcode.react'
 import { motion, AnimatePresence } from 'motion/react'
 import JSZip from 'jszip'
 
@@ -12,6 +11,7 @@ import { fetcher } from '@/lib/fetcher'
 import { toast } from 'sonner'
 import type { Moment } from '@/models/Moment'
 import { EmptyState } from '@/components/ui/empty-state'
+import { BrandedQR } from '@/components/ui/branded-qr'
 import {
   PhotoIcon,
   CheckIcon,
@@ -240,26 +240,25 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
           <XMarkIcon className="size-4" />
         </button>
 
-        <div>
-          <h3 id="qr-modal-title" className="text-base font-semibold text-zinc-100 text-center">Código QR de subida</h3>
-          <p className="text-xs text-zinc-500 text-center mt-1">
-            Escanea para subir fotos/videos al evento
-          </p>
+        <BrandedQR
+          value={url}
+          title="Muro de Momentos"
+          subtitle="Escanea para subir fotos y videos"
+          downloadName="qr-subida-momentos"
+          size={180}
+          dark
+        />
+
+        <div className="space-y-2 pt-1 w-full">
+          <p className="text-xs text-zinc-500 break-all text-center px-2">{url}</p>
+          <button
+            onClick={copy}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+          >
+            <ClipboardDocumentIcon className="size-4" />
+            {copied ? '¡Copiado!' : 'Copiar enlace'}
+          </button>
         </div>
-
-        <div className="p-4 bg-white rounded-xl">
-          <QRCodeSVG value={url} size={180} level="M" />
-        </div>
-
-        <p className="text-xs text-zinc-500 break-all text-center px-2">{url}</p>
-
-        <button
-          onClick={copy}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
-        >
-          <ClipboardDocumentIcon className="size-4" />
-          {copied ? '¡Copiado!' : 'Copiar enlace'}
-        </button>
       </motion.div>
     </motion.div>,
     document.body
@@ -543,7 +542,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     }
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_ASTRO_URL ?? ''
+  const siteUrl = process.env.NEXT_PUBLIC_ASTRO_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://www.eventiapp.com.mx'
   const uploadUrl = `${siteUrl}/events/${eventIdentifier}/upload`
 
   if (isLoading) {

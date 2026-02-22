@@ -182,7 +182,7 @@ interface Props {
 export function EventDesignPicker({ eventId }: Props) {
   const [saving, setSaving] = useState(false)
 
-  const { data: config } = useSWR<EventConfig>(
+  const { data: config, error: configError } = useSWR<EventConfig>(
     eventId ? `/events/${eventId}/config` : null,
     fetcher,
     { revalidateOnFocus: false }
@@ -244,7 +244,7 @@ export function EventDesignPicker({ eventId }: Props) {
     }
   }
 
-  const isLoading = !config
+  const isLoading = !config && !configError
 
   if (isLoading) {
     return (
@@ -253,6 +253,14 @@ export function EventDesignPicker({ eventId }: Props) {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {[...Array(3)].map((_, i) => <div key={i} className="h-40 bg-zinc-800 rounded-xl" />)}
         </div>
+      </div>
+    )
+  }
+
+  if (configError || !config) {
+    return (
+      <div className="py-12 text-center text-sm text-zinc-500">
+        No se pudo cargar la configuración de diseño.
       </div>
     )
   }

@@ -50,11 +50,11 @@ function KPICard({ label, value, sub }: { label: string; value: number | string;
 }
 
 export function EventAnalyticsPanel({ eventId, eventIdentifier }: Props) {
-  const { data: analytics, isLoading: loadingA } = useSWR<EventAnalytics>(
+  const { data: analytics, isLoading: loadingA, error: errorA } = useSWR<EventAnalytics>(
     `/events/${eventId}/analytics`,
     fetcher,
   )
-  const { data: rawGuests, isLoading: loadingG } = useSWR(
+  const { data: rawGuests, isLoading: loadingG, error: errorG } = useSWR(
     `/guests/all:${eventId}`,
     fetcher,
   )
@@ -62,6 +62,7 @@ export function EventAnalyticsPanel({ eventId, eventIdentifier }: Props) {
 
   // useMemo must be before any early returns (Rules of Hooks)
   const dietaryData = useMemo(() => {
+    if (!guests?.length) return []
     const counts: Record<string, number> = {}
     for (const g of guests) {
       const key = g.dietary_restrictions?.trim() || 'Ninguna'
@@ -73,7 +74,7 @@ export function EventAnalyticsPanel({ eventId, eventIdentifier }: Props) {
   }, [guests])
   const hasDietary = guests.some(g => g.dietary_restrictions?.trim())
 
-  if (loadingA || loadingG) return <Skeleton />
+  if ((loadingA || loadingG) && !errorA && !errorG) return <Skeleton />
 
   const totalGuests   = guests.length
   const responded     = guests.filter(g => g.rsvp_status && g.rsvp_status !== 'pending').length
