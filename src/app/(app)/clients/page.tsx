@@ -149,7 +149,7 @@ export default function ClientsPage() {
 
                 {/* SEARCH */}
                 {!isLoading && clients.length > 0 && (
-                    <div className="relative max-w-sm">
+                    <div className="relative w-full sm:max-w-xs">
                         <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-500" />
                         <input
                             type="search"
@@ -244,7 +244,7 @@ export default function ClientsPage() {
                                                             <p className="text-sm text-zinc-400 font-mono mt-1">{client.code}</p>
                                                         </div>
 
-                                                        <div className="flex justify-between sm:gap-8 border-t border-white/5 pt-4 sm:border-t-0 sm:pt-0">
+                                                        <div className="flex flex-wrap justify-between gap-4 sm:gap-8 border-t border-white/5 pt-4 sm:border-t-0 sm:pt-0">
                                                             <div className="flex flex-col">
                                                                 <span className="text-[10px] uppercase text-zinc-400 font-bold">Tipo</span>
                                                                 <div className="flex items-center gap-2 text-xs sm:text-sm text-zinc-200 mt-1">
@@ -286,13 +286,13 @@ export default function ClientsPage() {
                                                                 </Button>
                                                             )}
 
-                                                            <Button plain onClick={() => { setSelectedClient(client); setIsMembersOpen(true); }} aria-label={`Miembros de ${client.name}`} title="Gestionar miembros">
+                                                            <Button plain className="p-2" onClick={() => { setSelectedClient(client); setIsMembersOpen(true); }} aria-label={`Miembros de ${client.name}`} title="Gestionar miembros">
                                                                 <UsersIcon className="size-5 text-zinc-400 hover:text-white" />
                                                             </Button>
-                                                            <Button plain onClick={() => { setSelectedClient(client); setSubClientParent(null); setIsFormOpen(true); }} aria-label={`Editar ${client.name}`}>
+                                                            <Button plain className="p-2" onClick={() => { setSelectedClient(client); setSubClientParent(null); setIsFormOpen(true); }} aria-label={`Editar ${client.name}`}>
                                                                 <PencilIcon className="size-5 text-zinc-400 hover:text-white" />
                                                             </Button>
-                                                            <Button plain onClick={() => { setSelectedClient(client); setIsDeleteOpen(true); }} aria-label={`Eliminar ${client.name}`}>
+                                                            <Button plain className="p-2" onClick={() => { setSelectedClient(client); setIsDeleteOpen(true); }} aria-label={`Eliminar ${client.name}`}>
                                                                 <TrashIcon className="size-5 text-zinc-400 hover:text-red-500" />
                                                             </Button>
                                                         </div>

@@ -114,7 +114,7 @@ export default function UsersPage() {
 
                 {/* QUICK STATS */}
                 {!isLoading && users.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         {[
                             { label: 'Total', value: users.length, filter: 'ALL' as const, color: 'text-zinc-100' },
                             { label: 'Activos', value: users.filter(u => u.is_active !== false).length, filter: 'ACTIVE' as const, color: 'text-lime-400' },
@@ -140,7 +140,7 @@ export default function UsersPage() {
 
                 {/* SEARCH */}
                 {!isLoading && users.length > 0 && (
-                    <div className="relative max-w-sm">
+                    <div className="relative w-full sm:max-w-xs">
                         <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-500" />
                         <input
                             type="search"
@@ -185,13 +185,13 @@ export default function UsersPage() {
                         <AnimatedList className="grid grid-cols-1 gap-4">
                             {paginatedUsers.map((user) => (
                                 <AnimatedListItem key={user.id}>
-                                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-zinc-900/50 p-5 hover:border-white/20 hover:-translate-y-0.5 transition-transform">
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 rounded-2xl border border-white/10 bg-zinc-900/50 p-5 hover:border-white/20 hover:-translate-y-0.5 transition-transform">
                                         {/* INFO */}
-                                        <div className="flex items-center gap-4 min-w-0">
+                                        <div className="flex items-center gap-4 min-w-0 flex-1">
                                             <UserAvatar user={user} size="md" />
 
                                             <div className="min-w-0">
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex flex-wrap items-center gap-2">
                                                     <p className="font-medium truncate">
                                                         {user.first_name} {user.last_name}
                                                     </p>
@@ -212,11 +212,12 @@ export default function UsersPage() {
                                         </div>
 
                                         {/* ACTIONS */}
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap border-t border-white/5 pt-3 sm:border-t-0 sm:pt-0">
                                             <Button
                                                 plain
                                                 onClick={() => router.push(`/users/${user.id}/clients`)}
                                                 title="Ver clientes"
+                                                className="p-2"
                                             >
                                                 <UsersIcon className="size-5" />
                                             </Button>
@@ -230,6 +231,7 @@ export default function UsersPage() {
 
                                             <Button
                                                 plain
+                                                className="p-2"
                                                 onClick={() => {
                                                     setSelectedUser(user)
                                                     setIsFormOpen(true)
@@ -241,6 +243,7 @@ export default function UsersPage() {
                                             {!user.is_root && user.clients === 0 && (
                                                 <Button
                                                     plain
+                                                    className="p-2"
                                                     onClick={() => {
                                                         setSelectedUser(user)
                                                         setIsDeleteOpen(true)

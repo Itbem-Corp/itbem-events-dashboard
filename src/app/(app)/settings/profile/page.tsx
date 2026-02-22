@@ -122,7 +122,7 @@ export default function ProfilePage() {
         )}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Avatar */}
         <SectionCard icon={UserIcon} title="Foto de perfil">
           <FileUpload
@@ -141,7 +141,7 @@ export default function ProfilePage() {
         {/* Personal info form */}
         <div className="lg:col-span-2 space-y-6">
           <SectionCard icon={EnvelopeIcon} title="Información personal">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-5">
               <Field>
                 <Label>Nombre</Label>
                 <Input
@@ -174,7 +174,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="mt-6 flex justify-end">
-              <Button onClick={handleSave} disabled={loading || !isDirty}>
+              <Button onClick={handleSave} disabled={loading || !isDirty} className="w-full sm:w-auto">
                 {loading ? 'Guardando…' : 'Guardar cambios'}
               </Button>
             </div>
