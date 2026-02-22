@@ -13,10 +13,11 @@ import type { Guest } from '@/models/Guest'
 interface Props {
   guest: Guest | null
   eventIdentifier: string
+  eventId?: string
   onClose: () => void
 }
 
-export function GuestDeleteModal({ guest, eventIdentifier, onClose }: Props) {
+export function GuestDeleteModal({ guest, eventIdentifier, eventId, onClose }: Props) {
   const [loading, setLoading] = useState(false)
 
   const handleDelete = async () => {
@@ -24,7 +25,7 @@ export function GuestDeleteModal({ guest, eventIdentifier, onClose }: Props) {
     setLoading(true)
     try {
       await api.delete(`/guests/${guest.id}`)
-      await mutate(`/guests/${eventIdentifier}`)
+      await mutate(`/guests/all:${eventId ?? eventIdentifier}`)
       onClose()
       toast.success('Invitado eliminado')
     } catch {

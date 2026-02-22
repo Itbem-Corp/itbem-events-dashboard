@@ -24,6 +24,7 @@ const STATUS_BG: Record<string, string> = {
 interface Props {
   guest: Guest
   eventIdentifier: string
+  eventId?: string
   /**
    * Pass pre-fetched statuses to avoid duplicate requests when used inside a list.
    * If not provided, falls back to read-only badge.
@@ -55,7 +56,7 @@ export function GuestStatusSelect({ guest, eventIdentifier, statuses }: Props) {
     setLoading(true)
     try {
       await api.put(`/guests/${guest.id}`, payload)
-      await mutate(`/guests/${eventIdentifier}`)
+      await mutate(`/guests/all:${eventId ?? eventIdentifier}`)
       toast.success(`Estado: ${STATUS_OPTIONS.find((s) => s.code === newCode)?.label}`)
     } catch {
       toast.error('Error al cambiar el estado')

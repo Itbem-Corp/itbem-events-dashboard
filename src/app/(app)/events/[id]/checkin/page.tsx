@@ -58,7 +58,7 @@ function GuestCheckinCard({ guest, eventIdentifier, confirmedStatusId, declinedS
     setLoading(true)
     try {
       await api.put(`/guests/${guest.id}`, { ...guest, status_id: statusId })
-      await mutate(`/guests/${eventIdentifier}`)
+      await mutate(`/guests/all:${event?.id}`)
     } catch {
       toast.error('Error al actualizar')
     } finally {
@@ -146,11 +146,12 @@ export default function CheckinPage() {
     fetcher
   )
 
-  const { data: guests = [], isLoading } = useSWR<Guest[]>(
-    event?.identifier ? `/guests/${event.identifier}` : null,
+  const { data: rawGuests, isLoading } = useSWR(
+    event?.id ? `/guests/all:${event.id}` : null,
     fetcher,
     { refreshInterval: 10000 } // auto-refresh every 10s
   )
+  const guests: Guest[] = Array.isArray(rawGuests) ? rawGuests : (rawGuests?.data ?? rawGuests ?? [])
 
   const { data: statuses = [] } = useSWR<GuestStatus[]>(
     '/catalogs/guest-statuses',
@@ -209,7 +210,7 @@ export default function CheckinPage() {
     if (match && confirmedStatusId) {
       try {
         await api.put(`/guests/${match.id}`, { ...match, status_id: confirmedStatusId })
-        await mutate(`/guests/${event?.identifier}`)
+        await mutate(`/guests/all:${event?.id}`)
         toast.success(`${match.first_name} ${match.last_name} — marcado como llegado`)
       } catch {
         toast.error('Error al actualizar el estado')

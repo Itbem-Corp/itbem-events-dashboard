@@ -20,6 +20,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 interface Props {
   guests: Guest[]
   eventIdentifier: string
+  eventId?: string
   isLoading: boolean
 }
 

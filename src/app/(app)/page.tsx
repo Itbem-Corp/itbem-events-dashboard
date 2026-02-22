@@ -48,11 +48,12 @@ export default function Home() {
   const totalCapacity = events.reduce((sum, e) => sum + (e.max_guests ?? 0), 0)
 
   // Load guests for the next event
-  const { data: nextEventGuests = [] } = useSWR<Guest[]>(
-    nextEvent?.identifier ? `/guests/${nextEvent.identifier}` : null,
+  const { data: rawNextGuests } = useSWR(
+    nextEvent?.id ? `/guests/all:${nextEvent.id}` : null,
     fetcher,
     { revalidateOnFocus: false }
   )
+  const nextEventGuests: Guest[] = Array.isArray(rawNextGuests) ? rawNextGuests : (rawNextGuests?.data ?? rawNextGuests ?? [])
   const nextEventConfirmed = nextEventGuests.filter((g) => g.status?.code === 'CONFIRMED').length
   const nextEventPending = nextEventGuests.filter((g) => g.status?.code === 'PENDING').length
 

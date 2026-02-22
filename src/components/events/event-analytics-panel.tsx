@@ -54,10 +54,11 @@ export function EventAnalyticsPanel({ eventId, eventIdentifier }: Props) {
     `/events/${eventId}/analytics`,
     fetcher,
   )
-  const { data: guests = [], isLoading: loadingG } = useSWR<Guest[]>(
-    `/guests/${eventIdentifier}`,
+  const { data: rawGuests, isLoading: loadingG } = useSWR(
+    `/guests/all:${eventId}`,
     fetcher,
   )
+  const guests: Guest[] = Array.isArray(rawGuests) ? rawGuests : (rawGuests?.data ?? rawGuests ?? [])
 
   // useMemo must be before any early returns (Rules of Hooks)
   const dietaryData = useMemo(() => {

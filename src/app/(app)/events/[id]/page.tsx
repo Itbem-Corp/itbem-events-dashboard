@@ -223,11 +223,12 @@ export default function EventDetailPage() {
     fetcher
   )
 
-  const { data: guests = [], isLoading: guestsLoading } = useSWR<Guest[]>(
-    event?.identifier ? `/guests/${event.identifier}` : null,
+  const { data: rawGuests, isLoading: guestsLoading } = useSWR(
+    event?.id ? `/guests/all:${event.id}` : null,
     fetcher,
     { revalidateOnFocus: false }
   )
+  const guests: Guest[] = Array.isArray(rawGuests) ? rawGuests : (rawGuests?.data ?? rawGuests ?? [])
 
   // Guest status catalog — graceful fallback if endpoint doesn't exist
   const { data: guestStatuses } = useSWR<import('@/models/GuestStatus').GuestStatus[]>(
@@ -305,7 +306,7 @@ export default function EventDetailPage() {
           return api.put(`/guests/${guestId}`, { ...guest, status_id: targetStatus.id })
         })
       )
-      await mutate(`/guests/${event.identifier}`)
+      await mutate(`/guests/all:${event.id}`)
       toast.success(`${selectedIds.size} invitado${selectedIds.size !== 1 ? 's' : ''} actualizados`)
       setSelectedIds(new Set())
     } catch {
@@ -321,7 +322,7 @@ export default function EventDetailPage() {
     setBulkLoading(true)
     try {
       await api.delete('/guests/bulk', { data: { ids: Array.from(selectedIds) } })
-      await mutate(`/guests/${event.identifier}`)
+      await mutate(`/guests/all:${event.id}`)
       toast.success(`${selectedIds.size} invitado${selectedIds.size !== 1 ? 's' : ''} eliminados`)
       setSelectedIds(new Set())
     } catch {
@@ -905,6 +906,7 @@ export default function EventDetailPage() {
                                   <GuestStatusSelect
                                     guest={guest}
                                     eventIdentifier={event.identifier}
+                                    eventId={event.id}
                                     statuses={guestStatuses}
                                   />
                                 </TableCell>
@@ -1075,6 +1077,7 @@ export default function EventDetailPage() {
       <GuestDeleteModal
         guest={guestToDelete}
         eventIdentifier={event.identifier}
+        eventId={event.id}
         onClose={() => setGuestToDelete(null)}
       />
 

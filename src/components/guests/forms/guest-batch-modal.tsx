@@ -186,7 +186,7 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
       }))
 
       await api.post('/guests/batch', payload)
-      await mutate(`/guests/${eventIdentifier}`)
+      await mutate(`/guests/all:${eventId}`)
 
       toast.success(`${rows.length} invitado${rows.length !== 1 ? 's' : ''} agregado${rows.length !== 1 ? 's' : ''} con sus invitaciones`)
       handleClose()

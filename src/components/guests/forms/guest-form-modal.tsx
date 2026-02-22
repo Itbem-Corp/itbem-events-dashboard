@@ -131,7 +131,7 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
       } else {
         await api.post('/guests', { ...data, event_id: eventId })
       }
-      await mutate(`/guests/${eventIdentifier}`)
+      await mutate(`/guests/all:${eventId}`)
       setIsOpen(false)
       toast.success(isEdit ? 'Invitado actualizado' : 'Invitado agregado')
     } catch {
