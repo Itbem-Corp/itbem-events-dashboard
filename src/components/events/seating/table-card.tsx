@@ -71,7 +71,7 @@ export function TableCard({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="rounded p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
+            <button aria-label="Opciones de mesa" className="rounded p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
               <EllipsisVerticalIcon className="size-4" />
             </button>
           </DropdownMenuTrigger>

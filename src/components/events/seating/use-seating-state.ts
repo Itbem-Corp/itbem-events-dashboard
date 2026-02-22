@@ -2,19 +2,25 @@ import { useReducer, useCallback, useMemo } from 'react'
 import type { Guest } from '@/models/Guest'
 import type { Table } from '@/models/Table'
 
+type UndoEntry =
+  | { type: 'ASSIGN_GUEST'; guestId: string; tableId: string | null; prevTableId: string | null }
+  | { type: 'CREATE_TABLE'; table: Table }
+  | { type: 'UPDATE_TABLE'; tableId: string; changes: Partial<Table>; prev: Partial<Table> }
+  | { type: 'DELETE_TABLE'; tableId: string; guestsOnTable: string[] }
+
 interface SeatingState {
   assignments: Map<string, string | null>
   createdTables: Table[]
   updatedTables: Map<string, Partial<Table>>
   deletedTableIds: Set<string>
-  undoStack: SeatingAction[]
+  undoStack: UndoEntry[]
 }
 
 type SeatingAction =
-  | { type: 'ASSIGN_GUEST'; guestId: string; tableId: string | null; prevTableId: string | null }
+  | { type: 'ASSIGN_GUEST'; guestId: string; tableId: string | null; serverTableId: string | null }
   | { type: 'CREATE_TABLE'; table: Table }
   | { type: 'UPDATE_TABLE'; tableId: string; changes: Partial<Table>; prev: Partial<Table> }
-  | { type: 'DELETE_TABLE'; tableId: string }
+  | { type: 'DELETE_TABLE'; tableId: string; guestsOnTable: string[] }
   | { type: 'UNDO' }
   | { type: 'RESET' }
 
@@ -22,7 +28,11 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
   switch (action.type) {
     case 'ASSIGN_GUEST': {
       const next = new Map(state.assignments)
-      if (action.tableId === action.prevTableId) {
+      // Compute prevTableId from current state instead of relying on the caller
+      const prevTableId = state.assignments.has(action.guestId)
+        ? state.assignments.get(action.guestId)!
+        : action.serverTableId
+      if (action.tableId === prevTableId) {
         next.delete(action.guestId)
       } else {
         next.set(action.guestId, action.tableId)
@@ -30,7 +40,7 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
       return {
         ...state,
         assignments: next,
-        undoStack: [...state.undoStack, action],
+        undoStack: [...state.undoStack, { ...action, type: 'ASSIGN_GUEST', prevTableId }],
       }
     }
     case 'CREATE_TABLE':
@@ -49,11 +59,17 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
       }
     }
     case 'DELETE_TABLE': {
-      const next = new Set(state.deletedTableIds)
-      next.add(action.tableId)
+      const nextDeleted = new Set(state.deletedTableIds)
+      nextDeleted.add(action.tableId)
+      // Auto-unassign all guests from this table
+      const nextAssignments = new Map(state.assignments)
+      for (const guestId of action.guestsOnTable) {
+        nextAssignments.set(guestId, null)
+      }
       return {
         ...state,
-        deletedTableIds: next,
+        deletedTableIds: nextDeleted,
+        assignments: nextAssignments,
         undoStack: [...state.undoStack, action],
       }
     }
@@ -88,9 +104,14 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
         return { ...base, updatedTables: next }
       }
       if (last.type === 'DELETE_TABLE') {
-        const next = new Set(state.deletedTableIds)
-        next.delete(last.tableId)
-        return { ...base, deletedTableIds: next }
+        const nextDeleted = new Set(state.deletedTableIds)
+        nextDeleted.delete(last.tableId)
+        // Restore guest assignments (remove the null assignments we added)
+        const nextAssignments = new Map(state.assignments)
+        for (const guestId of last.guestsOnTable) {
+          nextAssignments.delete(guestId) // revert to server state
+        }
+        return { ...base, deletedTableIds: nextDeleted, assignments: nextAssignments }
       }
       return state
     }
@@ -117,12 +138,9 @@ export function useSeatingState(serverTables: Table[], serverGuests: Guest[]) {
   const assignGuest = useCallback(
     (guestId: string, tableId: string | null) => {
       const guest = serverGuests.find((g) => g.id === guestId)
-      const prevTableId = state.assignments.has(guestId)
-        ? state.assignments.get(guestId)!
-        : guest?.table_id ?? null
-      dispatch({ type: 'ASSIGN_GUEST', guestId, tableId, prevTableId })
+      dispatch({ type: 'ASSIGN_GUEST', guestId, tableId, serverTableId: guest?.table_id ?? null })
     },
-    [serverGuests, state.assignments],
+    [serverGuests],
   )
 
   const createTable = useCallback((table: Table) => {
@@ -141,9 +159,22 @@ export function useSeatingState(serverTables: Table[], serverGuests: Guest[]) {
     [serverTables],
   )
 
-  const deleteTable = useCallback((tableId: string) => {
-    dispatch({ type: 'DELETE_TABLE', tableId })
-  }, [])
+  const deleteTable = useCallback(
+    (tableId: string) => {
+      // Find all guests currently assigned to this table
+      const guestsOnTable: string[] = []
+      for (const guest of serverGuests) {
+        const effectiveTableId = state.assignments.has(guest.id)
+          ? state.assignments.get(guest.id)
+          : guest.table_id
+        if (effectiveTableId === tableId) {
+          guestsOnTable.push(guest.id)
+        }
+      }
+      dispatch({ type: 'DELETE_TABLE', tableId, guestsOnTable })
+    },
+    [serverGuests, state.assignments],
+  )
 
   const undo = useCallback(() => dispatch({ type: 'UNDO' }), [])
   const reset = useCallback(() => dispatch({ type: 'RESET' }), [])

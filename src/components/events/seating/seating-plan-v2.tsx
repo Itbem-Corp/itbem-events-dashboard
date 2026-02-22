@@ -77,7 +77,8 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
           assignedTableId,
           (occupancy.get(assignedTableId) ?? 0) + (guest.guests_count ?? 1),
         )
-      } else if (!assignedTableId) {
+      } else {
+        // Guest is unassigned OR assigned to a deleted table
         unassigned.push(guest)
       }
     }
@@ -124,7 +125,7 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
         }
       }
     },
-    [seating, guests],
+    [seating],
   )
 
   // ─── Table CRUD ─────────────────────────────────────────────────────
@@ -168,12 +169,7 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
         await api.put(`/tables/${tableId}`, changes)
       }
 
-      // 3. Delete tables
-      for (const tableId of seating.state.deletedTableIds) {
-        await api.delete(`/tables/${tableId}`)
-      }
-
-      // 4. Batch assign guests
+      // 3. Batch assign guests (before deleting tables so FKs are cleared first)
       const assignments: { guest_id: string; table_id: string | null }[] = []
       for (const [guestId, tableId] of seating.state.assignments) {
         const resolvedTableId = tableId ? (tableIdMap.get(tableId) ?? tableId) : null
@@ -181,6 +177,11 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
       }
       if (assignments.length > 0) {
         await api.put(`/events/${eventId}/tables/assign`, { assignments })
+      }
+
+      // 4. Delete tables (after unassigning guests)
+      for (const tableId of seating.state.deletedTableIds) {
+        await api.delete(`/tables/${tableId}`)
       }
 
       // 5. Reset and revalidate
@@ -313,6 +314,7 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
         isOpen={bottomSheet.open}
         onClose={() => setBottomSheet({ open: false, guest: null })}
         guest={bottomSheet.guest}
+        currentTableId={bottomSheet.guest ? (seating.guestTableMap.get(bottomSheet.guest.id) ?? null) : null}
         tables={seating.tables}
         tableOccupancy={tableOccupancy}
         onAssign={seating.assignGuest}

@@ -10,6 +10,7 @@ interface AssignBottomSheetProps {
   isOpen: boolean
   onClose: () => void
   guest: Guest | null
+  currentTableId: string | null
   tables: Table[]
   tableOccupancy: Map<string, number>
   onAssign: (guestId: string, tableId: string | null) => void
@@ -20,6 +21,7 @@ export function AssignBottomSheet({
   isOpen,
   onClose,
   guest,
+  currentTableId,
   tables,
   tableOccupancy,
   onAssign,
@@ -68,7 +70,7 @@ export function AssignBottomSheet({
                 </button>
               </div>
 
-              {guest.table_id && (
+              {currentTableId && (
                 <button
                   onClick={() => {
                     onAssign(guest.id, null)
@@ -84,7 +86,7 @@ export function AssignBottomSheet({
                 {tables.map((table) => {
                   const occupancy = tableOccupancy.get(table.id) ?? 0
                   const isFull = occupancy >= table.capacity
-                  const isCurrentTable = guest.table_id === table.id
+                  const isCurrentTable = currentTableId === table.id
 
                   return (
                     <button
