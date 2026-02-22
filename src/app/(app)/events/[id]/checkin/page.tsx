@@ -74,7 +74,7 @@ function GuestCheckinCard({ guest, eventIdentifier, eventId, confirmedStatusId, 
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: 8 }}
       className={[
-        'relative flex items-center gap-4 rounded-xl border px-4 py-3.5 transition-colors',
+        'relative flex items-center gap-3 sm:gap-4 rounded-xl border px-3 sm:px-4 py-3 sm:py-3.5 transition-colors',
         isConfirmed
           ? 'border-lime-500/30 bg-lime-500/5'
           : 'border-white/10 bg-zinc-900/60 hover:border-white/20',
@@ -142,10 +142,11 @@ export default function CheckinPage() {
   const [showScanner, setShowScanner] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { data: event } = useSWR<Event>(
+  const { data: rawEvent } = useSWR<Event | Event[]>(
     id ? `/events/${id}` : null,
     fetcher
   )
+  const event = Array.isArray(rawEvent) ? rawEvent[0] : rawEvent
 
   const { data: rawGuests, isLoading } = useSWR(
     event?.id ? `/guests/all:${event.id}` : null,

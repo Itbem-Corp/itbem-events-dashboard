@@ -55,6 +55,7 @@ interface LightboxProps {
 
 function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: LightboxProps) {
   const [scale, setScale] = useState(1)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
   const moment = moments[index]
   const url = resolveUrl(moment)
   const video = isVideo(url)
@@ -70,11 +71,27 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
     return () => window.removeEventListener('keydown', handler)
   }, [onClose, onNext, onPrev])
 
+  // Touch swipe navigation
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart.current) return
+    const dx = e.changedTouches[0].clientX - touchStart.current.x
+    const dy = e.changedTouches[0].clientY - touchStart.current.y
+    touchStart.current = null
+    if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return
+    setScale(1)
+    if (dx < 0) onNext()
+    else onPrev()
+  }
+
   const handleDownload = async () => {
     try {
       const res = await fetch(url)
       const blob = await res.blob()
-      const ext = url.split('.').pop()?.split('?')[0] ?? 'jpg'
+      const extMatch = url.match(/\.(\w{2,5})(?:\?|$)/)
+      const ext = extMatch?.[1] ?? 'jpg'
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
       a.download = `momento-${moment.id}.${ext}`
@@ -95,23 +112,25 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-sm"
       onClick={onClose}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Controls bar */}
       <div
-        className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent"
+        className="absolute top-0 left-0 right-0 flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 bg-gradient-to-b from-black/60 to-transparent z-10"
         onClick={(e) => e.stopPropagation()}
       >
-        <span className="text-sm text-white/70">
+        <span className="text-xs sm:text-sm text-white/70 min-w-0 truncate">
           {index + 1} / {moments.length}
           {moment.description && (
-            <span className="ml-3 text-white/50 italic line-clamp-1 max-w-sm">
+            <span className="hidden sm:inline ml-3 text-white/50 italic line-clamp-1 max-w-xs sm:max-w-sm">
               &ldquo;{moment.description}&rdquo;
             </span>
           )}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {!video && (
-            <>
+            <div className="hidden sm:flex items-center gap-2">
               <button
                 onClick={() => setScale((s) => Math.max(0.5, s - 0.25))}
                 className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
@@ -126,7 +145,7 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
               >
                 <MagnifyingGlassPlusIcon className="size-5" />
               </button>
-            </>
+            </div>
           )}
           <button
             onClick={handleDownload}
@@ -145,11 +164,11 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
         </div>
       </div>
 
-      {/* Prev */}
+      {/* Prev — hidden on mobile, use swipe instead */}
       {moments.length > 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); setScale(1); onPrev() }}
-          className="absolute left-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+          className="hidden sm:block absolute left-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
         >
           <ArrowLeftIcon className="size-5" />
         </button>
@@ -182,11 +201,11 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
         )}
       </motion.div>
 
-      {/* Next */}
+      {/* Next — hidden on mobile, use swipe instead */}
       {moments.length > 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); setScale(1); onNext() }}
-          className="absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+          className="hidden sm:block absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
         >
           <ArrowRightIcon className="size-5" />
         </button>
@@ -361,6 +380,7 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
               src={url}
               muted
               playsInline
+              preload="metadata"
               className="w-full h-full object-cover"
             />
           ) : (
@@ -369,7 +389,18 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
               alt="Momento del evento"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               loading="lazy"
+              decoding="async"
             />
+          )}
+          {/* Video play icon */}
+          {video && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="flex items-center justify-center size-12 rounded-full bg-black/50 backdrop-blur-sm ring-1 ring-white/20">
+                <svg className="size-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5.14v14l11-7-11-7z" />
+                </svg>
+              </div>
+            </div>
           )}
           {/* Hover overlay */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
@@ -490,6 +521,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   }
 
   const handleDelete = async (moment: Moment) => {
+    if (!window.confirm('¿Eliminar este momento? Esta acción no se puede deshacer.')) return
     try {
       await api.delete(`/moments/${moment.id}`)
       await globalMutate(swrKey)
@@ -521,7 +553,8 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           try {
             const res = await fetch(resolveUrl(m))
             const blob = await res.blob()
-            const ext = resolveUrl(m).split('.').pop()?.split('?')[0] ?? 'jpg'
+            const zipExtMatch = resolveUrl(m).match(/\.(\w{2,5})(?:\?|$)/)
+            const ext = zipExtMatch?.[1] ?? 'jpg'
             folder.file(`momento-${String(i + 1).padStart(3, '0')}.${ext}`, blob)
           } catch {
             // Skip failed individual files silently
@@ -542,7 +575,26 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     }
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_ASTRO_URL ?? process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://www.eventiapp.com.mx'
+  const [approvingAll, setApprovingAll] = useState(false)
+
+  const handleApproveAll = async () => {
+    const pending = moments.filter((m) => !m.is_approved && m.processing_status !== 'failed')
+    if (pending.length === 0) return
+    setApprovingAll(true)
+    try {
+      await Promise.all(
+        pending.map((m) => api.put(`/moments/${m.id}`, { ...m, is_approved: true }))
+      )
+      await globalMutate(swrKey)
+      toast.success(`${pending.length} momento${pending.length !== 1 ? 's' : ''} aprobados`)
+    } catch {
+      toast.error('Error al aprobar momentos')
+    } finally {
+      setApprovingAll(false)
+    }
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_ASTRO_URL ?? 'https://www.eventiapp.com.mx'
   const uploadUrl = `${siteUrl}/events/${eventIdentifier}/upload`
 
   if (isLoading) {
@@ -575,7 +627,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
         </p>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
           {approvedCount > 0 && (
             <button
               onClick={handleDownloadZip}
@@ -588,7 +640,24 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
               ) : (
                 <ArrowDownTrayIcon className="size-3.5" />
               )}
-              {downloadingZip ? 'Generando…' : 'Descargar fotos (ZIP)'}
+              <span className="hidden sm:inline">{downloadingZip ? 'Generando…' : 'Descargar fotos (ZIP)'}</span>
+              <span className="sm:hidden">{downloadingZip ? '…' : 'ZIP'}</span>
+            </button>
+          )}
+          {pendingCount > 0 && (
+            <button
+              onClick={handleApproveAll}
+              disabled={approvingAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-lime-500/10 text-lime-400 hover:bg-lime-500/20 transition-colors border border-lime-500/20 disabled:opacity-50"
+              title={`Aprobar ${pendingCount} momento${pendingCount !== 1 ? 's' : ''} pendientes`}
+            >
+              {approvingAll ? (
+                <ArrowPathIcon className="size-3.5 animate-spin" />
+              ) : (
+                <CheckIcon className="size-3.5" />
+              )}
+              <span className="hidden sm:inline">{approvingAll ? 'Aprobando…' : `Aprobar todos (${pendingCount})`}</span>
+              <span className="sm:hidden">{approvingAll ? '…' : `Aprobar (${pendingCount})`}</span>
             </button>
           )}
           {shareUploadsEnabled && (
@@ -608,18 +677,21 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           {isValidating && (
             <ArrowPathIcon className="size-3 animate-spin text-zinc-400" />
           )}
+          <span className="sm:hidden">
+            {isValidating ? 'Actualizando…' : '15s'}
+          </span>
           <span className="hidden sm:inline">
             {isValidating ? 'Actualizando…' : 'Auto-actualiza cada 15s'}
           </span>
         </div>
 
         {/* Filters */}
-        <div role="tablist" className="flex rounded-lg overflow-hidden border border-white/10">
+        <div role="tablist" className="flex rounded-lg overflow-hidden border border-white/10 w-full sm:w-auto">
           {([
-            { value: 'all',      label: 'Todos' },
-            { value: 'pending',  label: 'Pendientes' },
-            { value: 'approved', label: 'Aprobados' },
-            ...(failedCount > 0 ? [{ value: 'failed', label: 'Errores' }] : []),
+            { value: 'all',      label: 'Todos',      count: moments.length },
+            { value: 'pending',  label: 'Pendientes', count: pendingCount },
+            { value: 'approved', label: 'Aprobados',  count: approvedCount },
+            ...(failedCount > 0 ? [{ value: 'failed', label: 'Errores', count: failedCount }] : []),
           ] as const).map((f) => (
             <button
               key={f.value}
@@ -627,13 +699,21 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
               aria-selected={filter === f.value}
               onClick={() => setFilter(f.value as typeof filter)}
               className={[
-                'px-3 py-1.5 text-xs font-medium transition-colors',
+                'flex-1 sm:flex-initial px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors text-center',
                 filter === f.value
                   ? 'bg-indigo-600 text-white'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5',
               ].join(' ')}
             >
               {f.label}
+              {f.count > 0 && (
+                <span className={[
+                  'ml-1 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums',
+                  filter === f.value ? 'bg-white/20' : 'bg-zinc-800 text-zinc-500',
+                ].join(' ')}>
+                  {f.count}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -655,7 +735,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           }
         />
       ) : (
-        <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" layout>
+        <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4" layout>
           <AnimatePresence>
             {filteredMoments.map((moment) => (
               <MomentCard

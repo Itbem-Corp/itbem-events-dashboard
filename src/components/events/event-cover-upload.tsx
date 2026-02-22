@@ -33,8 +33,7 @@ export function EventCoverUpload({ event }: Props) {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('owner_type', 'event')
-      fd.append('owner_id', event.id)
+      fd.append('title', 'cover')
 
       await api.post('/resources', fd)
       await mutate(`/events/${event.id}`)
@@ -62,7 +61,8 @@ export function EventCoverUpload({ event }: Props) {
   const handleRemoveCover = async () => {
     try {
       await api.put(`/events/${event.id}`, {
-        ...event,
+        name: event.name,
+        identifier: event.identifier,
         cover_image_url: '',
       })
       await mutate(`/events/${event.id}`)

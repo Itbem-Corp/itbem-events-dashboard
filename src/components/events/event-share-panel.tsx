@@ -14,7 +14,7 @@ import {
 } from '@heroicons/react/20/solid'
 
 const PUBLIC_FRONTEND_URL =
-  process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://www.eventiapp.com.mx'
+  process.env.NEXT_PUBLIC_ASTRO_URL ?? 'https://www.eventiapp.com.mx'
 
 interface ShareLinkRowProps {
   icon: React.ComponentType<{ className?: string }>
@@ -46,7 +46,7 @@ function ShareLinkRow({ icon: Icon, label, url, description }: ShareLinkRowProps
         <div className="min-w-0">
           <p className="text-sm font-medium text-zinc-200">{label}</p>
           {description && <p className="text-xs text-zinc-500 mt-0.5">{description}</p>}
-          <p className="text-xs text-zinc-600 font-mono mt-1 truncate max-w-[180px] sm:max-w-[300px]">{url}</p>
+          <p className="text-xs text-zinc-600 font-mono mt-1 truncate break-all max-w-full">{url}</p>
         </div>
       </div>
       <button
@@ -74,10 +74,10 @@ export function EventSharePanel({ event, guests }: Props) {
   const rsvpUrl = `${PUBLIC_FRONTEND_URL}/rsvp/${event.identifier}`
 
   const confirmedWithEmail = guests.filter(
-    (g) => g.status?.code === 'CONFIRMED' && g.email
+    (g) => (g.rsvp_status ?? g.status?.code ?? 'PENDING').toUpperCase() === 'CONFIRMED' && g.email
   )
   const pendingWithEmail = guests.filter(
-    (g) => g.status?.code === 'PENDING' && g.email
+    (g) => (g.rsvp_status ?? g.status?.code ?? 'PENDING').toUpperCase() === 'PENDING' && g.email
   )
 
   return (
@@ -108,7 +108,7 @@ export function EventSharePanel({ event, guests }: Props) {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.06 }}
-        className="grid grid-cols-2 gap-3"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-3"
       >
         <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
           <div className="flex items-center gap-2 mb-2">

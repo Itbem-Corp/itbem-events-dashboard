@@ -27,7 +27,7 @@ import {
 } from '@heroicons/react/20/solid'
 import { api } from '@/lib/api'
 
-const PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://www.eventiapp.com.mx'
+const PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_ASTRO_URL ?? 'https://www.eventiapp.com.mx'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -97,7 +97,7 @@ function InvitationStats({ guests }: { guests: Guest[] }) {
             className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-400"
           />
         </div>
-        <div className="mt-2 flex gap-4 text-xs text-zinc-600">
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-600">
           <span><span className="text-lime-400 font-medium">{confirmed.length}</span> confirmados</span>
           <span><span className="text-pink-400 font-medium">{declined.length}</span> declinados</span>
           <span><span className="text-amber-400 font-medium">{pending.length}</span> pendientes</span>
@@ -105,7 +105,7 @@ function InvitationStats({ guests }: { guests: Guest[] }) {
       </div>
 
       {/* Stat grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
         {stats.map((s) => (
           <motion.div
             key={s.label}
@@ -396,7 +396,7 @@ function BulkWhatsAppPanel({ guests, event, filter }: { guests: Guest[]; event: 
   if (targets.length === 0) return null
 
   return (
-    <div className="rounded-xl border border-lime-500/20 bg-lime-500/5 p-4 flex items-center justify-between gap-4">
+    <div className="rounded-xl border border-lime-500/20 bg-lime-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div>
         <p className="text-sm font-medium text-lime-300">
           {targets.length} invitados con teléfono{filter !== 'ALL' ? ` (${filter.toLowerCase()})` : ''}
@@ -438,7 +438,7 @@ function exportInvitationsCSV(guests: Guest[], event: Event) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `invitaciones-${event.name.replace(/\s+/g, '-').toLowerCase()}.csv`
+  a.download = `invitaciones-${event.name.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -479,7 +479,7 @@ export function InvitationTracker({ event, guests, isLoading }: Props) {
     return (
       <div className="space-y-3 animate-pulse">
         <div className="h-24 bg-zinc-800/50 rounded-xl" />
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3">
           {[...Array(6)].map((_, i) => <div key={i} className="h-16 bg-zinc-800/50 rounded-xl" />)}
         </div>
         {[...Array(5)].map((_, i) => <div key={i} className="h-16 bg-zinc-800/50 rounded-xl" />)}
@@ -513,9 +513,9 @@ export function InvitationTracker({ event, guests, isLoading }: Props) {
       <BulkWhatsAppPanel guests={guests} event={event} filter={filter} />
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
         {/* Filter tabs */}
-        <div className="flex rounded-lg overflow-hidden border border-white/10">
+        <div className="flex rounded-lg overflow-hidden border border-white/10 w-full sm:w-auto">
           {FILTER_OPTS.map((opt) => {
             const count = opt.id === 'ALL' ? guests.length :
               guests.filter((g) => (g.rsvp_status ?? g.status?.code ?? 'PENDING').toUpperCase() === opt.id).length
@@ -524,13 +524,13 @@ export function InvitationTracker({ event, guests, isLoading }: Props) {
                 key={opt.id}
                 onClick={() => setFilter(opt.id)}
                 className={[
-                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                  'flex flex-1 sm:flex-initial items-center justify-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors',
                   filter === opt.id
                     ? 'bg-indigo-600 text-white'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5',
                 ].join(' ')}
               >
-                <FunnelIcon className="size-3" />
+                <FunnelIcon className="size-3 hidden sm:block" />
                 {opt.label}
                 <span className={[
                   'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
@@ -543,23 +543,24 @@ export function InvitationTracker({ event, guests, isLoading }: Props) {
           })}
         </div>
 
-        {/* Search */}
-        <input
-          type="search"
-          placeholder="Buscar invitado…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[160px] max-w-xs rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
+        {/* Search + Export row */}
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          <input
+            type="search"
+            placeholder="Buscar invitado…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-0 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 sm:py-1.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
 
-        {/* Export */}
-        <button
-          onClick={() => exportInvitationsCSV(guests, event)}
-          className="ml-auto flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
-        >
-          <ArrowDownTrayIcon className="size-3.5" />
-          Exportar
-        </button>
+          <button
+            onClick={() => exportInvitationsCSV(guests, event)}
+            className="shrink-0 flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 sm:py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
+          >
+            <ArrowDownTrayIcon className="size-3.5" />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
+        </div>
       </div>
 
       {/* Result count */}
