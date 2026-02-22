@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
           body: new URLSearchParams({
             grant_type: "authorization_code",
             client_id: process.env.COGNITO_CLIENT_ID!,
+            client_secret: process.env.COGNITO_CLIENT_SECRET!,
             code,
             redirect_uri: process.env.COGNITO_REDIRECT_URI!,
           }),
