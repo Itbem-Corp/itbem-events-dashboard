@@ -29,8 +29,8 @@ const EventDesignPicker = dynamic(
   { ssr: false }
 )
 
-const SeatingPlan = dynamic(
-  () => import('@/components/events/seating-plan').then((m) => m.SeatingPlan),
+const SeatingPlanV2 = dynamic(
+  () => import('@/components/events/seating/seating-plan-v2').then((m) => m.SeatingPlanV2),
   { ssr: false }
 )
 import {
@@ -1059,11 +1059,10 @@ export default function EventDetailPage() {
           )}
 
           {/* ── ASIENTOS (MESAS) ────────────────────────────────────────────── */}
-          {activeTab === 'asientos' && (
-            <SeatingPlan
-              guests={guests}
+          {activeTab === 'asientos' && event && (
+            <SeatingPlanV2
+              eventId={event.id}
               eventIdentifier={event.identifier}
-              isLoading={guestsLoading}
             />
           )}
 
