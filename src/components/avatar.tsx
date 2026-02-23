@@ -1,6 +1,7 @@
 import * as Headless from '@headlessui/react'
 import clsx from 'clsx'
 import React, { forwardRef, useState } from 'react'
+import Image from 'next/image'
 import { TouchTarget } from './button'
 import { Link } from './link'
 
@@ -33,7 +34,7 @@ export function Avatar({
             {...props}
             className={clsx(
                 className,
-                'inline-grid shrink-0 align-middle [--avatar-radius:20%] *:col-start-1 *:row-start-1',
+                'relative inline-grid shrink-0 align-middle [--avatar-radius:20%] *:col-start-1 *:row-start-1',
                 'outline -outline-offset-1 outline-black/10 dark:outline-white/10',
                 square
                     ? 'rounded-(--avatar-radius) *:rounded-(--avatar-radius)'
@@ -63,10 +64,12 @@ export function Avatar({
 
             {/* Imagen SOLO si es válida */}
             {hasValidSrc && (
-                <img
+                <Image
                     className="size-full object-cover"
                     src={src}
                     alt={alt}
+                    fill
+                    sizes="64px"
                     onError={() => setImageError(true)}
                 />
             )}

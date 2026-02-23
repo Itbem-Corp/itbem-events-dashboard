@@ -2,9 +2,11 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import useSWR from 'swr'
 import { fetcher } from '@/lib/fetcher'
 import type { Event } from '@/models/Event'
+import { eventTypeLabel } from '@/lib/event-type-label'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useStore } from '@/store/useStore'
 
@@ -232,14 +234,14 @@ export default function EventsPage() {
               className="flex items-center gap-4 rounded-2xl border border-white/10 bg-zinc-900/50 p-5 animate-pulse"
             >
               <div className="size-14 rounded-xl bg-zinc-800 shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-48 bg-zinc-800 rounded" />
-                <div className="h-3 w-64 bg-zinc-800 rounded" />
-                <div className="h-3 w-32 bg-zinc-800 rounded" />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="h-4 w-3/4 max-w-[12rem] bg-zinc-800 rounded" />
+                <div className="h-3 w-full max-w-[16rem] bg-zinc-800 rounded" />
+                <div className="h-3 w-1/2 max-w-[8rem] bg-zinc-800 rounded" />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <div className="h-5 w-16 bg-zinc-800 rounded-full" />
-                <div className="h-5 w-12 bg-zinc-800 rounded-full" />
+                <div className="h-5 w-12 bg-zinc-800 rounded-full hidden sm:block" />
                 <div className="size-7 bg-zinc-800 rounded" />
               </div>
             </div>
@@ -288,11 +290,13 @@ export default function EventsPage() {
                       {/* Cover thumbnail or placeholder */}
                       <div className="relative size-14 shrink-0">
                         {event.cover_image_url ? (
-                          <img
+                          <Image
                             src={event.cover_image_url}
                             alt={event.name}
+                            fill
+                            sizes="56px"
                             className={[
-                              'size-14 rounded-xl object-cover',
+                              'rounded-xl object-cover',
                               isPast ? 'opacity-40 grayscale' : '',
                             ].join(' ')}
                           />
@@ -327,7 +331,7 @@ export default function EventsPage() {
                           </Link>
                           {event.event_type?.name && (
                             <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-600 border border-zinc-800 rounded px-1.5 py-0.5">
-                              {event.event_type.name}
+                              {eventTypeLabel(event.event_type.name)}
                             </span>
                           )}
                         </div>
@@ -356,7 +360,7 @@ export default function EventsPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                         <CountdownBadge dateString={event.event_date_time} />
                         <div title={event.is_active ? 'Desactivar evento' : 'Activar evento'}>
                           <EventActiveToggle event={event} />
@@ -369,6 +373,7 @@ export default function EventsPage() {
                           }}
                           aria-label={`Duplicar ${event.name}`}
                           title="Duplicar evento"
+                          className="hidden sm:inline-flex"
                         >
                           <DocumentDuplicateIcon className="size-4 text-zinc-400" />
                         </Button>
@@ -376,7 +381,7 @@ export default function EventsPage() {
                           href={`/events/${event.id}/studio`}
                           title="Abrir Studio"
                           aria-label={`Studio de ${event.name}`}
-                          className="flex items-center rounded p-1 text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                          className="hidden sm:flex items-center rounded p-1 text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
                         >
                           <PaintBrushIcon className="size-4" />
                         </a>
@@ -384,6 +389,7 @@ export default function EventsPage() {
                           plain
                           onClick={() => openEditEventModal(event)}
                           aria-label={`Editar ${event.name}`}
+                          className="hidden sm:inline-flex"
                         >
                           <PencilIcon className="size-4 text-zinc-400" />
                         </Button>

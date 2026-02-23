@@ -22,10 +22,13 @@ npm run build
 npm run start
 
 # Run Vitest unit tests
-npm run test
+npm run test:unit
 
 # Run Vitest in watch mode
-npm run test:watch
+npm run test:unit:watch
+
+# Run with coverage
+npm run test:coverage
 ```
 
 ## Architecture
@@ -70,6 +73,9 @@ Do not add unauthenticated pages inside the `(app)` route group.
 | `src/app/(app)/` | Protected App Router pages (events list, event detail with tabs) |
 | `src/components/events/MomentsWall.tsx` | Moments management: filter tabs, lightbox viewer, QR modal, ZIP download, 15s auto-refresh |
 | `src/components/ui/EmptyState.tsx` | Generic empty state UI component |
+| `src/lib/sanitize-event.ts` | In-memory event data sanitizer + issue detector |
+| `src/hooks/useEventHealthCheck.ts` | Auto-repair hook (calls backend repair endpoint) |
+| `src/components/events/event-error-boundary.tsx` | React Error Boundary for event pages |
 | `vitest.config.ts` | Vitest test configuration |
 | `tests/unit/components/` | Vitest + React Testing Library unit tests |
 | `.env.example` | Example environment variable file |
@@ -147,6 +153,17 @@ Create a TypeScript interface in `src/models/YourModel.ts` matching the backend 
 1. Create the page file under `src/app/(app)/your-page/page.tsx`.
 2. The page is automatically protected by the Cognito middleware — no extra configuration needed.
 3. Add navigation links in the sidebar/nav component if the page should be discoverable from the UI.
+
+### Self-Healing System
+
+The dashboard includes a two-layer self-healing system that automatically detects and repairs malformed event data:
+
+1. **Frontend detection** (`src/lib/sanitize-event.ts`): `sanitizeEvent()` applies in-memory defaults (timezone, language, identifier) before render. `detectEventIssues()` checks for missing/broken fields.
+2. **Frontend hook** (`src/hooks/useEventHealthCheck.ts`): Runs once per event load. If issues are detected, calls the backend repair endpoint, revalidates SWR, and shows a subtle toast.
+3. **Backend repair** (`POST /events/:id/repair`): Atomic transactional repair covering missing EventConfig/EventAnalytics, invalid FKs, field defaults, orphaned relations, and stuck moment processing.
+4. **Error boundary** (`src/components/events/event-error-boundary.tsx`): Catches render crashes with a retry button.
+
+All integrated in the event detail page (`src/app/(app)/events/[id]/page.tsx`).
 
 ### Adding a New Feature Component
 

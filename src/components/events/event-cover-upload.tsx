@@ -8,6 +8,7 @@ import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import type { Event } from '@/models/Event'
 
+import Image from 'next/image'
 import { Button } from '@/components/button'
 import { PhotoIcon, ArrowUpTrayIcon, TrashIcon } from '@heroicons/react/20/solid'
 
@@ -82,10 +83,13 @@ export function EventCoverUpload({ event }: Props) {
           animate={{ opacity: 1 }}
           className="relative rounded-xl overflow-hidden aspect-[16/9] bg-zinc-800 group"
         >
-          <img
-            src={event.cover_image_url}
+          <Image
+            src={event.cover_image_url!}
             alt="Portada del evento"
-            className="w-full h-full object-cover"
+            fill
+            sizes="(max-width: 768px) 100vw, 50vw"
+            className="object-cover"
+            priority
           />
           {/* Overlay actions */}
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">

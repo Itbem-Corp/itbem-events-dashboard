@@ -49,7 +49,7 @@ interface SettingRowProps {
 function SettingRow({ icon: Icon, title, description, checked, onChange, disabled, badge }: SettingRowProps) {
   return (
     <div className="flex items-center justify-between gap-3 sm:gap-6 py-4">
-      <div className="flex items-start gap-3 min-w-0 flex-1 mr-3">
+      <div className="flex items-start gap-3 min-w-0 flex-1">
         <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-zinc-800">
           <Icon className="size-4 text-zinc-400" />
         </div>
@@ -127,7 +127,7 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
   const [isDirty, setIsDirty] = useState(false)
 
   // Public URL
-  const publicUrl = `${process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://www.eventiapp.com.mx'}/e/${eventIdentifier}`
+  const publicUrl = `${process.env.NEXT_PUBLIC_ASTRO_URL ?? 'https://www.eventiapp.com.mx'}/e/${eventIdentifier}`
 
   useEffect(() => {
     if (!config) return
@@ -230,12 +230,12 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
         <p className="mt-1 text-sm text-zinc-500">
           Comparte este enlace con tus invitados.
         </p>
-        <div className="mt-4 flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-950 px-3 py-2">
+        <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className="flex-1 flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 min-w-0">
             <LinkIcon className="size-4 text-zinc-500 shrink-0" />
             <span className="text-sm text-zinc-300 truncate font-mono">{publicUrl}</span>
           </div>
-          <Button outline onClick={copyPublicUrl}>
+          <Button outline onClick={copyPublicUrl} className="shrink-0">
             Copiar
           </Button>
         </div>
@@ -312,7 +312,7 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
         <SettingRow
           icon={PhotoIcon}
           title="Permitir subir fotos"
-          description="Los invitados pueden compartir fotos desde la página pública del evento."
+          description="Los invitados podrán subir fotos y videos desde su dispositivo. Los videos no se incluyen en descargas ZIP."
           checked={allowUploads}
           onChange={(v) => { setAllowUploads(v); mark() }}
           badge="Muro"
@@ -321,7 +321,7 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
         <SettingRow
           icon={ChatBubbleLeftRightIcon}
           title="Permitir mensajes"
-          description="Los invitados pueden enviar mensajes de texto al muro del evento."
+          description="Los invitados podrán dejar un mensaje junto con sus fotos y videos."
           checked={allowMessages}
           onChange={(v) => { setAllowMessages(v); mark() }}
           badge="Muro"
@@ -330,7 +330,7 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
         <SettingRow
           icon={BellAlertIcon}
           title="Notificar al subir momento"
-          description="Recibe una notificación cuando un invitado suba una foto o mensaje."
+          description="Recibe una notificación cuando un invitado sube un momento."
           checked={notifyOnMomentUpload}
           onChange={(v) => { setNotifyOnMomentUpload(v); mark() }}
         />
@@ -460,7 +460,7 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
           { icon: NewspaperIcon, title: 'RSVP', desc: 'Formulario de confirmación', val: showRsvp, set: setShowRsvp },
           { icon: MapPinIcon, title: 'Ubicación', desc: 'Mapa y dirección del evento', val: showLocation, set: setShowLocation },
           { icon: Squares2X2Icon, title: 'Galería', desc: 'Fotos del evento', val: showGallery, set: setShowGallery },
-          { icon: PhotoIcon, title: 'Muro de momentos', desc: 'Fotos y mensajes de invitados', val: showWall, set: setShowWall },
+          { icon: PhotoIcon, title: 'Muro de momentos', desc: 'Los invitados podrán ver los momentos aprobados en la página del evento.', val: showWall, set: setShowWall },
           { icon: PhoneIcon, title: 'Contacto', desc: 'Información de contacto del organizador', val: showContact, set: setShowContact },
           { icon: RectangleStackIcon, title: 'Agenda', desc: 'Horario e itinerario', val: showSchedule, set: setShowSchedule },
         ] as const).map(({ icon: Icon, title, desc, val, set }) => (

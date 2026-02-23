@@ -6,6 +6,7 @@ import useSWR, { mutate as globalMutate } from 'swr'
 import { motion, AnimatePresence } from 'motion/react'
 import JSZip from 'jszip'
 
+import Image from 'next/image'
 import { api } from '@/lib/api'
 import { fetcher } from '@/lib/fetcher'
 import { toast } from 'sonner'
@@ -384,12 +385,12 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
               className="w-full h-full object-cover"
             />
           ) : (
-            <img
+            <Image
               src={url}
               alt="Momento del evento"
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              loading="lazy"
-              decoding="async"
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
             />
           )}
           {/* Video play icon */}

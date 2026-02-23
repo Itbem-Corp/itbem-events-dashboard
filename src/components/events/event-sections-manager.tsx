@@ -776,6 +776,7 @@ export function EventSectionsManager({ eventId }: Props) {
   }
 
   const handleDelete = async (section: EventSection) => {
+    if (!window.confirm(`¿Eliminar la sección "${section.component_type}"? Esta acción no se puede deshacer.`)) return
     try {
       await api.delete(`/sections/${section.id}`)
       if (editingId === section.id) setEditingId(null)

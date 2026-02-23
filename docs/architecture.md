@@ -52,9 +52,12 @@ src/
 │   ├── application-layout.tsx  Full app shell
 │   ├── auth-layout.tsx     Auth centered card
 │   └── [40+ UI primitives] Button · Input · Dialog · Alert · Table · Badge…
+├── hooks/
+│   └── useEventHealthCheck.ts  Self-healing hook (detect issues → repair → revalidate)
 ├── lib/
 │   ├── api.ts              Axios instance (auth interceptors)
 │   ├── fetcher.ts          SWR fetcher
+│   ├── sanitize-event.ts   In-memory event sanitizer + issue detector
 │   └── utils.ts            cn() = clsx + tailwind-merge
 ├── models/                 40+ TypeScript interfaces (mirror backend GORM models)
 ├── store/useStore.ts       Zustand global state

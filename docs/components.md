@@ -612,6 +612,22 @@ Full-screen camera overlay for scanning guest QR codes at check-in.
 | `EventDesignPicker` | `components/events/event-design-picker.tsx` | Design template, color palette, font set selector |
 | `InvitationTracker` | `components/events/invitation-tracker.tsx` | Full invitation tracking with bulk WhatsApp, CSV export |
 
+## Self-Healing Components
+
+### sanitizeEvent (`lib/sanitize-event.ts`)
+In-memory event sanitizer applied before render. Sets defaults for timezone (`America/Mexico_City`), language (`es`), and identifier (falls back to `event.id`).
+
+### detectEventIssues (`lib/sanitize-event.ts`)
+Returns an array of `EventIssue` objects for: empty identifier, missing timezone, zero/missing `event_date_time`, missing language, FK present but relation not loaded (`event_type`), missing `config`.
+
+### useEventHealthCheck (`hooks/useEventHealthCheck.ts`)
+Hook that runs once per event load (useRef guard). Calls `detectEventIssues()`, and if issues found, calls `POST /events/:id/repair`. On success, revalidates SWR keys (`/events/:id`, `/events/:id/config`, `/events/:id/analytics`, `/moments?event_id=:id`) and shows a toast: "Datos del evento optimizados (N correcciones)".
+
+### EventErrorBoundary (`events/event-error-boundary.tsx`)
+React class component Error Boundary. Wraps the event detail page. Catches render crashes and shows a retry button that reloads the page.
+
+---
+
 ## Guest Form Enhancements
 - Added fields: `role` (graduate/guest/host/vip/speaker/staff), `is_host` (boolean), `notes` (textarea), `max_guests` (number)
 - **Perfil público** collapsible section (auto-opens on edit when data exists): `headline` (role/title), `bio` (short profile text), `signature` (dedication/closing phrase)

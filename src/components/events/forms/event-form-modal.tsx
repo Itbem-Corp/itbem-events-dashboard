@@ -7,6 +7,7 @@ import * as z from 'zod'
 import { mutate } from 'swr'
 import useSWR from 'swr'
 
+import { eventTypeLabel } from '@/lib/event-type-label'
 import { Dialog, DialogActions, DialogBody, DialogTitle } from '@/components/dialog'
 import { Field, Label, ErrorMessage, Description } from '@/components/fieldset'
 import { Input } from '@/components/input'
@@ -265,7 +266,7 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
                             </option>
                             {eventTypes.map((et) => (
                                 <option key={et.id} value={et.id}>
-                                    {et.name}
+                                    {eventTypeLabel(et.name)}
                                 </option>
                             ))}
                         </Select>

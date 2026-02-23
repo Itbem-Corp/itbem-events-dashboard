@@ -104,6 +104,7 @@ toast.error('Failed')
 | POST | `/events` | Create event |
 | PUT | `/events/:id` | Update event |
 | DELETE | `/events/:id` | Delete event |
+| POST | `/events/:id/repair` | Self-healing: detect and fix malformed event data atomically |
 | GET | `/events/:id/analytics` | Event analytics — views, RSVPs, moment counts |
 | GET | `/events/:id/config` | Event configuration |
 | PUT | `/events/:id/config` | Update configuration |

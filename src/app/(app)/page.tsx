@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '@/components/table'
 import { fetcher } from '@/lib/fetcher'
+import { eventTypeLabel } from '@/lib/event-type-label'
 import useSWR from 'swr'
 import { motion, AnimatePresence } from 'motion/react'
 import type { Event } from '@/models/Event'
@@ -228,7 +229,7 @@ export default function Home() {
                       {formatEventDate(event.event_date_time, event.timezone)}
                     </TableCell>
                     <TableCell className="text-zinc-500">
-                      {event.event_type?.name || '—'}
+                      {eventTypeLabel(event.event_type?.name) || '—'}
                     </TableCell>
                     <TableCell className="text-zinc-400 tabular-nums">
                       {event.max_guests != null ? event.max_guests : '—'}

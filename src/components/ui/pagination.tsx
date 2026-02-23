@@ -23,7 +23,7 @@ export function Pagination({ total, page, pageSize, onPageChange }: PaginationPr
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.2 }}
-            className="mt-6 flex items-center justify-between gap-4 border-t border-white/5 pt-4"
+            className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/5 pt-4"
         >
             <span className="text-xs text-zinc-500">
                 Mostrando {from}–{to} de {total}

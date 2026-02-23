@@ -20,13 +20,6 @@ export const ACCEPT_PRESETS = {
     VIDEOS: {
         'video/*': ['.mp4', '.mov', '.webm', '.quicktime', '.3gp', '.m4v']
     },
-    DOCS: {
-        'application/pdf': ['.pdf'],
-        'application/msword': ['.doc'],
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-        'application/vnd.ms-excel': ['.xls'],
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
-    }
 }
 
 interface FileUploadProps {
@@ -43,7 +36,7 @@ interface FileUploadProps {
 export function FileUpload({
                                value,
                                onChange,
-                               accept = { ...ACCEPT_PRESETS.IMAGES, ...ACCEPT_PRESETS.DOCS },
+                               accept = { ...ACCEPT_PRESETS.IMAGES, ...ACCEPT_PRESETS.VIDEOS },
                                maxSize = 1024 * 1024 * 25,
                                label,
                                description,
@@ -227,10 +220,10 @@ export function FileUpload({
                         </div>
                         <div className="space-y-1">
                             <p className="text-sm text-zinc-200 font-semibold">
-                                {isDragActive ? 'Suelta el archivo' : 'Cargar foto, video o documento'}
+                                {isDragActive ? 'Suelta el archivo' : 'Cargar foto o video'}
                             </p>
                             <p className="text-xs text-zinc-500 max-w-[260px] mx-auto">
-                                {description || 'Formatos nativos de iOS, Android y Desktop hasta 25MB'}
+                                {description || 'JPG, PNG, WebP, HEIC, MP4, MOV · Hasta 25 MB'}
                             </p>
                         </div>
                     </div>

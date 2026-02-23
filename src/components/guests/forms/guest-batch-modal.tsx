@@ -252,8 +252,8 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
           />
         </div>
 
-        {/* Table header */}
-        <div className="grid grid-cols-[1fr_1fr_1.2fr_0.8fr_0.6fr_0.6fr_auto] gap-2 px-1 mb-2">
+        {/* Desktop table header — hidden on mobile */}
+        <div className="hidden md:grid grid-cols-[1fr_1fr_1.2fr_0.8fr_0.6fr_0.6fr_auto] gap-2 px-1 mb-2">
           {['Nombre *', 'Apellido *', 'Correo', 'Teléfono', '+1s', 'Mesa', ''].map((h) => (
             <p key={h} className="text-xs font-medium text-zinc-500 uppercase tracking-wide">
               {h}
@@ -262,7 +262,7 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
         </div>
 
         {/* Rows */}
-        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
           <AnimatePresence>
             {rows.map((row, index) => (
               <motion.div
@@ -272,8 +272,8 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.15 }}
               >
-                <div className="grid grid-cols-[1fr_1fr_1.2fr_0.8fr_0.6fr_0.6fr_auto] gap-2 items-start">
-                  {/* Nombre */}
+                {/* Desktop: table row */}
+                <div className="hidden md:grid grid-cols-[1fr_1fr_1.2fr_0.8fr_0.6fr_0.6fr_auto] gap-2 items-start">
                   <Field>
                     <input
                       value={row.first_name}
@@ -290,7 +290,6 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
                     )}
                   </Field>
 
-                  {/* Apellido */}
                   <Field>
                     <input
                       value={row.last_name}
@@ -306,7 +305,6 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
                     )}
                   </Field>
 
-                  {/* Email */}
                   <input
                     type="email"
                     value={row.email}
@@ -315,7 +313,6 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
                     className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
 
-                  {/* Teléfono */}
                   <input
                     value={row.phone}
                     onChange={(e) => updateRow(row.id, 'phone', e.target.value)}
@@ -323,7 +320,6 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
                     className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
 
-                  {/* Acompañantes */}
                   <input
                     type="number"
                     min={1}
@@ -333,7 +329,6 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
                     className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center"
                   />
 
-                  {/* Mesa */}
                   <input
                     value={row.table_number}
                     onChange={(e) => updateRow(row.id, 'table_number', e.target.value)}
@@ -341,7 +336,6 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
                     className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
 
-                  {/* Delete row */}
                   <button
                     onClick={() => removeRow(row.id)}
                     disabled={rows.length === 1}
@@ -350,6 +344,89 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, eventIdentifier }:
                   >
                     <TrashIcon className="size-4" />
                   </button>
+                </div>
+
+                {/* Mobile: card layout */}
+                <div className="md:hidden rounded-xl border border-white/10 bg-zinc-900/50 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-zinc-500">#{index + 1}</span>
+                    <button
+                      onClick={() => removeRow(row.id)}
+                      disabled={rows.length === 1}
+                      className="p-1.5 rounded-lg text-zinc-600 hover:text-pink-400 hover:bg-pink-500/10 transition-colors disabled:opacity-30"
+                      aria-label="Eliminar fila"
+                    >
+                      <TrashIcon className="size-3.5" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field>
+                      <label className="text-[10px] font-medium text-zinc-500 uppercase">Nombre *</label>
+                      <input
+                        value={row.first_name}
+                        onChange={(e) => updateRow(row.id, 'first_name', e.target.value)}
+                        placeholder="Ana"
+                        autoFocus={index === rows.length - 1 && index > 0}
+                        className={[
+                          'w-full rounded-lg border bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500',
+                          errors[row.id]?.first_name ? 'border-red-500/50' : 'border-white/10',
+                        ].join(' ')}
+                      />
+                      {errors[row.id]?.first_name && (
+                        <p className="mt-1 text-xs text-red-400">{errors[row.id].first_name}</p>
+                      )}
+                    </Field>
+                    <Field>
+                      <label className="text-[10px] font-medium text-zinc-500 uppercase">Apellido *</label>
+                      <input
+                        value={row.last_name}
+                        onChange={(e) => updateRow(row.id, 'last_name', e.target.value)}
+                        placeholder="García"
+                        className={[
+                          'w-full rounded-lg border bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500',
+                          errors[row.id]?.last_name ? 'border-red-500/50' : 'border-white/10',
+                        ].join(' ')}
+                      />
+                      {errors[row.id]?.last_name && (
+                        <p className="mt-1 text-xs text-red-400">{errors[row.id].last_name}</p>
+                      )}
+                    </Field>
+                  </div>
+                  <input
+                    type="email"
+                    value={row.email}
+                    onChange={(e) => updateRow(row.id, 'email', e.target.value)}
+                    placeholder="Correo electrónico"
+                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <input
+                    value={row.phone}
+                    onChange={(e) => updateRow(row.id, 'phone', e.target.value)}
+                    placeholder="Teléfono"
+                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] font-medium text-zinc-500 uppercase">+1s</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={row.guests_count}
+                        onChange={(e) => updateRow(row.id, 'guests_count', parseInt(e.target.value) || 1)}
+                        className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-medium text-zinc-500 uppercase">Mesa</label>
+                      <input
+                        value={row.table_number}
+                        onChange={(e) => updateRow(row.id, 'table_number', e.target.value)}
+                        placeholder="Mesa 1"
+                        className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             ))}

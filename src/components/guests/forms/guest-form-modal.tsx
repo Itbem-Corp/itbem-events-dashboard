@@ -131,7 +131,7 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
     setLoading(true)
     try {
       if (isEdit && guest) {
-        await api.put(`/guests/${guest.id}`, data)
+        await api.put(`/guests/${guest.id}`, { ...data, event_id: eventId })
       } else {
         await api.post('/guests', { ...data, event_id: eventId })
       }
@@ -152,7 +152,7 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
       <form onSubmit={handleSubmit(onSubmit)}>
         <DialogBody className="space-y-4 py-4">
           {/* Nombre + Apellido */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field>
               <Label>Nombre</Label>
               <Input {...register('first_name')} placeholder="Ana" autoFocus />
@@ -166,7 +166,7 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
           </div>
 
           {/* Email + Teléfono */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field>
               <Label>Correo electrónico</Label>
               <Input {...register('email')} type="email" placeholder="ana@ejemplo.com" />
@@ -179,7 +179,7 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
           </div>
 
           {/* Acompañantes + Máximo + Mesa */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
             <Field>
               <Label>Asistentes</Label>
               <Description>Confirmados.</Description>
@@ -209,7 +209,7 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
           </div>
 
           {/* Rol + Host toggle */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Field>
               <Label>Rol</Label>
               <Select {...register('role')}>
