@@ -27,6 +27,7 @@ import {
   DocumentDuplicateIcon,
   PaintBrushIcon,
   BuildingOfficeIcon,
+  EllipsisVerticalIcon,
 } from '@heroicons/react/20/solid'
 import { EventActiveToggle } from '@/components/events/event-active-toggle'
 import { motion } from 'motion/react'
@@ -362,7 +363,7 @@ export default function EventsPage() {
                       {/* Actions */}
                       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                         <CountdownBadge dateString={event.event_date_time} />
-                        <div title={event.is_active ? 'Desactivar evento' : 'Activar evento'}>
+                        <div title={event.is_active ? 'Desactivar evento' : 'Activar evento'} className="hidden sm:block">
                           <EventActiveToggle event={event} />
                         </div>
                         <Button
@@ -398,6 +399,45 @@ export default function EventsPage() {
                             <ArrowRightIcon className="size-4 text-zinc-400" />
                           </Button>
                         </Link>
+
+                        {/* Mobile kebab menu */}
+                        <div className="relative sm:hidden group">
+                          <button
+                            className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+                            aria-label="Más acciones"
+                          >
+                            <EllipsisVerticalIcon className="size-5" />
+                          </button>
+                          <div className="hidden group-focus-within:block absolute right-0 top-full mt-1 z-20 w-44 rounded-xl border border-white/10 bg-zinc-900 shadow-xl shadow-black/40 py-1">
+                            <button
+                              onClick={() => openEditEventModal(event)}
+                              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5 transition-colors"
+                            >
+                              <PencilIcon className="size-4 text-zinc-500" />
+                              Editar
+                            </button>
+                            <a
+                              href={`/events/${event.id}/studio`}
+                              className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5 transition-colors"
+                            >
+                              <PaintBrushIcon className="size-4 text-zinc-500" />
+                              Studio
+                            </a>
+                            <button
+                              onClick={() => {
+                                setEventToDuplicate(event)
+                                setIsDuplicateOpen(true)
+                              }}
+                              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5 transition-colors"
+                            >
+                              <DocumentDuplicateIcon className="size-4 text-zinc-500" />
+                              Duplicar
+                            </button>
+                            <div className="px-3 py-2">
+                              <EventActiveToggle event={event} />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </motion.div>
                   </li>

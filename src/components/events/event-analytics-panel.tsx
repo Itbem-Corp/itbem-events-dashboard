@@ -298,7 +298,7 @@ export function EventAnalyticsPanel({ eventId }: Props) {
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={funnelData} layout="vertical" margin={{ left: 0, right: 16 }}>
             <XAxis type="number" tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis type="category" dataKey="name" tick={{ fill: '#a1a1aa', fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
+            <YAxis type="category" dataKey="name" tick={{ fill: '#a1a1aa', fontSize: 10 }} axisLine={false} tickLine={false} width={65} />
             <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#27272a' }} />
             <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} name="Personas" />
           </BarChart>

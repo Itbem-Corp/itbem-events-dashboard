@@ -38,15 +38,15 @@ function ShareLinkRow({ icon: Icon, label, url, description }: ShareLinkRowProps
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 py-3 border-b border-white/5 last:border-0">
-      <div className="flex items-start gap-3">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 py-3 border-b border-white/5 last:border-0">
+      <div className="flex items-start gap-3 min-w-0">
         <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-zinc-800">
           <Icon className="size-3.5 text-zinc-400" />
         </div>
         <div className="min-w-0">
           <p className="text-sm font-medium text-zinc-200">{label}</p>
           {description && <p className="text-xs text-zinc-500 mt-0.5">{description}</p>}
-          <p className="text-xs text-zinc-600 font-mono mt-1 truncate break-all max-w-full">{url}</p>
+          <p className="text-xs text-zinc-600 font-mono mt-1 truncate max-w-full">{url}</p>
         </div>
       </div>
       <button

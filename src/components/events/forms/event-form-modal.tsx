@@ -334,7 +334,7 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
                     </Field>
 
                     {/* Organizador */}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <Field>
                             <Label>Nombre del organizador</Label>
                             <Input {...register('organizer_name')} placeholder="Ej. Juan García" />

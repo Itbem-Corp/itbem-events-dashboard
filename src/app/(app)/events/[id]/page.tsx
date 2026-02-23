@@ -138,9 +138,9 @@ function EventDetailSkeleton() {
       <div className="h-8 w-72 bg-zinc-800 rounded" />
       <div className="h-4 w-56 bg-zinc-800 rounded" />
       {/* Tab bar */}
-      <div className="mt-8 flex gap-0.5 border-b border-white/10 pb-px">
+      <div className="mt-8 flex gap-0.5 border-b border-white/10 pb-px overflow-x-auto scrollbar-none">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-9 w-24 bg-zinc-800/60 rounded-t-lg" />
+          <div key={i} className="h-9 w-16 sm:w-24 shrink-0 bg-zinc-800/60 rounded-t-lg" />
         ))}
       </div>
       {/* KPI grid */}
@@ -1003,7 +1003,7 @@ export default function EventDetailPage() {
                                     {guest.first_name} {guest.last_name}
                                   </span>
                                   {guest.dietary_restrictions && (
-                                    <p className="text-xs text-zinc-500 mt-0.5 truncate max-w-[200px]">
+                                    <p className="text-xs text-zinc-500 mt-0.5 truncate max-w-full">
                                       {guest.dietary_restrictions}
                                     </p>
                                   )}

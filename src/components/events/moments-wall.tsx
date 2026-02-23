@@ -754,8 +754,8 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           )}
         </p>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+        {/* Actions — row 1: bulk actions + auto-refresh */}
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           {approvedCount > 0 && (
             <button
               onClick={handleDownloadZip}
@@ -788,32 +788,49 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
               <span className="sm:hidden">{approvingAll ? '…' : `Aprobar (${pendingCount})`}</span>
             </button>
           )}
+          <div className="flex items-center gap-1.5 text-xs text-zinc-500 ml-auto sm:ml-0">
+            {isValidating && (
+              <ArrowPathIcon className="size-3 animate-spin text-zinc-400" />
+            )}
+            <span className="sm:hidden">
+              {isValidating ? '…' : '15s'}
+            </span>
+            <span className="hidden sm:inline">
+              {isValidating ? 'Actualizando…' : 'Auto-actualiza cada 15s'}
+            </span>
+          </div>
+        </div>
+
+        {/* Actions — row 2: toggles + share buttons */}
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
           <button
             onClick={handleToggleShare}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
               shareEnabled
                 ? 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30'
                 : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
             }`}
             title={shareEnabled ? 'Subida por QR habilitada — cualquiera con el enlace puede subir' : 'Habilitar subida por QR compartido'}
           >
-            <QrCodeIcon className="size-4" />
-            {shareEnabled ? 'Subida QR activa' : 'Habilitar subida QR'}
+            <QrCodeIcon className="size-3.5" />
+            <span className="hidden sm:inline">{shareEnabled ? 'Subida QR activa' : 'Habilitar subida QR'}</span>
+            <span className="sm:hidden">{shareEnabled ? 'QR activo' : 'QR subida'}</span>
           </button>
           <button
             onClick={handleTogglePublish}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
               wallPublished
                 ? 'bg-lime-500/20 text-lime-400 hover:bg-lime-500/30'
                 : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
             }`}
           >
-            <GlobeAltIcon className="size-4" />
-            {wallPublished ? 'Muro publicado' : 'Publicar muro'}
+            <GlobeAltIcon className="size-3.5" />
+            <span className="hidden sm:inline">{wallPublished ? 'Muro publicado' : 'Publicar muro'}</span>
+            <span className="sm:hidden">{wallPublished ? 'Publicado' : 'Publicar'}</span>
           </button>
           <button
             onClick={() => setShowWallShare(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 transition-colors border border-pink-500/30"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 transition-colors border border-pink-500/30"
             title="Compartir muro de momentos"
           >
             <ShareIcon className="size-3.5" />
@@ -823,7 +840,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           {shareEnabled && (
             <button
               onClick={() => setShowQR(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 transition-colors border border-indigo-500/30"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 transition-colors border border-indigo-500/30"
               title="Generar QR para subida compartida"
             >
               <QrCodeIcon className="size-3.5" />
@@ -831,19 +848,6 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
               <span className="sm:hidden">QR</span>
             </button>
           )}
-        </div>
-
-        {/* Auto-refresh indicator */}
-        <div className="flex items-center gap-1.5 text-xs text-zinc-500 ml-auto">
-          {isValidating && (
-            <ArrowPathIcon className="size-3 animate-spin text-zinc-400" />
-          )}
-          <span className="sm:hidden">
-            {isValidating ? 'Actualizando…' : '15s'}
-          </span>
-          <span className="hidden sm:inline">
-            {isValidating ? 'Actualizando…' : 'Auto-actualiza cada 15s'}
-          </span>
         </div>
 
         {/* Filters */}

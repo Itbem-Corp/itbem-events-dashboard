@@ -476,7 +476,7 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
       </motion.div>
 
       {/* Save */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {isDirty && (
           <motion.p
             initial={{ opacity: 0 }}
@@ -486,8 +486,8 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
             Tienes cambios sin guardar
           </motion.p>
         )}
-        <div className="ml-auto">
-          <Button onClick={handleSave} disabled={saving || !isDirty}>
+        <div className="sm:ml-auto">
+          <Button onClick={handleSave} disabled={saving || !isDirty} className="w-full sm:w-auto">
             {saving ? 'Guardando…' : 'Guardar configuración'}
           </Button>
         </div>

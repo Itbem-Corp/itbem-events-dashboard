@@ -16,7 +16,7 @@ import { fetcher } from '@/lib/fetcher'
 import { api } from '@/lib/api'
 import { toast } from 'sonner'
 import { EmptyState } from '@/components/ui/empty-state'
-import { RectangleGroupIcon } from '@heroicons/react/20/solid'
+import { RectangleGroupIcon, ChevronDownIcon } from '@heroicons/react/20/solid'
 
 import { useSeatingState } from './use-seating-state'
 import { TableCard } from './table-card'
@@ -58,6 +58,7 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
     guest: null,
   })
   const [activeDragGuest, setActiveDragGuest] = useState<Guest | null>(null)
+  const [unassignedOpen, setUnassignedOpen] = useState(false)
 
   // ─── Derived data ───────────────────────────────────────────────────
   const { tableGuests, unassignedGuests, tableOccupancy } = useMemo(() => {
@@ -254,15 +255,28 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
         </div>
 
         {/* Main layout */}
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col md:flex-row gap-4 pb-16 md:pb-0">
           {unassignedGuests.length > 0 && (
             <div className="w-full md:w-72 md:flex-shrink-0 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-8rem)]">
-              <UnassignedPanel
-                guests={unassignedGuests}
-                onMobileAssign={(guest) =>
-                  setBottomSheet({ open: true, guest })
-                }
-              />
+              {/* Collapsible header on mobile */}
+              <button
+                type="button"
+                onClick={() => setUnassignedOpen(!unassignedOpen)}
+                className="md:hidden w-full flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 mb-2"
+              >
+                <span className="text-sm font-medium text-amber-300">
+                  Sin mesa ({unassignedGuests.length})
+                </span>
+                <ChevronDownIcon className={`size-5 text-amber-400 transition-transform ${unassignedOpen ? 'rotate-180' : ''}`} />
+              </button>
+              <div className={`${unassignedOpen ? 'block' : 'hidden'} md:block`}>
+                <UnassignedPanel
+                  guests={unassignedGuests}
+                  onMobileAssign={(guest) =>
+                    setBottomSheet({ open: true, guest })
+                  }
+                />
+              </div>
             </div>
           )}
 

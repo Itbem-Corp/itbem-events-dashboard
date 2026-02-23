@@ -305,7 +305,7 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
         <button
           onClick={() => setShowQR(true)}
           className="p-2 rounded-lg text-zinc-600 hover:text-violet-400 hover:bg-violet-500/10 transition-colors"
@@ -352,7 +352,7 @@ function GuestInvitationRow({ guest, event, index }: GuestInvitationRowProps) {
             type="button"
             onClick={resend}
             disabled={resending}
-            className="p-2 rounded-lg text-zinc-600 hover:text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+            className="hidden sm:flex p-2 rounded-lg text-zinc-600 hover:text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-40"
             aria-label="Registrar reenvío"
             title="Registrar reenvío de invitación"
           >
