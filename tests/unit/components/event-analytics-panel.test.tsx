@@ -4,7 +4,7 @@
  * role chart, dietary chart visibility, and moment uploads.
  */
 
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { EventAnalytics } from '@/models/EventAnalytics'
 import type { Guest } from '@/models/Guest'
@@ -28,6 +28,8 @@ vi.mock('recharts', () => ({
     Pie:         ({ children }: { children: React.ReactNode }) => <div data-testid="pie">{children}</div>,
     Cell:        () => null,
     Legend:      () => null,
+    AreaChart:   ({ children }: { children: React.ReactNode }) => <div data-testid="area-chart">{children}</div>,
+    Area:        () => null,
 }))
 
 // ── Test data ─────────────────────────────────────────────────────────────────
@@ -70,8 +72,16 @@ function mockSWRSequence(analytics: EventAnalytics | undefined, guests: Guest[])
             mutate:       vi.fn(),
         } as ReturnType<typeof useSWR>)
         // Second call: guests
-        .mockReturnValue({
+        .mockReturnValueOnce({
             data:         guests,
+            isLoading:    false,
+            error:        undefined,
+            isValidating: false,
+            mutate:       vi.fn(),
+        } as ReturnType<typeof useSWR>)
+        // Third call: moments
+        .mockReturnValue({
+            data:         [],
             isLoading:    false,
             error:        undefined,
             isValidating: false,
@@ -95,6 +105,19 @@ async function renderPanel(analytics?: EventAnalytics, guests: Guest[] = []) {
     render(<EventAnalyticsPanel eventId="evt-001" eventIdentifier="test-event" />)
 }
 
+/**
+ * Helper: find KPI card by its uppercase label and return the value text.
+ * KPI labels use class "text-xs text-zinc-500 uppercase tracking-wide".
+ */
+function getKPIValue(label: string): string {
+    const allLabels = screen.getAllByText(label)
+    // Pick the one inside a KPI card (has the uppercase tracking-wide class)
+    const kpiLabel = allLabels.find(el => el.classList.contains('uppercase')) ?? allLabels[0]
+    const card = kpiLabel.closest('div[class*="rounded-xl"]')!
+    const valueEl = card.querySelector('p[class*="text-2xl"]')
+    return valueEl?.textContent?.trim() ?? ''
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('EventAnalyticsPanel — loading state', () => {
@@ -105,7 +128,6 @@ describe('EventAnalyticsPanel — loading state', () => {
         mockSWRLoading()
         const { EventAnalyticsPanel } = await import('@/components/events/event-analytics-panel')
         render(<EventAnalyticsPanel eventId="evt-001" eventIdentifier="test-event" />)
-        // Skeleton renders animated cards
         const animatedEl = document.querySelector('.animate-pulse')
         expect(animatedEl).toBeInTheDocument()
     })
@@ -117,20 +139,17 @@ describe('EventAnalyticsPanel — KPI cards', () => {
 
     it('displays view count from analytics', async () => {
         await renderPanel(makeAnalytics({ views: 42 }), [])
-        expect(screen.getByText('42')).toBeInTheDocument()
-        expect(screen.getByText('Vistas')).toBeInTheDocument()
+        expect(getKPIValue('Vistas')).toBe('42')
     })
 
     it('displays confirmed count from analytics', async () => {
         await renderPanel(makeAnalytics({ rsvp_confirmed: 7 }), [])
-        expect(screen.getByText('7')).toBeInTheDocument()
-        expect(screen.getByText('Confirmados')).toBeInTheDocument()
+        expect(getKPIValue('Confirmados')).toBe('7')
     })
 
     it('displays declined count from analytics', async () => {
         await renderPanel(makeAnalytics({ rsvp_declined: 3 }), [])
-        expect(screen.getByText('3')).toBeInTheDocument()
-        expect(screen.getByText('Declinaron')).toBeInTheDocument()
+        expect(getKPIValue('Declinaron')).toBe('3')
     })
 
     it('displays response rate label', async () => {
@@ -147,14 +166,14 @@ describe('EventAnalyticsPanel — KPI cards', () => {
             makeGuest({ id: 'g1', rsvp_status: 'confirmed' }),
             makeGuest({ id: 'g2', rsvp_status: 'confirmed' }),
         ])
-        expect(screen.getByText('100%')).toBeInTheDocument()
+        expect(getKPIValue('Tasa respuesta')).toBe('100%')
     })
 
     it('computes 0% response rate when all guests are pending', async () => {
         await renderPanel(makeAnalytics({ rsvp_confirmed: 0, rsvp_declined: 0 }), [
             makeGuest({ id: 'g1', rsvp_status: 'pending' }),
         ])
-        expect(screen.getByText('0%')).toBeInTheDocument()
+        expect(getKPIValue('Tasa respuesta')).toBe('0%')
     })
 
     it('falls back to guest data when analytics rsvp values are undefined', async () => {
@@ -165,9 +184,7 @@ describe('EventAnalyticsPanel — KPI cards', () => {
                 makeGuest({ id: 'g2', rsvp_status: 'confirmed' }),
             ],
         )
-        // Should compute confirmed = 2 from guests
-        const twos = screen.getAllByText('2')
-        expect(twos.length).toBeGreaterThanOrEqual(1)
+        expect(getKPIValue('Confirmados')).toBe('2')
     })
 })
 
@@ -202,7 +219,9 @@ describe('EventAnalyticsPanel — role composition chart', () => {
         await renderPanel(makeAnalytics(), [
             makeGuest({ role: 'graduate' }),
         ])
-        expect(screen.getByTestId('pie-chart')).toBeInTheDocument()
+        // May render multiple pie charts (role + RSVP method), just verify at least one exists
+        const pieCharts = screen.getAllByTestId('pie-chart')
+        expect(pieCharts.length).toBeGreaterThanOrEqual(1)
     })
 
     it('does NOT render role section when guest list is empty', async () => {
@@ -238,7 +257,6 @@ describe('EventAnalyticsPanel — dietary restrictions chart', () => {
             makeGuest({ id: 'g3', dietary_restrictions: 'Sin gluten' }),
         ])
         expect(screen.getByText('Restricciones alimentarias')).toBeInTheDocument()
-        // Two pie charts: role + dietary
         const piecharts = screen.getAllByTestId('pie-chart')
         expect(piecharts.length).toBeGreaterThanOrEqual(2)
     })
@@ -248,14 +266,34 @@ describe('EventAnalyticsPanel — moment uploads', () => {
 
     beforeEach(() => vi.clearAllMocks())
 
-    it('does NOT show moment uploads section when count is 0', async () => {
+    it('does NOT show moments engagement section when no moments exist', async () => {
         await renderPanel(makeAnalytics({ moment_uploads: 0 }), [])
-        expect(screen.queryByText(/momentos subidos/i)).not.toBeInTheDocument()
+        expect(screen.queryByText('Engagement de momentos')).not.toBeInTheDocument()
     })
 
-    it('shows moment uploads section when count is greater than 0', async () => {
-        await renderPanel(makeAnalytics({ moment_uploads: 12 }), [])
-        expect(screen.getByText('12')).toBeInTheDocument()
-        expect(screen.getByText(/momentos subidos/i)).toBeInTheDocument()
+    it('shows moments engagement section when moments exist', async () => {
+        // Mock with actual moments data in the 3rd SWR call
+        vi.mocked(useSWR)
+            .mockReturnValueOnce({
+                data: makeAnalytics({ moment_uploads: 12 }),
+                isLoading: false, error: undefined, isValidating: false, mutate: vi.fn(),
+            } as ReturnType<typeof useSWR>)
+            .mockReturnValueOnce({
+                data: [],
+                isLoading: false, error: undefined, isValidating: false, mutate: vi.fn(),
+            } as ReturnType<typeof useSWR>)
+            .mockReturnValue({
+                data: [
+                    { id: 'm1', is_approved: true, processing_status: 'done', description: 'Nice!' },
+                    { id: 'm2', is_approved: false, processing_status: 'pending', description: '' },
+                ],
+                isLoading: false, error: undefined, isValidating: false, mutate: vi.fn(),
+            } as ReturnType<typeof useSWR>)
+
+        const { EventAnalyticsPanel } = await import('@/components/events/event-analytics-panel')
+        render(<EventAnalyticsPanel eventId="evt-001" eventIdentifier="test-event" />)
+
+        expect(screen.getByText('Engagement de momentos')).toBeInTheDocument()
+        expect(screen.getByText('Total subidos')).toBeInTheDocument()
     })
 })

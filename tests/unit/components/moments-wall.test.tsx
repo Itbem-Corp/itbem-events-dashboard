@@ -17,7 +17,7 @@ vi.mock('swr', () => ({
 
 vi.mock('motion/react', () => ({
     motion: {
-        div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
+        div: ({ children, layout, ...props }: any) =>
             <div {...props}>{children}</div>,
     },
     AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -51,6 +51,11 @@ vi.mock('jszip', () => ({
         file: vi.fn(),
         generateAsync: vi.fn().mockResolvedValue(new Blob(['zip'], { type: 'application/zip' })),
     })),
+}))
+
+// Mock BrandedQR
+vi.mock('@/components/ui/branded-qr', () => ({
+    BrandedQR: ({ value }: { value: string }) => <div data-testid="branded-qr" data-value={value} />,
 }))
 
 // ── Test data ─────────────────────────────────────────────────────────────────
@@ -91,7 +96,7 @@ function mockSWR(data: Moment[] = [], isLoading = false) {
 async function renderWall(moments: Moment[] = [], isLoading = false) {
     mockSWR(moments, isLoading)
     const { MomentsWall } = await import('@/components/events/moments-wall')
-    render(<MomentsWall eventId="evt-001" eventIdentifier="evento-test" eventName="Evento Test" />)
+    render(<MomentsWall eventId="evt-001" eventIdentifier="evento-test" eventName="Evento Test" shareUploadsEnabled />)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -111,15 +116,17 @@ describe('MomentsWall — empty state', () => {
 
     beforeEach(() => vi.clearAllMocks())
 
-    it('shows generic empty state when no moments', async () => {
+    it('shows coming-soon hero when no moments at all', async () => {
         await renderWall([])
-        expect(screen.getByText('Sin momentos')).toBeInTheDocument()
-        expect(screen.getByText(/Los invitados aún no han compartido/)).toBeInTheDocument()
+        expect(screen.getByText('El muro de momentos esta listo')).toBeInTheDocument()
+        expect(screen.getByText(/Cuando los invitados compartan fotos/)).toBeInTheDocument()
     })
 
     it('shows pending-specific empty state when pending filter active', async () => {
         await renderWall([makePhotoMoment({ is_approved: true })])
-        fireEvent.click(screen.getByRole('tab', { name: 'Pendientes' }))
+        // Tab name includes count: "Pendientes 0" or just "Pendientes"
+        const pendingTab = screen.getByRole('tab', { name: /Pendientes/ })
+        fireEvent.click(pendingTab)
         await waitFor(() => {
             expect(screen.getByText(/No hay momentos pendientes/)).toBeInTheDocument()
         })
@@ -127,7 +134,8 @@ describe('MomentsWall — empty state', () => {
 
     it('shows approved-specific empty state when approved filter active', async () => {
         await renderWall([makeMoment({ is_approved: false })])
-        fireEvent.click(screen.getByRole('tab', { name: 'Aprobados' }))
+        const approvedTab = screen.getByRole('tab', { name: /Aprobados/ })
+        fireEvent.click(approvedTab)
         await waitFor(() => {
             expect(screen.getByText(/Aún no hay momentos aprobados/)).toBeInTheDocument()
         })
@@ -153,17 +161,20 @@ describe('MomentsWall — header info', () => {
             makeMoment({ id: 'm1', is_approved: false }),
             makeMoment({ id: 'm2', is_approved: false }),
         ])
-        expect(screen.getByText(/2 pendientes/)).toBeInTheDocument()
+        expect(screen.getByText(/2 pendiente/)).toBeInTheDocument()
     })
 
     it('does not show pending badge when all moments are approved', async () => {
         await renderWall([makePhotoMoment({ is_approved: true })])
-        expect(screen.queryByText(/pendiente/)).not.toBeInTheDocument()
+        // The header text should not mention "pendiente"
+        const headerInfo = screen.queryByText(/\d+ pendiente/)
+        expect(headerInfo).not.toBeInTheDocument()
     })
 
-    it('shows QR button', async () => {
-        await renderWall([])
-        expect(screen.getByRole('button', { name: /QR de subida/i })).toBeInTheDocument()
+    it('shows QR button when share uploads enabled', async () => {
+        await renderWall([makeMoment()])
+        // Button has title "Generar QR para subida compartida"
+        expect(screen.getByTitle('Generar QR para subida compartida')).toBeInTheDocument()
     })
 })
 
@@ -173,9 +184,9 @@ describe('MomentsWall — filter tabs', () => {
 
     it('renders all three filter tabs', async () => {
         await renderWall([])
-        expect(screen.getByRole('tab', { name: 'Todos' })).toBeInTheDocument()
-        expect(screen.getByRole('tab', { name: 'Pendientes' })).toBeInTheDocument()
-        expect(screen.getByRole('tab', { name: 'Aprobados' })).toBeInTheDocument()
+        expect(screen.getByRole('tab', { name: /Todos/ })).toBeInTheDocument()
+        expect(screen.getByRole('tab', { name: /Pendientes/ })).toBeInTheDocument()
+        expect(screen.getByRole('tab', { name: /Aprobados/ })).toBeInTheDocument()
     })
 
     it('"Todos" shows both pending and approved moments', async () => {
@@ -192,7 +203,7 @@ describe('MomentsWall — filter tabs', () => {
             makeMoment({ id: 'm1', is_approved: false, description: 'Pendiente de Ana' }),
             makePhotoMoment({ id: 'm2', is_approved: true, description: 'Aprobado de Carlos' }),
         ])
-        fireEvent.click(screen.getByRole('tab', { name: 'Pendientes' }))
+        fireEvent.click(screen.getByRole('tab', { name: /Pendientes/ }))
         await waitFor(() => {
             expect(screen.getByText(/Pendiente de Ana/)).toBeInTheDocument()
             expect(screen.queryByText(/Aprobado de Carlos/)).not.toBeInTheDocument()
@@ -204,7 +215,7 @@ describe('MomentsWall — filter tabs', () => {
             makeMoment({ id: 'm1', is_approved: false, description: 'Pendiente de Ana' }),
             makePhotoMoment({ id: 'm2', is_approved: true, description: 'Aprobado de Carlos' }),
         ])
-        fireEvent.click(screen.getByRole('tab', { name: 'Aprobados' }))
+        fireEvent.click(screen.getByRole('tab', { name: /Aprobados/ }))
         await waitFor(() => {
             expect(screen.queryByText(/Pendiente de Ana/)).not.toBeInTheDocument()
             expect(screen.getByText(/Aprobado de Carlos/)).toBeInTheDocument()
@@ -218,19 +229,28 @@ describe('MomentsWall — approve action', () => {
 
     it('shows "Aprobar" button for pending moments', async () => {
         await renderWall([makeMoment({ is_approved: false })])
-        expect(screen.getByRole('button', { name: /Aprobar/i })).toBeInTheDocument()
+        const approveBtns = screen.getAllByRole('button', { name: /Aprobar/i })
+        // At least one per-card approve button
+        expect(approveBtns.length).toBeGreaterThanOrEqual(1)
     })
 
-    it('does NOT show "Aprobar" button for already-approved moments', async () => {
+    it('does NOT show per-card "Aprobar" button for already-approved moments', async () => {
         await renderWall([makePhotoMoment({ is_approved: true })])
-        expect(screen.queryByRole('button', { name: /Aprobar/i })).not.toBeInTheDocument()
+        // The only Aprobar button might be the "Aprobar todos" header button with count 0
+        // Per-card Aprobar should not exist
+        const approveBtns = screen.queryAllByRole('button', { name: /^Aprobar$/i })
+        expect(approveBtns).toHaveLength(0)
     })
 
-    it('clicking Aprobar calls api.put with is_approved: true', async () => {
+    it('clicking per-card Aprobar calls api.put with is_approved: true', async () => {
         const moment = makeMoment({ is_approved: false })
         await renderWall([moment])
+        // Find the per-card approve button (not the bulk one)
+        const approveBtns = screen.getAllByRole('button', { name: /Aprobar/i })
+        const cardBtn = approveBtns.find(btn => !btn.textContent?.includes('todos') && !btn.textContent?.includes('('))
+        expect(cardBtn).toBeTruthy()
         await act(async () => {
-            fireEvent.click(screen.getByRole('button', { name: /Aprobar/i }))
+            fireEvent.click(cardBtn!)
         })
         await waitFor(() => {
             expect(vi.mocked(api.put)).toHaveBeenCalledWith(
@@ -243,8 +263,10 @@ describe('MomentsWall — approve action', () => {
     it('shows success toast after approving', async () => {
         const { toast } = await import('sonner')
         await renderWall([makeMoment({ is_approved: false })])
+        const approveBtns = screen.getAllByRole('button', { name: /Aprobar/i })
+        const cardBtn = approveBtns.find(btn => !btn.textContent?.includes('todos') && !btn.textContent?.includes('('))
         await act(async () => {
-            fireEvent.click(screen.getByRole('button', { name: /Aprobar/i }))
+            fireEvent.click(cardBtn!)
         })
         await waitFor(() => {
             expect(toast.success).toHaveBeenCalledWith('Momento aprobado')
@@ -255,8 +277,10 @@ describe('MomentsWall — approve action', () => {
         vi.mocked(api.put).mockRejectedValueOnce(new Error('Network error'))
         const { toast } = await import('sonner')
         await renderWall([makeMoment({ is_approved: false })])
+        const approveBtns = screen.getAllByRole('button', { name: /Aprobar/i })
+        const cardBtn = approveBtns.find(btn => !btn.textContent?.includes('todos') && !btn.textContent?.includes('('))
         await act(async () => {
-            fireEvent.click(screen.getByRole('button', { name: /Aprobar/i }))
+            fireEvent.click(cardBtn!)
         })
         await waitFor(() => {
             expect(toast.error).toHaveBeenCalledWith('Error al aprobar el momento')
@@ -266,7 +290,11 @@ describe('MomentsWall — approve action', () => {
 
 describe('MomentsWall — delete action', () => {
 
-    beforeEach(() => vi.clearAllMocks())
+    beforeEach(() => {
+        vi.clearAllMocks()
+        // Mock window.confirm to always return true — must be set before each test
+        window.confirm = vi.fn().mockReturnValue(true)
+    })
 
     it('shows "Eliminar" button for every moment', async () => {
         await renderWall([makeMoment(), makePhotoMoment({ id: 'm2' })])
@@ -326,7 +354,8 @@ describe('MomentsWall — moment card content', () => {
     it('renders image when content_url is provided', async () => {
         await renderWall([makePhotoMoment({ is_approved: true })])
         const img = screen.getByRole('img', { name: /momento del evento/i })
-        expect(img).toHaveAttribute('src', 'https://cdn.example.com/photo.jpg')
+        // Next.js Image wraps src with /_next/image, so check the original URL is embedded
+        expect(img.getAttribute('src')).toContain('photo.jpg')
     })
 
     it('renders description text when no content_url', async () => {
@@ -355,10 +384,10 @@ describe('MomentsWall — QR modal', () => {
     beforeEach(() => vi.clearAllMocks())
 
     it('opens QR modal on button click', async () => {
-        await renderWall([])
-        fireEvent.click(screen.getByRole('button', { name: /QR de subida/i }))
+        await renderWall([makeMoment()])
+        fireEvent.click(screen.getByTitle('Generar QR para subida compartida'))
         await waitFor(() => {
-            expect(screen.getByTestId('qr-code')).toBeInTheDocument()
+            expect(screen.getByTestId('branded-qr')).toBeInTheDocument()
         })
     })
 })
