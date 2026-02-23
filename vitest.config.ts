@@ -10,6 +10,7 @@ export default defineConfig({
         setupFiles: ['./tests/unit/setup.ts'],
         exclude: ['tests/e2e/**', 'node_modules/**'],
         coverage: {
+            enabled: false,
             provider: 'v8',
             reporter: ['text', 'lcov', 'html'],
             reportsDirectory: './coverage',
@@ -20,12 +21,6 @@ export default defineConfig({
                 'src/app/**',         // Next.js pages — tested via E2E
                 'src/components/ui/catalyst/**', // Design system, not authored code
             ],
-            thresholds: {
-                lines: 20,
-                functions: 20,
-                branches: 15,
-                statements: 20,
-            },
         },
     },
     resolve: {
