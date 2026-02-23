@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import useSWR, { mutate } from 'swr'
 import { useParams } from 'next/navigation'
 import { fetcher } from '@/lib/fetcher'
@@ -155,11 +155,13 @@ export default function CheckinPage() {
   )
   const guests: Guest[] = Array.isArray(rawGuests) ? rawGuests : (rawGuests?.data ?? rawGuests ?? [])
 
-  const { data: statuses = [] } = useSWR<GuestStatus[]>(
-    '/catalogs/guest-statuses',
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false }
-  )
+  const statuses = useMemo<GuestStatus[]>(() => {
+    const map = new Map<string, GuestStatus>()
+    for (const g of guests) {
+      if (g.status?.id && !map.has(g.status.id)) map.set(g.status.id, g.status)
+    }
+    return Array.from(map.values())
+  }, [guests])
 
   const confirmedStatusId = statuses.find((s) => s.code === 'CONFIRMED')?.id ?? ''
   const declinedStatusId = statuses.find((s) => s.code === 'DECLINED')?.id ?? ''

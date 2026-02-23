@@ -19,6 +19,7 @@ export interface EventConfig extends BaseEntity {
   // Guest interaction
   allow_uploads?: boolean;       // guests can upload photos
   allow_messages?: boolean;      // guests can send messages
+  share_uploads_enabled?: boolean; // QR shared uploads (no personal token needed)
 
   // Notifications
   notify_on_moment_upload?: boolean;

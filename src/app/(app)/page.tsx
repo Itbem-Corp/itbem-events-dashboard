@@ -120,21 +120,19 @@ export default function Home() {
                   </div>
                   {/* Quick actions */}
                   <div className="flex flex-wrap gap-1.5">
-                    <a
-                      href={`/events/${nextEvent.id}/studio`}
-                      onClick={(e) => e.stopPropagation()}
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/events/${nextEvent.id}/studio`; }}
                       className="flex items-center gap-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2 py-1.5 text-[11px] font-medium text-indigo-400 hover:bg-indigo-500/20 transition-colors"
                     >
                       <PaintBrushIcon className="size-3" />
                       Studio
-                    </a>
-                    <a
-                      href={`/events/${nextEvent.id}/checkin`}
-                      onClick={(e) => e.stopPropagation()}
+                    </button>
+                    <button
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.location.href = `/events/${nextEvent.id}/checkin`; }}
                       className="flex items-center gap-1 rounded-lg border border-lime-500/30 bg-lime-500/10 px-2 py-1.5 text-[11px] font-medium text-lime-400 hover:bg-lime-500/20 transition-colors"
                     >
                       Check-in
-                    </a>
+                    </button>
                   </div>
                 </div>
               </div>

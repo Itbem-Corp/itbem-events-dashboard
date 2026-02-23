@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import useSWR from 'swr'
 import { fetcher } from '@/lib/fetcher'
@@ -251,12 +251,14 @@ export default function EventDetailPage() {
     { shouldRetryOnError: false, revalidateOnFocus: false }
   )
 
-  // Guest status catalog — graceful fallback if endpoint doesn't exist
-  const { data: guestStatuses } = useSWR<import('@/models/GuestStatus').GuestStatus[]>(
-    '/catalogs/guest-statuses',
-    fetcher,
-    { shouldRetryOnError: false, revalidateOnFocus: false }
-  )
+  // Extract guest statuses from the guests themselves (no catalog endpoint needed)
+  const guestStatuses = useMemo(() => {
+    const map = new Map<string, import('@/models/GuestStatus').GuestStatus>()
+    for (const g of guests) {
+      if (g.status?.id && !map.has(g.status.id)) map.set(g.status.id, g.status)
+    }
+    return map.size > 0 ? Array.from(map.values()) : undefined
+  }, [guests])
 
   // Guest actions
   const openNewGuest = useCallback(() => {
@@ -1133,6 +1135,8 @@ export default function EventDetailPage() {
               eventId={event.id}
               eventIdentifier={event.identifier}
               eventName={event.name}
+              momentsWallPublished={event.moments_wall_published}
+              shareUploadsEnabled={event.config?.share_uploads_enabled}
             />
           )}
 

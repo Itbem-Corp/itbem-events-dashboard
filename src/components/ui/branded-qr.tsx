@@ -4,7 +4,7 @@ import { useRef, useCallback } from 'react'
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { ArrowDownTrayIcon } from '@heroicons/react/20/solid'
 
-/* ── Catalyst‑style "C" logomark (icon only, no wordmark) ───────────── */
+/* ── EventiApp logomark (icon only, no wordmark) ────────────────────── */
 function EventiAppIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 26 22" fill="currentColor" className={className} aria-hidden="true">
@@ -21,6 +21,10 @@ function EventiAppIcon({ className }: { className?: string }) {
     </svg>
   )
 }
+
+/** Brand pink used for the eventiapp icon */
+const BRAND_PINK = '#ec4899'
+const BRAND_PINK_DARK = '#f472b6'
 
 /* ── Branded QR Card ─────────────────────────────────────────────────── */
 
@@ -99,7 +103,7 @@ export function BrandedQR({
     const mutedColor = dark ? '#71717a' : '#a1a1aa'
 
     // Draw "eventiapp" text as brand
-    ctx.fillStyle = dark ? '#818cf8' : '#6366f1'
+    ctx.fillStyle = dark ? BRAND_PINK_DARK : BRAND_PINK
     ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText('eventiapp', totalWidth / 2, y + 28)
@@ -189,8 +193,8 @@ export function BrandedQR({
       >
         {/* Logo + brand */}
         <div className="flex items-center gap-2">
-          <EventiAppIcon className={`h-4 w-auto ${dark ? 'text-indigo-400' : 'text-indigo-600'}`} />
-          <span className={`text-xs font-semibold tracking-wide ${dark ? 'text-indigo-400' : 'text-indigo-600'}`}>
+          <EventiAppIcon className={`h-4 w-auto ${dark ? 'text-pink-400' : 'text-pink-500'}`} />
+          <span className={`text-xs font-semibold tracking-wide ${dark ? 'text-pink-400' : 'text-pink-500'}`}>
             eventiapp
           </span>
         </div>
@@ -222,7 +226,7 @@ export function BrandedQR({
             level="M"
             imageSettings={{
               src: 'data:image/svg+xml,' + encodeURIComponent(
-                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 22" fill="%236366f1"><path fill-rule="evenodd" clip-rule="evenodd" d="M6.999.5L6.57.743.57 10.743v.514l6 10 .429.243H19l.353-.854L16.853 18.146 16.499 18H9.274L4.841 11l4.433-7H16.499l.354-.146 2.5-2.5L19 .5H6.999Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M20.793 4.219l-2.427 2.427-.069.621 2.364 3.732-2.364 3.733.069.621 2.427 2.427.783-.096 3.856-6.427v-.514l-3.856-6.427-.783-.097Z"/></svg>'
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 22" fill="%23ec4899"><path fill-rule="evenodd" clip-rule="evenodd" d="M6.999.5L6.57.743.57 10.743v.514l6 10 .429.243H19l.353-.854L16.853 18.146 16.499 18H9.274L4.841 11l4.433-7H16.499l.354-.146 2.5-2.5L19 .5H6.999Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M20.793 4.219l-2.427 2.427-.069.621 2.364 3.732-2.364 3.733.069.621 2.427 2.427.783-.096 3.856-6.427v-.514l-3.856-6.427-.783-.097Z"/></svg>'
               ),
               height: Math.round(size * 0.15),
               width: Math.round(size * 0.18),
@@ -248,7 +252,7 @@ export function BrandedQR({
       {showDownload && (
         <button
           onClick={handleDownload}
-          className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 px-5 py-2.5 text-sm font-medium text-white transition-colors shadow-sm shadow-indigo-600/20"
+          className="flex items-center justify-center gap-2 rounded-xl bg-pink-500 hover:bg-pink-400 px-5 py-2.5 text-sm font-medium text-white transition-colors shadow-sm shadow-pink-500/20"
         >
           <ArrowDownTrayIcon className="size-4" />
           Descargar QR

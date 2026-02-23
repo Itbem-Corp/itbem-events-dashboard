@@ -40,10 +40,11 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
     `/events/${eventId}/tables`,
     fetcher,
   )
-  const { data: guests = [], isLoading: guestsLoading, mutate: mutateGuests } = useSWR<Guest[]>(
+  const { data: rawGuests, isLoading: guestsLoading, mutate: mutateGuests } = useSWR<Guest[] | { data: Guest[] }>(
     `/guests/${eventIdentifier}`,
     fetcher,
   )
+  const guests: Guest[] = Array.isArray(rawGuests) ? rawGuests : Array.isArray(rawGuests?.data) ? rawGuests.data : []
 
   // ─── Local state ────────────────────────────────────────────────────
   const seating = useSeatingState(serverTables, guests)

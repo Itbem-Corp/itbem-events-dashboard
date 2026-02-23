@@ -9,7 +9,6 @@ import { toast } from 'sonner'
 import type { Event } from '@/models/Event'
 
 import Image from 'next/image'
-import { Button } from '@/components/button'
 import { PhotoIcon, ArrowUpTrayIcon, TrashIcon } from '@heroicons/react/20/solid'
 
 interface Props {
@@ -34,9 +33,11 @@ export function EventCoverUpload({ event }: Props) {
     try {
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('title', 'cover')
 
-      await api.post('/resources', fd)
+      await api.post(`/events/${event.id}/cover`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+
       await mutate(`/events/${event.id}`)
       toast.success('Portada actualizada')
     } catch {

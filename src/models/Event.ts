@@ -37,4 +37,5 @@ export interface Event extends BaseEntity {
   event_type_id: string;
   event_type?: EventType;
   config?: EventConfig;
+  moments_wall_published?: boolean;
 }

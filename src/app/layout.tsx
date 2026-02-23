@@ -2,6 +2,8 @@ import '@/styles/tailwind.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'sonner'
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -27,6 +29,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className={inter.className}>
         {children}
         <Toaster richColors position="top-right" />
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )

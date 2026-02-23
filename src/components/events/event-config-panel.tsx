@@ -131,9 +131,9 @@ export function EventConfigPanel({ eventId, eventIdentifier }: Props) {
 
   useEffect(() => {
     if (!config) return
-    setIsPublic(config.is_public)
-    setShowGuestList(config.show_guest_list)
-    setAllowRegistration(config.allow_registration)
+    setIsPublic(config.is_public ?? false)
+    setShowGuestList(config.show_guest_list ?? false)
+    setAllowRegistration(config.allow_registration ?? false)
     setPasswordProtection(config.password_protection ?? '')
     setAllowUploads(config.allow_uploads ?? false)
     setAllowMessages(config.allow_messages ?? false)

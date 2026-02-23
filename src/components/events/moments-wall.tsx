@@ -26,6 +26,9 @@ import {
   ClipboardDocumentIcon,
   ExclamationTriangleIcon,
   ArrowPathIcon,
+  ShareIcon,
+  SparklesIcon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -285,6 +288,95 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
   )
 }
 
+// ─── Wall Share Modal ─────────────────────────────────────────────────────────
+
+function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uploadUrl: string; onClose: () => void }) {
+  const [copiedWall, setCopiedWall] = useState(false)
+  const [copiedUpload, setCopiedUpload] = useState(false)
+
+  const copyWall = async () => {
+    await navigator.clipboard.writeText(wallUrl)
+    setCopiedWall(true)
+    setTimeout(() => setCopiedWall(false), 2000)
+  }
+
+  const copyUpload = async () => {
+    await navigator.clipboard.writeText(uploadUrl)
+    setCopiedUpload(true)
+    setTimeout(() => setCopiedUpload(false), 2000)
+  }
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="wall-share-title"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        className="relative rounded-2xl bg-zinc-900 border border-white/10 p-6 w-full max-w-sm flex flex-col items-center gap-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          aria-label="Cerrar"
+          className="absolute top-3 right-3 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+        >
+          <XMarkIcon className="size-4" />
+        </button>
+
+        <BrandedQR
+          value={wallUrl}
+          title="Muro de Momentos"
+          subtitle="Escanea para ver los mejores momentos"
+          downloadName="qr-muro-momentos"
+          size={180}
+          dark
+        />
+
+        <div className="space-y-2 pt-1 w-full">
+          {/* Wall viewing link */}
+          <p className="text-[10px] text-zinc-600 uppercase font-semibold tracking-wide px-1">Ver muro</p>
+          <p className="text-xs text-zinc-500 break-all text-center px-2">{wallUrl}</p>
+          <button
+            onClick={copyWall}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-pink-500 hover:bg-pink-400 text-white text-sm font-medium transition-colors"
+          >
+            <ClipboardDocumentIcon className="size-4" />
+            {copiedWall ? '¡Copiado!' : 'Copiar enlace del muro'}
+          </button>
+
+          {/* Upload link */}
+          <p className="text-[10px] text-zinc-600 uppercase font-semibold tracking-wide px-1 pt-2">Subir fotos</p>
+          <p className="text-xs text-zinc-500 break-all text-center px-2">{uploadUrl}</p>
+          <button
+            onClick={copyUpload}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+          >
+            <ClipboardDocumentIcon className="size-4" />
+            {copiedUpload ? '¡Copiado!' : 'Copiar enlace de subida'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
+  )
+}
+
 // ─── Processing status badge ──────────────────────────────────────────────────
 
 function ProcessingBadge({ status }: { status: Moment['processing_status'] }) {
@@ -476,12 +568,20 @@ interface Props {
   eventName?: string
   /** When false, hides the QR upload button. Defaults to true. */
   shareUploadsEnabled?: boolean
+  /** Whether the moments wall is published (closes uploads for guests) */
+  momentsWallPublished?: boolean
 }
 
-export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsEnabled = true }: Props) {
+export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsEnabled, momentsWallPublished }: Props) {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'failed'>('all')
+  const [wallPublished, setWallPublished] = useState(momentsWallPublished ?? false)
+  const [shareEnabled, setShareEnabled] = useState(shareUploadsEnabled ?? false)
+
+  useEffect(() => { setWallPublished(momentsWallPublished ?? false) }, [momentsWallPublished])
+  useEffect(() => { setShareEnabled(shareUploadsEnabled ?? false) }, [shareUploadsEnabled])
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [showQR, setShowQR] = useState(false)
+  const [showWallShare, setShowWallShare] = useState(false)
   const [downloadingZip, setDownloadingZip] = useState(false)
 
   const swrKey = eventId ? `/moments?event_id=${eventId}` : null
@@ -595,8 +695,35 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     }
   }
 
+  const handleTogglePublish = async () => {
+    const newValue = !wallPublished
+    const confirmMsg = newValue
+      ? '¿Publicar el muro de momentos? Esto cerrará la subida de fotos para los invitados.'
+      : '¿Despublicar el muro? Los invitados podrán volver a subir fotos.'
+    if (!window.confirm(confirmMsg)) return
+    try {
+      await api.put(`/events/${eventId}`, { moments_wall_published: newValue })
+      setWallPublished(newValue)
+      toast.success(newValue ? 'Muro publicado' : 'Muro despublicado')
+    } catch {
+      toast.error('Error al actualizar el muro')
+    }
+  }
+
+  const handleToggleShare = async () => {
+    const newValue = !shareEnabled
+    try {
+      await api.put(`/events/${eventId}/config`, { share_uploads_enabled: newValue })
+      setShareEnabled(newValue)
+      toast.success(newValue ? 'Subida compartida habilitada' : 'Subida compartida deshabilitada')
+    } catch {
+      toast.error('Error al actualizar configuración')
+    }
+  }
+
   const siteUrl = process.env.NEXT_PUBLIC_ASTRO_URL ?? 'https://www.eventiapp.com.mx'
   const uploadUrl = `${siteUrl}/events/${eventIdentifier}/upload`
+  const wallUrl = `${siteUrl}/e/${eventIdentifier}/momentos`
 
   if (isLoading) {
     return (
@@ -661,14 +788,47 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
               <span className="sm:hidden">{approvingAll ? '…' : `Aprobar (${pendingCount})`}</span>
             </button>
           )}
-          {shareUploadsEnabled && (
+          <button
+            onClick={handleToggleShare}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              shareEnabled
+                ? 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30'
+                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+            }`}
+            title={shareEnabled ? 'Subida por QR habilitada — cualquiera con el enlace puede subir' : 'Habilitar subida por QR compartido'}
+          >
+            <QrCodeIcon className="size-4" />
+            {shareEnabled ? 'Subida QR activa' : 'Habilitar subida QR'}
+          </button>
+          <button
+            onClick={handleTogglePublish}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              wallPublished
+                ? 'bg-lime-500/20 text-lime-400 hover:bg-lime-500/30'
+                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+            }`}
+          >
+            <GlobeAltIcon className="size-4" />
+            {wallPublished ? 'Muro publicado' : 'Publicar muro'}
+          </button>
+          <button
+            onClick={() => setShowWallShare(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 transition-colors border border-pink-500/30"
+            title="Compartir muro de momentos"
+          >
+            <ShareIcon className="size-3.5" />
+            <span className="hidden sm:inline">Compartir muro</span>
+            <span className="sm:hidden">Muro</span>
+          </button>
+          {shareEnabled && (
             <button
               onClick={() => setShowQR(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 transition-colors border border-indigo-500/30"
               title="Generar QR para subida compartida"
             >
               <QrCodeIcon className="size-3.5" />
-              QR de subida
+              <span className="hidden sm:inline">QR de subida</span>
+              <span className="sm:hidden">QR</span>
             </button>
           )}
         </div>
@@ -721,7 +881,54 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       </div>
 
       {/* ── Grid ───────────────────────────────────────────────────────── */}
-      {filteredMoments.length === 0 ? (
+      {filteredMoments.length === 0 && moments.length === 0 ? (
+        /* Coming soon / empty wall hero */
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-900/95 to-zinc-800/80 p-8 sm:p-12 text-center"
+        >
+          <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-pink-500/10 border border-pink-500/20 mb-6">
+            <SparklesIcon className="size-8 text-pink-400" />
+          </div>
+          <h3 className="text-lg sm:text-xl font-bold text-zinc-100 mb-2">
+            El muro de momentos esta listo
+          </h3>
+          <p className="text-sm text-zinc-400 max-w-md mx-auto mb-6 leading-relaxed">
+            Cuando los invitados compartan fotos y videos, apareceran aqui para que los apruebes
+            y se muestren en el muro publico del evento.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            {shareEnabled && (
+              <button
+                onClick={() => setShowQR(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors shadow-sm shadow-indigo-600/20"
+              >
+                <QrCodeIcon className="size-4" />
+                Compartir QR de subida
+              </button>
+            )}
+            <button
+              onClick={() => setShowWallShare(true)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-pink-500/30 bg-pink-500/10 text-pink-300 hover:bg-pink-500/20 text-sm font-medium transition-colors"
+            >
+              <GlobeAltIcon className="size-4" />
+              Ver enlace del muro
+            </button>
+          </div>
+
+          <div className="mt-8 grid grid-cols-3 sm:grid-cols-6 gap-2 opacity-30">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="aspect-square rounded-xl bg-zinc-800/60 border border-white/5" />
+            ))}
+          </div>
+          <p className="mt-3 text-[10px] text-zinc-700 uppercase tracking-wide">
+            Pronto se llenara de momentos increibles
+          </p>
+        </motion.div>
+      ) : filteredMoments.length === 0 ? (
         <EmptyState
           icon={PhotoIcon}
           title="Sin momentos"
@@ -769,6 +976,17 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       {/* ── QR portal ───────────────────────────────────────────────────── */}
       <AnimatePresence>
         {showQR && <QRModal url={uploadUrl} onClose={() => setShowQR(false)} />}
+      </AnimatePresence>
+
+      {/* ── Wall share portal ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showWallShare && (
+          <WallShareModal
+            wallUrl={wallUrl}
+            uploadUrl={uploadUrl}
+            onClose={() => setShowWallShare(false)}
+          />
+        )}
       </AnimatePresence>
     </div>
   )
