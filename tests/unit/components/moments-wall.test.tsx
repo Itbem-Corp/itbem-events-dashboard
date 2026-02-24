@@ -25,6 +25,7 @@ vi.mock('motion/react', () => ({
 
 vi.mock('@/lib/api', () => ({
     api: {
+        get:    vi.fn().mockResolvedValue({ data: new Blob() }),
         put:    vi.fn().mockResolvedValue({ data: {} }),
         delete: vi.fn().mockResolvedValue({ data: {} }),
     },
