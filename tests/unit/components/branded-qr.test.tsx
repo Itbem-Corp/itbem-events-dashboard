@@ -16,7 +16,7 @@ describe('BrandedQR', () => {
     const canvas = screen.getByTestId('qr-canvas')
     const settings = JSON.parse(canvas.getAttribute('data-image-settings') ?? 'null')
     expect(settings).not.toBeNull()
-    expect(settings.src).toBeTruthy()
+    expect(settings.src).toBe('/eventiapp-icon.svg')
     expect(settings.excavate).toBe(true)
   })
 })
