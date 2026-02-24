@@ -192,7 +192,9 @@ describe('MomentsWall — filter tabs', () => {
     it('"Todos" shows both pending and approved moments', async () => {
         await renderWall([
             makeMoment({ id: 'm1', is_approved: false, description: 'Mensaje de Ana' }),
-            makePhotoMoment({ id: 'm2', is_approved: true, description: 'Foto de Carlos' }),
+            // No content_url: description renders as the card body (new full-bleed design
+            // only shows description text when there is no media to display).
+            makeMoment({ id: 'm2', is_approved: true, description: 'Foto de Carlos' }),
         ])
         expect(screen.getByText(/Mensaje de Ana/)).toBeInTheDocument()
         expect(screen.getByText(/Foto de Carlos/)).toBeInTheDocument()
@@ -213,7 +215,8 @@ describe('MomentsWall — filter tabs', () => {
     it('"Aprobados" filter shows only approved moments', async () => {
         await renderWall([
             makeMoment({ id: 'm1', is_approved: false, description: 'Pendiente de Ana' }),
-            makePhotoMoment({ id: 'm2', is_approved: true, description: 'Aprobado de Carlos' }),
+            // No content_url so description is rendered as card body.
+            makeMoment({ id: 'm2', is_approved: true, description: 'Aprobado de Carlos' }),
         ])
         fireEvent.click(screen.getByRole('tab', { name: /Aprobados/ }))
         await waitFor(() => {
@@ -375,7 +378,7 @@ describe('MomentsWall — moment card content', () => {
 
     it('shows error state for failed processing', async () => {
         await renderWall([makeMoment({ processing_status: 'failed' })])
-        expect(screen.getByText('Error al procesar el archivo')).toBeInTheDocument()
+        expect(screen.getByText('Error al procesar')).toBeInTheDocument()
     })
 })
 
