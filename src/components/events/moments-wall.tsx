@@ -537,7 +537,7 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
                 setActioning(null)
               }}
               disabled={actioning !== null}
-              className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-lime-300 hover:bg-lime-500/20 transition-colors disabled:opacity-40"
+              className="flex-1 flex items-center justify-center gap-1.5 py-3.5 text-xs font-semibold text-lime-300 hover:bg-lime-500/20 transition-colors disabled:opacity-40"
             >
               <CheckIcon className="size-3.5 shrink-0" />
               <span>{actioning === 'approve' ? '…' : 'Aprobar'}</span>
@@ -551,8 +551,9 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
               setActioning(null)
             }}
             disabled={actioning !== null}
+            aria-label="Eliminar momento"
             className={[
-              'flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition-colors disabled:opacity-40',
+              'flex items-center justify-center gap-1.5 py-3.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition-colors disabled:opacity-40',
               approved || isFailed ? 'flex-1' : 'px-4',
             ].join(' ')}
           >
