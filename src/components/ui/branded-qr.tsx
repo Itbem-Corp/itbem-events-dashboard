@@ -41,7 +41,7 @@ interface BrandedQRProps {
   downloadName?: string
   /** Visible QR size in px (default 180) */
   size?: number
-  /** Hi‑res canvas size for download (default 1024) */
+  /** Hi‑res canvas size for download (default 1200) */
   downloadSize?: number
   /** Show the download button (default true) */
   showDownload?: boolean
@@ -56,7 +56,7 @@ export function BrandedQR({
   caption,
   downloadName = 'qr-eventiapp',
   size = 180,
-  downloadSize = 1024,
+  downloadSize = 1200,
   showDownload = true,
   dark = false,
 }: BrandedQRProps) {
@@ -268,6 +268,12 @@ export function BrandedQR({
           bgColor="#ffffff"
           fgColor="#18181b"
           level="M"
+          imageSettings={{
+            src: '/eventiapp-icon.svg',
+            height: Math.round(downloadSize * 0.15),
+            width: Math.round(downloadSize * 0.18),
+            excavate: true,
+          }}
         />
       </div>
     </div>
