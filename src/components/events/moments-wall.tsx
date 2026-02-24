@@ -288,6 +288,15 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
 
         <div className="space-y-2 pt-1 w-full">
           <p className="text-xs text-zinc-500 break-all text-center px-2">{url}</p>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition-colors"
+          >
+            <ArrowTopRightOnSquareIcon className="size-4" />
+            Abrir enlace
+          </a>
           <button
             onClick={copy}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
@@ -305,19 +314,15 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
 // ─── Wall Share Modal ─────────────────────────────────────────────────────────
 
 function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uploadUrl: string; onClose: () => void }) {
-  const [copiedWall, setCopiedWall] = useState(false)
-  const [copiedUpload, setCopiedUpload] = useState(false)
+  const [activeTab, setActiveTab] = useState<'wall' | 'upload'>('wall')
+  const [copied, setCopied] = useState(false)
 
-  const copyWall = async () => {
-    await navigator.clipboard.writeText(wallUrl)
-    setCopiedWall(true)
-    setTimeout(() => setCopiedWall(false), 2000)
-  }
+  const activeUrl = activeTab === 'wall' ? wallUrl : uploadUrl
 
-  const copyUpload = async () => {
-    await navigator.clipboard.writeText(uploadUrl)
-    setCopiedUpload(true)
-    setTimeout(() => setCopiedUpload(false), 2000)
+  const copy = async () => {
+    await navigator.clipboard.writeText(activeUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   useEffect(() => {
@@ -353,36 +358,60 @@ function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uplo
           <XMarkIcon className="size-4" />
         </button>
 
+        {/* Tab bar */}
+        <div className="flex w-full rounded-lg overflow-hidden border border-white/10">
+          {([
+            { key: 'wall',   label: 'Ver muro' },
+            { key: 'upload', label: 'Subir fotos' },
+          ] as const).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveTab(tab.key); setCopied(false) }}
+              className={[
+                'flex-1 py-2 text-xs font-medium transition-colors',
+                activeTab === tab.key
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5',
+              ].join(' ')}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* QR for active tab */}
         <BrandedQR
-          value={wallUrl}
-          title="Muro de Momentos"
-          subtitle="Escanea para ver los mejores momentos"
-          downloadName="qr-muro-momentos"
+          value={activeUrl}
+          title={activeTab === 'wall' ? 'Muro de Momentos' : 'Subir Fotos'}
+          subtitle={activeTab === 'wall' ? 'Escanea para ver los mejores momentos' : 'Escanea para subir fotos y videos'}
+          downloadName={activeTab === 'wall' ? 'qr-muro-momentos' : 'qr-subida-momentos'}
           size={180}
           dark
         />
 
+        {/* URL + actions */}
         <div className="space-y-2 pt-1 w-full">
-          {/* Wall viewing link */}
-          <p className="text-[10px] text-zinc-600 uppercase font-semibold tracking-wide px-1">Ver muro</p>
-          <p className="text-xs text-zinc-500 break-all text-center px-2">{wallUrl}</p>
+          <p className="text-xs text-zinc-500 break-all text-center px-2">{activeUrl}</p>
+          <a
+            href={activeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium transition-colors"
+          >
+            <ArrowTopRightOnSquareIcon className="size-4" />
+            Abrir enlace
+          </a>
           <button
-            onClick={copyWall}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-pink-500 hover:bg-pink-400 text-white text-sm font-medium transition-colors"
+            onClick={copy}
+            className={[
+              'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-white text-sm font-medium transition-colors',
+              activeTab === 'wall'
+                ? 'bg-pink-500 hover:bg-pink-400'
+                : 'bg-indigo-600 hover:bg-indigo-500',
+            ].join(' ')}
           >
             <ClipboardDocumentIcon className="size-4" />
-            {copiedWall ? '¡Copiado!' : 'Copiar enlace del muro'}
-          </button>
-
-          {/* Upload link */}
-          <p className="text-[10px] text-zinc-600 uppercase font-semibold tracking-wide px-1 pt-2">Subir fotos</p>
-          <p className="text-xs text-zinc-500 break-all text-center px-2">{uploadUrl}</p>
-          <button
-            onClick={copyUpload}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
-          >
-            <ClipboardDocumentIcon className="size-4" />
-            {copiedUpload ? '¡Copiado!' : 'Copiar enlace de subida'}
+            {copied ? '¡Copiado!' : 'Copiar enlace'}
           </button>
         </div>
       </motion.div>

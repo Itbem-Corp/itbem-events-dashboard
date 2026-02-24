@@ -398,4 +398,25 @@ describe('MomentsWall — QR modal', () => {
             expect(screen.getByTestId('branded-qr')).toBeInTheDocument()
         })
     })
+
+    it('shows Abrir enlace link in QR modal', async () => {
+        await renderWall([makeMoment()])
+        fireEvent.click(screen.getByTitle('Generar QR para subida compartida'))
+        await waitFor(() => {
+            const link = screen.getByRole('link', { name: /Abrir enlace/i })
+            expect(link).toBeInTheDocument()
+            expect(link).toHaveAttribute('target', '_blank')
+            expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+        })
+    })
+
+    it('shows tab bar in WallShareModal', async () => {
+        await renderWall([makeMoment()])
+        // Click the "Compartir muro" button (ShareIcon button with title="Compartir muro de momentos")
+        fireEvent.click(screen.getByTitle('Compartir muro de momentos'))
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: /Ver muro/i })).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: /Subir fotos/i })).toBeInTheDocument()
+        })
+    })
 })
