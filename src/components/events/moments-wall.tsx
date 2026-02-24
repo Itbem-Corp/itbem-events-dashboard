@@ -801,78 +801,84 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
 
   return (
     <div>
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        {/* Counts */}
-        <p className="text-sm text-zinc-400 flex-1 min-w-0">
-          {moments.length} momento{moments.length !== 1 ? 's' : ''} en total
-          {pendingCount > 0 && (
-            <span className="ml-2 inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400 ring-1 ring-amber-500/20">
-              {pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}
-            </span>
-          )}
-          {failedCount > 0 && (
-            <span className="ml-2 inline-flex items-center rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-400 ring-1 ring-rose-500/20">
-              {failedCount} con error
-            </span>
-          )}
-        </p>
+      {/* ── Toolbar ─────────────────────────────────────────────────────── */}
+      <div className="mb-6 rounded-xl border border-white/10 overflow-hidden">
 
-        {/* Actions — row 1: bulk actions + auto-refresh */}
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-          {approvedCount > 0 && (
-            <button
-              onClick={handleDownloadZip}
-              disabled={downloadingZip}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors disabled:opacity-50 border border-white/10"
-              title="Descarga las imágenes aprobadas en un ZIP. Los videos no están incluidos."
-            >
-              {downloadingZip ? (
-                <ArrowPathIcon className="size-3.5 animate-spin" />
-              ) : (
-                <ArrowDownTrayIcon className="size-3.5" />
-              )}
-              <span className="hidden sm:inline">{downloadingZip ? 'Generando…' : 'Descargar fotos (ZIP)'}</span>
-              <span className="sm:hidden">{downloadingZip ? '…' : 'ZIP'}</span>
-            </button>
-          )}
-          {pendingCount > 0 && (
-            <button
-              onClick={handleApproveAll}
-              disabled={approvingAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-lime-500/10 text-lime-400 hover:bg-lime-500/20 transition-colors border border-lime-500/20 disabled:opacity-50"
-              title={`Aprobar ${pendingCount} momento${pendingCount !== 1 ? 's' : ''} pendientes`}
-            >
-              {approvingAll ? (
-                <ArrowPathIcon className="size-3.5 animate-spin" />
-              ) : (
-                <CheckIcon className="size-3.5" />
-              )}
-              <span className="hidden sm:inline">{approvingAll ? 'Aprobando…' : `Aprobar todos (${pendingCount})`}</span>
-              <span className="sm:hidden">{approvingAll ? '…' : `Aprobar (${pendingCount})`}</span>
-            </button>
-          )}
-          <div className="flex items-center gap-1.5 text-xs text-zinc-500 ml-auto sm:ml-0">
-            {isValidating && (
-              <ArrowPathIcon className="size-3 animate-spin text-zinc-400" />
+        {/* Row 1 — Content actions */}
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-white/5">
+          {/* Counts + badges */}
+          <p className="text-sm text-zinc-400 flex-1 min-w-0">
+            {moments.length} momento{moments.length !== 1 ? 's' : ''} en total
+            {pendingCount > 0 && (
+              <span className="ml-2 inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400 ring-1 ring-amber-500/20">
+                {pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}
+              </span>
             )}
-            <span className="sm:hidden">
-              {isValidating ? '…' : '15s'}
-            </span>
-            <span className="hidden sm:inline">
-              {isValidating ? 'Actualizando…' : 'Auto-actualiza cada 15s'}
-            </span>
+            {failedCount > 0 && (
+              <span className="ml-2 inline-flex items-center rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-400 ring-1 ring-rose-500/20">
+                {failedCount} con error
+              </span>
+            )}
+          </p>
+
+          {/* Bulk actions */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {approvedCount > 0 && (
+              <button
+                onClick={handleDownloadZip}
+                disabled={downloadingZip}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors disabled:opacity-50 border border-white/10"
+                title="Descarga las imágenes aprobadas en un ZIP. Los videos no están incluidos."
+              >
+                {downloadingZip ? (
+                  <ArrowPathIcon className="size-3.5 animate-spin" />
+                ) : (
+                  <ArrowDownTrayIcon className="size-3.5" />
+                )}
+                <span className="hidden sm:inline">{downloadingZip ? 'Generando…' : 'Descargar fotos (ZIP)'}</span>
+                <span className="sm:hidden">{downloadingZip ? '…' : 'ZIP'}</span>
+              </button>
+            )}
+            {pendingCount > 0 && (
+              <button
+                onClick={handleApproveAll}
+                disabled={approvingAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-lime-500/10 text-lime-400 hover:bg-lime-500/20 transition-colors border border-lime-500/20 disabled:opacity-50"
+                title={`Aprobar ${pendingCount} momento${pendingCount !== 1 ? 's' : ''} pendientes`}
+              >
+                {approvingAll ? (
+                  <ArrowPathIcon className="size-3.5 animate-spin" />
+                ) : (
+                  <CheckIcon className="size-3.5" />
+                )}
+                <span className="hidden sm:inline">{approvingAll ? 'Aprobando…' : `Aprobar todos (${pendingCount})`}</span>
+                <span className="sm:hidden">{approvingAll ? '…' : `Aprobar (${pendingCount})`}</span>
+              </button>
+            )}
+
+            {/* Auto-refresh indicator */}
+            <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+              {isValidating && (
+                <ArrowPathIcon className="size-3 animate-spin text-zinc-400" />
+              )}
+              <span className="sm:hidden">
+                {isValidating ? '…' : '15s'}
+              </span>
+              <span className="hidden sm:inline">
+                {isValidating ? 'Actualizando…' : 'Auto-actualiza cada 15s'}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Actions — row 2: toggles + share buttons */}
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+        {/* Row 2 — Sharing & settings */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-white/5 border-l-2 border-l-indigo-500/30">
           <button
             onClick={handleToggleShare}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors border ${
               shareEnabled
-                ? 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30'
-                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                ? 'bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30 border-indigo-500/20'
+                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border-white/10'
             }`}
             title={shareEnabled ? 'Subida por QR habilitada — cualquiera con el enlace puede subir' : 'Habilitar subida por QR compartido'}
           >
@@ -882,16 +888,20 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           </button>
           <button
             onClick={handleTogglePublish}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors border ${
               wallPublished
-                ? 'bg-lime-500/20 text-lime-400 hover:bg-lime-500/30'
-                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                ? 'bg-lime-500/20 text-lime-400 hover:bg-lime-500/30 border-lime-500/20'
+                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border-white/10'
             }`}
           >
             <GlobeAltIcon className="size-3.5" />
             <span className="hidden sm:inline">{wallPublished ? 'Muro publicado' : 'Publicar muro'}</span>
             <span className="sm:hidden">{wallPublished ? 'Publicado' : 'Publicar'}</span>
           </button>
+
+          {/* Separator */}
+          <div className="hidden sm:block h-5 w-px bg-white/10" />
+
           <button
             onClick={() => setShowWallShare(true)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 transition-colors border border-pink-500/30"
@@ -914,8 +924,8 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           )}
         </div>
 
-        {/* Filters */}
-        <div role="tablist" className="flex rounded-lg overflow-hidden border border-white/10 w-full sm:w-auto">
+        {/* Row 3 — Filters */}
+        <div role="tablist" className="flex">
           {([
             { value: 'all',      label: 'Todos',      count: moments.length },
             { value: 'pending',  label: 'Pendientes', count: pendingCount },
