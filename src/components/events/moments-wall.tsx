@@ -29,6 +29,8 @@ import {
   ShareIcon,
   SparklesIcon,
   GlobeAltIcon,
+  ArrowTopRightOnSquareIcon,
+  ChatBubbleOvalLeftIcon,
 } from '@heroicons/react/24/outline'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -92,12 +94,12 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
 
   const handleDownload = async () => {
     try {
-      const res = await fetch(url)
-      const blob = await res.blob()
-      const extMatch = url.match(/\.(\w{2,5})(?:\?|$)/)
+      const res = await api.get(`/moments/${moment.id}/download`, { responseType: 'blob' })
+      const key = moment.content_url ?? url
+      const extMatch = key.match(/\.(\w{2,5})(?:\?|$)/)
       const ext = extMatch?.[1] ?? 'jpg'
       const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
+      a.href = URL.createObjectURL(res.data)
       a.download = `momento-${moment.id}.${ext}`
       a.click()
       URL.revokeObjectURL(a.href)
@@ -204,6 +206,18 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
           />
         )}
       </motion.div>
+
+      {/* Description pill — shown below media when moment has a note */}
+      {moment.description && (
+        <div
+          className="absolute bottom-16 left-4 right-4 flex justify-center z-10 pointer-events-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="max-w-lg rounded-full bg-black/60 backdrop-blur-sm px-5 py-2 text-sm text-white/80 italic text-center line-clamp-2 ring-1 ring-white/10">
+            &ldquo;{moment.description}&rdquo;
+          </p>
+        </div>
+      )}
 
       {/* Next — hidden on mobile, use swipe instead */}
       {moments.length > 1 && (
