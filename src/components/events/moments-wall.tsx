@@ -704,6 +704,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     try {
       await api.put(`/events/${eventId}`, { moments_wall_published: newValue })
       setWallPublished(newValue)
+      await globalMutate(`/events/${eventId}`)
       toast.success(newValue ? 'Muro publicado' : 'Muro despublicado')
     } catch {
       toast.error('Error al actualizar el muro')
@@ -715,6 +716,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     try {
       await api.put(`/events/${eventId}/config`, { share_uploads_enabled: newValue })
       setShareEnabled(newValue)
+      await globalMutate(`/events/${eventId}/config`)
       toast.success(newValue ? 'Subida compartida habilitada' : 'Subida compartida deshabilitada')
     } catch {
       toast.error('Error al actualizar configuración')
