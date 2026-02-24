@@ -412,6 +412,7 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
   const video = hasMedia && isVideo(url)
   const isProcessing = moment.processing_status === 'pending' || moment.processing_status === 'processing'
   const isFailed = moment.processing_status === 'failed'
+  const approved = moment.is_approved
 
   return (
     <motion.div
@@ -420,140 +421,146 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.2 }}
-      className="relative rounded-xl overflow-hidden border border-white/10 bg-zinc-900/60 group flex flex-col"
+      className="relative rounded-xl overflow-hidden bg-zinc-900 group aspect-square"
     >
-      {/* Badges row — approval only; processing state is shown in the card body */}
-      <div className="absolute top-2.5 left-2.5 z-10">
-        {moment.is_approved ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-lime-500/20 px-2 py-0.5 text-xs font-medium text-lime-400 ring-1 ring-lime-500/30">
-            <CheckIcon className="size-3" /> Aprobado
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-400 ring-1 ring-amber-500/30">
-            Pendiente
-          </span>
-        )}
-      </div>
-
-      {/* Media */}
+      {/* ── Media area ─────────────────────────────────────── */}
       {isProcessing ? (
-        <div className="aspect-square flex flex-col items-center justify-center bg-gradient-to-br from-zinc-800/60 to-zinc-900 gap-3">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900 gap-3">
           <ArrowPathIcon className="size-8 text-indigo-400 animate-spin opacity-60" />
-          <p className="text-xs text-zinc-500 text-center px-4">
-            {processingLabel(moment.processing_status)}
-          </p>
+          <p className="text-xs text-zinc-500 text-center px-4">{processingLabel(moment.processing_status)}</p>
         </div>
       ) : isFailed ? (
-        <div className="aspect-square flex flex-col items-center justify-center bg-rose-950/30 gap-2 p-4">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-950/40 gap-2 p-4">
           <ExclamationTriangleIcon className="size-8 text-rose-500 opacity-70" />
-          <p className="text-xs text-rose-400 text-center">Error al procesar el archivo</p>
+          <p className="text-xs text-rose-400 text-center">Error al procesar</p>
           <button
             onClick={async () => {
               try {
                 await api.put(`/moments/${moment.id}/requeue`, {})
-                toast.success('Reintentando procesamiento…')
+                toast.success('Reintentando…')
               } catch {
-                toast.error('No se pudo reintentar. Intenta más tarde.')
+                toast.error('No se pudo reintentar.')
               }
             }}
-            className="mt-2 flex items-center gap-1 text-xs text-rose-300 hover:text-rose-100 underline underline-offset-2 transition-colors"
+            className="flex items-center gap-1 text-xs text-rose-300 hover:text-rose-100 underline underline-offset-2"
           >
-            <ArrowPathIcon className="size-3" />
-            Reintentar
+            <ArrowPathIcon className="size-3" /> Reintentar
           </button>
         </div>
-      ) : hasMedia ? (
+      ) : video ? (
         <div
-          className="aspect-square relative overflow-hidden bg-zinc-800 cursor-pointer"
+          className="absolute inset-0 cursor-pointer"
           onClick={() => onOpenLightbox(moment)}
-          title="Abrir visor"
         >
-          {video ? (
-            <video
-              src={url}
-              muted
-              playsInline
-              preload="metadata"
+          {moment.thumbnail_url ? (
+            <img
+              src={moment.thumbnail_url}
+              alt="Video momento"
               className="w-full h-full object-cover"
+              loading="lazy"
             />
           ) : (
-            <Image
-              src={url}
-              alt="Momento del evento"
-              fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-            />
-          )}
-          {/* Video play icon */}
-          {video && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="flex items-center justify-center size-12 rounded-full bg-black/50 backdrop-blur-sm ring-1 ring-white/20">
-                <svg className="size-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+            <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
+              <div className="flex items-center justify-center size-14 rounded-full bg-black/50 ring-1 ring-white/20">
+                <svg className="size-6 text-white ml-1" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8 5.14v14l11-7-11-7z" />
                 </svg>
               </div>
             </div>
           )}
-          {/* Hover overlay */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-            <MagnifyingGlassPlusIcon className="size-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+            <div className="flex items-center justify-center size-12 rounded-full bg-black/50 backdrop-blur-sm ring-1 ring-white/20 opacity-80 group-hover:opacity-100 transition-opacity">
+              <svg className="size-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5.14v14l11-7-11-7z" />
+              </svg>
+            </div>
           </div>
         </div>
+      ) : hasMedia ? (
+        <div
+          className="absolute inset-0 cursor-pointer"
+          onClick={() => onOpenLightbox(moment)}
+        >
+          <Image
+            src={url}
+            alt="Momento del evento"
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+        </div>
       ) : moment.description ? (
-        <div className="aspect-square flex items-center justify-center bg-gradient-to-br from-zinc-800/80 to-zinc-900 p-6">
+        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-800/80 to-zinc-900 p-5">
           <p className="text-sm text-zinc-300 text-center leading-relaxed italic line-clamp-6">
             &ldquo;{moment.description}&rdquo;
           </p>
         </div>
       ) : (
-        <div className="aspect-square flex items-center justify-center bg-zinc-800/50">
-          <PhotoIcon className="size-12 text-zinc-600" />
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-800/50">
+          <PhotoIcon className="size-10 text-zinc-600" />
         </div>
       )}
 
-      {/* Footer */}
-      <div className="p-3 flex-1 flex flex-col justify-between">
-        <div>
-          {/* Show description as caption only when there is also media — otherwise it's already the main content */}
-          {moment.description && hasMedia && !isProcessing && (
-            <p className="text-xs text-zinc-400 line-clamp-2 italic mb-1">
-              &ldquo;{moment.description}&rdquo;
-            </p>
+      {/* ── Status badge (top-left) ─────────────────────────── */}
+      {!isProcessing && !isFailed && (
+        <div className="absolute top-2 left-2 z-10">
+          {approved ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-lime-500/25 px-2 py-0.5 text-[10px] font-semibold text-lime-300 ring-1 ring-lime-500/30 backdrop-blur-sm">
+              <CheckIcon className="size-2.5" /> Aprobado
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full bg-amber-500/25 px-2 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/30 backdrop-blur-sm">
+              Pendiente
+            </span>
           )}
-          <p className="text-xs text-zinc-600">
-            {new Date(moment.created_at).toLocaleDateString('es-MX', {
-              day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-            })}
-          </p>
         </div>
+      )}
 
-        {/* Actions */}
-        <div className="flex gap-2 mt-3">
-          {!moment.is_approved && !isProcessing && (
+      {/* ── Action bar (bottom overlay) ─────────────────────────
+           Always visible on mobile. Fade+slide in on desktop hover. */}
+      {!isProcessing && (
+        <div className={[
+          'absolute bottom-0 left-0 right-0 z-10',
+          'flex items-stretch',
+          'bg-gradient-to-t from-black/80 via-black/50 to-transparent backdrop-blur-[2px]',
+          'transition-all duration-200',
+          'sm:opacity-0 sm:translate-y-1 sm:group-hover:opacity-100 sm:group-hover:translate-y-0',
+        ].join(' ')}>
+          {!approved && !isFailed && (
             <button
-              onClick={async () => { setActioning('approve'); await onApprove(moment); setActioning(null) }}
+              onClick={async (e) => {
+                e.stopPropagation()
+                setActioning('approve')
+                await onApprove(moment)
+                setActioning(null)
+              }}
               disabled={actioning !== null}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium bg-lime-500/10 text-lime-400 hover:bg-lime-500/20 transition-colors disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-lime-300 hover:bg-lime-500/20 transition-colors disabled:opacity-40"
             >
-              <CheckIcon className="size-3.5" />
-              {actioning === 'approve' ? '…' : 'Aprobar'}
+              <CheckIcon className="size-3.5 shrink-0" />
+              <span>{actioning === 'approve' ? '…' : 'Aprobar'}</span>
             </button>
           )}
           <button
-            onClick={async () => { setActioning('delete'); await onDelete(moment); setActioning(null) }}
+            onClick={async (e) => {
+              e.stopPropagation()
+              setActioning('delete')
+              await onDelete(moment)
+              setActioning(null)
+            }}
             disabled={actioning !== null}
             className={[
-              'flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-colors disabled:opacity-50',
-              'bg-pink-500/10 text-pink-400 hover:bg-pink-500/20',
-              moment.is_approved || isProcessing ? 'flex-1' : '',
+              'flex items-center justify-center gap-1.5 py-3 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition-colors disabled:opacity-40',
+              approved || isFailed ? 'flex-1' : 'px-4',
             ].join(' ')}
           >
-            <XMarkIcon className="size-3.5" />
-            {actioning === 'delete' ? '…' : 'Eliminar'}
+            <XMarkIcon className="size-3.5 shrink-0" />
+            {(approved || isFailed) && <span>{actioning === 'delete' ? '…' : 'Eliminar'}</span>}
           </button>
         </div>
-      </div>
+      )}
     </motion.div>
   )
 }
@@ -949,7 +956,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           }
         />
       ) : (
-        <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4" layout>
+        <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5" layout>
           <AnimatePresence>
             {filteredMoments.map((moment) => (
               <MomentCard
