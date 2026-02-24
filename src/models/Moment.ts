@@ -19,6 +19,8 @@ export interface Moment extends BaseEntity {
   invitation_id?: string | null
   /** URL or S3 key of the media file (image or video). May be a raw key if status is "failed". */
   content_url: string
+  /** WebP thumbnail extracted by Lambda for videos. Empty for images. */
+  thumbnail_url?: string
   /** Guest message / note left with the upload */
   description?: string
   is_approved: boolean
