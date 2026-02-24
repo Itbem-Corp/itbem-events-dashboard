@@ -660,11 +660,12 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       await Promise.all(
         approved.map(async (m, i) => {
           try {
-            const res = await fetch(resolveUrl(m))
-            const blob = await res.blob()
-            const zipExtMatch = resolveUrl(m).match(/\.(\w{2,5})(?:\?|$)/)
-            const ext = zipExtMatch?.[1] ?? 'jpg'
-            folder.file(`momento-${String(i + 1).padStart(3, '0')}.${ext}`, blob)
+            // Use backend proxy to avoid S3 CORS restrictions on client-side fetch
+            const res = await api.get(`/moments/${m.id}/download`, { responseType: 'blob' })
+            const key = m.content_url ?? ''
+            const extMatch = key.match(/\.(\w{2,5})(?:\?|$)/)
+            const ext = extMatch?.[1] ?? 'jpg'
+            folder.file(`momento-${String(i + 1).padStart(3, '0')}.${ext}`, res.data)
           } catch {
             // Skip failed individual files silently
           }
