@@ -26,6 +26,7 @@ const nextConfig = {
       'https://*.amazonaws.com',
       'https://*.s3.amazonaws.com',
       'https://*.s3.us-east-1.amazonaws.com',
+      'https://*.s3.us-east-2.amazonaws.com',
       'https://*.s3.us-west-2.amazonaws.com',
       'https://*.cloudfront.net',
     ].join(' ')
@@ -35,6 +36,7 @@ const nextConfig = {
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: ${awsSources}`,
+      `media-src 'self' blob: ${awsSources}`,
       "font-src 'self'",
       `connect-src 'self' ${backendUrl} ${awsSources}`,
       `frame-src 'self' ${astroUrl}`,
