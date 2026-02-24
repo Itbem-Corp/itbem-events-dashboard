@@ -888,6 +888,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           </button>
           <button
             onClick={handleTogglePublish}
+            title={wallPublished ? 'Muro publicado — visible para los invitados' : 'Publicar muro para invitados'}
             className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors border ${
               wallPublished
                 ? 'bg-lime-500/20 text-lime-400 hover:bg-lime-500/30 border-lime-500/20'
