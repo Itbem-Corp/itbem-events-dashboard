@@ -532,6 +532,16 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
         </div>
       )}
 
+      {/* ── Description chip — above action bar, only when card has media ── */}
+      {hasMedia && moment.description && !isProcessing && !isFailed && (
+        <div className="absolute bottom-12 left-2 right-2 z-10 pointer-events-none sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity sm:duration-200">
+          <span className="inline-flex items-center gap-1 max-w-full rounded-full bg-black/65 backdrop-blur-sm px-2.5 py-1 text-[10px] text-white/75 ring-1 ring-white/10">
+            <ChatBubbleOvalLeftIcon className="size-3 shrink-0 text-white/50 flex-none" />
+            <span className="truncate">{moment.description}</span>
+          </span>
+        </div>
+      )}
+
       {/* ── Action bar (bottom overlay) ─────────────────────────
            Always visible on mobile. Fade+slide in on desktop hover. */}
       {!isProcessing && (

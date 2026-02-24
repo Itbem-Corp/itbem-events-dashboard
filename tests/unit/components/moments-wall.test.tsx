@@ -380,6 +380,11 @@ describe('MomentsWall — moment card content', () => {
         await renderWall([makeMoment({ processing_status: 'failed' })])
         expect(screen.getByText('Error al procesar')).toBeInTheDocument()
     })
+
+    it('shows description chip when moment has media and a description', async () => {
+        await renderWall([makePhotoMoment({ description: 'Nota del invitado' })])
+        expect(screen.getByText('Nota del invitado')).toBeInTheDocument()
+    })
 })
 
 describe('MomentsWall — QR modal', () => {
