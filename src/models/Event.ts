@@ -36,6 +36,6 @@ export interface Event extends BaseEntity {
   client_id?: string;
   event_type_id: string;
   event_type?: EventType;
-  config?: EventConfig;
-  moments_wall_published?: boolean;
+  event_config?: EventConfig;  // JSON key from backend: "event_config"
+  config?: EventConfig;        // alias — populated by separate /config fetch
 }

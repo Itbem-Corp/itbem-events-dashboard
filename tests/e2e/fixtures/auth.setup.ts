@@ -13,9 +13,18 @@
 
 import { test as setup, expect } from '@playwright/test'
 import path from 'path'
+import fs from 'fs'
 import dotenv from 'dotenv'
 
-dotenv.config({ path: '.env.local' })
+// dotenvx intercepts dotenv.config() and doesn't actually set process.env.
+// Bypass it by reading the file directly and assigning vars manually.
+const envPath = path.join(process.cwd(), '.env.local')
+try {
+  const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf8'))
+  for (const [key, val] of Object.entries(parsed)) {
+    process.env[key] = val
+  }
+} catch { /* .env.local not found — vars must be set externally */ }
 
 const authFile = path.join(__dirname, '../.auth/session.json')
 

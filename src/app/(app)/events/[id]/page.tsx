@@ -6,6 +6,7 @@ import useSWR from 'swr'
 import { fetcher } from '@/lib/fetcher'
 import { useParams } from 'next/navigation'
 import type { Event } from '@/models/Event'
+import type { EventConfig } from '@/models/EventConfig'
 import type { Guest } from '@/models/Guest'
 import { getEffectiveStatus } from '@/lib/guest-utils'
 import { eventTypeLabel } from '@/lib/event-type-label'
@@ -236,6 +237,12 @@ export default function EventDetailPage() {
 
   // Self-healing: detect and repair data issues transparently
   useEventHealthCheck(rawUnwrapped)
+
+  // Fetch event config separately — GET /events/:id does not preload config
+  const { data: eventConfig } = useSWR<EventConfig>(
+    event?.id ? `/events/${event.id}/config` : null,
+    fetcher
+  )
 
   const { data: rawGuests, isLoading: guestsLoading } = useSWR(
     event?.id ? `/guests/all:${event.id}` : null,
@@ -1144,8 +1151,8 @@ export default function EventDetailPage() {
               eventId={event.id}
               eventIdentifier={event.identifier}
               eventName={event.name}
-              momentsWallPublished={event.moments_wall_published}
-              shareUploadsEnabled={event.config?.share_uploads_enabled}
+              momentsWallPublished={eventConfig?.show_moment_wall}
+              shareUploadsEnabled={eventConfig?.share_uploads_enabled}
             />
           )}
 

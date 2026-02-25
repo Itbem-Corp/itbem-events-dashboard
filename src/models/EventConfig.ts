@@ -39,6 +39,7 @@ export interface EventConfig extends BaseEntity {
   show_rsvp?: boolean;
   show_location?: boolean;
   show_gallery?: boolean;
+  show_moment_wall?: boolean;
   show_wall?: boolean;
   show_contact?: boolean;
   show_header?: boolean;

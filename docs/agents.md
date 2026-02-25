@@ -2,6 +2,20 @@
 
 ## Roles & Entry Points
 
+### Subagentes reales (`/task <nombre>`)
+Estos están en `.claude/agents/` y se invocan con `/task`:
+
+| Agent | Use when |
+|---|---|
+| `/task feature-planner` | Antes de empezar cualquier feature — genera plan cross-project para los 3 proyectos |
+| `/task agent-improver` | Audita todos los agentes de los 3 proyectos, detecta paths rotos y endpoints stale |
+| `/task backend-agent` | Valida contratos backend: endpoints, response shapes, modelos |
+| `/task release-coordinator` | Antes de hacer deploy de un feature que toca más de un proyecto |
+| `/task orchestrator` | Al inicio de cualquier sesión multi-proyecto — lee memoria, retoma o inicia sprint |
+
+### Agentes de contexto (Claude los activa al leer docs/)
+Estos están documentados en `docs/` y guían el comportamiento inline:
+
 | Agent | Use when | Read first |
 |---|---|---|
 | `architect` | New feature, refactor, system design | `architecture.md` → `routing.md` → `state.md` |
