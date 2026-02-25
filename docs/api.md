@@ -105,6 +105,7 @@ toast.error('Failed')
 | PUT | `/events/:id` | Update event |
 | DELETE | `/events/:id` | Delete event |
 | POST | `/events/:id/repair` | Self-healing: detect and fix malformed event data atomically |
+| POST | `/events/:id/preview-token` | Generate admin preview OTP (UUID v4, 1h Redis TTL) → `{ token, expires_in }` |
 | GET | `/events/:id/analytics` | Event analytics — views, RSVPs, moment counts |
 | GET | `/events/:id/config` | Event configuration |
 | PUT | `/events/:id/config` | Update configuration |
