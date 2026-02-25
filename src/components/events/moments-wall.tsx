@@ -230,7 +230,7 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
         <div className="absolute bottom-16 left-4 right-4 z-20 pointer-events-none">
           <div className="flex items-start gap-2 rounded-xl bg-black/70 backdrop-blur-md px-3 py-2.5 ring-1 ring-white/10">
             <ChatBubbleOvalLeftIcon className="size-4 text-white/50 shrink-0 mt-0.5" />
-            <p className="text-sm text-white/80 leading-relaxed">{moment.description}</p>
+            <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap break-words">{moment.description}</p>
           </div>
         </div>
       )}
@@ -663,6 +663,119 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, s
   )
 }
 
+// ─── Note Card ────────────────────────────────────────────────────────────────
+
+interface NoteCardProps {
+  moment: Moment
+  onApprove: (m: Moment) => Promise<void>
+  onDelete: (m: Moment) => Promise<void>
+  resolveUrl: (m: Moment) => string
+}
+
+function NoteCard({ moment, onApprove, onDelete, resolveUrl }: NoteCardProps) {
+  const [actioning, setActioning] = useState<'approve' | 'delete' | null>(null)
+  const url = resolveUrl(moment)
+  const video = url && isVideo(url)
+  const approved = moment.is_approved
+
+  const timeLabel = new Date(moment.created_at).toLocaleString('es-MX', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+  })
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.18 }}
+      className="flex items-start gap-4 rounded-xl border border-white/8 bg-zinc-900/70 p-4 hover:bg-zinc-900 transition-colors"
+    >
+      {/* Thumbnail — media preview */}
+      {url && (
+        <div className="shrink-0 size-14 rounded-lg overflow-hidden bg-zinc-800 ring-1 ring-white/8">
+          {video ? (
+            <div className="size-full flex items-center justify-center bg-zinc-800">
+              <svg className="size-5 text-zinc-400 ml-0.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5.14v14l11-7-11-7z" />
+              </svg>
+            </div>
+          ) : (
+            <Image
+              src={url}
+              alt="Momento"
+              width={56}
+              height={56}
+              className="size-full object-cover"
+              unoptimized
+            />
+          )}
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-2">
+          {approved ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-lime-500/15 px-2 py-0.5 text-[10px] font-semibold text-lime-300 ring-1 ring-lime-500/25">
+              <CheckIcon className="size-2.5" /> Aprobado
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/25">
+              Pendiente
+            </span>
+          )}
+          <span className="text-[10px] text-zinc-600 tabular-nums">{timeLabel}</span>
+        </div>
+
+        <p className="text-sm text-zinc-200 leading-relaxed italic whitespace-pre-wrap break-words">
+          &ldquo;{moment.description}&rdquo;
+        </p>
+      </div>
+
+      {/* Actions */}
+      <div className="shrink-0 flex flex-col gap-1.5">
+        {!approved && (
+          <button
+            onClick={async () => {
+              setActioning('approve')
+              await onApprove(moment)
+              setActioning(null)
+            }}
+            disabled={actioning !== null}
+            title="Aprobar nota"
+            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-lime-300 bg-lime-500/10 hover:bg-lime-500/20 border border-lime-500/20 transition-colors disabled:opacity-40"
+          >
+            {actioning === 'approve' ? (
+              <ArrowPathIcon className="size-3.5 animate-spin" />
+            ) : (
+              <CheckIcon className="size-3.5" />
+            )}
+            <span className="hidden sm:inline">Aprobar</span>
+          </button>
+        )}
+        <button
+          onClick={async () => {
+            setActioning('delete')
+            await onDelete(moment)
+            setActioning(null)
+          }}
+          disabled={actioning !== null}
+          title="Eliminar nota"
+          className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-colors disabled:opacity-40"
+        >
+          {actioning === 'delete' ? (
+            <ArrowPathIcon className="size-3.5 animate-spin" />
+          ) : (
+            <XMarkIcon className="size-3.5" />
+          )}
+          <span className="hidden sm:inline">Eliminar</span>
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
 // ─── Main Wall ────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -678,7 +791,7 @@ interface Props {
 }
 
 export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsEnabled, momentsWallPublished }: Props) {
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'failed' | 'photos' | 'videos'>('all')
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'failed' | 'photos' | 'videos' | 'notes'>('all')
   const [wallPublished, setWallPublished] = useState(momentsWallPublished ?? false)
   const [shareEnabled, setShareEnabled] = useState(shareUploadsEnabled ?? false)
 
@@ -720,6 +833,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     if (filter === 'failed')   return m.processing_status === 'failed'
     if (filter === 'photos')   return m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))
     if (filter === 'videos')   return m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))
+    if (filter === 'notes')    return !!m.description?.trim()
     return true
   })
 
@@ -728,6 +842,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   const failedCount   = moments.filter((m) => m.processing_status === 'failed').length
   const photoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))).length
   const videoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))).length
+  const notesCount    = moments.filter((m) => !!m.description?.trim()).length
 
   // Moments eligible for lightbox (media present + not processing)
   const lightboxMoments = filteredMoments.filter((m) =>
@@ -1173,8 +1288,12 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           <button
             onClick={handleOpenPreview}
             disabled={generatingPreview}
-            title="Abrir vista previa del muro — solo visible para ti"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors border border-violet-500/20 disabled:opacity-50"
+            title={wallPublished ? 'Ver el muro publicado (ya es público)' : 'Abrir vista previa — solo visible para ti'}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border disabled:opacity-50 ${
+              wallPublished
+                ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border-white/10'
+                : 'bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 border-violet-500/20'
+            }`}
           >
             {generatingPreview ? (
               <ArrowPathIcon className="size-3.5 animate-spin" />
@@ -1241,6 +1360,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             { value: 'approved', label: 'Aprobados',  count: approvedCount },
             ...(photoCount  > 0 ? [{ value: 'photos', label: 'Fotos',  count: photoCount  }] : []),
             ...(videoCount  > 0 ? [{ value: 'videos', label: 'Videos', count: videoCount  }] : []),
+            ...(notesCount  > 0 ? [{ value: 'notes',  label: 'Notas',  count: notesCount  }] : []),
             ...(failedCount > 0 ? [{ value: 'failed', label: 'Errores', count: failedCount }] : []),
           ] as const).map((f) => (
             <button
@@ -1328,9 +1448,26 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                 ? 'Aún no hay momentos aprobados.'
                 : filter === 'failed'
                   ? 'No hay momentos con error de procesamiento.'
-                  : 'Los invitados aún no han compartido momentos, o están siendo procesados por Lambda.'
+                  : filter === 'notes'
+                    ? 'Ningún invitado ha dejado notas todavía.'
+                    : 'Los invitados aún no han compartido momentos, o están siendo procesados por Lambda.'
           }
         />
+      ) : filter === 'notes' ? (
+        /* Notes list view */
+        <motion.div className="space-y-2" layout>
+          <AnimatePresence>
+            {filteredMoments.map((moment) => (
+              <NoteCard
+                key={moment.id}
+                moment={moment}
+                onApprove={handleApprove}
+                onDelete={handleDelete}
+                resolveUrl={resolveUrl}
+              />
+            ))}
+          </AnimatePresence>
+        </motion.div>
       ) : groupByTime ? (
         /* Grouped view */
         <div className="space-y-6">
@@ -1362,7 +1499,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           ))}
         </div>
       ) : (
-        /* Existing flat grid */
+        /* Flat grid */
         <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5" layout>
           <AnimatePresence>
             {filteredMoments.map((moment) => (
