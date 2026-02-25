@@ -5,6 +5,7 @@ import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/20/solid'
 import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
+import { injectPngDpi } from '@/lib/png-dpi'
 
 /* ── Real eventiapp logo as inline data URI (never taints canvas) ────── */
 const LOGO_DATA_URI =
@@ -51,7 +52,7 @@ export function BrandedQR({
   caption,
   downloadName = 'qr-eventiapp',
   size = 180,
-  downloadSize = 800,
+  downloadSize = 2400,
   showDownload = true,
   dark = false,
 }: BrandedQRProps) {
@@ -169,7 +170,8 @@ export function BrandedQR({
     ctx.fillText('Escanea con tu camara', totalWidth / 2, y + 18)
 
     try {
-      const dataUrl = canvas.toDataURL('image/png')
+      const rawDataUrl = canvas.toDataURL('image/png')
+      const dataUrl = injectPngDpi(rawDataUrl, 300)
       const a = document.createElement('a')
       a.href = dataUrl
       a.download = `${downloadName}.png`
@@ -338,7 +340,7 @@ export function BrandedQR({
           size={downloadSize}
           bgColor="#ffffff"
           fgColor="#18181b"
-          level="M"
+          level="H"
           imageSettings={{
             src: LOGO_DATA_URI,
             height: Math.round(downloadSize * 0.16),
