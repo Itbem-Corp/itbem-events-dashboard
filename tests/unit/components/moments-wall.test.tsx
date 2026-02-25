@@ -549,3 +549,39 @@ describe('MomentsWall — multi-select', () => {
         })
     })
 })
+
+describe('MomentsWall — lightbox note display', () => {
+
+    beforeEach(() => vi.clearAllMocks())
+
+    it('shows guest description in lightbox when moment has a note', async () => {
+        const moment = makePhotoMoment({ description: 'Una nota especial del invitado' })
+        await renderWall([moment])
+        // Click the image to open the lightbox
+        const img = screen.getByRole('img', { name: /momento del evento/i })
+        fireEvent.click(img)
+        await waitFor(() => {
+            expect(screen.getByRole('dialog')).toBeInTheDocument()
+        })
+        // The note block uses backdrop-blur-md (full note design, not the old pill)
+        const noteContainer = document.querySelector('.backdrop-blur-md')
+        expect(noteContainer).toBeInTheDocument()
+        expect(noteContainer).toHaveTextContent('Una nota especial del invitado')
+    })
+
+    it('does not show note section in lightbox when moment has no description', async () => {
+        const moment = makePhotoMoment({ description: '' })
+        await renderWall([moment])
+        // Click the image to open the lightbox
+        const img = screen.getByRole('img', { name: /momento del evento/i })
+        fireEvent.click(img)
+        await waitFor(() => {
+            expect(screen.getByRole('dialog')).toBeInTheDocument()
+        })
+        // There should be no ChatBubbleOvalLeftIcon note container
+        // We verify by checking no element with the note wrapper exists
+        // The note div has class containing "backdrop-blur-md" only in the note block
+        const noteContainers = document.querySelectorAll('.backdrop-blur-md')
+        expect(noteContainers).toHaveLength(0)
+    })
+})

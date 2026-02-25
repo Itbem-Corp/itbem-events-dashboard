@@ -207,15 +207,13 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
         )}
       </motion.div>
 
-      {/* Description pill — shown below media when moment has a note */}
+      {/* Note / description from guest */}
       {moment.description && (
-        <div
-          className="absolute bottom-16 left-4 right-4 flex justify-center z-10 pointer-events-none"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <p className="max-w-lg rounded-full bg-black/60 backdrop-blur-sm px-5 py-2 text-sm text-white/80 italic text-center line-clamp-2 ring-1 ring-white/10">
-            &ldquo;{moment.description}&rdquo;
-          </p>
+        <div className="absolute bottom-16 left-4 right-4 z-20 pointer-events-none">
+          <div className="flex items-start gap-2 rounded-xl bg-black/70 backdrop-blur-md px-3 py-2.5 ring-1 ring-white/10">
+            <ChatBubbleOvalLeftIcon className="size-4 text-white/50 shrink-0 mt-0.5" />
+            <p className="text-sm text-white/80 leading-relaxed">{moment.description}</p>
+          </div>
         </div>
       )}
 
