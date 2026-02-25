@@ -51,7 +51,7 @@ export function BrandedQR({
   caption,
   downloadName = 'qr-eventiapp',
   size = 180,
-  downloadSize = 1200,
+  downloadSize = 800,
   showDownload = true,
   dark = false,
 }: BrandedQRProps) {
@@ -246,8 +246,8 @@ export function BrandedQR({
             level="M"
             imageSettings={{
               src: LOGO_DATA_URI,
-              height: Math.round(size * 0.15),
-              width: Math.round(size * 0.18),
+              height: Math.round(size * 0.16),
+              width: Math.round(size * 0.15),
               excavate: true,
             }}
           />
@@ -341,8 +341,8 @@ export function BrandedQR({
           level="M"
           imageSettings={{
             src: LOGO_DATA_URI,
-            height: Math.round(downloadSize * 0.15),
-            width: Math.round(downloadSize * 0.18),
+            height: Math.round(downloadSize * 0.16),
+            width: Math.round(downloadSize * 0.15),
             excavate: true,
           }}
         />

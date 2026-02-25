@@ -699,38 +699,53 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   }
 
   const handleDownloadZip = async () => {
-    const approved = moments.filter(
-      (m) => m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))
-    )
+    // Include both images and videos
+    const approved = moments.filter((m) => m.is_approved && !!resolveUrl(m))
     if (approved.length === 0) {
-      toast.info('No hay imágenes aprobadas para descargar')
+      toast.info('No hay momentos aprobados para descargar')
       return
     }
     setDownloadingZip(true)
+    let succeeded = 0
+    let failed = 0
     try {
       const zip = new JSZip()
       const folder = zip.folder('momentos') ?? zip
       await Promise.all(
         approved.map(async (m, i) => {
           try {
-            // Use backend proxy to avoid S3 CORS restrictions on client-side fetch
             const res = await api.get(`/moments/${m.id}/download`, { responseType: 'blob' })
+            // Verify we actually got a blob, not an error object
+            if (!(res.data instanceof Blob) || res.data.size === 0) {
+              failed++
+              return
+            }
             const key = m.content_url ?? ''
             const extMatch = key.match(/\.(\w{2,5})(?:\?|$)/)
-            const ext = extMatch?.[1] ?? 'jpg'
+            const ext = extMatch?.[1] ?? (isVideo(key) ? 'mp4' : 'jpg')
             folder.file(`momento-${String(i + 1).padStart(3, '0')}.${ext}`, res.data)
-          } catch {
-            // Skip failed individual files silently
+            succeeded++
+          } catch (err) {
+            console.warn(`[ZIP] Failed to download moment ${m.id}:`, err)
+            failed++
           }
         })
       )
+      if (succeeded === 0) {
+        toast.error('No se pudo descargar ningún archivo. Intenta de nuevo.')
+        return
+      }
       const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 3 } })
       const a = document.createElement('a')
       a.href = URL.createObjectURL(content)
       a.download = `momentos-${eventIdentifier}.zip`
       a.click()
       URL.revokeObjectURL(a.href)
-      toast.success(`${approved.length} imágenes descargadas`)
+      if (failed > 0) {
+        toast.success(`${succeeded} archivos descargados (${failed} fallaron)`)
+      } else {
+        toast.success(`${succeeded} archivos descargados`)
+      }
     } catch {
       toast.error('Error al generar el ZIP')
     } finally {
