@@ -585,3 +585,47 @@ describe('MomentsWall — lightbox note display', () => {
         expect(noteContainers).toHaveLength(0)
     })
 })
+
+describe('MomentsWall — ZIP split dropdown', () => {
+
+    beforeEach(() => vi.clearAllMocks())
+
+    it('shows a dropdown arrow button next to the ZIP button when approved moments exist', async () => {
+        await renderWall([
+            makeMoment({ id: 'p1', is_approved: true, content_url: 'https://cdn.example.com/photo.jpg' }),
+        ])
+        expect(screen.getByTitle('Opciones de descarga')).toBeInTheDocument()
+    })
+
+    it('clicking the arrow button opens the ZIP menu with all three options', async () => {
+        await renderWall([
+            makeMoment({ id: 'p1', is_approved: true, content_url: 'https://cdn.example.com/photo.jpg' }),
+        ])
+        fireEvent.click(screen.getByTitle('Opciones de descarga'))
+        await waitFor(() => {
+            expect(screen.getByText('Solo fotos')).toBeInTheDocument()
+            expect(screen.getByText('Solo vídeos')).toBeInTheDocument()
+        })
+    })
+
+    it('clicking Solo fotos closes the menu and initiates download (does not show no-content toast)', async () => {
+        const { toast } = await import('sonner')
+        const photoMoment = makeMoment({ id: 'photo-only', is_approved: true, content_url: 'https://cdn.example.com/photo.jpg' })
+        const videoMoment = makeMoment({ id: 'video-only', is_approved: true, content_url: 'https://cdn.example.com/clip.mp4' })
+        await renderWall([photoMoment, videoMoment])
+        // Open menu
+        fireEvent.click(screen.getByTitle('Opciones de descarga'))
+        await waitFor(() => expect(screen.getByText('Solo fotos')).toBeInTheDocument())
+        // Click the Solo fotos button
+        const soloFotosBtn = screen.getByText('Solo fotos').closest('button')!
+        await act(async () => {
+            fireEvent.click(soloFotosBtn)
+        })
+        // Menu should close (setShowZipMenu(false) is called inside handleDownloadZip)
+        await waitFor(() => {
+            expect(screen.queryByText('Solo fotos')).not.toBeInTheDocument()
+        })
+        // The "no approved" toast should NOT fire because there IS a photo moment
+        expect(toast.info).not.toHaveBeenCalledWith('No hay momentos aprobados para descargar')
+    })
+})

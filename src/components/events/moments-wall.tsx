@@ -664,6 +664,8 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   const [showQR, setShowQR] = useState(false)
   const [showWallShare, setShowWallShare] = useState(false)
   const [downloadingZip, setDownloadingZip] = useState(false)
+  const [showZipMenu, setShowZipMenu] = useState(false)
+  const zipMenuRef = useRef<HTMLDivElement>(null)
 
   const swrKey = eventId ? `/moments?event_id=${eventId}` : null
   const { data: moments = [], isLoading, isValidating } = useSWR<Moment[]>(swrKey, fetcher, {
@@ -671,6 +673,18 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     // Poll every 15s so newly optimized moments appear automatically
     refreshInterval: 15_000,
   })
+
+  // Close ZIP menu when clicking outside
+  useEffect(() => {
+    if (!showZipMenu) return
+    const handler = (e: MouseEvent) => {
+      if (zipMenuRef.current && !zipMenuRef.current.contains(e.target as Node)) {
+        setShowZipMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showZipMenu])
 
   // S3 URLs are presigned — content_url may be a full URL or a key.
   // If it's a key (no "http"), we serve it as-is (backend should return presigned URLs).
@@ -722,13 +736,18 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     if (idx !== -1) setLightboxIndex(idx)
   }
 
-  const handleDownloadZip = async () => {
-    // Include both images and videos
-    const approved = moments.filter((m) => m.is_approved && !!resolveUrl(m))
+  const handleDownloadZip = async (typeFilter: 'all' | 'photos' | 'videos' = 'all') => {
+    const approved = moments.filter((m) => {
+      if (!m.is_approved || !resolveUrl(m)) return false
+      if (typeFilter === 'photos') return !isVideo(resolveUrl(m))
+      if (typeFilter === 'videos') return isVideo(resolveUrl(m))
+      return true
+    })
     if (approved.length === 0) {
       toast.info('No hay momentos aprobados para descargar')
       return
     }
+    setShowZipMenu(false)
     setDownloadingZip(true)
     let succeeded = 0
     let failed = 0
@@ -760,9 +779,10 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
         return
       }
       const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 3 } })
+      const suffix = typeFilter === 'photos' ? '-fotos' : typeFilter === 'videos' ? '-videos' : ''
       const a = document.createElement('a')
       a.href = URL.createObjectURL(content)
-      a.download = `momentos-${eventIdentifier}.zip`
+      a.download = `momentos-${eventIdentifier}${suffix}.zip`
       a.click()
       URL.revokeObjectURL(a.href)
       if (failed > 0) {
@@ -963,20 +983,48 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
               </label>
             )}
             {approvedCount > 0 && (
-              <button
-                onClick={handleDownloadZip}
-                disabled={downloadingZip}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors disabled:opacity-50 border border-white/10"
-                title="Descarga todos los momentos aprobados en un ZIP"
-              >
-                {downloadingZip ? (
-                  <ArrowPathIcon className="size-3.5 animate-spin" />
-                ) : (
-                  <ArrowDownTrayIcon className="size-3.5" />
+              <div ref={zipMenuRef} className="relative">
+                <div className="flex rounded-lg overflow-hidden border border-white/10">
+                  <button
+                    onClick={() => handleDownloadZip('all')}
+                    disabled={downloadingZip}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors disabled:opacity-50"
+                    title="Descargar todos los momentos aprobados en un ZIP"
+                  >
+                    {downloadingZip ? (
+                      <ArrowPathIcon className="size-3.5 animate-spin" />
+                    ) : (
+                      <ArrowDownTrayIcon className="size-3.5" />
+                    )}
+                    <span className="hidden sm:inline">{downloadingZip ? 'Generando…' : 'Descargar ZIP'}</span>
+                    <span className="sm:hidden">ZIP</span>
+                  </button>
+                  <button
+                    onClick={() => setShowZipMenu(v => !v)}
+                    title="Opciones de descarga"
+                    disabled={downloadingZip}
+                    className="flex items-center px-2 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border-l border-white/10 transition-colors disabled:opacity-50"
+                  >
+                    <svg className="size-3" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd"/>
+                    </svg>
+                  </button>
+                </div>
+
+                {showZipMenu && (
+                  <div className="absolute top-full left-0 mt-1 z-50 min-w-[140px] rounded-lg border border-white/10 bg-zinc-900 shadow-xl shadow-black/40 py-1">
+                    <button onClick={() => handleDownloadZip('all')} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 transition-colors">
+                      <ArrowDownTrayIcon className="size-3.5" /> Todos
+                    </button>
+                    <button onClick={() => handleDownloadZip('photos')} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 transition-colors">
+                      <ArrowDownTrayIcon className="size-3.5" /> Solo fotos
+                    </button>
+                    <button onClick={() => handleDownloadZip('videos')} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-white/5 transition-colors">
+                      <ArrowDownTrayIcon className="size-3.5" /> Solo vídeos
+                    </button>
+                  </div>
                 )}
-                <span className="hidden sm:inline">{downloadingZip ? 'Generando…' : 'Descargar fotos (ZIP)'}</span>
-                <span className="sm:hidden">{downloadingZip ? '…' : 'ZIP'}</span>
-              </button>
+              </div>
             )}
             {pendingCount > 0 && (
               <button
