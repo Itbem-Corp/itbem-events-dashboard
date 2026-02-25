@@ -452,3 +452,100 @@ describe('MomentsWall — QR modal', () => {
         })
     })
 })
+
+describe('MomentsWall — multi-select', () => {
+
+    beforeEach(() => {
+        vi.clearAllMocks()
+        window.confirm = vi.fn().mockReturnValue(true)
+    })
+
+    it('shows a Seleccionar toggle button', async () => {
+        await renderWall([makeMoment()])
+        expect(screen.getByTitle('Seleccionar momentos')).toBeInTheDocument()
+    })
+
+    it('entering select mode shows "Seleccionar todo" label', async () => {
+        await renderWall([makeMoment()])
+        fireEvent.click(screen.getByTitle('Seleccionar momentos'))
+        await waitFor(() => {
+            // "Seleccionar todo" text is hidden on mobile (hidden sm:inline) but still in the DOM
+            expect(screen.getByText('Seleccionar todo')).toBeInTheDocument()
+        })
+    })
+
+    it('select mode toggle button changes title to Cancelar selección when active', async () => {
+        await renderWall([makeMoment()])
+        fireEvent.click(screen.getByTitle('Seleccionar momentos'))
+        await waitFor(() => {
+            expect(screen.getByTitle('Cancelar selección')).toBeInTheDocument()
+        })
+    })
+
+    it('shows bulk action buttons when items are selected via Seleccionar todo', async () => {
+        await renderWall([
+            makeMoment({ id: 'm1', is_approved: false }),
+            makeMoment({ id: 'm2', is_approved: false }),
+        ])
+        // Enter select mode
+        fireEvent.click(screen.getByTitle('Seleccionar momentos'))
+        // Check "Seleccionar todo" checkbox
+        await waitFor(() => expect(screen.getByText('Seleccionar todo')).toBeInTheDocument())
+        const checkbox = screen.getByRole('checkbox')
+        fireEvent.click(checkbox)
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: /Aprobar selección/i })).toBeInTheDocument()
+            expect(screen.getByRole('button', { name: /Eliminar selección/i })).toBeInTheDocument()
+        })
+    })
+
+    it('exiting select mode hides Seleccionar todo and clears selection', async () => {
+        await renderWall([makeMoment({ id: 'm1', is_approved: false })])
+        // Enter select mode
+        fireEvent.click(screen.getByTitle('Seleccionar momentos'))
+        await waitFor(() => expect(screen.getByText('Seleccionar todo')).toBeInTheDocument())
+        // Select all
+        fireEvent.click(screen.getByRole('checkbox'))
+        // Exit select mode
+        await waitFor(() => expect(screen.getByTitle('Cancelar selección')).toBeInTheDocument())
+        fireEvent.click(screen.getByTitle('Cancelar selección'))
+        await waitFor(() => {
+            expect(screen.queryByText('Seleccionar todo')).not.toBeInTheDocument()
+            expect(screen.queryByRole('button', { name: /Aprobar selección/i })).not.toBeInTheDocument()
+        })
+    })
+
+    it('Aprobar selección calls api.put for each selected unapproved moment', async () => {
+        const m1 = makeMoment({ id: 'sel-001', is_approved: false })
+        const m2 = makeMoment({ id: 'sel-002', is_approved: false })
+        await renderWall([m1, m2])
+        fireEvent.click(screen.getByTitle('Seleccionar momentos'))
+        await waitFor(() => expect(screen.getByText('Seleccionar todo')).toBeInTheDocument())
+        fireEvent.click(screen.getByRole('checkbox'))
+        await waitFor(() => expect(screen.getByRole('button', { name: /Aprobar selección/i })).toBeInTheDocument())
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: /Aprobar selección/i }))
+        })
+        await waitFor(() => {
+            expect(vi.mocked(api.put)).toHaveBeenCalledWith('/moments/sel-001', expect.objectContaining({ is_approved: true }))
+            expect(vi.mocked(api.put)).toHaveBeenCalledWith('/moments/sel-002', expect.objectContaining({ is_approved: true }))
+        })
+    })
+
+    it('Eliminar selección calls api.delete for each selected moment', async () => {
+        const m1 = makeMoment({ id: 'del-001', is_approved: false })
+        const m2 = makeMoment({ id: 'del-002', is_approved: false })
+        await renderWall([m1, m2])
+        fireEvent.click(screen.getByTitle('Seleccionar momentos'))
+        await waitFor(() => expect(screen.getByText('Seleccionar todo')).toBeInTheDocument())
+        fireEvent.click(screen.getByRole('checkbox'))
+        await waitFor(() => expect(screen.getByRole('button', { name: /Eliminar selección/i })).toBeInTheDocument())
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: /Eliminar selección/i }))
+        })
+        await waitFor(() => {
+            expect(vi.mocked(api.delete)).toHaveBeenCalledWith('/moments/del-001')
+            expect(vi.mocked(api.delete)).toHaveBeenCalledWith('/moments/del-002')
+        })
+    })
+})

@@ -446,9 +446,12 @@ interface MomentCardProps {
   onDelete: (m: Moment) => Promise<void>
   onOpenLightbox: (m: Moment) => void
   resolveUrl: (m: Moment) => string
+  selectMode?: boolean
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
 }
 
-function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }: MomentCardProps) {
+function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, selectMode, selected, onToggleSelect }: MomentCardProps) {
   const [actioning, setActioning] = useState<'approve' | 'delete' | null>(null)
   const url = resolveUrl(moment)
   const hasMedia = !!url
@@ -466,6 +469,25 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
       transition={{ duration: 0.2 }}
       className="relative rounded-xl overflow-hidden bg-zinc-900 group aspect-square"
     >
+      {/* ── Select mode overlay ─────────────────────────── */}
+      {selectMode && (
+        <div
+          className="absolute inset-0 z-20 cursor-pointer"
+          onClick={(e) => { e.stopPropagation(); onToggleSelect?.(moment.id) }}
+        >
+          <div className={[
+            'absolute top-2 right-2 size-6 rounded-full border-2 flex items-center justify-center transition-colors',
+            selected
+              ? 'bg-indigo-500 border-indigo-400'
+              : 'bg-black/40 border-white/40 backdrop-blur-sm',
+          ].join(' ')}>
+            {selected && <CheckIcon className="size-3.5 text-white" />}
+          </div>
+          {selected && (
+            <div className="absolute inset-0 bg-indigo-500/20 border-2 border-indigo-400/60 rounded-xl" />
+          )}
+        </div>
+      )}
       {/* ── Media area ─────────────────────────────────────── */}
       {isProcessing ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900 gap-3">
@@ -493,7 +515,7 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
       ) : video ? (
         <div
           className="absolute inset-0 cursor-pointer"
-          onClick={() => onOpenLightbox(moment)}
+          onClick={() => { if (!selectMode) onOpenLightbox(moment) }}
         >
           {moment.thumbnail_url ? (
             <img
@@ -522,7 +544,7 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl }:
       ) : hasMedia ? (
         <div
           className="absolute inset-0 cursor-pointer"
-          onClick={() => onOpenLightbox(moment)}
+          onClick={() => !selectMode && onOpenLightbox(moment)}
         >
           <Image
             src={url}
@@ -757,6 +779,50 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     }
   }
 
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const exitSelectMode = () => {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+  }
+
+  const handleApproveSelected = async () => {
+    const toApprove = moments.filter(m => selectedIds.has(m.id) && !m.is_approved)
+    if (toApprove.length === 0) return
+    try {
+      await Promise.all(toApprove.map(m => api.put(`/moments/${m.id}`, { ...m, is_approved: true })))
+      await globalMutate(swrKey)
+      setSelectedIds(new Set())
+      toast.success(`${toApprove.length} momento${toApprove.length !== 1 ? 's' : ''} aprobados`)
+    } catch {
+      toast.error('Error al aprobar momentos')
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`¿Eliminar ${selectedIds.size} momento${selectedIds.size !== 1 ? 's' : ''}?`)) return
+    try {
+      await Promise.all([...selectedIds].map(id => api.delete(`/moments/${id}`)))
+      await globalMutate(swrKey)
+      setSelectedIds(new Set())
+      setSelectMode(false)
+      toast.success(`${selectedIds.size} momento${selectedIds.size !== 1 ? 's' : ''} eliminados`)
+    } catch {
+      toast.error('Error al eliminar momentos')
+    }
+  }
+
   const [approvingAll, setApprovingAll] = useState(false)
 
   const handleApproveAll = async () => {
@@ -867,6 +933,37 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
 
           {/* Bulk actions */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Seleccionar toggle */}
+            <button
+              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+              title={selectMode ? 'Cancelar selección' : 'Seleccionar momentos'}
+              className={[
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border',
+                selectMode
+                  ? 'bg-indigo-600 text-white border-indigo-500'
+                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-white/10',
+              ].join(' ')}
+            >
+              <svg className="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd"/>
+              </svg>
+              <span className="hidden sm:inline">{selectMode ? `Cancelar (${selectedIds.size})` : 'Seleccionar'}</span>
+            </button>
+            {/* Seleccionar todo checkbox */}
+            {selectMode && (
+              <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="rounded border-zinc-600 bg-zinc-800 text-indigo-500 focus:ring-indigo-500"
+                  checked={filteredMoments.length > 0 && selectedIds.size === filteredMoments.length}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedIds(new Set(filteredMoments.map(m => m.id)))
+                    else setSelectedIds(new Set())
+                  }}
+                />
+                <span className="hidden sm:inline">Seleccionar todo</span>
+              </label>
+            )}
             {approvedCount > 0 && (
               <button
                 onClick={handleDownloadZip}
@@ -914,6 +1011,28 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                 <span className="hidden sm:inline">{rejectingAll ? 'Eliminando…' : `Rechazar todos (${pendingCount})`}</span>
                 <span className="sm:hidden">{rejectingAll ? '…' : `Rechazar (${pendingCount})`}</span>
               </button>
+            )}
+
+            {/* Selection bulk actions */}
+            {selectMode && selectedIds.size > 0 && (
+              <>
+                <button
+                  onClick={handleApproveSelected}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-lime-500/10 text-lime-400 hover:bg-lime-500/20 border border-lime-500/20 transition-colors"
+                >
+                  <CheckIcon className="size-3.5" />
+                  <span className="hidden sm:inline">Aprobar selección ({selectedIds.size})</span>
+                  <span className="sm:hidden">Aprobar ({selectedIds.size})</span>
+                </button>
+                <button
+                  onClick={handleDeleteSelected}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 transition-colors"
+                >
+                  <XMarkIcon className="size-3.5" />
+                  <span className="hidden sm:inline">Eliminar selección ({selectedIds.size})</span>
+                  <span className="sm:hidden">Eliminar ({selectedIds.size})</span>
+                </button>
+              </>
             )}
 
             {/* Auto-refresh indicator */}
@@ -1105,6 +1224,9 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                 onDelete={handleDelete}
                 onOpenLightbox={handleOpenLightbox}
                 resolveUrl={resolveUrl}
+                selectMode={selectMode}
+                selected={selectedIds.has(moment.id)}
+                onToggleSelect={toggleSelect}
               />
             ))}
           </AnimatePresence>
