@@ -2,171 +2,145 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Ecosystem
+
+This project is part of a three-project system. **Every feature or change must be evaluated for cross-project impact.**
+
+| Project | Stack | Local Path | Purpose |
+|---------|-------|-----------|---------|
+| **Backend** (Go) | Go + Echo + PostgreSQL + Redis | `\\wsl.localhost\Ubuntu\var\www\itbem-events-backend` | API, business logic, auth (Cognito), S3 uploads, event management |
+| **Dashboard** (this project) | Next.js 15 + TypeScript | `C:\Users\AndBe\Desktop\Projects\dashboard-ts` | Admin UI: manage events, approve moments, analytics, guest lists, QR codes |
+| **Public Frontend** | Astro 5 + React islands | `C:\Users\AndBe\Desktop\Projects\cafetton-casero` | Guest-facing: event pages, photo/video wall, RSVP, QR upload flow |
+
+Never implement a feature in isolation. Trace the full data flow: Backend → Dashboard and/or Public Frontend.
+
+---
+
+## Superpowers Plugin
+
+This project uses the **Claude Code Superpowers plugin**. Before any action, check if a relevant skill applies — invoke it via the `Skill` tool **before doing anything else**. Even a 1% chance of relevance means you must invoke it.
+
+| When... | Use skill |
+|---------|-----------|
+| Starting a new feature, component, or behavior | `superpowers:brainstorming` |
+| About to write implementation code | `superpowers:test-driven-development` |
+| Debugging a bug, test failure, or unexpected behavior | `superpowers:systematic-debugging` |
+| Planning a multi-step task | `superpowers:writing-plans` |
+| Executing a written plan | `superpowers:executing-plans` |
+| 2+ independent tasks that can run in parallel | `superpowers:dispatching-parallel-agents` |
+| About to claim work is done or tests pass | `superpowers:verification-before-completion` |
+| Completing a feature branch | `superpowers:finishing-a-development-branch` |
+| Received code review feedback | `superpowers:receiving-code-review` |
+| Completed a task, want a review | `superpowers:requesting-code-review` |
+
+**Rule:** Skills define HOW to approach tasks. Never skip them to save time — they prevent rework.
+
+---
+
+## Context7 MCP — Library Documentation
+
+**Use Context7 MCP whenever you need docs for any library. Never web-search for library APIs.**
+
+```bash
+mcp__context7__resolve-library-id libraryName:"swr"
+mcp__context7__get-library-docs libraryId:"/vercel/swr" topic:"mutation" tokens:5000
+```
+
+Common IDs: Next.js 15 `/vercel/next.js` · SWR `/vercel/swr` · Tailwind `/tailwindlabs/tailwindcss` · Motion `/framer/motion` · Zustand `/pmndrs/zustand` · Zod `/colinhacks/zod` · Axios `/axios/axios` · React Hook Form `/react-hook-form/react-hook-form`
+
+Context7 ≈ 1,000 tokens. Web search ≈ 15,000+ tokens.
+
+---
+
+## Documentation-First Workflow
+
+**Always read `docs/` before exploring source code.**
+
+| Looking for… | Read first |
+|--------------|-----------|
+| Component or UI pattern | `docs/components.md` |
+| API endpoint, SWR hook | `docs/api.md` |
+| TypeScript model/interface | `docs/models.md` |
+| Auth, session, middleware | `docs/auth.md` |
+| Architecture, data flow | `docs/architecture.md` |
+| Zustand store, state shape | `docs/state.md` |
+| Routing, pages, guards | `docs/routing.md` |
+| Styling, Tailwind, animations | `docs/styling.md` |
+| How to add X step-by-step | `docs/COMMON_TASKS.md` |
+| Interrupted session | `docs/session-state.md` |
+| All 75+ files with exact paths | `docs/CODE_INDEX.md` |
+| Copy-paste templates | `docs/TEMPLATES.md` |
+| Cross-project contracts | `docs/frontend-integrator.md` |
+| Available agents | `docs/agents.md` |
+| Sprint state, active tasks | `docs/orchestrator-memory.md` |
+
+**After any code change: update the relevant `docs/` file before finishing.**
+
+---
+
+## Definition of Done
+
+A task is **not complete** until ALL of the following pass:
+
+### Every task
+- [ ] `npx tsc --noEmit` — zero TypeScript errors
+- [ ] `npm run test:unit` — all unit tests pass
+- [ ] `npm run build` — production build succeeds
+- [ ] Relevant `docs/` file updated
+
+### API integration
+- [ ] Backend contract validated (see `docs/backend-agent.md`)
+- [ ] SWR key null-guarded: `id ? \`/endpoint/${id}\` : null`
+- [ ] `mutate()` called after all writes
+- [ ] Error and loading states handled
+
+### Cross-project feature
+- [ ] All affected projects updated
+- [ ] Backend health-checked before any frontend push to `main`
+- [ ] `/task release-coordinator` run before pushing
+
+### Session interrupted mid-task
+Write current state to `docs/session-state.md`. Check it at session start. Clear when done.
+
+---
+
 ## Project Overview
 
-This is a Next.js 15 admin dashboard for event management, written in TypeScript. Administrators use it to manage events, review and approve guest-uploaded moments (photos and videos), view analytics, manage guest lists, and generate QR codes for the public-facing event upload pages. Data is fetched from a Go backend using SWR with automatic polling for live data. Authentication is handled by AWS Cognito. Core dependencies include SWR for data fetching, Tailwind CSS for styling, HeroIcons, Framer Motion for transitions, Recharts for analytics charts, and JSZip for bulk image downloads.
+Next.js 15 admin dashboard for event management. Manages events, approves guest-uploaded moments (photos/videos), views analytics, manages guest lists, generates QR codes. SWR + Axios for data fetching, AWS Cognito auth, Tailwind CSS, Recharts, JSZip.
 
 ## Development Commands
 
 ```bash
-# Install dependencies
-npm install
-
-# Start local dev server (http://localhost:3000)
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm run start
-
-# Run Vitest unit tests
-npm run test:unit
-
-# Run Vitest in watch mode
+npm run dev           # http://localhost:3000
+npm run build         # production build
+npm run test:unit     # Vitest unit tests
 npm run test:unit:watch
-
-# Run with coverage
 npm run test:coverage
 ```
 
 ## Architecture
 
-### Data Fetching
-
-All data fetching uses **SWR** (`swr`) with an Axios-based fetcher defined in `src/lib/fetcher.ts`. The Axios client in `src/lib/api.ts` attaches the Cognito `Authorization: Bearer` header to every request automatically.
-
-Pattern used across components:
-```typescript
-const { data, error, isLoading } = useSWR<ApiResponse>(
-  '/endpoint',
-  fetcher,
-  { refreshInterval: 15000 } // 15-second polling for live data
-);
-```
-
-Use `refreshInterval` on any component where real-time updates matter (e.g., MomentsWall, guest check-in status).
-
-### Authentication
-
-All pages under `src/app/(app)/` are protected by Cognito auth middleware configured in Next.js middleware (`middleware.ts`). Unauthenticated requests are redirected to the login page. The Axios client in `src/lib/api.ts` reads the session token and includes it in the `Authorization` header.
-
-Do not add unauthenticated pages inside the `(app)` route group.
-
-### Component Patterns
-
-- **Page components** live in `src/app/(app)/` and are Next.js App Router pages. They are responsible for layout and passing route params to child components.
-- **Feature components** live in `src/components/events/` and contain the business logic (data fetching, filtering, user interactions) for event-specific features.
-- **Shared UI components** live in `src/components/ui/` and are generic, reusable, and stateless where possible (e.g., `EmptyState`).
-- **TypeScript models** live in `src/models/` and define the shape of all backend data structures.
+- **Data fetching:** SWR with Axios (`src/lib/api.ts` attaches Cognito Bearer token). Use `refreshInterval: 15000` for live data. See `docs/TEMPLATES.md` for SWR patterns.
+- **Auth:** All pages under `src/app/(app)/` are auto-protected by middleware. Don't add unauthenticated pages there.
+- **Pages** → `src/app/(app)/` · **Feature components** → `src/components/events/` · **UI** → `src/components/ui/` · **Models** → `src/models/`
+- **Testing:** Vitest + React Testing Library. Tests in `tests/unit/components/`. See `docs/COMMON_TASKS.md` for patterns.
 
 ## Key Files Reference
 
 | File | Purpose |
 |------|---------|
-| `src/lib/api.ts` | Axios client instance with `Authorization` header; base URL from `NEXT_PUBLIC_BACKEND_URL` |
-| `src/lib/fetcher.ts` | SWR fetcher function that calls `api.ts` |
-| `src/models/Moment.ts` | Moment (photo/video upload) interface |
-| `src/models/Guest.ts` | Guest interface |
-| `src/models/Event.ts` | Event interface |
-| `src/app/(app)/` | Protected App Router pages (events list, event detail with tabs) |
-| `src/components/events/MomentsWall.tsx` | Moments management: filter tabs, lightbox viewer, QR modal, ZIP download, 15s auto-refresh |
-| `src/components/ui/EmptyState.tsx` | Generic empty state UI component |
-| `src/lib/sanitize-event.ts` | In-memory event data sanitizer + issue detector |
-| `src/hooks/useEventHealthCheck.ts` | Auto-repair hook (calls backend repair endpoint) |
-| `src/components/events/event-error-boundary.tsx` | React Error Boundary for event pages |
-| `vitest.config.ts` | Vitest test configuration |
-| `tests/unit/components/` | Vitest + React Testing Library unit tests |
-| `.env.example` | Example environment variable file |
-
-### Moment Model
-
-The `Moment` interface in `src/models/Moment.ts` includes:
-```typescript
-interface Moment {
-  // ... id, event_id, guest_id, etc.
-  content_url: string;              // URL to the uploaded file (image or video)
-  description: string;              // Optional guest-provided caption
-  is_approved: boolean;             // Manual approval status
-  processing_status: '' | 'pending' | 'processing' | 'done' | 'failed';
-}
-```
-
-`processing_status` drives the status badge display in the MomentsWall. Videos go through backend processing; `'done'` means the video is ready to play.
-
-### MomentsWall Component
-
-`src/components/events/MomentsWall.tsx` is the most complex component in the dashboard. Key features:
-
-- **Filter tabs**: Todos / Pendientes / Aprobados / Errores — filters by `is_approved` and `processing_status`.
-- **Lightbox viewer**: Full-screen view with zoom, keyboard navigation (arrow keys, Escape), and video playback support.
-- **QR modal**: Uses `qrcode.react` to render a QR code pointing to the Astro upload page URL (`NEXT_PUBLIC_ASTRO_URL/events/{identifier}/upload`).
-- **ZIP download**: Bulk downloads approved images using JSZip. Videos are excluded from ZIP downloads.
-- **Auto-refresh**: SWR `refreshInterval: 15000` keeps the wall updated as guests upload.
-
-## Testing Approach
-
-Unit tests use **Vitest** and **React Testing Library**. Test files live in `tests/unit/components/` and mirror the component structure under `src/components/`.
-
-```typescript
-// Example test pattern
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
-import YourComponent from '@/components/YourComponent';
-
-describe('YourComponent', () => {
-  it('renders correctly', () => {
-    render(<YourComponent />);
-    expect(screen.getByText('Expected text')).toBeInTheDocument();
-  });
-});
-```
-
-When adding a new component, create a corresponding test file at `tests/unit/components/YourComponent.test.tsx`.
-
-There are currently no E2E tests in active use (`playwright.config.ts` exists but the test suite is not maintained). Focus testing effort on Vitest unit tests.
+| `src/lib/api.ts` | Axios client + Cognito `Authorization` header |
+| `src/lib/fetcher.ts` | SWR fetcher |
+| `src/models/Moment.ts` | Moment interface (`processing_status`, `is_approved`, `content_url`) |
+| `src/components/events/MomentsWall.tsx` | Filter tabs, lightbox, QR modal, ZIP download, 15s auto-refresh |
+| `src/lib/sanitize-event.ts` | In-memory event sanitizer + issue detector |
+| `src/hooks/useEventHealthCheck.ts` | Auto-repair hook (calls `POST /events/:id/repair`) |
+| `src/components/events/event-error-boundary.tsx` | Render crash boundary with retry |
 
 ## Important Notes
 
-### Environment Variables
+**Env vars:** `NEXT_PUBLIC_BACKEND_URL=http://localhost:8080` and `NEXT_PUBLIC_ASTRO_URL=http://localhost:4321` are both required. See `.env.example`.
 
-```bash
-# .env.local (local development)
-NEXT_PUBLIC_BACKEND_URL=http://localhost:8080   # Go backend API
-NEXT_PUBLIC_ASTRO_URL=http://localhost:4321     # Astro public frontend (for QR code URLs)
-```
+**GitHub MCP:** Dashboard repo not configured. Backend: `owner: "Itbem-Corp", repo: "itbem-events-backend"`. Frontend: `repo: "itbem-events-frontend"`.
 
-Both variables are required. `NEXT_PUBLIC_ASTRO_URL` is used by MomentsWall to construct the QR code URL:
-```
-{NEXT_PUBLIC_ASTRO_URL}/events/{identifier}/upload
-```
-
-See `.env.example` for an up-to-date list of all required variables.
-
-### Adding a New Model
-
-Create a TypeScript interface in `src/models/YourModel.ts` matching the backend JSON response shape. Export it and import it into any component or SWR hook that needs the type.
-
-### Adding a New Page
-
-1. Create the page file under `src/app/(app)/your-page/page.tsx`.
-2. The page is automatically protected by the Cognito middleware — no extra configuration needed.
-3. Add navigation links in the sidebar/nav component if the page should be discoverable from the UI.
-
-### Self-Healing System
-
-The dashboard includes a two-layer self-healing system that automatically detects and repairs malformed event data:
-
-1. **Frontend detection** (`src/lib/sanitize-event.ts`): `sanitizeEvent()` applies in-memory defaults (timezone, language, identifier) before render. `detectEventIssues()` checks for missing/broken fields.
-2. **Frontend hook** (`src/hooks/useEventHealthCheck.ts`): Runs once per event load. If issues are detected, calls the backend repair endpoint, revalidates SWR, and shows a subtle toast.
-3. **Backend repair** (`POST /events/:id/repair`): Atomic transactional repair covering missing EventConfig/EventAnalytics, invalid FKs, field defaults, orphaned relations, and stuck moment processing.
-4. **Error boundary** (`src/components/events/event-error-boundary.tsx`): Catches render crashes with a retry button.
-
-All integrated in the event detail page (`src/app/(app)/events/[id]/page.tsx`).
-
-### Adding a New Feature Component
-
-1. Create `src/components/events/YourFeature.tsx` (or `src/components/ui/` for generic UI).
-2. Use SWR for data fetching — do not use `useEffect` + `fetch` directly.
-3. Add a unit test at `tests/unit/components/YourFeature.test.tsx`.
+**Deployment:** Vercel via GitHub Actions CI (`npx tsc --noEmit` → `npm run test:unit` → `npm run build` → deploy on pass). No GitHub remote yet — `git push` will fail until remote is added.
