@@ -666,6 +666,8 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   const pendingCount  = moments.filter((m) => !m.is_approved && m.processing_status !== 'failed').length
   const approvedCount = moments.filter((m) => m.is_approved).length
   const failedCount   = moments.filter((m) => m.processing_status === 'failed').length
+  const photoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))).length
+  const videoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))).length
 
   // Moments eligible for lightbox (media present + not processing)
   const lightboxMoments = filteredMoments.filter((m) =>
@@ -772,6 +774,24 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     }
   }
 
+  const [rejectingAll, setRejectingAll] = useState(false)
+
+  const handleRejectAll = async () => {
+    const pending = moments.filter((m) => !m.is_approved && m.processing_status !== 'failed')
+    if (pending.length === 0) return
+    if (!window.confirm(`¿Eliminar ${pending.length} momento${pending.length !== 1 ? 's' : ''} pendientes? Esta acción no se puede deshacer.`)) return
+    setRejectingAll(true)
+    try {
+      await Promise.all(pending.map((m) => api.delete(`/moments/${m.id}`)))
+      await globalMutate(swrKey)
+      toast.success(`${pending.length} momento${pending.length !== 1 ? 's' : ''} eliminados`)
+    } catch {
+      toast.error('Error al eliminar momentos')
+    } finally {
+      setRejectingAll(false)
+    }
+  }
+
   const handleTogglePublish = async () => {
     const newValue = !wallPublished
     const confirmMsg = newValue
@@ -834,6 +854,13 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                 {failedCount} con error
               </span>
             )}
+            {(photoCount > 0 || videoCount > 0) && (
+              <span className="ml-2 inline-flex items-center gap-1.5 text-xs text-zinc-500">
+                {photoCount > 0 && <span>{photoCount} foto{photoCount !== 1 ? 's' : ''}</span>}
+                {photoCount > 0 && videoCount > 0 && <span className="text-zinc-700">·</span>}
+                {videoCount > 0 && <span>{videoCount} video{videoCount !== 1 ? 's' : ''}</span>}
+              </span>
+            )}
           </p>
 
           {/* Bulk actions */}
@@ -843,7 +870,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                 onClick={handleDownloadZip}
                 disabled={downloadingZip}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors disabled:opacity-50 border border-white/10"
-                title="Descarga las imágenes aprobadas en un ZIP. Los videos no están incluidos."
+                title="Descarga todos los momentos aprobados en un ZIP"
               >
                 {downloadingZip ? (
                   <ArrowPathIcon className="size-3.5 animate-spin" />
@@ -868,6 +895,22 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                 )}
                 <span className="hidden sm:inline">{approvingAll ? 'Aprobando…' : `Aprobar todos (${pendingCount})`}</span>
                 <span className="sm:hidden">{approvingAll ? '…' : `Aprobar (${pendingCount})`}</span>
+              </button>
+            )}
+            {pendingCount > 0 && (
+              <button
+                onClick={handleRejectAll}
+                disabled={rejectingAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors border border-rose-500/20 disabled:opacity-50"
+                title={`Eliminar ${pendingCount} momento${pendingCount !== 1 ? 's' : ''} pendientes`}
+              >
+                {rejectingAll ? (
+                  <ArrowPathIcon className="size-3.5 animate-spin" />
+                ) : (
+                  <XMarkIcon className="size-3.5" />
+                )}
+                <span className="hidden sm:inline">{rejectingAll ? 'Eliminando…' : `Rechazar todos (${pendingCount})`}</span>
+                <span className="sm:hidden">{rejectingAll ? '…' : `Rechazar (${pendingCount})`}</span>
               </button>
             )}
 
