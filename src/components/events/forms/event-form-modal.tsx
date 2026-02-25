@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -90,6 +91,7 @@ interface Props {
 
 export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
     const [loading, setLoading] = useState(false)
+    const router = useRouter()
     const isEdit = Boolean(event?.id)
 
     const currentClient = useStore((s) => s.currentClient)
@@ -203,7 +205,7 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
                 const created = res.data?.data ?? res.data
                 if (created?.id) {
                     // Navigate to the newly created event
-                    window.location.href = `/events/${created.id}`
+                    router.push(`/events/${created.id}`)
                 }
             }
 

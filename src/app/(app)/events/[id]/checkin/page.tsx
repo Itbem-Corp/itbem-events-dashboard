@@ -201,15 +201,21 @@ export default function CheckinPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const handleQRScan = useCallback(async (token: string) => {
+  const handleQRScan = useCallback(async (raw: string) => {
     setShowScanner(false)
-    // Find guest whose RSVP token matches — best effort with available data
-    // The QR encodes the invitation URL which contains the pretty_token
-    // We try to match against any identifiable field
+    // QR encodes the invitation URL: .../evento?token=invitation_<guest.id>
+    // Parse it out to get the guest ID
+    let token = raw
+    try {
+      const url = new URL(raw)
+      token = url.searchParams.get('token') ?? raw
+    } catch { /* raw is not a URL, use as-is */ }
+    const guestId = token.startsWith('invitation_') ? token.slice('invitation_'.length) : token
     const match = guests.find(g =>
+      g.id === guestId ||
       g.rsvp_token_id === token ||
-      g.email === token ||
-      `${g.first_name}-${g.last_name}`.toLowerCase() === token.toLowerCase()
+      g.email === raw ||
+      `${g.first_name}-${g.last_name}`.toLowerCase() === raw.toLowerCase()
     )
     if (match && confirmedStatusId) {
       try {
@@ -221,7 +227,7 @@ export default function CheckinPage() {
       }
     } else {
       // Show the token so organizer knows what was scanned
-      toast(`QR escaneado: ${token.slice(0, 16)}${token.length > 16 ? '…' : ''} — no encontrado en lista`)
+      toast(`QR escaneado: ${guestId.slice(0, 16)}${guestId.length > 16 ? '…' : ''} — no encontrado en lista`)
     }
   }, [guests, confirmedStatusId, event?.identifier])
 
