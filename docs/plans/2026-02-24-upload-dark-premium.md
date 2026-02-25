@@ -89,6 +89,139 @@ git commit -m "feat(upload): DarkBackground component — dark base + animated b
 
 ---
 
+## Task 1.5: Theme toggle — dark/light state + toggle button
+
+**File:**
+- Modify: `cafetton-casero/src/components/SharedUploadPage.tsx`
+
+Add a user-facing theme toggle so guests can switch between dark (default) and light mode. The preference persists in localStorage. All subsequent tasks use `dark` vs `light` conditional classes.
+
+### What to add
+
+**Step 1:** Add a `useTheme` hook near the top of the file (after imports, before component definitions):
+
+```tsx
+// ── Theme toggle ──────────────────────────────────────────────────────────────
+type Theme = 'dark' | 'light';
+
+function useTheme(): [Theme, () => void] {
+  const [theme, setTheme] = React.useState<Theme>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    return (localStorage.getItem('upload-theme') as Theme) ?? 'dark';
+  });
+  const toggle = React.useCallback(() => {
+    setTheme(t => {
+      const next: Theme = t === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('upload-theme', next);
+      return next;
+    });
+  }, []);
+  return [theme, toggle];
+}
+```
+
+**Step 2:** In the `SharedUploadPage` component (the main export), destructure the hook:
+
+```tsx
+const [theme, toggleTheme] = useTheme();
+```
+
+Pass `theme` and `toggleTheme` as props to `MainUploadUI`, `SuccessScreen`, `ComingSoonScreen`, `ThankYouScreen`, and `InvalidQR` — **OR** use React Context. Prefer context to avoid prop drilling through all sub-components.
+
+Add context near the top of the file:
+
+```tsx
+const ThemeCtx = React.createContext<{ theme: Theme; toggle: () => void }>({
+  theme: 'dark',
+  toggle: () => {},
+});
+```
+
+Wrap the return of `SharedUploadPage` in `<ThemeCtx.Provider value={{ theme, toggle: toggleTheme }}>`.
+
+**Step 3:** Add a `ThemeToggleButton` component:
+
+```tsx
+function ThemeToggleButton() {
+  const { theme, toggle } = React.useContext(ThemeCtx);
+  return (
+    <motion.button
+      onClick={toggle}
+      whileTap={{ scale: 0.9 }}
+      className={`fixed top-4 right-4 z-50 flex items-center justify-center w-9 h-9 rounded-full border transition-all ${
+        theme === 'dark'
+          ? 'bg-white/10 border-white/15 text-gray-300 hover:bg-white/20'
+          : 'bg-black/5 border-black/10 text-gray-500 hover:bg-black/10'
+      }`}
+      title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+    >
+      {theme === 'dark' ? (
+        // Sun icon (switch to light)
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <circle cx="12" cy="12" r="5" />
+          <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+          <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+        </svg>
+      ) : (
+        // Moon icon (switch to dark)
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      )}
+    </motion.button>
+  );
+}
+```
+
+**Step 4:** Render `<ThemeToggleButton />` inside the `<ThemeCtx.Provider>` wrapper (top level, so it appears on every screen).
+
+**Step 5:** Make `DarkBackground` theme-aware — in `DarkBackground`, read the context and return `null` in light mode:
+
+```tsx
+function DarkBackground() {
+  const { theme } = React.useContext(ThemeCtx);
+  if (theme === 'light') return null;
+  return (
+    // ... existing blob markup unchanged ...
+  );
+}
+```
+
+**Step 6:** On the main UI root div, add a light-mode background fallback:
+```tsx
+<div className={`min-h-screen flex flex-col relative ${theme === 'light' ? 'bg-gray-50' : ''}`}>
+```
+
+**Step 7:** TypeScript check:
+```bash
+cd C:/Users/AndBe/Desktop/Projects/cafetton-casero
+npx tsc --noEmit 2>&1 | grep "SharedUploadPage"
+```
+Expected: no errors.
+
+**Step 8:** Commit:
+```bash
+git add src/components/SharedUploadPage.tsx
+git commit -m "feat(upload): theme toggle — dark/light with localStorage persistence"
+```
+
+---
+
+## Note for Tasks 2–11: Dual-theme class pattern
+
+Every task from here forward must apply classes conditionally using the ThemeCtx. Use this helper pattern in each sub-component:
+
+```tsx
+const { theme } = React.useContext(ThemeCtx);
+const dark = theme === 'dark';
+```
+
+Then apply: `dark ? 'text-white' : 'text-gray-900'`, etc.
+
+---
+
 ## Task 2: Header — adapt text and icon to dark theme
 
 **File:**
