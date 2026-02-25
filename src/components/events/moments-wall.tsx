@@ -634,7 +634,7 @@ interface Props {
 }
 
 export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsEnabled, momentsWallPublished }: Props) {
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'failed'>('all')
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'failed' | 'photos' | 'videos'>('all')
   const [wallPublished, setWallPublished] = useState(momentsWallPublished ?? false)
   const [shareEnabled, setShareEnabled] = useState(shareUploadsEnabled ?? false)
 
@@ -660,6 +660,8 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     if (filter === 'pending')  return !m.is_approved && m.processing_status !== 'failed'
     if (filter === 'approved') return m.is_approved
     if (filter === 'failed')   return m.processing_status === 'failed'
+    if (filter === 'photos')   return m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))
+    if (filter === 'videos')   return m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))
     return true
   })
 
@@ -1000,6 +1002,8 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             { value: 'all',      label: 'Todos',      count: moments.length },
             { value: 'pending',  label: 'Pendientes', count: pendingCount },
             { value: 'approved', label: 'Aprobados',  count: approvedCount },
+            ...(photoCount  > 0 ? [{ value: 'photos', label: 'Fotos',  count: photoCount  }] : []),
+            ...(videoCount  > 0 ? [{ value: 'videos', label: 'Videos', count: videoCount  }] : []),
             ...(failedCount > 0 ? [{ value: 'failed', label: 'Errores', count: failedCount }] : []),
           ] as const).map((f) => (
             <button

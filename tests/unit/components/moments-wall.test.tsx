@@ -388,6 +388,37 @@ describe('MomentsWall — moment card content', () => {
     })
 })
 
+describe('MomentsWall — media type filters', () => {
+
+    beforeEach(() => vi.clearAllMocks())
+
+    it('shows Fotos and Videos filter tabs when approved photos/videos exist', async () => {
+        await renderWall([
+            makeMoment({ id: 'p1', is_approved: true, content_url: 'https://cdn.example.com/photo.jpg' }),
+            makeMoment({ id: 'v1', is_approved: true, content_url: 'https://cdn.example.com/clip.mp4' }),
+        ])
+        expect(screen.getByRole('tab', { name: /Fotos/ })).toBeInTheDocument()
+        expect(screen.getByRole('tab', { name: /Videos/ })).toBeInTheDocument()
+    })
+
+    it('Fotos filter shows only photo moments', async () => {
+        await renderWall([
+            makeMoment({ id: 'p1', is_approved: true, content_url: 'https://cdn.example.com/photo.jpg', description: 'Una foto bonita' }),
+            makeMoment({ id: 'v1', is_approved: true, content_url: 'https://cdn.example.com/clip.mp4', description: 'Un video genial' }),
+        ])
+        fireEvent.click(screen.getByRole('tab', { name: /Fotos/ }))
+        await waitFor(() => {
+            // Photo card's image must be visible
+            const img = screen.getByRole('img', { name: /momento del evento/i })
+            expect(img.getAttribute('src')).toContain('photo.jpg')
+        })
+        // Video card must not be rendered
+        const allImgs = screen.getAllByRole('img', { name: /momento del evento/i })
+        expect(allImgs).toHaveLength(1)
+        expect(allImgs[0].getAttribute('src')).not.toContain('clip.mp4')
+    })
+})
+
 describe('MomentsWall — QR modal', () => {
 
     beforeEach(() => vi.clearAllMocks())
