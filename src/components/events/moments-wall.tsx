@@ -32,6 +32,7 @@ import {
   GlobeAltIcon,
   ArrowTopRightOnSquareIcon,
   ChatBubbleOvalLeftIcon,
+  EyeIcon,
 } from '@heroicons/react/24/outline'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -909,12 +910,28 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       : '¿Despublicar el muro? Los invitados podrán volver a subir fotos.'
     if (!window.confirm(confirmMsg)) return
     try {
-      await api.put(`/events/${eventId}`, { moments_wall_published: newValue })
+      await api.put(`/events/${eventId}/config`, { show_moment_wall: newValue })
       setWallPublished(newValue)
-      await globalMutate(`/events/${eventId}`)
+      await globalMutate(`/events/${eventId}/config`)
       toast.success(newValue ? 'Muro publicado' : 'Muro despublicado')
     } catch {
       toast.error('Error al actualizar el muro')
+    }
+  }
+
+  const [generatingPreview, setGeneratingPreview] = useState(false)
+
+  const handleOpenPreview = async () => {
+    if (generatingPreview) return
+    setGeneratingPreview(true)
+    try {
+      const res = await api.post<{ data: { token: string } }>(`/events/${eventId}/preview-token`)
+      const token = res.data.data.token
+      window.open(`${wallUrl}?preview_token=${token}`, '_blank', 'noopener,noreferrer')
+    } catch {
+      toast.error('No se pudo generar el preview')
+    } finally {
+      setGeneratingPreview(false)
     }
   }
 
@@ -1151,6 +1168,22 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
 
           {/* Separator */}
           <div className="hidden sm:block h-5 w-px bg-white/10" />
+
+          {/* Vista previa admin */}
+          <button
+            onClick={handleOpenPreview}
+            disabled={generatingPreview}
+            title="Abrir vista previa del muro — solo visible para ti"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors border border-violet-500/20 disabled:opacity-50"
+          >
+            {generatingPreview ? (
+              <ArrowPathIcon className="size-3.5 animate-spin" />
+            ) : (
+              <EyeIcon className="size-3.5" />
+            )}
+            <span className="hidden sm:inline">{generatingPreview ? 'Generando…' : 'Vista previa'}</span>
+            <span className="sm:hidden">Preview</span>
+          </button>
 
           <a
             href={wallUrl}
