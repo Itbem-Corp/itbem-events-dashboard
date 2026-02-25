@@ -961,6 +961,17 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           {/* Separator */}
           <div className="hidden sm:block h-5 w-px bg-white/10" />
 
+          <a
+            href={wallUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors border border-white/10"
+            title="Ver el muro de momentos en eventiapp"
+          >
+            <ArrowTopRightOnSquareIcon className="size-3.5" />
+            <span className="hidden sm:inline">Ver muro</span>
+            <span className="sm:hidden">Ver</span>
+          </a>
           <button
             onClick={() => setShowWallShare(true)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 transition-colors border border-pink-500/30"
