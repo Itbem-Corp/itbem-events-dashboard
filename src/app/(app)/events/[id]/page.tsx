@@ -502,6 +502,15 @@ export default function EventDetailPage() {
               Vista previa
             </a>
             <a
+              href={`${PUBLIC_FRONTEND_URL}/e/${event.identifier}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+            >
+              <ArrowTopRightOnSquareIcon className="size-3.5" />
+              <span className="hidden sm:inline">Ver en eventiapp</span>
+            </a>
+            <a
               href={`/events/${id}/checkin`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-lime-500/30 bg-lime-500/10 px-3 py-2 text-sm font-medium text-lime-400 hover:bg-lime-500/20 hover:border-lime-500/50 transition-colors"
             >
