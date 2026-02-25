@@ -3,6 +3,14 @@
 import { useRef, useCallback } from 'react'
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { ArrowDownTrayIcon } from '@heroicons/react/20/solid'
+import { toast } from 'sonner'
+
+/* ── Logo data URI (inline = never taints the canvas) ───────────────── */
+const LOGO_DATA_URI =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 22" fill="%23ec4899"><path fill-rule="evenodd" clip-rule="evenodd" d="M6.999.5L6.57.743.57 10.743v.514l6 10 .429.243H19l.353-.854L16.853 18.146 16.499 18H9.274L4.841 11l4.433-7H16.499l.354-.146 2.5-2.5L19 .5H6.999Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M20.793 4.219l-2.427 2.427-.069.621 2.364 3.732-2.364 3.733.069.621 2.427 2.427.783-.096 3.856-6.427v-.514l-3.856-6.427-.783-.097Z"/></svg>'
+  )
 
 /* ── EventiApp logomark (icon only, no wordmark) ────────────────────── */
 function EventiAppIcon({ className }: { className?: string }) {
@@ -173,11 +181,15 @@ export function BrandedQR({
     ctx.fillText('Escanea con tu camara', totalWidth / 2, y + 18)
 
     // Download
-    const dataUrl = canvas.toDataURL('image/png')
-    const a = document.createElement('a')
-    a.href = dataUrl
-    a.download = `${downloadName}.png`
-    a.click()
+    try {
+      const dataUrl = canvas.toDataURL('image/png')
+      const a = document.createElement('a')
+      a.href = dataUrl
+      a.download = `${downloadName}.png`
+      a.click()
+    } catch {
+      toast.error('Error al descargar el QR')
+    }
   }, [canvasId, downloadSize, title, subtitle, caption, downloadName, dark])
 
   return (
@@ -225,9 +237,7 @@ export function BrandedQR({
             fgColor="#18181b"
             level="M"
             imageSettings={{
-              src: 'data:image/svg+xml,' + encodeURIComponent(
-                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 22" fill="%23ec4899"><path fill-rule="evenodd" clip-rule="evenodd" d="M6.999.5L6.57.743.57 10.743v.514l6 10 .429.243H19l.353-.854L16.853 18.146 16.499 18H9.274L4.841 11l4.433-7H16.499l.354-.146 2.5-2.5L19 .5H6.999Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M20.793 4.219l-2.427 2.427-.069.621 2.364 3.732-2.364 3.733.069.621 2.427 2.427.783-.096 3.856-6.427v-.514l-3.856-6.427-.783-.097Z"/></svg>'
-              ),
+              src: LOGO_DATA_URI,
               height: Math.round(size * 0.15),
               width: Math.round(size * 0.18),
               excavate: true,
@@ -269,7 +279,7 @@ export function BrandedQR({
           fgColor="#18181b"
           level="M"
           imageSettings={{
-            src: '/eventiapp-icon.svg',
+            src: LOGO_DATA_URI,
             height: Math.round(downloadSize * 0.15),
             width: Math.round(downloadSize * 0.18),
             excavate: true,

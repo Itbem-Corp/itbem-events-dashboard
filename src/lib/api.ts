@@ -61,7 +61,11 @@ api.interceptors.request.use(async (config) => {
 import { normalizeKeys } from "@/lib/normalizer"
 
 api.interceptors.response.use((response) => {
-    response.data = normalizeKeys(response.data)
+    // Skip key normalization for binary responses — normalizeKeys() would convert
+    // a Blob to {} (Object.entries(blob) === []), corrupting image/ZIP downloads.
+    if (response.config.responseType !== 'blob') {
+        response.data = normalizeKeys(response.data)
+    }
     return response
 })
 
