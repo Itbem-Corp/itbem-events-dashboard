@@ -25,11 +25,19 @@ export function crc32(data: Uint8Array): number {
  * @returns New data URL with pHYs chunk embedded
  */
 export function injectPngDpi(dataUrl: string, dpi: number): string {
+  if (!dataUrl.startsWith('data:image/png;base64,')) {
+    throw new Error('injectPngDpi: expected a PNG data URL')
+  }
+
   // 1. Decode base64 → bytes
   const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
   const binary = atob(base64)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+
+  if (bytes.length < 33) {
+    throw new Error('injectPngDpi: PNG too short to contain an IHDR chunk')
+  }
 
   // 2. Build pHYs data: X ppu (4B) + Y ppu (4B) + unit byte (1B)
   const ppm = Math.round(dpi / 0.0254) // dots per inch → pixels per metre
