@@ -16,6 +16,10 @@ vi.mock('motion/react', () => ({
     motion: {
         div: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
             <div {...props}>{children}</div>,
+        button: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement>) =>
+            <button {...(props as React.ButtonHTMLAttributes<HTMLButtonElement>)}>{children}</button>,
+        span: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) =>
+            <span {...props}>{children}</span>,
     },
     AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))

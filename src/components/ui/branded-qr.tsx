@@ -1,34 +1,21 @@
 'use client'
 
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useState } from 'react'
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
-import { ArrowDownTrayIcon } from '@heroicons/react/20/solid'
+import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/20/solid'
+import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
 
-/* ── Logo data URI (inline = never taints the canvas) ───────────────── */
+/* ── Real eventiapp logo as inline data URI (never taints canvas) ────── */
 const LOGO_DATA_URI =
   'data:image/svg+xml,' +
   encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 22" fill="%23ec4899"><path fill-rule="evenodd" clip-rule="evenodd" d="M6.999.5L6.57.743.57 10.743v.514l6 10 .429.243H19l.353-.854L16.853 18.146 16.499 18H9.274L4.841 11l4.433-7H16.499l.354-.146 2.5-2.5L19 .5H6.999Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M20.793 4.219l-2.427 2.427-.069.621 2.364 3.732-2.364 3.733.069.621 2.427 2.427.783-.096 3.856-6.427v-.514l-3.856-6.427-.783-.097Z"/></svg>'
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150.16 160.61">' +
+    '<path fill="#dd2284" d="M84.04,51.16c-4.5-2.04-9.42-2.92-14.76-2.64-4.36.28-8.44,1.27-12.23,2.95-3.79,1.69-7.14,3.98-10.02,6.85-2.88,2.88-5.24,6.22-7.07,10.02-1.83,3.79-2.95,7.94-3.37,12.44-.42,5.35.28,10.27,2.11,14.76,1.83,4.5,4.43,8.02,7.8,10.55l48.3-47.03c-2.67-3.23-6.26-5.87-10.76-7.91Z"/>' +
+    '<path fill="#dd2284" d="M71.7,21.16c-33.92,0-61.42,27.5-61.42,61.42s27.5,61.42,61.42,61.42,61.42-27.5,61.42-61.42-27.5-61.42-61.42-61.42ZM97.01,129.51c-7.8,3.94-16.28,5.91-25.41,5.91-7.17,0-13.92-1.37-20.25-4.11-6.33-2.74-11.81-6.43-16.45-11.07-4.64-4.64-8.33-10.12-11.07-16.45-2.74-6.33-4.11-13.08-4.11-20.25s1.37-14.13,4.11-20.46,6.43-11.84,11.07-16.56c4.64-4.71,10.12-8.44,16.45-11.18s13.08-4.11,20.25-4.11c9.14,0,17.75,2.11,25.84,6.33,8.08,4.22,15.08,10.76,20.98,19.61l-61.16,56.94c2.25,1.55,5.06,2.64,8.44,3.27,3.38.63,6.75.74,10.12.32,5.91-.7,11.42-2.71,16.56-6.01,5.13-3.3,9.45-7.49,12.97-12.55l12.02,11.6c-5.77,8.58-12.55,14.84-20.35,18.77Z"/>' +
+    '<polygon fill="#ffffff" points="119.78 77.03 129.47 76.89 121.71 82.7 124.84 91.87 116.92 86.29 109.16 92.09 112.03 82.83 104.11 77.25 113.8 77.11 116.66 67.86 119.78 77.03"/>' +
+    '</svg>'
   )
-
-/* ── EventiApp logomark (icon only, no wordmark) ────────────────────── */
-function EventiAppIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 26 22" fill="currentColor" className={className} aria-hidden="true">
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M6.99906 0.5L6.57031 0.742752L0.570312 10.7428V11.2572L6.57031 21.2572L6.99906 21.5H18.9991L19.3526 20.6464L16.8526 18.1464L16.4991 18H9.27424L4.8409 11L9.27424 4H16.4991L16.8526 3.85355L19.3526 1.35355L18.9991 0.5H6.99906Z"
-      />
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M20.7927 4.21875L18.3657 6.64575L18.2969 7.2668L20.6605 10.9993L18.2969 14.7318L18.3657 15.3529L20.7927 17.7799L21.5751 17.6835L25.4311 11.2565V10.7421L21.5751 4.31507L20.7927 4.21875Z"
-      />
-    </svg>
-  )
-}
 
 /** Brand pink used for the eventiapp icon */
 const BRAND_PINK = '#ec4899'
@@ -69,11 +56,17 @@ export function BrandedQR({
   dark = false,
 }: BrandedQRProps) {
   const canvasId = useRef(`branded-qr-${Math.random().toString(36).slice(2, 8)}`).current
+  const [downloading, setDownloading] = useState(false)
+  const [done, setDone] = useState(false)
 
-  const handleDownload = useCallback(() => {
-    // We'll paint a branded card around the QR onto an offscreen canvas
+  const handleDownload = useCallback(async () => {
     const qrCanvas = document.getElementById(canvasId) as HTMLCanvasElement | null
-    if (!qrCanvas) return
+    if (!qrCanvas || downloading) return
+
+    setDownloading(true)
+
+    // Small delay so canvas finishes rendering logo
+    await new Promise((r) => setTimeout(r, 80))
 
     const padding = 80
     const logoHeight = 36
@@ -106,11 +99,10 @@ export function BrandedQR({
 
     let y = padding
 
-    // Logo icon + text
     const textColor = dark ? '#e4e4e7' : '#18181b'
     const mutedColor = dark ? '#71717a' : '#a1a1aa'
 
-    // Draw "eventiapp" text as brand
+    // Brand name
     ctx.fillStyle = dark ? BRAND_PINK_DARK : BRAND_PINK
     ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     ctx.textAlign = 'center'
@@ -122,7 +114,6 @@ export function BrandedQR({
       ctx.fillStyle = textColor
       ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       ctx.textAlign = 'center'
-      // Truncate if too long
       let displayTitle = title
       while (ctx.measureText(displayTitle).width > totalWidth - padding * 2 && displayTitle.length > 3) {
         displayTitle = displayTitle.slice(0, -4) + '...'
@@ -142,26 +133,23 @@ export function BrandedQR({
 
     if (titleHeight || subtitleHeight) y += gap
 
-    // QR code with rounded container
+    // QR container
     const qrPadding = 32
     const containerSize = downloadSize + qrPadding * 2
     const containerX = (totalWidth - containerSize) / 2
     const containerY = y - qrPadding
 
-    // QR background
     ctx.fillStyle = '#ffffff'
     ctx.beginPath()
     ctx.roundRect(containerX, containerY, containerSize, containerSize, 20)
     ctx.fill()
 
-    // QR border
     ctx.strokeStyle = 'rgba(0,0,0,0.06)'
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.roundRect(containerX, containerY, containerSize, containerSize, 20)
     ctx.stroke()
 
-    // Draw QR
     ctx.drawImage(qrCanvas, (totalWidth - downloadSize) / 2, y)
     y += downloadSize + gap
 
@@ -180,20 +168,28 @@ export function BrandedQR({
     ctx.textAlign = 'center'
     ctx.fillText('Escanea con tu camara', totalWidth / 2, y + 18)
 
-    // Download
     try {
       const dataUrl = canvas.toDataURL('image/png')
       const a = document.createElement('a')
       a.href = dataUrl
       a.download = `${downloadName}.png`
       a.click()
+      setDone(true)
+      setTimeout(() => setDone(false), 2000)
     } catch {
       toast.error('Error al descargar el QR')
+    } finally {
+      setDownloading(false)
     }
-  }, [canvasId, downloadSize, title, subtitle, caption, downloadName, dark])
+  }, [canvasId, downloadSize, title, subtitle, caption, downloadName, dark, downloading])
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <motion.div
+      className="flex flex-col items-center gap-4"
+      initial={{ opacity: 0, scale: 0.96, y: 8 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+    >
       {/* Branded card */}
       <div
         className={[
@@ -205,7 +201,14 @@ export function BrandedQR({
       >
         {/* Logo + brand */}
         <div className="flex items-center gap-2">
-          <EventiAppIcon className={`h-4 w-auto ${dark ? 'text-pink-400' : 'text-pink-500'}`} />
+          {/* Real eventiapp icon */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/eventiapp-icon.svg"
+            alt=""
+            aria-hidden="true"
+            className={`h-4 w-auto ${dark ? 'opacity-90' : ''}`}
+          />
           <span className={`text-xs font-semibold tracking-wide ${dark ? 'text-pink-400' : 'text-pink-500'}`}>
             eventiapp
           </span>
@@ -226,10 +229,15 @@ export function BrandedQR({
         )}
 
         {/* QR Code */}
-        <div className={[
-          'rounded-xl p-4',
-          dark ? 'bg-white' : 'bg-zinc-50 border border-zinc-100',
-        ].join(' ')}>
+        <motion.div
+          className={[
+            'rounded-xl p-4',
+            dark ? 'bg-white' : 'bg-zinc-50 border border-zinc-100',
+          ].join(' ')}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+        >
           <QRCodeSVG
             value={value}
             size={size}
@@ -243,7 +251,7 @@ export function BrandedQR({
               excavate: true,
             }}
           />
-        </div>
+        </motion.div>
 
         {/* Caption */}
         {caption && (
@@ -260,13 +268,66 @@ export function BrandedQR({
 
       {/* Download button */}
       {showDownload && (
-        <button
+        <motion.button
           onClick={handleDownload}
-          className="flex items-center justify-center gap-2 rounded-xl bg-pink-500 hover:bg-pink-400 px-5 py-2.5 text-sm font-medium text-white transition-colors shadow-sm shadow-pink-500/20"
+          disabled={downloading}
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.96 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          className={[
+            'relative flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white transition-colors shadow-sm overflow-hidden',
+            done
+              ? 'bg-emerald-500 shadow-emerald-500/20'
+              : downloading
+              ? 'bg-pink-400 cursor-not-allowed shadow-pink-500/20'
+              : 'bg-pink-500 hover:bg-pink-400 shadow-pink-500/20',
+          ].join(' ')}
         >
-          <ArrowDownTrayIcon className="size-4" />
-          Descargar QR
-        </button>
+          {/* Shimmer overlay while downloading */}
+          <AnimatePresence>
+            {downloading && (
+              <motion.span
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
+                initial={{ x: '-100%' }}
+                animate={{ x: '200%' }}
+                transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+              />
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence mode="wait">
+            {done ? (
+              <motion.span
+                key="done"
+                className="flex items-center gap-2"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+              >
+                <CheckIcon className="size-4" />
+                Descargado
+              </motion.span>
+            ) : (
+              <motion.span
+                key="download"
+                className="flex items-center gap-2"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+              >
+                <motion.span
+                  animate={downloading ? { rotate: 360 } : { rotate: 0 }}
+                  transition={downloading ? { duration: 1, repeat: Infinity, ease: 'linear' } : {}}
+                >
+                  <ArrowDownTrayIcon className="size-4" />
+                </motion.span>
+                {downloading ? 'Generando…' : 'Descargar QR'}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
       )}
 
       {/* Hidden hi-res canvas for download */}
@@ -286,6 +347,6 @@ export function BrandedQR({
           }}
         />
       </div>
-    </div>
+    </motion.div>
   )
 }
