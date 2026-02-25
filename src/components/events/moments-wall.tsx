@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import type { Moment } from '@/models/Moment'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BrandedQR } from '@/components/ui/branded-qr'
+import { useLazyVisible } from '@/hooks/useLazyVisible'
 import {
   PhotoIcon,
   CheckIcon,
@@ -473,9 +474,11 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, s
   const isProcessing = moment.processing_status === 'pending' || moment.processing_status === 'processing'
   const isFailed = moment.processing_status === 'failed'
   const approved = moment.is_approved
+  const { ref: lazyRef, visible } = useLazyVisible()
 
   return (
     <motion.div
+      ref={lazyRef}
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -503,83 +506,87 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, s
         </div>
       )}
       {/* ── Media area ─────────────────────────────────────── */}
-      {isProcessing ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900 gap-3">
-          <ArrowPathIcon className="size-8 text-indigo-400 animate-spin opacity-60" />
-          <p className="text-xs text-zinc-500 text-center px-4">{processingLabel(moment.processing_status)}</p>
-        </div>
-      ) : isFailed ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-950/40 gap-2 p-4">
-          <ExclamationTriangleIcon className="size-8 text-rose-500 opacity-70" />
-          <p className="text-xs text-rose-400 text-center">Error al procesar</p>
-          <button
-            onClick={async () => {
-              try {
-                await api.put(`/moments/${moment.id}/requeue`, {})
-                toast.success('Reintentando…')
-              } catch {
-                toast.error('No se pudo reintentar.')
-              }
-            }}
-            className="flex items-center gap-1 text-xs text-rose-300 hover:text-rose-100 underline underline-offset-2"
+      {visible ? (
+        isProcessing ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900 gap-3">
+            <ArrowPathIcon className="size-8 text-indigo-400 animate-spin opacity-60" />
+            <p className="text-xs text-zinc-500 text-center px-4">{processingLabel(moment.processing_status)}</p>
+          </div>
+        ) : isFailed ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-950/40 gap-2 p-4">
+            <ExclamationTriangleIcon className="size-8 text-rose-500 opacity-70" />
+            <p className="text-xs text-rose-400 text-center">Error al procesar</p>
+            <button
+              onClick={async () => {
+                try {
+                  await api.put(`/moments/${moment.id}/requeue`, {})
+                  toast.success('Reintentando…')
+                } catch {
+                  toast.error('No se pudo reintentar.')
+                }
+              }}
+              className="flex items-center gap-1 text-xs text-rose-300 hover:text-rose-100 underline underline-offset-2"
+            >
+              <ArrowPathIcon className="size-3" /> Reintentar
+            </button>
+          </div>
+        ) : video ? (
+          <div
+            className="absolute inset-0 cursor-pointer"
+            onClick={() => { if (!selectMode) onOpenLightbox(moment) }}
           >
-            <ArrowPathIcon className="size-3" /> Reintentar
-          </button>
-        </div>
-      ) : video ? (
-        <div
-          className="absolute inset-0 cursor-pointer"
-          onClick={() => { if (!selectMode) onOpenLightbox(moment) }}
-        >
-          {moment.thumbnail_url ? (
-            <img
-              src={moment.thumbnail_url}
-              alt="Video momento"
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
-              <div className="flex items-center justify-center size-14 rounded-full bg-black/50 ring-1 ring-white/20">
-                <svg className="size-6 text-white ml-1" viewBox="0 0 24 24" fill="currentColor">
+            {moment.thumbnail_url ? (
+              <img
+                src={moment.thumbnail_url}
+                alt="Video momento"
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
+                <div className="flex items-center justify-center size-14 rounded-full bg-black/50 ring-1 ring-white/20">
+                  <svg className="size-6 text-white ml-1" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5.14v14l11-7-11-7z" />
+                  </svg>
+                </div>
+              </div>
+            )}
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
+              <div className="flex items-center justify-center size-12 rounded-full bg-black/50 backdrop-blur-sm ring-1 ring-white/20 opacity-80 group-hover:opacity-100 transition-opacity">
+                <svg className="size-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M8 5.14v14l11-7-11-7z" />
                 </svg>
               </div>
             </div>
-          )}
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
-            <div className="flex items-center justify-center size-12 rounded-full bg-black/50 backdrop-blur-sm ring-1 ring-white/20 opacity-80 group-hover:opacity-100 transition-opacity">
-              <svg className="size-5 text-white ml-0.5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5.14v14l11-7-11-7z" />
-              </svg>
-            </div>
           </div>
-        </div>
-      ) : hasMedia ? (
-        <div
-          className="absolute inset-0 cursor-pointer"
-          onClick={() => !selectMode && onOpenLightbox(moment)}
-        >
-          <Image
-            src={url}
-            alt="Momento del evento"
-            fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-            loading="lazy"
-          />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-        </div>
-      ) : moment.description ? (
-        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-800/80 to-zinc-900 p-5">
-          <p className="text-sm text-zinc-300 text-center leading-relaxed italic line-clamp-6">
-            &ldquo;{moment.description}&rdquo;
-          </p>
-        </div>
+        ) : hasMedia ? (
+          <div
+            className="absolute inset-0 cursor-pointer"
+            onClick={() => !selectMode && onOpenLightbox(moment)}
+          >
+            <Image
+              src={url}
+              alt="Momento del evento"
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+          </div>
+        ) : moment.description ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-800/80 to-zinc-900 p-5">
+            <p className="text-sm text-zinc-300 text-center leading-relaxed italic line-clamp-6">
+              &ldquo;{moment.description}&rdquo;
+            </p>
+          </div>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-zinc-800/50">
+            <PhotoIcon className="size-10 text-zinc-600" />
+          </div>
+        )
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-zinc-800/50">
-          <PhotoIcon className="size-10 text-zinc-600" />
-        </div>
+        <div className="absolute inset-0 bg-zinc-800/40 animate-pulse rounded-xl" />
       )}
 
       {/* ── Status badge (top-left) ─────────────────────────── */}
