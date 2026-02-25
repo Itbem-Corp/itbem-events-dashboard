@@ -48,6 +48,22 @@ function processingLabel(status: Moment['processing_status']): string {
   }
 }
 
+/** Groups moments into 30-minute buckets, returns sorted array of { label, items } */
+function groupByTimeBuckets(moments: Moment[]): Array<{ label: string; items: Moment[] }> {
+  const map = new Map<string, Moment[]>()
+  for (const m of moments) {
+    const d = new Date(m.created_at)
+    const h = d.getHours()
+    const min = d.getMinutes() < 30 ? '00' : '30'
+    const label = `${String(h).padStart(2, '0')}:${min}`
+    if (!map.has(label)) map.set(label, [])
+    map.get(label)!.push(m)
+  }
+  return [...map.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([label, items]) => ({ label, items }))
+}
+
 // ─── Lightbox ────────────────────────────────────────────────────────────────
 
 interface LightboxProps {
@@ -799,6 +815,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
 
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [groupByTime, setGroupByTime] = useState(false)
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -1140,6 +1157,21 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             <span className="sm:hidden">Ver</span>
           </a>
           <button
+            onClick={() => setGroupByTime(v => !v)}
+            title="Agrupar por hora"
+            className={[
+              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border',
+              groupByTime
+                ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/20'
+                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border-white/10',
+            ].join(' ')}
+          >
+            <svg className="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd"/>
+            </svg>
+            <span className="hidden sm:inline">Por hora</span>
+          </button>
+          <button
             onClick={() => setShowWallShare(true)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 transition-colors border border-pink-500/30"
             title="Compartir muro de momentos"
@@ -1259,7 +1291,38 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                   : 'Los invitados aún no han compartido momentos, o están siendo procesados por Lambda.'
           }
         />
+      ) : groupByTime ? (
+        /* Grouped view */
+        <div className="space-y-6">
+          {groupByTimeBuckets(filteredMoments).map(({ label, items }) => (
+            <div key={label}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-px flex-1 bg-white/10" />
+                <span className="text-xs font-medium text-zinc-500 tabular-nums">{label}</span>
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+              <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5" layout>
+                <AnimatePresence>
+                  {items.map((moment) => (
+                    <MomentCard
+                      key={moment.id}
+                      moment={moment}
+                      onApprove={handleApprove}
+                      onDelete={handleDelete}
+                      onOpenLightbox={handleOpenLightbox}
+                      resolveUrl={resolveUrl}
+                      selectMode={selectMode}
+                      selected={selectedIds.has(moment.id)}
+                      onToggleSelect={toggleSelect}
+                    />
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+            </div>
+          ))}
+        </div>
       ) : (
+        /* Existing flat grid */
         <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5" layout>
           <AnimatePresence>
             {filteredMoments.map((moment) => (

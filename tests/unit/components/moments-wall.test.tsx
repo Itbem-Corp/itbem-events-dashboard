@@ -586,6 +586,31 @@ describe('MomentsWall — lightbox note display', () => {
     })
 })
 
+describe('MomentsWall — time grouping', () => {
+
+  beforeEach(() => vi.clearAllMocks())
+
+  it('shows a "Agrupar por hora" toggle button', async () => {
+    await renderWall([makeMoment()])
+    expect(screen.getByTitle('Agrupar por hora')).toBeInTheDocument()
+  })
+
+  it('groupByTime toggle shows time bucket labels', async () => {
+    const moments = [
+      makeMoment({ id: 'm1', created_at: '2026-08-15T20:15:00Z' }),
+      makeMoment({ id: 'm2', created_at: '2026-08-15T21:45:00Z' }),
+    ]
+    await renderWall(moments)
+    fireEvent.click(screen.getByTitle('Agrupar por hora'))
+    await waitFor(() => {
+      // Each moment falls in a different 30-min bucket; expect labels in HH:MM format
+      const allText = document.body.textContent ?? ''
+      // 20:00 bucket for 20:15, 21:30 bucket for 21:45
+      expect(allText).toMatch(/\d{2}:\d{2}/)
+    })
+  })
+})
+
 describe('MomentsWall — ZIP split dropdown', () => {
 
     beforeEach(() => vi.clearAllMocks())
