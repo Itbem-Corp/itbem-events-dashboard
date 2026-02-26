@@ -23,6 +23,8 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: '**.amazonaws.com' },
       { protocol: 'https', hostname: '**.cloudfront.net' },
+      // CDN subdomains (cdn.eventiapp.com.mx, cdn-staging.eventiapp.com.mx)
+      { protocol: 'https', hostname: '**.eventiapp.com.mx' },
     ],
   },
 
@@ -42,6 +44,8 @@ const nextConfig = {
       'https://*.s3.us-east-2.amazonaws.com',
       'https://*.s3.us-west-2.amazonaws.com',
       'https://*.cloudfront.net',
+      // CDN (cdn.eventiapp.com.mx, cdn-staging.eventiapp.com.mx)
+      'https://*.eventiapp.com.mx',
     ].join(' ')
 
     const csp = [
