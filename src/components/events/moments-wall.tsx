@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import useSWR, { mutate as globalMutate } from 'swr'
 import { motion, AnimatePresence } from 'motion/react'
-import JSZip from 'jszip'
 
 import Image from 'next/image'
 import { api } from '@/lib/api'
@@ -906,6 +905,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   }
 
   const handleDownloadZip = async (typeFilter: 'all' | 'photos' | 'videos' = 'all') => {
+    const JSZip = (await import('jszip')).default
     const approved = moments.filter((m) => {
       if (!m.is_approved || !resolveUrl(m)) return false
       if (typeFilter === 'photos') return !isVideo(resolveUrl(m))
