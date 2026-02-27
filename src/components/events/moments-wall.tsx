@@ -864,22 +864,38 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   )
 
   const handleApprove = async (moment: Moment) => {
+    // Optimistic: mark as approved immediately
+    await globalMutate(
+      swrKey,
+      (prev: Moment[] | undefined) =>
+        prev?.map((m) => m.id === moment.id ? { ...m, is_approved: true } : m),
+      { revalidate: false }
+    )
     try {
       await api.put(`/moments/${moment.id}`, { ...moment, is_approved: true })
       await globalMutate(swrKey)
       toast.success('Momento aprobado')
     } catch {
+      await globalMutate(swrKey) // revert on error
       toast.error('Error al aprobar el momento')
     }
   }
 
   const handleDelete = async (moment: Moment) => {
     if (!window.confirm('¿Eliminar este momento? Esta acción no se puede deshacer.')) return
+    // Optimistic: remove from list immediately
+    await globalMutate(
+      swrKey,
+      (prev: Moment[] | undefined) =>
+        prev?.filter((m) => m.id !== moment.id),
+      { revalidate: false }
+    )
     try {
       await api.delete(`/moments/${moment.id}`)
       await globalMutate(swrKey)
       toast.success('Momento eliminado')
     } catch {
+      await globalMutate(swrKey) // revert on error
       toast.error('Error al eliminar el momento')
     }
   }
@@ -971,12 +987,21 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   const handleApproveSelected = async () => {
     const toApprove = moments.filter(m => selectedIds.has(m.id) && !m.is_approved)
     if (toApprove.length === 0) return
+    const approveIds = new Set(toApprove.map(m => m.id))
+    // Optimistic: mark selected as approved immediately
+    await globalMutate(
+      swrKey,
+      (prev: Moment[] | undefined) =>
+        prev?.map((m) => approveIds.has(m.id) ? { ...m, is_approved: true } : m),
+      { revalidate: false }
+    )
     try {
       await Promise.all(toApprove.map(m => api.put(`/moments/${m.id}`, { ...m, is_approved: true })))
       await globalMutate(swrKey)
       setSelectedIds(new Set())
       toast.success(`${toApprove.length} momento${toApprove.length !== 1 ? 's' : ''} aprobados`)
     } catch {
+      await globalMutate(swrKey) // revert on error
       toast.error('Error al aprobar momentos')
     }
   }
@@ -984,13 +1009,23 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return
     if (!window.confirm(`¿Eliminar ${selectedIds.size} momento${selectedIds.size !== 1 ? 's' : ''}?`)) return
+    const deleteCount = selectedIds.size
+    const deleteIds = new Set(selectedIds)
+    // Optimistic: remove selected from list immediately
+    await globalMutate(
+      swrKey,
+      (prev: Moment[] | undefined) =>
+        prev?.filter((m) => !deleteIds.has(m.id)),
+      { revalidate: false }
+    )
     try {
-      await Promise.all([...selectedIds].map(id => api.delete(`/moments/${id}`)))
+      await Promise.all([...deleteIds].map(id => api.delete(`/moments/${id}`)))
       await globalMutate(swrKey)
       setSelectedIds(new Set())
       setSelectMode(false)
-      toast.success(`${selectedIds.size} momento${selectedIds.size !== 1 ? 's' : ''} eliminados`)
+      toast.success(`${deleteCount} momento${deleteCount !== 1 ? 's' : ''} eliminados`)
     } catch {
+      await globalMutate(swrKey) // revert on error
       toast.error('Error al eliminar momentos')
     }
   }
@@ -1001,6 +1036,13 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     const pending = moments.filter((m) => !m.is_approved && m.processing_status !== 'failed')
     if (pending.length === 0) return
     setApprovingAll(true)
+    // Optimistic: mark all pending as approved immediately
+    await globalMutate(
+      swrKey,
+      (prev: Moment[] | undefined) =>
+        prev?.map((m) => (!m.is_approved && m.processing_status !== 'failed') ? { ...m, is_approved: true } : m),
+      { revalidate: false }
+    )
     try {
       await Promise.all(
         pending.map((m) => api.put(`/moments/${m.id}`, { ...m, is_approved: true }))
@@ -1008,6 +1050,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       await globalMutate(swrKey)
       toast.success(`${pending.length} momento${pending.length !== 1 ? 's' : ''} aprobados`)
     } catch {
+      await globalMutate(swrKey) // revert on error
       toast.error('Error al aprobar momentos')
     } finally {
       setApprovingAll(false)
@@ -1021,11 +1064,20 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     if (pending.length === 0) return
     if (!window.confirm(`¿Eliminar ${pending.length} momento${pending.length !== 1 ? 's' : ''} pendientes? Esta acción no se puede deshacer.`)) return
     setRejectingAll(true)
+    const pendingIds = new Set(pending.map((m) => m.id))
+    // Optimistic: remove all pending from list immediately
+    await globalMutate(
+      swrKey,
+      (prev: Moment[] | undefined) =>
+        prev?.filter((m) => !pendingIds.has(m.id)),
+      { revalidate: false }
+    )
     try {
       await Promise.all(pending.map((m) => api.delete(`/moments/${m.id}`)))
       await globalMutate(swrKey)
       toast.success(`${pending.length} momento${pending.length !== 1 ? 's' : ''} eliminados`)
     } catch {
+      await globalMutate(swrKey) // revert on error
       toast.error('Error al eliminar momentos')
     } finally {
       setRejectingAll(false)
