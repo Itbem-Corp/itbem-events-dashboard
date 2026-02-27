@@ -12,6 +12,7 @@ export function useVideoThumbnail(videoUrl: string | null): string | null {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
 
   useEffect(() => {
+    setThumbnailUrl(null)   // reset immediately on URL change
     if (!videoUrl) return
 
     let cancelled = false
@@ -30,21 +31,26 @@ export function useVideoThumbnail(videoUrl: string | null): string | null {
 
     video.onseeked = () => {
       if (cancelled) return
+      if (!video.videoWidth || !video.videoHeight) return  // dimensions not ready
       const canvas = document.createElement('canvas')
-      canvas.width = video.videoWidth || 320
-      canvas.height = video.videoHeight || 180
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
       const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-      canvas.toBlob(
-        (blob) => {
-          if (cancelled || !blob) return
-          blobUrl = URL.createObjectURL(blob)
-          setThumbnailUrl(blobUrl)
-        },
-        'image/jpeg',
-        0.8
-      )
+      if (!ctx) { video.src = ''; video.load(); return }
+      try {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        canvas.toBlob(
+          (blob) => {
+            if (cancelled || !blob) return
+            blobUrl = URL.createObjectURL(blob)
+            setThumbnailUrl(blobUrl)
+          },
+          'image/jpeg',
+          0.8
+        )
+      } catch {
+        // CORS taint or draw failure — stay null, caller shows play icon fallback
+      }
     }
 
     video.onerror = () => { /* intentionally empty — stays null, caller shows play icon */ }
