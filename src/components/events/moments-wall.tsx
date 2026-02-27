@@ -34,6 +34,7 @@ import {
   ArrowTopRightOnSquareIcon,
   ChatBubbleOvalLeftIcon,
   EyeIcon,
+  ArrowUturnLeftIcon,
 } from '@heroicons/react/24/outline'
 
 const REFRESH_INTERVAL = 15_000
@@ -501,6 +502,7 @@ function ProcessingBadge({ status }: { status: Moment['processing_status'] }) {
 interface MomentCardProps {
   moment: Moment
   onApprove: (m: Moment) => Promise<void>
+  onUnapprove: (m: Moment) => Promise<void>
   onDelete: (m: Moment) => Promise<void>
   onOpenLightbox: (m: Moment) => void
   resolveUrl: (m: Moment) => string
@@ -509,8 +511,8 @@ interface MomentCardProps {
   onToggleSelect?: (id: string) => void
 }
 
-function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, selectMode, selected, onToggleSelect }: MomentCardProps) {
-  const [actioning, setActioning] = useState<'approve' | 'delete' | null>(null)
+function MomentCard({ moment, onApprove, onUnapprove, onDelete, onOpenLightbox, resolveUrl, selectMode, selected, onToggleSelect }: MomentCardProps) {
+  const [actioning, setActioning] = useState<'approve' | 'unapprove' | 'delete' | null>(null)
   const url = resolveUrl(moment)
   const hasMedia = !!url
   const video = hasMedia && isVideo(url)
@@ -693,6 +695,22 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, s
             >
               <CheckIcon className="size-3.5 shrink-0" />
               <span>{actioning === 'approve' ? '…' : 'Aprobar'}</span>
+            </button>
+          )}
+          {approved && !isFailed && (
+            <button
+              onClick={async (e) => {
+                e.stopPropagation()
+                setActioning('unapprove')
+                await onUnapprove(moment)
+                setActioning(null)
+              }}
+              disabled={actioning !== null}
+              aria-label="Desaprobar momento"
+              className="flex-1 flex items-center justify-center gap-1.5 py-3.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 transition-colors disabled:opacity-40"
+            >
+              <ArrowUturnLeftIcon className="size-3.5 shrink-0" />
+              <span>{actioning === 'unapprove' ? '…' : 'Desaprobar'}</span>
             </button>
           )}
           <button
@@ -931,6 +949,24 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     } catch {
       await globalMutate(swrKey) // revert on error
       toast.error('Error al aprobar el momento')
+    }
+  }
+
+  const handleUnapprove = async (moment: Moment) => {
+    // Optimistic: mark as pending immediately
+    await globalMutate(
+      swrKey,
+      (prev: Moment[] | undefined) =>
+        prev?.map((m) => m.id === moment.id ? { ...m, is_approved: false } : m),
+      { revalidate: false }
+    )
+    try {
+      await api.put(`/moments/${moment.id}`, { ...moment, is_approved: false })
+      await globalMutate(swrKey)
+      toast.success('Momento desaprobado')
+    } catch {
+      await globalMutate(swrKey)
+      toast.error('Error al desaprobar el momento')
     }
   }
 
@@ -1610,6 +1646,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                       key={moment.id}
                       moment={moment}
                       onApprove={handleApprove}
+                      onUnapprove={handleUnapprove}
                       onDelete={handleDelete}
                       onOpenLightbox={handleOpenLightbox}
                       resolveUrl={resolveUrl}
@@ -1632,6 +1669,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                 key={moment.id}
                 moment={moment}
                 onApprove={handleApprove}
+                onUnapprove={handleUnapprove}
                 onDelete={handleDelete}
                 onOpenLightbox={handleOpenLightbox}
                 resolveUrl={resolveUrl}
