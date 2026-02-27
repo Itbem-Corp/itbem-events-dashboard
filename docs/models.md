@@ -8,7 +8,7 @@ All entities extend `BaseEntity` (`id: number`, `created_at`, `updated_at`, `del
 
 **Client** — `name` `code` `logo?` `website?` `address?` `phone?` `client_type_id` `client_type?` `parent_client_id?` (sub-clients)
 
-**Event** — `name` `identifier` (URL slug) `event_date_time` (ISO) `timezone` `location_name?` `location_address?` `max_guests?` `is_active` `client_id` `event_type_id` `event_type?` `config?` `analytics?` `cover_image?`
+**Event** — `name` `identifier` (URL slug) `description?` `is_active` `event_date_time` (ISO) `timezone` `address?` `second_address?` `cover_image_url?` `cover_image_url2?` `music_url?` `custom_domain?` `language?` `max_guests?` `allow_guest_access?` `slug_locked?` `organizer_name?` `organizer_email?` `organizer_phone?` `client_id?` `event_type_id` `event_type?` `event_config?` `config?`
 
 **Guest** — `event_id` `first_name` `last_name` `nickname?` `email?` `phone?` `show_contact_info?` · `guests_count` (party size) `max_guests?` · `status_id` `status?` · `table_number?` `dietary_restrictions?` `role?` (`graduate|guest|host|vip|speaker|staff`) `is_host?` `order?` · Rich profile: `bio?` `headline?` `signature?` `image_url?` `image_1_url?` `image_2_url?` `image_3_url?` · RSVP: `rsvp_status?` `rsvp_at?` `rsvp_method?` (`web|app|host`) `rsvp_guest_count?` `rsvp_token_id?` · `notes?`
 
@@ -16,7 +16,9 @@ All entities extend `BaseEntity` (`id: number`, `created_at`, `updated_at`, `del
 
 **Resource** — `path` `url` `file_name` `file_size` `mime_type` `resource_type_id` `resource_type?` — scoped to `event_id?` or `user_id?`
 
-**Moment** — `event_id` `guest_id?` `moment_type_id` `moment_type?` `resource_id?` `resource?` `message?` `is_approved`
+**Moment** — `event_id` `invitation_id?` `content_url` `thumbnail_url?` `description?` `is_approved` `processing_status` (`ProcessingStatus`) `order?`
+
+`ProcessingStatus` = `''` (legacy) | `'pending'` | `'processing'` | `'done'` | `'failed'`
 
 ## Supporting Entities
 

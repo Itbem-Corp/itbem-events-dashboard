@@ -1,7 +1,7 @@
 # Code Index — Dashboard
 
 > One-read saves 5,000+ tokens of file searching. Read this before exploring source.
-> Last updated: 2026-02-23
+> Last updated: 2026-02-27
 
 ---
 
@@ -46,7 +46,7 @@ Backend `GET /moments?event_id=X` already filters out `pending` and `processing`
 
 ---
 
-## Lib (`src/lib/`) — 7 files
+## Lib (`src/lib/`) — 8 files
 
 | File | Purpose |
 |------|---------|
@@ -57,15 +57,18 @@ Backend `GET /moments?event_id=X` already filters out `pending` and `processing`
 | `guest-utils.ts` | `getEffectiveStatus()` and guest list helpers |
 | `event-type-label.ts` | `eventTypeLabel(event)` → human-readable event type string |
 | `utils.ts` | Generic utility functions |
+| `png-dpi.ts` | PNG pHYs metadata injection for 300 DPI QR code downloads |
 
 ---
 
-## Hooks (`src/hooks/`) — 2 files
+## Hooks (`src/hooks/`) — 4 files
 
 | File | Purpose |
 |------|---------|
 | `useEventHealthCheck.ts` | Runs once per event load; detects issues; logs them (repair endpoint pending) |
 | `useDebounce.ts` | Generic debounce hook |
+| `useLazyVisible.ts` | IntersectionObserver wrapper for lazy-loading |
+| `useVideoThumbnail.ts` | Canvas video frame extraction (first-frame thumbnail from video URL) |
 
 ---
 
