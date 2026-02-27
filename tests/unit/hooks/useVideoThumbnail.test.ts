@@ -32,12 +32,12 @@ describe('useVideoThumbnail', () => {
     // revokeObjectURL called — even if blobUrl is null, the cleanup runs
     // (actual revoke only happens if blob was created — here it won't be in happy-dom)
     // What we verify is that unmount doesn't throw
-    expect(revokeSpy).toBeDefined()
+    expect(revokeSpy).not.toHaveBeenCalled()
     revokeSpy.mockRestore()
   })
 
   it('returns null when videoUrl is empty string', () => {
-    // Empty string is truthy, effect runs, but video.src = '' triggers onerror → stays null
+    // Empty string is falsy — the guard `if (!videoUrl) return` exits early
     const { result } = renderHook(() => useVideoThumbnail(''))
     expect(result.current).toBeNull()
   })
