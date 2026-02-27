@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import type { Moment } from '@/models/Moment'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BrandedQR } from '@/components/ui/branded-qr'
+import clsx from 'clsx'
 import { useLazyVisible } from '@/hooks/useLazyVisible'
 import { useVideoThumbnail } from '@/hooks/useVideoThumbnail'
 import {
@@ -34,6 +35,8 @@ import {
   ChatBubbleOvalLeftIcon,
   EyeIcon,
 } from '@heroicons/react/24/outline'
+
+const REFRESH_INTERVAL = 15_000
 
 // ─── Focus trap ──────────────────────────────────────────────────────────────
 
@@ -422,12 +425,12 @@ function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uplo
             <button
               key={tab.key}
               onClick={() => { setActiveTab(tab.key); setCopied(false) }}
-              className={[
+              className={clsx(
                 'flex-1 py-2 text-xs font-medium transition-colors',
                 activeTab === tab.key
                   ? 'bg-indigo-600 text-white'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5',
-              ].join(' ')}
+              )}
             >
               {tab.label}
             </button>
@@ -458,12 +461,12 @@ function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uplo
           </a>
           <button
             onClick={copy}
-            className={[
+            className={clsx(
               'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-white text-sm font-medium transition-colors',
               activeTab === 'wall'
                 ? 'bg-pink-500 hover:bg-pink-400'
                 : 'bg-indigo-600 hover:bg-indigo-500',
-            ].join(' ')}
+            )}
           >
             <ClipboardDocumentIcon className="size-4" />
             {copied ? '¡Copiado!' : 'Copiar enlace'}
@@ -537,12 +540,12 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, s
           className="absolute inset-0 z-20 cursor-pointer"
           onClick={(e) => { e.stopPropagation(); onToggleSelect?.(moment.id) }}
         >
-          <div className={[
+          <div className={clsx(
             'absolute top-2 right-2 size-6 rounded-full border-2 flex items-center justify-center transition-colors',
             selected
               ? 'bg-indigo-500 border-indigo-400'
               : 'bg-black/40 border-white/40 backdrop-blur-sm',
-          ].join(' ')}>
+          )}>
             {selected && <CheckIcon className="size-3.5 text-white" />}
           </div>
           {selected && (
@@ -670,13 +673,13 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, s
       {/* ── Action bar (bottom overlay) ─────────────────────────
            Always visible on mobile. Fade+slide in on desktop hover. */}
       {!isProcessing && (
-        <div className={[
+        <div className={clsx(
           'absolute bottom-0 left-0 right-0 z-10',
           'flex items-stretch',
           'bg-gradient-to-t from-black/80 via-black/50 to-transparent backdrop-blur-[2px]',
           'transition-all duration-200',
           'sm:opacity-0 sm:translate-y-1 sm:group-hover:opacity-100 sm:group-hover:translate-y-0',
-        ].join(' ')}>
+        )}>
           {!approved && !isFailed && (
             <button
               onClick={async (e) => {
@@ -701,10 +704,10 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, s
             }}
             disabled={actioning !== null}
             aria-label="Eliminar momento"
-            className={[
+            className={clsx(
               'flex items-center justify-center gap-1.5 py-3.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition-colors disabled:opacity-40',
               approved || isFailed ? 'flex-1' : 'px-4',
-            ].join(' ')}
+            )}
           >
             <XMarkIcon className="size-3.5 shrink-0" />
             {(approved || isFailed) && <span>{actioning === 'delete' ? '…' : 'Eliminar'}</span>}
@@ -759,7 +762,6 @@ function NoteCard({ moment, onApprove, onDelete, resolveUrl }: NoteCardProps) {
               width={56}
               height={56}
               className="size-full object-cover"
-              unoptimized
             />
           )}
         </div>
@@ -860,7 +862,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   const { data: moments = [], isLoading, isValidating } = useSWR<Moment[]>(swrKey, fetcher, {
     revalidateOnFocus: false,
     // Poll every 15s so newly optimized moments appear automatically
-    refreshInterval: 15_000,
+    refreshInterval: REFRESH_INTERVAL,
   })
 
   // Close ZIP menu when clicking outside
@@ -1229,12 +1231,12 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             <button
               onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
               title={selectMode ? 'Cancelar selección' : 'Seleccionar momentos'}
-              className={[
+              className={clsx(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border',
                 selectMode
                   ? 'bg-indigo-600 text-white border-indigo-500'
                   : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-white/10',
-              ].join(' ')}
+              )}
             >
               <svg className="size-3.5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd"/>
@@ -1276,6 +1278,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                   <button
                     onClick={() => setShowZipMenu(v => !v)}
                     title="Opciones de descarga"
+                    aria-label="Opciones de descarga"
                     disabled={downloadingZip}
                     className="flex items-center px-2 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border-l border-white/10 transition-colors disabled:opacity-50"
                   >
@@ -1436,12 +1439,13 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           <button
             onClick={() => setGroupByTime(v => !v)}
             title="Agrupar por hora"
-            className={[
+            aria-label="Agrupar por hora"
+            className={clsx(
               'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors border',
               groupByTime
                 ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/20'
                 : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border-white/10',
-            ].join(' ')}
+            )}
           >
             <svg className="size-3.5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd"/>
@@ -1483,22 +1487,24 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           ] as const).map((f) => (
             <button
               key={f.value}
+              id={`tab-${f.value}`}
               role="tab"
               aria-selected={filter === f.value}
+              aria-controls={`tab-panel-${f.value}`}
               onClick={() => setFilter(f.value as typeof filter)}
-              className={[
+              className={clsx(
                 'flex-1 sm:flex-initial px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors text-center',
                 filter === f.value
                   ? 'bg-indigo-600 text-white'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5',
-              ].join(' ')}
+              )}
             >
               {f.label}
               {f.count > 0 && (
-                <span className={[
+                <span className={clsx(
                   'ml-1 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums',
                   filter === f.value ? 'bg-white/20' : 'bg-zinc-800 text-zinc-500',
-                ].join(' ')}>
+                )}>
                   {f.count}
                 </span>
               )}
@@ -1508,6 +1514,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       </div>
 
       {/* ── Grid ───────────────────────────────────────────────────────── */}
+      <div role="tabpanel" id={`tab-panel-${filter}`}>
       {filteredMoments.length === 0 && moments.length === 0 ? (
         /* Coming soon / empty wall hero */
         <motion.div
@@ -1636,6 +1643,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           </AnimatePresence>
         </motion.div>
       )}
+      </div>
 
       {/* ── Lightbox portal ─────────────────────────────────────────────── */}
       <AnimatePresence>
