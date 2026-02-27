@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import useSWR, { mutate as globalMutate } from 'swr'
 import { motion, AnimatePresence } from 'motion/react'
@@ -840,27 +840,40 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   // If it's a key (no "http"), we serve it as-is (backend should return presigned URLs).
   const resolveUrl = useCallback((m: Moment) => m.content_url ?? '', [])
 
-  const filteredMoments = moments.filter((m) => {
-    if (filter === 'pending')  return !m.is_approved && m.processing_status !== 'failed'
-    if (filter === 'approved') return m.is_approved
-    if (filter === 'failed')   return m.processing_status === 'failed'
-    if (filter === 'photos')   return m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))
-    if (filter === 'videos')   return m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))
-    if (filter === 'notes')    return !!m.description?.trim()
-    return true
-  })
+  const {
+    filteredMoments,
+    lightboxMoments,
+    pendingCount,
+    approvedCount,
+    failedCount,
+    photoCount,
+    videoCount,
+    notesCount,
+  } = useMemo(() => {
+    const filteredMoments = moments.filter((m) => {
+      if (filter === 'pending')  return !m.is_approved && m.processing_status !== 'failed'
+      if (filter === 'approved') return m.is_approved
+      if (filter === 'failed')   return m.processing_status === 'failed'
+      if (filter === 'photos')   return m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))
+      if (filter === 'videos')   return m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))
+      if (filter === 'notes')    return !!m.description?.trim()
+      return true
+    })
 
-  const pendingCount  = moments.filter((m) => !m.is_approved && m.processing_status !== 'failed').length
-  const approvedCount = moments.filter((m) => m.is_approved).length
-  const failedCount   = moments.filter((m) => m.processing_status === 'failed').length
-  const photoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))).length
-  const videoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))).length
-  const notesCount    = moments.filter((m) => !!m.description?.trim()).length
+    const pendingCount  = moments.filter((m) => !m.is_approved && m.processing_status !== 'failed').length
+    const approvedCount = moments.filter((m) => m.is_approved).length
+    const failedCount   = moments.filter((m) => m.processing_status === 'failed').length
+    const photoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))).length
+    const videoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))).length
+    const notesCount    = moments.filter((m) => !!m.description?.trim()).length
 
-  // Moments eligible for lightbox (media present + not processing)
-  const lightboxMoments = filteredMoments.filter((m) =>
-    !!resolveUrl(m) && m.processing_status !== 'pending' && m.processing_status !== 'processing'
-  )
+    // Moments eligible for lightbox (media present + not processing)
+    const lightboxMoments = filteredMoments.filter((m) =>
+      !!resolveUrl(m) && m.processing_status !== 'pending' && m.processing_status !== 'processing'
+    )
+
+    return { filteredMoments, lightboxMoments, pendingCount, approvedCount, failedCount, photoCount, videoCount, notesCount }
+  }, [moments, filter, resolveUrl])
 
   const handleApprove = async (moment: Moment) => {
     // Optimistic: mark as approved immediately
