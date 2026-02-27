@@ -14,6 +14,7 @@ import type { Moment } from '@/models/Moment'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BrandedQR } from '@/components/ui/branded-qr'
 import { useLazyVisible } from '@/hooks/useLazyVisible'
+import { useVideoThumbnail } from '@/hooks/useVideoThumbnail'
 import {
   PhotoIcon,
   CheckIcon,
@@ -477,6 +478,11 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, s
   const approved = moment.is_approved
   const { ref: lazyRef, visible } = useLazyVisible()
 
+  // Extract first frame for videos without a server-generated thumbnail
+  const extractedThumb = useVideoThumbnail(
+    video && !moment.thumbnail_url ? url : null
+  )
+
   return (
     <motion.div
       ref={lazyRef}
@@ -544,13 +550,21 @@ function MomentCard({ moment, onApprove, onDelete, onOpenLightbox, resolveUrl, s
                 loading="lazy"
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
-                <div className="flex items-center justify-center size-14 rounded-full bg-black/50 ring-1 ring-white/20">
-                  <svg className="size-6 text-white ml-1" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5.14v14l11-7-11-7z" />
-                  </svg>
+              extractedThumb ? (
+                <img
+                  src={extractedThumb}
+                  alt="Video momento"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
+                  <div className="flex items-center justify-center size-14 rounded-full bg-black/50 ring-1 ring-white/20">
+                    <svg className="size-6 text-white ml-1" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M8 5.14v14l11-7-11-7z" />
+                    </svg>
+                  </div>
                 </div>
-              </div>
+              )
             )}
             <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors">
               <div className="flex items-center justify-center size-12 rounded-full bg-black/50 backdrop-blur-sm ring-1 ring-white/20 opacity-80 group-hover:opacity-100 transition-opacity">
