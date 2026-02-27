@@ -35,6 +35,36 @@ import {
   EyeIcon,
 } from '@heroicons/react/24/outline'
 
+// ─── Focus trap ──────────────────────────────────────────────────────────────
+
+function useFocusTrap(containerRef: React.RefObject<HTMLElement | null>, active: boolean) {
+  useEffect(() => {
+    if (!active || !containerRef.current) return
+    const container = containerRef.current
+    const focusable = container.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input, textarea, select, [tabindex]:not([tabindex="-1"])'
+    )
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    first?.focus()
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last?.focus() }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first?.focus() }
+      }
+    }
+    container.addEventListener('keydown', handleKeyDown)
+    return () => {
+      container.removeEventListener('keydown', handleKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [active, containerRef])
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function isVideo(url: string): boolean {
@@ -80,6 +110,8 @@ interface LightboxProps {
 function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: LightboxProps) {
   const [scale, setScale] = useState(1)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(containerRef, true)
   const moment = moments[index]
   const url = resolveUrl(moment)
   const video = isVideo(url)
@@ -128,6 +160,7 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
 
   return createPortal(
     <motion.div
+      ref={containerRef}
       role="dialog"
       aria-modal="true"
       aria-label="Visor de momentos"
@@ -253,6 +286,8 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
 
 function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(containerRef, true)
 
   const copy = async () => {
     await navigator.clipboard.writeText(url)
@@ -268,6 +303,7 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
 
   return createPortal(
     <motion.div
+      ref={containerRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -332,6 +368,8 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
 function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uploadUrl: string; onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<'wall' | 'upload'>('wall')
   const [copied, setCopied] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(containerRef, true)
 
   const activeUrl = activeTab === 'wall' ? wallUrl : uploadUrl
 
@@ -349,6 +387,7 @@ function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uplo
 
   return createPortal(
     <motion.div
+      ref={containerRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
