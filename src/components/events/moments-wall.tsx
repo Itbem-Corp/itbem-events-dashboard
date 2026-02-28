@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import useSWR, { mutate as globalMutate } from 'swr'
 import { motion, AnimatePresence } from 'motion/react'
@@ -511,7 +511,7 @@ interface MomentCardProps {
   onToggleSelect?: (id: string) => void
 }
 
-function MomentCard({ moment, onApprove, onUnapprove, onDelete, onOpenLightbox, resolveUrl, selectMode, selected, onToggleSelect }: MomentCardProps) {
+const MomentCard = memo(function MomentCard({ moment, onApprove, onUnapprove, onDelete, onOpenLightbox, resolveUrl, selectMode, selected, onToggleSelect }: MomentCardProps) {
   const [actioning, setActioning] = useState<'approve' | 'unapprove' | 'delete' | null>(null)
   const url = resolveUrl(moment)
   const hasMedia = !!url
@@ -734,7 +734,7 @@ function MomentCard({ moment, onApprove, onUnapprove, onDelete, onOpenLightbox, 
       )}
     </motion.div>
   )
-}
+})
 
 // ─── Note Card ────────────────────────────────────────────────────────────────
 
@@ -934,7 +934,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     return { filteredMoments, lightboxMoments, pendingCount, approvedCount, failedCount, photoCount, videoCount, notesCount }
   }, [moments, filter, resolveUrl])
 
-  const handleApprove = async (moment: Moment) => {
+  const handleApprove = useCallback(async (moment: Moment) => {
     // Optimistic: mark as approved immediately
     await globalMutate(
       swrKey,
@@ -950,9 +950,9 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       await globalMutate(swrKey) // revert on error
       toast.error('Error al aprobar el momento')
     }
-  }
+  }, [swrKey])
 
-  const handleUnapprove = async (moment: Moment) => {
+  const handleUnapprove = useCallback(async (moment: Moment) => {
     // Optimistic: mark as pending immediately
     await globalMutate(
       swrKey,
@@ -968,9 +968,9 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       await globalMutate(swrKey)
       toast.error('Error al desaprobar el momento')
     }
-  }
+  }, [swrKey])
 
-  const handleDelete = async (moment: Moment) => {
+  const handleDelete = useCallback(async (moment: Moment) => {
     if (!window.confirm('¿Eliminar este momento? Esta acción no se puede deshacer.')) return
     // Optimistic: remove from list immediately
     await globalMutate(
@@ -987,7 +987,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       await globalMutate(swrKey) // revert on error
       toast.error('Error al eliminar el momento')
     }
-  }
+  }, [swrKey])
 
   const handleOpenLightbox = (m: Moment) => {
     const idx = lightboxMoments.findIndex((x) => x.id === m.id)
