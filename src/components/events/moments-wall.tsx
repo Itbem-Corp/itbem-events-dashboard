@@ -865,6 +865,7 @@ interface Props {
 
 export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsEnabled, momentsWallPublished }: Props) {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'failed' | 'photos' | 'videos' | 'notes'>('all')
+  const [timeRange, setTimeRange] = useState<{ from: string; to: string } | null>(null)
   const [wallPublished, setWallPublished] = useState(momentsWallPublished ?? false)
   const [shareEnabled, setShareEnabled] = useState(shareUploadsEnabled ?? false)
 
@@ -928,6 +929,14 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       if (filter === 'videos')   return m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))
       if (filter === 'notes')    return !!m.description?.trim()
       return true
+    }).filter((m) => {
+      if (!timeRange) return true
+      if (!m.created_at) return true
+      const d = new Date(m.created_at)
+      const mins = d.getHours() * 60 + d.getMinutes()
+      const [fh, fm] = timeRange.from.split(':').map(Number)
+      const [th, tm] = timeRange.to.split(':').map(Number)
+      return mins >= fh * 60 + fm && mins <= th * 60 + tm
     })
 
     const pendingCount  = moments.filter((m) => !m.is_approved && m.processing_status !== 'failed').length
@@ -945,7 +954,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     )
 
     return { filteredMoments, lightboxMoments, pendingCount, approvedCount, failedCount, photoCount, videoCount, notesCount, legacyCount }
-  }, [moments, filter, resolveUrl])
+  }, [moments, filter, timeRange, resolveUrl])
 
   const handleApprove = useCallback(async (moment: Moment) => {
     // Optimistic: mark as approved immediately
@@ -1608,6 +1617,43 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
               )}
             </button>
           ))}
+        </div>
+
+        {/* Row 4 — Time range filter */}
+        <div className="flex items-center gap-2 px-1 py-2 border-t border-white/5">
+          <span className="text-[11px] text-zinc-500 shrink-0">Hora:</span>
+          <input
+            type="time"
+            value={timeRange?.from ?? ''}
+            onChange={(e) => {
+              const from = e.target.value
+              if (!from) { setTimeRange(null); return }
+              setTimeRange((prev) => ({ from, to: prev?.to ?? '23:59' }))
+            }}
+            className="bg-zinc-800 border border-white/10 rounded px-2 py-0.5 text-xs text-zinc-300 [color-scheme:dark]"
+            aria-label="Desde hora"
+          />
+          <span className="text-[11px] text-zinc-500">–</span>
+          <input
+            type="time"
+            value={timeRange?.to ?? ''}
+            onChange={(e) => {
+              const to = e.target.value
+              if (!to) { setTimeRange(null); return }
+              setTimeRange((prev) => ({ from: prev?.from ?? '00:00', to }))
+            }}
+            className="bg-zinc-800 border border-white/10 rounded px-2 py-0.5 text-xs text-zinc-300 [color-scheme:dark]"
+            aria-label="Hasta hora"
+          />
+          {timeRange && (
+            <button
+              onClick={() => setTimeRange(null)}
+              className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors ml-1"
+              aria-label="Limpiar filtro de hora"
+            >
+              ✕ limpiar
+            </button>
+          )}
         </div>
       </div>
 
