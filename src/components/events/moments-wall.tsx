@@ -54,6 +54,8 @@ import {
   ChatBubbleOvalLeftIcon,
   EyeIcon,
   ArrowUturnLeftIcon,
+  ArrowUpTrayIcon,
+  VideoCameraIcon,
 } from '@heroicons/react/24/outline'
 
 const REFRESH_INTERVAL = 15_000
@@ -719,6 +721,84 @@ function ReoptimizingSection({ moments, resolveUrl }: ReoptimizingSectionProps) 
   )
 }
 
+// ─── InFlightSection ────────────────────────────────────────────────────────
+// Shows brand-new uploads currently being processed by Lambda for the first time.
+// Distinct from ReoptimizingSection (which covers already-optimized files being re-run).
+
+interface InFlightSectionProps {
+  moments: Moment[]
+}
+
+function InFlightSection({ moments }: InFlightSectionProps) {
+  const [collapsed, setCollapsed] = useState(false)
+
+  if (moments.length === 0) return null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.2 }}
+      className="mx-4 mt-4 rounded-xl border border-sky-500/20 bg-sky-500/5 overflow-hidden"
+    >
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+      >
+        <ArrowUpTrayIcon className="size-3.5 text-sky-400 shrink-0" />
+        <span className="text-xs font-medium text-sky-300 flex-1">
+          Optimizando nuevos archivos ({moments.length})
+        </span>
+        <ArrowPathIcon className="size-3 text-sky-400/60 animate-spin shrink-0" />
+        <span className="text-[10px] text-sky-400/60 ml-1">
+          {collapsed ? 'mostrar' : 'ocultar'}
+        </span>
+      </button>
+
+      <AnimatePresence>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 px-4 pb-4">
+              {moments.map((m) => {
+                const isVid = m.content_type?.startsWith('video/')
+                return (
+                  <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden bg-zinc-800">
+                    {/* File type indicator */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      {isVid
+                        ? <VideoCameraIcon className="size-6 text-zinc-600" />
+                        : <PhotoIcon className="size-6 text-zinc-600" />
+                      }
+                    </div>
+                    {/* Spinner overlay */}
+                    <div className="absolute inset-0 bg-zinc-900/40 flex items-center justify-center">
+                      <ArrowPathIcon className="size-5 text-sky-400 animate-spin" />
+                    </div>
+                    {/* Status badge */}
+                    <div className="absolute bottom-1 inset-x-1">
+                      <span className="block w-full text-center text-[9px] text-sky-300/80 bg-zinc-900/70 rounded px-1 py-0.5 truncate">
+                        {m.processing_status === 'processing' ? 'Procesando…' : 'En cola'}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
 // ─── FailedSection ──────────────────────────────────────────────────────────
 // Shows Lambda-failed moments above the main grid.
 // • Error message visible on hover/long-press per card.
@@ -1370,6 +1450,25 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     }
     prevReoptimizingCount.current = curr
   }, [reoptimizingMoments.length])
+
+  // ─── In-flight new uploads (separate 5s hook) ─────────────────────────────
+  const inFlightSwrKey = eventId ? `/moments/in-flight?event_id=${eventId}` : null
+  const { data: inFlightMoments = [] } = useSWR<Moment[]>(inFlightSwrKey, fetcher, {
+    revalidateOnFocus: false,
+    refreshInterval: isTabVisible ? 5_000 : 0,
+  })
+
+  // Toast when Lambda finishes a new upload
+  const prevInFlightCount = useRef(0)
+  useEffect(() => {
+    const curr = inFlightMoments.length
+    const prev = prevInFlightCount.current
+    if (prev > 0 && curr < prev) {
+      const finished = prev - curr
+      toast.success(`${finished} archivo${finished !== 1 ? 's' : ''} optimizado${finished !== 1 ? 's' : ''} — listo para aprobar`)
+    }
+    prevInFlightCount.current = curr
+  }, [inFlightMoments.length])
 
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   // Local ordered copy used only while drag mode is active
@@ -2501,6 +2600,13 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             resolveUrl={resolveUrl}
             onRetried={() => globalMutate(swrKey)}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── New uploads being optimized ───────────────────────────────── */}
+      <AnimatePresence>
+        {inFlightMoments.length > 0 && (
+          <InFlightSection moments={inFlightMoments} />
         )}
       </AnimatePresence>
 
