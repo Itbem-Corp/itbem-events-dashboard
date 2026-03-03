@@ -791,7 +791,7 @@ const MomentCard = memo(function MomentCard({ moment, onApprove, onUnapprove, on
                 setActioning(null)
               }}
               disabled={actioning !== null}
-              className="flex-1 flex items-center justify-center gap-1.5 py-3.5 text-xs font-semibold text-lime-300 hover:bg-lime-500/20 transition-colors disabled:opacity-40"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 sm:py-3.5 text-xs font-semibold text-lime-300 hover:bg-lime-500/20 transition-colors disabled:opacity-40"
             >
               <CheckIcon className="size-3.5 shrink-0" />
               <span>{actioning === 'approve' ? '…' : 'Aprobar'}</span>
@@ -807,7 +807,7 @@ const MomentCard = memo(function MomentCard({ moment, onApprove, onUnapprove, on
               }}
               disabled={actioning !== null}
               aria-label="Desaprobar momento"
-              className="flex-1 flex items-center justify-center gap-1.5 py-3.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 transition-colors disabled:opacity-40"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 sm:py-3.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 transition-colors disabled:opacity-40"
             >
               <ArrowUturnLeftIcon className="size-3.5 shrink-0" />
               <span>{actioning === 'unapprove' ? '…' : 'Desaprobar'}</span>
@@ -823,7 +823,7 @@ const MomentCard = memo(function MomentCard({ moment, onApprove, onUnapprove, on
             disabled={actioning !== null}
             aria-label="Eliminar momento"
             className={clsx(
-              'flex items-center justify-center gap-1.5 py-3.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition-colors disabled:opacity-40',
+              'flex items-center justify-center gap-1.5 py-2 sm:py-3.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition-colors disabled:opacity-40',
               approved || isFailed ? 'flex-1' : 'px-4',
             )}
           >
