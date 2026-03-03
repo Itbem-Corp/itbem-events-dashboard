@@ -252,7 +252,7 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl, onAppro
             )}
 
             {/* Approve / Unapprove */}
-            {!moment.is_approved ? (
+            {!moment.is_approved && moment.processing_status !== 'failed' && (
               <button
                 onClick={async (e) => {
                   e.stopPropagation()
@@ -267,7 +267,8 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl, onAppro
                 <CheckIcon className="size-4 shrink-0" />
                 <span className="hidden sm:inline">{actioning === 'approve' ? '…' : 'Aprobar'}</span>
               </button>
-            ) : (
+            )}
+            {moment.is_approved && (
               <button
                 onClick={async (e) => {
                   e.stopPropagation()
@@ -319,10 +320,10 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl, onAppro
           <button
             type="button"
             onClick={onClose}
-            className="md:hidden p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="md:hidden p-3 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
             aria-label="Cerrar"
           >
-            <XMarkIcon className="w-4 h-4" />
+            <XMarkIcon className="w-5 h-5" />
           </button>
       </div>
 
@@ -330,7 +331,7 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl, onAppro
       {moments.length > 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); setScale(1); onPrev() }}
-          className="hidden sm:block absolute left-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+          className="hidden sm:block absolute left-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-20"
         >
           <ArrowLeftIcon className="size-5" />
         </button>
@@ -435,7 +436,7 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl, onAppro
       {moments.length > 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); setScale(1); onNext() }}
-          className="hidden sm:block absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+          className="hidden sm:block absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-20"
         >
           <ArrowRightIcon className="size-5" />
         </button>
