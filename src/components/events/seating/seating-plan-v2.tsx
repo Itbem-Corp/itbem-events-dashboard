@@ -210,6 +210,8 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
   }, [seating, eventId, mutateTables, mutateGuests])
 
   const handleAutoAssign = useCallback(() => {
+    // Local mutable copy so mid-loop assignments reflect immediately
+    const localOccupancy = new Map(tableOccupancy)
     const unassigned = [...unassignedGuests].sort(
       (a, b) => (b.guests_count ?? 1) - (a.guests_count ?? 1),
     )
@@ -217,7 +219,7 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
       const partySize = guest.guests_count ?? 1
       let bestTable: { id: string; remaining: number } | null = null
       for (const table of seating.tables) {
-        const seated = tableOccupancy.get(table.id) ?? 0
+        const seated = localOccupancy.get(table.id) ?? 0
         const remaining = table.capacity - seated
         if (remaining >= partySize) {
           if (!bestTable || remaining > bestTable.remaining) {
@@ -227,6 +229,7 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
       }
       if (bestTable) {
         seating.assignGuest(guest.id, bestTable.id)
+        localOccupancy.set(bestTable.id, (localOccupancy.get(bestTable.id) ?? 0) + partySize)
       }
     }
   }, [unassignedGuests, seating, tableOccupancy])
