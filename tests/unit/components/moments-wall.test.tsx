@@ -85,13 +85,18 @@ import useSWR from 'swr'
 import { api } from '@/lib/api'
 
 function mockSWR(data: Moment[] = [], isLoading = false) {
-    vi.mocked(useSWR).mockReturnValue({
-        data,
-        isLoading,
-        error:        undefined,
-        isValidating: false,
-        mutate:       vi.fn(),
-    } as ReturnType<typeof useSWR>)
+    const empty = { data: [], isLoading: false, error: undefined, isValidating: false, mutate: vi.fn() }
+    vi.mocked(useSWR).mockImplementation((key) => {
+        const k = typeof key === 'function' ? key() : key
+        if (
+            typeof k === 'string' && (
+                k.includes('/moments/reoptimizing') ||
+                k.includes('/moments/in-flight') ||
+                k.includes('/moments/summary')
+            )
+        ) return empty as ReturnType<typeof useSWR>
+        return { data, isLoading, error: undefined, isValidating: false, mutate: vi.fn() } as ReturnType<typeof useSWR>
+    })
 }
 
 async function renderWall(moments: Moment[] = [], isLoading = false) {

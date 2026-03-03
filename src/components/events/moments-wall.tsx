@@ -726,6 +726,8 @@ function ReoptimizingSection({ moments, resolveUrl }: ReoptimizingSectionProps) 
 // Distinct from ReoptimizingSection (which covers already-optimized files being re-run).
 
 interface InFlightSectionProps {
+  // resolveUrl is intentionally absent — raw S3 keys are not displayable yet.
+  // Show icon + spinner placeholder instead of an image thumbnail.
   moments: Moment[]
 }
 
