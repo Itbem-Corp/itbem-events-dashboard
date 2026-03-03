@@ -10,7 +10,8 @@ import { eventTypeLabel } from '@/lib/event-type-label'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useStore } from '@/store/useStore'
 
-import type { Moment } from '@/models/Moment'
+// MomentSummary is the shape returned by GET /moments/summary
+interface MomentSummary { event_id: string; pending_count: number }
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Heading } from '@/components/heading'
@@ -66,15 +67,7 @@ type FilterType = 'all' | 'upcoming' | 'past' | 'today'
 
 // ─── Pending moments badge ────────────────────────────────────────────────────
 
-function EventMomentsBadge({ eventId }: { eventId: string }) {
-  const { data: moments = [] } = useSWR<Moment[]>(
-    `/moments?event_id=${eventId}`,
-    fetcher,
-    { revalidateOnFocus: false, revalidateIfStale: false }
-  )
-  const pending = moments.filter(
-    (m) => !m.is_approved && m.processing_status !== 'failed'
-  ).length
+function EventMomentsBadge({ pending }: { pending: number }) {
   if (pending === 0) return null
   return (
     <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 ring-1 ring-amber-500/20 shrink-0">
@@ -101,6 +94,21 @@ export default function EventsPage() {
     fetcher,
     { revalidateOnFocus: false, revalidateIfStale: false }
   )
+
+  // Batch fetch pending moment counts — one request for all events instead of N+1.
+  const summaryKey = events.length > 0
+    ? `/moments/summary?event_ids=${events.map((e) => e.id).join(',')}`
+    : null
+  const { data: summaryList = [] } = useSWR<MomentSummary[]>(
+    summaryKey,
+    fetcher,
+    { revalidateOnFocus: false, revalidateIfStale: false, refreshInterval: 30000 }
+  )
+  const pendingByEvent = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const s of summaryList) map[s.event_id] = s.pending_count
+    return map
+  }, [summaryList])
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
@@ -355,7 +363,7 @@ export default function EventsPage() {
                               {eventTypeLabel(event.event_type.name)}
                             </span>
                           )}
-                          <EventMomentsBadge eventId={event.id} />
+                          <EventMomentsBadge pending={pendingByEvent[event.id] ?? 0} />
                         </div>
 
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
