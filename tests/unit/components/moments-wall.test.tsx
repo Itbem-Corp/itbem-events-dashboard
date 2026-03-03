@@ -688,3 +688,26 @@ describe('MomentsWall — ZIP split dropdown', () => {
         expect(toast.info).not.toHaveBeenCalledWith('No hay momentos aprobados para descargar')
     })
 })
+
+describe('MomentsWall — BottomSheet contents', () => {
+
+    beforeEach(() => vi.clearAllMocks())
+
+    it('clicking Más acciones button opens bottom sheet with QR and publish rows', async () => {
+        await renderWall([makeMoment()])
+
+        // Click the "Más acciones" button (mobile toolbar)
+        const moreButton = screen.getByRole('button', { name: /Más acciones/i })
+        await act(async () => {
+            fireEvent.click(moreButton)
+        })
+
+        // Sheet should show key rows (some labels also exist in the desktop toolbar,
+        // so use getAllByText and verify at least one match is present)
+        await waitFor(() => {
+            expect(screen.getByText('QR de carga')).toBeInTheDocument()
+            expect(screen.getAllByText('Publicar muro').length).toBeGreaterThanOrEqual(1)
+            expect(screen.getAllByText('Compartir muro').length).toBeGreaterThanOrEqual(1)
+        })
+    })
+})
