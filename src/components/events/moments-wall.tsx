@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import type { Moment } from '@/models/Moment'
 import { EmptyState } from '@/components/ui/empty-state'
 import { BrandedQR } from '@/components/ui/branded-qr'
+import { BottomSheet, SheetRow } from '@/components/ui/bottom-sheet'
 import clsx from 'clsx'
 import { useLazyVisible } from '@/hooks/useLazyVisible'
 import { useVideoThumbnail } from '@/hooks/useVideoThumbnail'
@@ -1084,6 +1085,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [showQR, setShowQR] = useState(false)
   const [showWallShare, setShowWallShare] = useState(false)
+  const [showMoreSheet, setShowMoreSheet] = useState(false)
   const [downloadingZip, setDownloadingZip] = useState(false)
   const [showZipMenu, setShowZipMenu] = useState(false)
   const zipMenuRef = useRef<HTMLDivElement>(null)
@@ -1615,8 +1617,163 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="mb-6 rounded-xl border border-white/10 overflow-hidden">
 
+        {/* ── Mobile compact toolbar (hidden on md+) ─────────────────── */}
+        <div className="flex md:hidden items-center gap-2 px-3 py-2 border-b border-white/5">
+          {/* Count */}
+          <span className="flex-1 min-w-0 text-xs text-zinc-400 truncate">
+            {filteredMoments.length} momentos
+          </span>
+
+          {/* Select mode toggle */}
+          <button
+            type="button"
+            onClick={() => { setSelectMode(v => !v); setSelectedIds(new Set()) }}
+            className={clsx(
+              'flex items-center justify-center w-9 h-9 rounded-lg text-xs font-medium transition-colors',
+              selectMode
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white/10 text-zinc-300 hover:bg-white/15',
+            )}
+            aria-label={selectMode ? 'Cancelar selección' : 'Seleccionar'}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd"/>
+            </svg>
+          </button>
+
+          {/* ZIP download */}
+          <button
+            type="button"
+            onClick={() => setShowZipMenu(v => !v)}
+            disabled={downloadingZip || moments.length === 0}
+            className="flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-zinc-300 hover:bg-white/15 transition-colors disabled:opacity-40"
+            aria-label="Descargar ZIP"
+          >
+            {downloadingZip
+              ? <ArrowPathIcon className="w-4 h-4 animate-spin" />
+              : <ArrowDownTrayIcon className="w-4 h-4" />}
+          </button>
+
+          {/* Approve all — only when pending exist and not in selectMode */}
+          {pendingCount > 0 && !selectMode && (
+            <button
+              type="button"
+              onClick={handleApproveAll}
+              disabled={approvingAll}
+              className="flex items-center justify-center w-9 h-9 rounded-lg bg-lime-500/20 text-lime-300 hover:bg-lime-500/30 transition-colors disabled:opacity-40"
+              aria-label="Aprobar todos"
+            >
+              {approvingAll
+                ? <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                : <CheckIcon className="w-4 h-4" />}
+            </button>
+          )}
+
+          {/* Bulk approve/delete when items selected */}
+          {selectMode && selectedIds.size > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={handleApproveSelected}
+                className="flex items-center justify-center w-9 h-9 rounded-lg bg-lime-500/20 text-lime-300 hover:bg-lime-500/30 transition-colors"
+                aria-label="Aprobar selección"
+              >
+                <CheckIcon className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteSelected}
+                className="flex items-center justify-center w-9 h-9 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 transition-colors"
+                aria-label="Eliminar selección"
+              >
+                <TrashIcon className="w-4 h-4" />
+              </button>
+            </>
+          )}
+
+          {/* ⋯ More actions */}
+          <button
+            type="button"
+            onClick={() => setShowMoreSheet(true)}
+            className="flex items-center justify-center w-9 h-9 rounded-lg bg-white/10 text-zinc-300 hover:bg-white/15 transition-colors"
+            aria-label="Más acciones"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+            </svg>
+          </button>
+        </div>
+
+        <BottomSheet
+          isOpen={showMoreSheet}
+          onClose={() => setShowMoreSheet(false)}
+          title="Acciones"
+        >
+          {pendingCount > 0 && (
+            <SheetRow
+              icon={<XMarkIcon className="w-4 h-4" />}
+              label={`Rechazar todos (${pendingCount} pendientes)`}
+              variant="danger"
+              disabled={rejectingAll}
+              onClick={() => { setShowMoreSheet(false); handleRejectAll() }}
+            />
+          )}
+          <SheetRow
+            icon={<QrCodeIcon className="w-4 h-4" />}
+            label="QR de carga"
+            trailing={
+              <span className={clsx('text-xs font-medium', shareEnabled ? 'text-lime-400' : 'text-zinc-500')}>
+                {shareEnabled ? 'Activo' : 'Inactivo'}
+              </span>
+            }
+            onClick={() => { setShowMoreSheet(false); setShowQR(true) }}
+          />
+          <SheetRow
+            icon={<GlobeAltIcon className="w-4 h-4" />}
+            label="Publicar muro"
+            trailing={
+              <span className={clsx('text-xs font-medium', wallPublished ? 'text-lime-400' : 'text-zinc-500')}>
+                {wallPublished ? 'Publicado' : 'Oculto'}
+              </span>
+            }
+            onClick={() => { setShowMoreSheet(false); handleTogglePublish() }}
+          />
+          <SheetRow
+            icon={<ArrowTopRightOnSquareIcon className="w-4 h-4" />}
+            label="Ver muro público"
+            onClick={() => { setShowMoreSheet(false); window.open(wallUrl, '_blank') }}
+          />
+          <SheetRow
+            icon={
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd"/>
+              </svg>
+            }
+            label="Agrupar por hora"
+            trailing={
+              <span className={clsx('text-xs font-medium', groupByTime ? 'text-indigo-400' : 'text-zinc-500')}>
+                {groupByTime ? 'Activo' : 'Inactivo'}
+              </span>
+            }
+            onClick={() => { setShowMoreSheet(false); setGroupByTime(v => !v) }}
+          />
+          <SheetRow
+            icon={<ShareIcon className="w-4 h-4" />}
+            label="Compartir muro"
+            onClick={() => { setShowMoreSheet(false); setShowWallShare(true) }}
+          />
+          {legacyCount > 0 && (
+            <SheetRow
+              icon={<ArrowPathIcon className="w-4 h-4" />}
+              label={`Reoptimizar legacy (${legacyCount})`}
+              disabled={requeuingLegacy}
+              onClick={() => { setShowMoreSheet(false); handleRequeueLegacy() }}
+            />
+          )}
+        </BottomSheet>
+
         {/* Row 1 — Content actions */}
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-white/5">
+        <div className="hidden md:flex flex-wrap items-center gap-3 px-4 py-3 border-b border-white/5">
           {/* Counts + badges */}
           <p className="text-sm text-zinc-400 flex-1 min-w-0">
             {moments.length} momento{moments.length !== 1 ? 's' : ''} en total
@@ -1864,7 +2021,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
         </div>
 
         {/* Row 2 — Sharing & settings */}
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-white/5 border-l-2 border-l-indigo-500/30">
+        <div className="hidden md:flex flex-wrap items-center gap-2 px-4 py-3 border-b border-white/5 border-l-2 border-l-indigo-500/30">
           <button
             onClick={handleToggleShare}
             className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors border ${

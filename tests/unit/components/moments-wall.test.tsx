@@ -249,9 +249,13 @@ describe('MomentsWall — approve action', () => {
     it('clicking per-card Aprobar calls api.put with is_approved: true', async () => {
         const moment = makeMoment({ is_approved: false })
         await renderWall([moment])
-        // Find the per-card approve button (not the bulk one)
+        // Find the per-card approve button (not the bulk toolbar ones)
         const approveBtns = screen.getAllByRole('button', { name: /Aprobar/i })
-        const cardBtn = approveBtns.find(btn => !btn.textContent?.includes('todos') && !btn.textContent?.includes('('))
+        const cardBtn = approveBtns.find(btn =>
+            !btn.textContent?.includes('todos') &&
+            !btn.textContent?.includes('(') &&
+            !btn.getAttribute('aria-label')?.toLowerCase().includes('todos')
+        )
         expect(cardBtn).toBeTruthy()
         await act(async () => {
             fireEvent.click(cardBtn!)
@@ -268,7 +272,11 @@ describe('MomentsWall — approve action', () => {
         const { toast } = await import('sonner')
         await renderWall([makeMoment({ is_approved: false })])
         const approveBtns = screen.getAllByRole('button', { name: /Aprobar/i })
-        const cardBtn = approveBtns.find(btn => !btn.textContent?.includes('todos') && !btn.textContent?.includes('('))
+        const cardBtn = approveBtns.find(btn =>
+            !btn.textContent?.includes('todos') &&
+            !btn.textContent?.includes('(') &&
+            !btn.getAttribute('aria-label')?.toLowerCase().includes('todos')
+        )
         await act(async () => {
             fireEvent.click(cardBtn!)
         })
@@ -282,7 +290,11 @@ describe('MomentsWall — approve action', () => {
         const { toast } = await import('sonner')
         await renderWall([makeMoment({ is_approved: false })])
         const approveBtns = screen.getAllByRole('button', { name: /Aprobar/i })
-        const cardBtn = approveBtns.find(btn => !btn.textContent?.includes('todos') && !btn.textContent?.includes('('))
+        const cardBtn = approveBtns.find(btn =>
+            !btn.textContent?.includes('todos') &&
+            !btn.textContent?.includes('(') &&
+            !btn.getAttribute('aria-label')?.toLowerCase().includes('todos')
+        )
         await act(async () => {
             fireEvent.click(cardBtn!)
         })
@@ -494,8 +506,9 @@ describe('MomentsWall — multi-select', () => {
         const checkbox = screen.getByRole('checkbox')
         fireEvent.click(checkbox)
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: /Aprobar selección/i })).toBeInTheDocument()
-            expect(screen.getByRole('button', { name: /Eliminar selección/i })).toBeInTheDocument()
+            // Multiple buttons may exist (mobile + desktop) — check at least one is present
+            expect(screen.getAllByRole('button', { name: /Aprobar selección/i })[0]).toBeInTheDocument()
+            expect(screen.getAllByRole('button', { name: /Eliminar selección/i })[0]).toBeInTheDocument()
         })
     })
 
@@ -522,9 +535,9 @@ describe('MomentsWall — multi-select', () => {
         fireEvent.click(screen.getByTitle('Seleccionar momentos'))
         await waitFor(() => expect(screen.getByText('Seleccionar todo')).toBeInTheDocument())
         fireEvent.click(screen.getByRole('checkbox'))
-        await waitFor(() => expect(screen.getByRole('button', { name: /Aprobar selección/i })).toBeInTheDocument())
+        await waitFor(() => expect(screen.getAllByRole('button', { name: /Aprobar selección/i })[0]).toBeInTheDocument())
         await act(async () => {
-            fireEvent.click(screen.getByRole('button', { name: /Aprobar selección/i }))
+            fireEvent.click(screen.getAllByRole('button', { name: /Aprobar selección/i })[0])
         })
         await waitFor(() => {
             expect(vi.mocked(api.put)).toHaveBeenCalledWith('/moments/sel-001', expect.objectContaining({ is_approved: true }))
@@ -539,9 +552,9 @@ describe('MomentsWall — multi-select', () => {
         fireEvent.click(screen.getByTitle('Seleccionar momentos'))
         await waitFor(() => expect(screen.getByText('Seleccionar todo')).toBeInTheDocument())
         fireEvent.click(screen.getByRole('checkbox'))
-        await waitFor(() => expect(screen.getByRole('button', { name: /Eliminar selección/i })).toBeInTheDocument())
+        await waitFor(() => expect(screen.getAllByRole('button', { name: /Eliminar selección/i })[0]).toBeInTheDocument())
         await act(async () => {
-            fireEvent.click(screen.getByRole('button', { name: /Eliminar selección/i }))
+            fireEvent.click(screen.getAllByRole('button', { name: /Eliminar selección/i })[0])
         })
         await waitFor(() => {
             expect(vi.mocked(api.delete)).toHaveBeenCalledWith('/moments/del-001')
