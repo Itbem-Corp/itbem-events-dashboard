@@ -16,9 +16,27 @@ import clsx from 'clsx'
 import { useLazyVisible } from '@/hooks/useLazyVisible'
 import { useVideoThumbnail } from '@/hooks/useVideoThumbnail'
 import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   PhotoIcon,
   CheckIcon,
   XMarkIcon,
+  TrashIcon,
   ArrowDownTrayIcon,
   QrCodeIcon,
   MagnifyingGlassPlusIcon,
@@ -110,10 +128,14 @@ interface LightboxProps {
   onNext: () => void
   onPrev: () => void
   resolveUrl: (m: Moment) => string
+  onApprove: (m: Moment) => Promise<void>
+  onUnapprove: (m: Moment) => Promise<void>
+  onDelete: (m: Moment) => Promise<void>
 }
 
-function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: LightboxProps) {
+function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl, onApprove, onUnapprove, onDelete }: LightboxProps) {
   const [scale, setScale] = useState(1)
+  const [actioning, setActioning] = useState<'approve' | 'unapprove' | 'delete' | null>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   useFocusTrap(containerRef, true)
@@ -149,17 +171,19 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
 
   const handleDownload = async () => {
     try {
-      const res = await api.get(`/moments/${moment.id}/download`, { responseType: 'blob' })
+      const response = await fetch(url)
+      const blob = await response.blob()
       const key = moment.content_url ?? url
       const extMatch = key.match(/\.(\w{2,5})(?:\?|$)/)
       const ext = extMatch?.[1] ?? 'jpg'
       const a = document.createElement('a')
-      a.href = URL.createObjectURL(res.data)
+      a.href = URL.createObjectURL(blob)
       a.download = `momento-${moment.id}.${ext}`
       a.click()
       URL.revokeObjectURL(a.href)
     } catch {
-      toast.error('Error al descargar archivo')
+      // Fallback: open in new tab
+      window.open(url, '_blank', 'noopener,noreferrer')
     }
   }
 
@@ -209,6 +233,55 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl }: Light
               </button>
             </div>
           )}
+
+          {/* Approve / Unapprove */}
+          {!moment.is_approved ? (
+            <button
+              onClick={async (e) => {
+                e.stopPropagation()
+                setActioning('approve')
+                await onApprove(moment)
+                setActioning(null)
+              }}
+              disabled={actioning !== null}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-lime-500/20 hover:bg-lime-500/30 text-lime-300 text-xs font-semibold transition-colors disabled:opacity-40"
+              title="Aprobar momento"
+            >
+              <CheckIcon className="size-4 shrink-0" />
+              <span className="hidden sm:inline">{actioning === 'approve' ? '…' : 'Aprobar'}</span>
+            </button>
+          ) : (
+            <button
+              onClick={async (e) => {
+                e.stopPropagation()
+                setActioning('unapprove')
+                await onUnapprove(moment)
+                setActioning(null)
+              }}
+              disabled={actioning !== null}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold transition-colors disabled:opacity-40"
+              title="Desaprobar momento"
+            >
+              <ArrowUturnLeftIcon className="size-4 shrink-0" />
+              <span className="hidden sm:inline">{actioning === 'unapprove' ? '…' : 'Desaprobar'}</span>
+            </button>
+          )}
+
+          {/* Delete */}
+          <button
+            onClick={async (e) => {
+              e.stopPropagation()
+              setActioning('delete')
+              await onDelete(moment)
+              setActioning(null)
+            }}
+            disabled={actioning !== null}
+            className="p-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 transition-colors disabled:opacity-40"
+            title="Eliminar momento"
+          >
+            <TrashIcon className="size-5" />
+          </button>
+
           <button
             onClick={handleDownload}
             className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
@@ -849,6 +922,47 @@ function NoteCard({ moment, onApprove, onDelete, resolveUrl }: NoteCardProps) {
   )
 }
 
+// ─── Sortable card wrapper ────────────────────────────────────────────────────
+
+interface SortableMomentCardProps extends MomentCardProps {
+  dragMode: boolean
+}
+
+const SortableMomentCard = memo(function SortableMomentCard({ dragMode, ...cardProps }: SortableMomentCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cardProps.moment.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.35 : 1,
+    cursor: dragMode ? (isDragging ? 'grabbing' : 'grab') : undefined,
+    position: 'relative',
+    zIndex: isDragging ? 999 : undefined,
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {dragMode && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute top-1.5 left-1.5 z-10 rounded-md p-1 bg-black/50 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/70 transition-colors cursor-grab active:cursor-grabbing touch-none"
+          title="Arrastrar para reordenar"
+          aria-label="Arrastrar para reordenar"
+        >
+          {/* 6-dot drag handle */}
+          <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="5" cy="4" r="1.2"/><circle cx="11" cy="4" r="1.2"/>
+            <circle cx="5" cy="8" r="1.2"/><circle cx="11" cy="8" r="1.2"/>
+            <circle cx="5" cy="12" r="1.2"/><circle cx="11" cy="12" r="1.2"/>
+          </svg>
+        </div>
+      )}
+      <MomentCard {...cardProps} />
+    </div>
+  )
+})
+
 // ─── Main Wall ────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -893,6 +1007,73 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     revalidateOnFocus: false,
     refreshInterval: isTabVisible ? REFRESH_INTERVAL : 0,
   })
+
+  // ─── Drag & drop reorder ──────────────────────────────────────────────────────
+  const [dragMode, setDragMode] = useState(false)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  // Local ordered copy used only while drag mode is active
+  const [orderedMoments, setOrderedMoments] = useState<Moment[]>([])
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Sync orderedMoments whenever approved moments change externally
+  useEffect(() => {
+    if (!dragMode) return
+    setOrderedMoments(moments.filter((m) => m.is_approved))
+  }, [moments, dragMode])
+
+  const enterDragMode = useCallback(() => {
+    setOrderedMoments(moments.filter((m) => m.is_approved))
+    setDragMode(true)
+  }, [moments])
+
+  const exitDragMode = useCallback(() => {
+    setDragMode(false)
+    setActiveDragId(null)
+    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
+  }, [])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  )
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id))
+  }, [])
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    setActiveDragId(null)
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setOrderedMoments((prev) => {
+      const oldIdx = prev.findIndex((m) => m.id === active.id)
+      const newIdx = prev.findIndex((m) => m.id === over.id)
+      if (oldIdx === -1 || newIdx === -1) return prev
+      return arrayMove(prev, oldIdx, newIdx)
+    })
+  }, [])
+
+  // Debounced save — fires 800ms after last drag ends
+  useEffect(() => {
+    if (!dragMode || orderedMoments.length === 0) return
+    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
+    saveDebounceRef.current = setTimeout(async () => {
+      const toastId = toast.loading('Guardando orden…')
+      try {
+        const payload = orderedMoments.map((m, i) => ({ id: m.id, order: i + 1 }))
+        await api.patch('/moments/reorder', payload)
+        await globalMutate(swrKey)
+        toast.success('Orden guardado', { id: toastId })
+      } catch {
+        toast.error('Error al guardar el orden', { id: toastId })
+      }
+    }, 800)
+  }, [orderedMoments, dragMode, swrKey])
+
+  // Reset drag mode when filter changes away from approved
+  useEffect(() => {
+    if (filter !== 'approved') exitDragMode()
+  }, [filter, exitDragMode])
 
   // Close ZIP menu when clicking outside
   useEffect(() => {
@@ -965,7 +1146,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       { revalidate: false }
     )
     try {
-      await api.put(`/moments/${moment.id}`, { ...moment, is_approved: true })
+      await api.put(`/moments/${moment.id}`, { is_approved: true })
       await globalMutate(swrKey)
       toast.success('Momento aprobado')
     } catch {
@@ -983,7 +1164,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       { revalidate: false }
     )
     try {
-      await api.put(`/moments/${moment.id}`, { ...moment, is_approved: false })
+      await api.put(`/moments/${moment.id}`, { is_approved: false })
       await globalMutate(swrKey)
       toast.success('Momento desaprobado')
     } catch {
@@ -1001,6 +1182,13 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
         prev?.filter((m) => m.id !== moment.id),
       { revalidate: false }
     )
+    // Remove from selection if active
+    setSelectedIds((prev) => {
+      if (!prev.has(moment.id)) return prev
+      const next = new Set(prev)
+      next.delete(moment.id)
+      return next
+    })
     try {
       await api.delete(`/moments/${moment.id}`)
       await globalMutate(swrKey)
@@ -1010,6 +1198,16 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       toast.error('Error al eliminar el momento')
     }
   }, [swrKey])
+
+  // Clamp lightboxIndex when moments are deleted from within the lightbox
+  useEffect(() => {
+    if (lightboxIndex === null) return
+    if (lightboxMoments.length === 0) {
+      setLightboxIndex(null)
+    } else if (lightboxIndex >= lightboxMoments.length) {
+      setLightboxIndex(lightboxMoments.length - 1)
+    }
+  }, [lightboxMoments.length, lightboxIndex])
 
   const handleOpenLightbox = (m: Moment) => {
     const idx = lightboxMoments.findIndex((x) => x.id === m.id)
@@ -1038,16 +1236,18 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       await Promise.all(
         approved.map(async (m, i) => {
           try {
-            const res = await api.get(`/moments/${m.id}/download`, { responseType: 'blob' })
+            const fileUrl = resolveUrl(m)
+            const res = await fetch(fileUrl)
+            const blob = await res.blob()
             // Verify we actually got a blob, not an error object
-            if (!(res.data instanceof Blob) || res.data.size === 0) {
+            if (!blob || blob.size === 0) {
               failed++
               return
             }
             const key = m.content_url ?? ''
             const extMatch = key.match(/\.(\w{2,5})(?:\?|$)/)
             const ext = extMatch?.[1] ?? (isVideo(key) ? 'mp4' : 'jpg')
-            folder.file(`momento-${String(i + 1).padStart(3, '0')}.${ext}`, res.data)
+            folder.file(`momento-${String(i + 1).padStart(3, '0')}.${ext}`, blob)
             succeeded++
           } catch (err) {
             console.warn(`[ZIP] Failed to download moment ${m.id}:`, err)
@@ -1139,7 +1339,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       { revalidate: false }
     )
     try {
-      await Promise.all(toApprove.map(m => api.put(`/moments/${m.id}`, { ...m, is_approved: true })))
+      await Promise.all(toApprove.map(m => api.put(`/moments/${m.id}`, { is_approved: true })))
       await globalMutate(swrKey)
       setSelectedIds(new Set())
       toast.success(`${toApprove.length} momento${toApprove.length !== 1 ? 's' : ''} aprobados`)
@@ -1188,7 +1388,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     )
     try {
       await Promise.all(
-        pending.map((m) => api.put(`/moments/${m.id}`, { ...m, is_approved: true }))
+        pending.map((m) => api.put(`/moments/${m.id}`, { is_approved: true }))
       )
       await globalMutate(swrKey)
       toast.success(`${pending.length} momento${pending.length !== 1 ? 's' : ''} aprobados`)
@@ -1316,6 +1516,47 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
 
           {/* Bulk actions */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Drag & drop reorder toggle — only for approved flat view */}
+            {filter === 'approved' && !groupByTime && (
+              <button
+                onClick={dragMode ? exitDragMode : enterDragMode}
+                className={clsx(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border',
+                  dragMode
+                    ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/30'
+                    : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-white/10',
+                )}
+                title={dragMode ? 'Salir del modo reordenamiento' : 'Reordenar momentos arrastrando'}
+              >
+                <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+                  <circle cx="5" cy="4" r="1.2"/><circle cx="11" cy="4" r="1.2"/>
+                  <circle cx="5" cy="8" r="1.2"/><circle cx="11" cy="8" r="1.2"/>
+                  <circle cx="5" cy="12" r="1.2"/><circle cx="11" cy="12" r="1.2"/>
+                </svg>
+                <span className="hidden sm:inline">{dragMode ? 'Salir de reordenar' : 'Reordenar'}</span>
+                <span className="sm:hidden">Orden</span>
+              </button>
+            )}
+            {dragMode && (
+              <button
+                onClick={async () => {
+                  const toastId = toast.loading('Restableciendo orden…')
+                  try {
+                    const payload = orderedMoments.map((m) => ({ id: m.id, order: 0 }))
+                    await api.patch('/moments/reorder', payload)
+                    await globalMutate(swrKey)
+                    toast.success('Orden restablecido', { id: toastId })
+                  } catch {
+                    toast.error('Error al restablecer', { id: toastId })
+                  }
+                  exitDragMode()
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-white/10 transition-colors"
+                title="Restablecer al orden cronológico original"
+              >
+                Restablecer orden
+              </button>
+            )}
             {/* Seleccionar toggle */}
             <button
               onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
@@ -1627,7 +1868,11 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             value={timeRange?.from ?? ''}
             onChange={(e) => {
               const from = e.target.value
-              if (!from) { setTimeRange(null); return }
+              if (!from) {
+                // Clear only the "from" bound; keep "to" if set
+                setTimeRange((prev) => prev?.to ? { from: '00:00', to: prev.to } : null)
+                return
+              }
               setTimeRange((prev) => ({ from, to: prev?.to ?? '23:59' }))
             }}
             className="bg-zinc-800 border border-white/10 rounded px-2 py-0.5 text-xs text-zinc-300 [color-scheme:dark]"
@@ -1639,7 +1884,11 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             value={timeRange?.to ?? ''}
             onChange={(e) => {
               const to = e.target.value
-              if (!to) { setTimeRange(null); return }
+              if (!to) {
+                // Clear only the "to" bound; keep "from" if set
+                setTimeRange((prev) => prev?.from ? { from: prev.from, to: '23:59' } : null)
+                return
+              }
               setTimeRange((prev) => ({ from: prev?.from ?? '00:00', to }))
             }}
             className="bg-zinc-800 border border-white/10 rounded px-2 py-0.5 text-xs text-zinc-300 [color-scheme:dark]"
@@ -1671,11 +1920,11 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             <SparklesIcon className="size-8 text-pink-400" />
           </div>
           <h3 className="text-lg sm:text-xl font-bold text-zinc-100 mb-2">
-            El muro de momentos esta listo
+            El muro de momentos está listo
           </h3>
           <p className="text-sm text-zinc-400 max-w-md mx-auto mb-6 leading-relaxed">
-            Cuando los invitados compartan fotos y videos, apareceran aqui para que los apruebes
-            y se muestren en el muro publico del evento.
+            Cuando los invitados compartan fotos y videos, aparecerán aquí para que los apruebes
+            y se muestren en el muro público del evento.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -1703,7 +1952,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             ))}
           </div>
           <p className="mt-3 text-[10px] text-zinc-700 uppercase tracking-wide">
-            Pronto se llenara de momentos increibles
+            Pronto se llenará de momentos increíbles
           </p>
         </motion.div>
       ) : filteredMoments.length === 0 ? (
@@ -1769,25 +2018,75 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           ))}
         </div>
       ) : (
-        /* Flat grid */
-        <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5" layout>
-          <AnimatePresence>
-            {visibleMoments.map((moment) => (
-              <MomentCard
-                key={moment.id}
-                moment={moment}
-                onApprove={handleApprove}
-                onUnapprove={handleUnapprove}
-                onDelete={handleDelete}
-                onOpenLightbox={handleOpenLightbox}
-                resolveUrl={resolveUrl}
-                selectMode={selectMode}
-                selected={selectedIds.has(moment.id)}
-                onToggleSelect={toggleSelect}
-              />
-            ))}
-          </AnimatePresence>
-        </motion.div>
+        /* Flat grid — with optional drag-and-drop reorder */
+        dragMode ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={orderedMoments.map((m) => m.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5">
+                {orderedMoments.map((moment) => (
+                  <SortableMomentCard
+                    key={moment.id}
+                    dragMode={dragMode}
+                    moment={moment}
+                    onApprove={handleApprove}
+                    onUnapprove={handleUnapprove}
+                    onDelete={handleDelete}
+                    onOpenLightbox={handleOpenLightbox}
+                    resolveUrl={resolveUrl}
+                    selectMode={false}
+                    selected={false}
+                    onToggleSelect={toggleSelect}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+            <DragOverlay>
+              {activeDragId ? (() => {
+                const m = orderedMoments.find((x) => x.id === activeDragId)
+                if (!m) return null
+                return (
+                  <div className="ring-2 ring-cyan-400 ring-offset-2 ring-offset-zinc-950 rounded-xl opacity-95 shadow-2xl shadow-black/60 rotate-1 scale-105 transition-transform">
+                    <MomentCard
+                      moment={m}
+                      onApprove={handleApprove}
+                      onUnapprove={handleUnapprove}
+                      onDelete={handleDelete}
+                      onOpenLightbox={handleOpenLightbox}
+                      resolveUrl={resolveUrl}
+                      selectMode={false}
+                      selected={false}
+                      onToggleSelect={toggleSelect}
+                    />
+                  </div>
+                )
+              })() : null}
+            </DragOverlay>
+          </DndContext>
+        ) : (
+          <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5" layout>
+            <AnimatePresence>
+              {visibleMoments.map((moment) => (
+                <MomentCard
+                  key={moment.id}
+                  moment={moment}
+                  onApprove={handleApprove}
+                  onUnapprove={handleUnapprove}
+                  onDelete={handleDelete}
+                  onOpenLightbox={handleOpenLightbox}
+                  resolveUrl={resolveUrl}
+                  selectMode={selectMode}
+                  selected={selectedIds.has(moment.id)}
+                  onToggleSelect={toggleSelect}
+                />
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        )
       )}
       </div>
 
@@ -1816,6 +2115,9 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             onClose={() => setLightboxIndex(null)}
             onNext={() => setLightboxIndex((i) => ((i ?? 0) + 1) % lightboxMoments.length)}
             onPrev={() => setLightboxIndex((i) => ((i ?? 0) - 1 + lightboxMoments.length) % lightboxMoments.length)}
+            onApprove={handleApprove}
+            onUnapprove={handleUnapprove}
+            onDelete={handleDelete}
           />
         )}
       </AnimatePresence>
