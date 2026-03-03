@@ -68,10 +68,9 @@ function formatBytes(bytes: number): string {
 }
 
 function isOversized(m: Moment): boolean {
-  // Legacy moments: processing_status is '' (falsy) — Go omitempty omits it but model defaults to ''
-  if (!m.processing_status) return true
-  if (m.processing_status !== 'done') return false
-  // No size data (legacy/pre-metric moments) — include as candidates so Lambda can report their size
+  // Legacy moments (never processed) have their own button — exclude them here
+  if (!m.processing_status || m.processing_status !== 'done') return false
+  // No size data (processed before metrics) — include so Lambda can record the real size
   if (!m.optimized_size_bytes || m.optimized_size_bytes === 0) return true
   return isVideo(m.content_url)
     ? m.optimized_size_bytes > OVERSIZED_VIDEO_BYTES
@@ -1490,54 +1489,55 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   useEffect(() => { setVisibleCount(VISIBLE_PAGE) }, [filter, groupByTime])
   const visibleMoments = filteredMoments.slice(0, visibleCount)
 
-  // ─── Bulk requeue (legacy moments never processed by Lambda) ─────────────
-  const [requeuingLegacy, setRequeuingLegacy] = useState(false)
-  const [requeuingOversized, setRequeuingOversized] = useState(false)
+  // ─── Bulk optimize (legacy + oversized) ─────────────────────────────────
+  const [optimizing, setOptimizing] = useState(false)
 
   const oversizedMoments = useMemo(
     () => (moments ?? []).filter(isOversized),
     [moments]
   )
-  const handleRequeueLegacy = async () => {
+
+  const handleOptimizeAll = async () => {
     const legacy = moments.filter((m) => !m.processing_status)
-    if (legacy.length === 0) return
-    if (!window.confirm(
-      `¿Reoptimizar ${legacy.length} momento${legacy.length !== 1 ? 's' : ''} sin procesar?\n\nSe reenviarán a Lambda para compresión y optimización.`
-    )) return
-    setRequeuingLegacy(true)
+    const totalCount = legacy.length + oversizedMoments.length
+    if (totalCount === 0 || optimizing) return
+    setOptimizing(true)
     let succeeded = 0
-    const toastId = toast.loading(`Optimizando 0 de ${legacy.length}…`)
+    let failed = 0
+    const toastId = toast.loading(`Enviando a Lambda 0 de ${totalCount}…`)
+
+    // Step 1: legacy moments — requeue one by one (require /raw/ key)
     for (const m of legacy) {
       try {
         await api.put(`/moments/${m.id}/requeue`, {})
         succeeded++
       } catch {
-        // continue with the rest
+        failed++
       }
-      toast.loading(`Optimizando ${succeeded} de ${legacy.length}…`, { id: toastId })
+      toast.loading(`Enviando a Lambda ${succeeded} de ${totalCount}…`, { id: toastId })
     }
-    await globalMutate(swrKey)
-    setRequeuingLegacy(false)
-    toast.success(`${succeeded} de ${legacy.length} momentos enviados a optimizar`, { id: toastId })
-  }
 
-  const handleReoptimizeOversized = async () => {
-    if (oversizedMoments.length === 0 || requeuingOversized) return
-    setRequeuingOversized(true)
-    try {
-      const ids = oversizedMoments.map((m) => m.id)
-      const res = await api.post('/moments/batch/reoptimize', { ids })
-      const { succeeded, skipped, failed } = res.data?.data ?? { succeeded: 0, skipped: 0, failed: 0 }
-      if (failed > 0) {
-        toast.error(`${succeeded} reencolados, ${failed} con error`)
-      } else {
-        toast.success(`${succeeded} archivos reencolados para reoptimización${skipped > 0 ? ` (${skipped} omitidos)` : ''}`)
+    // Step 2: oversized done moments — batch in chunks of 200
+    const CHUNK = 200
+    for (let i = 0; i < oversizedMoments.length; i += CHUNK) {
+      const chunk = oversizedMoments.slice(i, i + CHUNK)
+      try {
+        const res = await api.post('/moments/batch/reoptimize', { ids: chunk.map((m) => m.id) })
+        const { succeeded: s = 0, failed: f = 0 } = res.data?.data ?? {}
+        succeeded += s
+        failed += f
+      } catch {
+        failed += chunk.length
       }
-      await globalMutate(swrKey)
-    } catch {
-      toast.error('Error al reoptimizar archivos')
-    } finally {
-      setRequeuingOversized(false)
+      toast.loading(`Enviando a Lambda ${succeeded} de ${totalCount}…`, { id: toastId })
+    }
+
+    await globalMutate(swrKey)
+    setOptimizing(false)
+    if (failed > 0) {
+      toast.error(`${succeeded} enviados, ${failed} con error`, { id: toastId })
+    } else {
+      toast.success(`${succeeded} archivos enviados a Lambda`, { id: toastId })
     }
   }
 
@@ -1985,38 +1985,20 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
               </button>
             )}
 
-            {/* Bulk requeue legacy moments */}
-            {legacyCount > 0 && (
+            {/* Single optimize button — covers legacy (never processed) + oversized (done but too large) */}
+            {(legacyCount > 0 || oversizedMoments.length > 0) && (
               <button
-                onClick={handleRequeueLegacy}
-                disabled={requeuingLegacy}
+                onClick={handleOptimizeAll}
+                disabled={optimizing}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors border border-violet-500/20 disabled:opacity-50"
-                title={`Reoptimizar ${legacyCount} momento${legacyCount !== 1 ? 's' : ''} que nunca pasaron por Lambda`}
+                title={`${legacyCount + oversizedMoments.length} momento${legacyCount + oversizedMoments.length !== 1 ? 's' : ''} por optimizar`}
               >
-                {requeuingLegacy ? (
+                {optimizing ? (
                   <ArrowPathIcon className="size-3.5 animate-spin" />
                 ) : (
                   <SparklesIcon className="size-3.5" />
                 )}
-                <span className="hidden sm:inline">{requeuingLegacy ? 'Reoptimizando…' : `Reoptimizar (${legacyCount})`}</span>
-                <span className="sm:hidden">{requeuingLegacy ? '…' : `Opt. (${legacyCount})`}</span>
-              </button>
-            )}
-
-            {/* Reoptimize oversized moments */}
-            {oversizedMoments.length > 0 && (
-              <button
-                onClick={handleReoptimizeOversized}
-                disabled={requeuingOversized}
-                className="flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/30 transition-colors disabled:opacity-50"
-                title={`${oversizedMoments.length} archivo${oversizedMoments.length !== 1 ? 's' : ''} por encima del umbral de tamaño`}
-              >
-                {requeuingOversized ? (
-                  <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <SparklesIcon className="h-3.5 w-3.5" />
-                )}
-                Reoptimizar ({oversizedMoments.length})
+                <span>{optimizing ? 'Optimizando…' : `Optimizar (${legacyCount + oversizedMoments.length})`}</span>
               </button>
             )}
 
@@ -2334,12 +2316,12 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           label="Compartir muro"
           onClick={() => { setShowMoreSheet(false); setShowWallShare(true) }}
         />
-        {legacyCount > 0 && (
+        {(legacyCount > 0 || oversizedMoments.length > 0) && (
           <SheetRow
             icon={<ArrowPathIcon className="w-4 h-4" />}
-            label={`Reoptimizar legacy (${legacyCount})`}
-            disabled={requeuingLegacy}
-            onClick={() => { setShowMoreSheet(false); handleRequeueLegacy() }}
+            label={`Optimizar (${legacyCount + oversizedMoments.length})`}
+            disabled={optimizing}
+            onClick={() => { setShowMoreSheet(false); handleOptimizeAll() }}
           />
         )}
       </BottomSheet>
