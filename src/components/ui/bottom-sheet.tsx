@@ -2,12 +2,13 @@
 
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect } from 'react'
+import type { ReactNode } from 'react'
 
 interface BottomSheetProps {
   isOpen: boolean
   onClose: () => void
   title?: string
-  children: React.ReactNode
+  children: ReactNode
 }
 
 export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetProps) {
@@ -17,6 +18,15 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
   }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [isOpen, onClose])
 
   return (
     <AnimatePresence>
@@ -36,6 +46,9 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={title ?? 'Acciones'}
           >
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 rounded-full bg-white/20" />
@@ -57,10 +70,10 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
 
 // Reusable row item for inside a BottomSheet
 interface SheetRowProps {
-  icon: React.ReactNode
+  icon: ReactNode
   label: string
   onClick: () => void
-  trailing?: React.ReactNode
+  trailing?: ReactNode
   variant?: 'default' | 'danger'
   disabled?: boolean
 }
