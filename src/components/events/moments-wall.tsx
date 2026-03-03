@@ -38,6 +38,7 @@ import {
 } from '@heroicons/react/24/outline'
 
 const REFRESH_INTERVAL = 15_000
+const VISIBLE_PAGE = 40
 
 // ─── Focus trap ──────────────────────────────────────────────────────────────
 
@@ -908,6 +909,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     photoCount,
     videoCount,
     notesCount,
+    legacyCount,
   } = useMemo(() => {
     const filteredMoments = moments.filter((m) => {
       if (filter === 'pending')  return !m.is_approved && m.processing_status !== 'failed'
@@ -925,13 +927,15 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     const photoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))).length
     const videoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))).length
     const notesCount    = moments.filter((m) => !!m.description?.trim()).length
+    // Moments that never went through Lambda (legacy direct uploads)
+    const legacyCount   = moments.filter((m) => m.processing_status === '').length
 
     // Moments eligible for lightbox (media present + not processing)
     const lightboxMoments = filteredMoments.filter((m) =>
       !!resolveUrl(m) && m.processing_status !== 'pending' && m.processing_status !== 'processing'
     )
 
-    return { filteredMoments, lightboxMoments, pendingCount, approvedCount, failedCount, photoCount, videoCount, notesCount }
+    return { filteredMoments, lightboxMoments, pendingCount, approvedCount, failedCount, photoCount, videoCount, notesCount, legacyCount }
   }, [moments, filter, resolveUrl])
 
   const handleApprove = useCallback(async (moment: Moment) => {
@@ -1059,6 +1063,35 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [groupByTime, setGroupByTime] = useState(false)
+
+  // ─── Windowing ────────────────────────────────────────────────────────────
+  const [visibleCount, setVisibleCount] = useState(VISIBLE_PAGE)
+  // Reset when filter or grouping changes
+  useEffect(() => { setVisibleCount(VISIBLE_PAGE) }, [filter, groupByTime])
+  const visibleMoments = filteredMoments.slice(0, visibleCount)
+
+  // ─── Bulk requeue (legacy moments never processed by Lambda) ─────────────
+  const [requeuingLegacy, setRequeuingLegacy] = useState(false)
+  const handleRequeueLegacy = async () => {
+    const legacy = moments.filter((m) => m.processing_status === '')
+    if (legacy.length === 0) return
+    if (!window.confirm(
+      `¿Reoptimizar ${legacy.length} momento${legacy.length !== 1 ? 's' : ''} sin procesar?\n\nSe reenviarán a Lambda para compresión y optimización.`
+    )) return
+    setRequeuingLegacy(true)
+    let succeeded = 0
+    for (const m of legacy) {
+      try {
+        await api.put(`/moments/${m.id}/requeue`, {})
+        succeeded++
+      } catch {
+        // continue with the rest
+      }
+    }
+    await globalMutate(swrKey)
+    setRequeuingLegacy(false)
+    toast.success(`${succeeded} momento${succeeded !== 1 ? 's' : ''} enviados a optimizar`)
+  }
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
@@ -1372,6 +1405,24 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
               </button>
             )}
 
+            {/* Bulk requeue legacy moments */}
+            {legacyCount > 0 && (
+              <button
+                onClick={handleRequeueLegacy}
+                disabled={requeuingLegacy}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors border border-violet-500/20 disabled:opacity-50"
+                title={`Reoptimizar ${legacyCount} momento${legacyCount !== 1 ? 's' : ''} que nunca pasaron por Lambda`}
+              >
+                {requeuingLegacy ? (
+                  <ArrowPathIcon className="size-3.5 animate-spin" />
+                ) : (
+                  <SparklesIcon className="size-3.5" />
+                )}
+                <span className="hidden sm:inline">{requeuingLegacy ? 'Reoptimizando…' : `Reoptimizar (${legacyCount})`}</span>
+                <span className="sm:hidden">{requeuingLegacy ? '…' : `Opt. (${legacyCount})`}</span>
+              </button>
+            )}
+
             {/* Selection bulk actions */}
             {selectMode && selectedIds.size > 0 && (
               <>
@@ -1632,7 +1683,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       ) : groupByTime ? (
         /* Grouped view */
         <div className="space-y-6">
-          {groupByTimeBuckets(filteredMoments).map(({ label, items }) => (
+          {groupByTimeBuckets(visibleMoments).map(({ label, items }) => (
             <div key={label}>
               <div className="flex items-center gap-3 mb-3">
                 <div className="h-px flex-1 bg-white/10" />
@@ -1664,7 +1715,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
         /* Flat grid */
         <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5" layout>
           <AnimatePresence>
-            {filteredMoments.map((moment) => (
+            {visibleMoments.map((moment) => (
               <MomentCard
                 key={moment.id}
                 moment={moment}
@@ -1682,6 +1733,21 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
         </motion.div>
       )}
       </div>
+
+      {/* ── Load more ───────────────────────────────────────────────────── */}
+      {visibleCount < filteredMoments.length && (
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <p className="text-xs text-zinc-500">
+            Mostrando {visibleCount} de {filteredMoments.length} momentos
+          </p>
+          <button
+            onClick={() => setVisibleCount((v) => v + VISIBLE_PAGE)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10 transition-colors"
+          >
+            Mostrar {Math.min(VISIBLE_PAGE, filteredMoments.length - visibleCount)} más
+          </button>
+        </div>
+      )}
 
       {/* ── Lightbox portal ─────────────────────────────────────────────── */}
       <AnimatePresence>
