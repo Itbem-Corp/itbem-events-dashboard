@@ -878,10 +878,19 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   const zipMenuRef = useRef<HTMLDivElement>(null)
 
   const swrKey = eventId ? `/moments?event_id=${eventId}` : null
+
+  // Pause polling while the admin tab is hidden — no point hitting the API
+  // when no one is watching. Resumes automatically when tab regains focus.
+  const [isTabVisible, setIsTabVisible] = useState(true)
+  useEffect(() => {
+    const handler = () => setIsTabVisible(!document.hidden)
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [])
+
   const { data: moments = [], isLoading, isValidating } = useSWR<Moment[]>(swrKey, fetcher, {
     revalidateOnFocus: false,
-    // Poll every 15s so newly optimized moments appear automatically
-    refreshInterval: REFRESH_INTERVAL,
+    refreshInterval: isTabVisible ? REFRESH_INTERVAL : 0,
   })
 
   // Close ZIP menu when clicking outside
@@ -1080,6 +1089,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     )) return
     setRequeuingLegacy(true)
     let succeeded = 0
+    const toastId = toast.loading(`Optimizando 0 de ${legacy.length}…`)
     for (const m of legacy) {
       try {
         await api.put(`/moments/${m.id}/requeue`, {})
@@ -1087,10 +1097,11 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
       } catch {
         // continue with the rest
       }
+      toast.loading(`Optimizando ${succeeded} de ${legacy.length}…`, { id: toastId })
     }
     await globalMutate(swrKey)
     setRequeuingLegacy(false)
-    toast.success(`${succeeded} momento${succeeded !== 1 ? 's' : ''} enviados a optimizar`)
+    toast.success(`${succeeded} de ${legacy.length} momentos enviados a optimizar`, { id: toastId })
   }
 
   const toggleSelect = (id: string) => {

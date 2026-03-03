@@ -10,6 +10,7 @@ import { eventTypeLabel } from '@/lib/event-type-label'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useStore } from '@/store/useStore'
 
+import type { Moment } from '@/models/Moment'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Heading } from '@/components/heading'
@@ -62,6 +63,25 @@ function CountdownBadge({ dateString }: { dateString: string }) {
 }
 
 type FilterType = 'all' | 'upcoming' | 'past' | 'today'
+
+// ─── Pending moments badge ────────────────────────────────────────────────────
+
+function EventMomentsBadge({ eventId }: { eventId: string }) {
+  const { data: moments = [] } = useSWR<Moment[]>(
+    `/moments?event_id=${eventId}`,
+    fetcher,
+    { revalidateOnFocus: false, revalidateIfStale: false }
+  )
+  const pending = moments.filter(
+    (m) => !m.is_approved && m.processing_status !== 'failed'
+  ).length
+  if (pending === 0) return null
+  return (
+    <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 ring-1 ring-amber-500/20 shrink-0">
+      {pending} pendiente{pending !== 1 ? 's' : ''}
+    </span>
+  )
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -335,6 +355,7 @@ export default function EventsPage() {
                               {eventTypeLabel(event.event_type.name)}
                             </span>
                           )}
+                          <EventMomentsBadge eventId={event.id} />
                         </div>
 
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
