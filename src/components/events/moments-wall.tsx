@@ -58,6 +58,22 @@ import {
 const REFRESH_INTERVAL = 15_000
 const VISIBLE_PAGE = 40
 
+const OVERSIZED_PHOTO_BYTES = 100_000   // 100 KB
+const OVERSIZED_VIDEO_BYTES = 5_000_000 // 5 MB
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`
+  return `${Math.round(bytes / 1_000)} KB`
+}
+
+function isOversized(m: Moment): boolean {
+  if (!m.optimized_size_bytes || m.optimized_size_bytes === 0) return false
+  if (m.processing_status !== 'done') return false
+  return isVideo(m.content_url)
+    ? m.optimized_size_bytes > OVERSIZED_VIDEO_BYTES
+    : m.optimized_size_bytes > OVERSIZED_PHOTO_BYTES
+}
+
 // ─── Focus trap ──────────────────────────────────────────────────────────────
 
 function useFocusTrap(containerRef: React.RefObject<HTMLElement | null>, active: boolean) {
@@ -733,6 +749,16 @@ const MomentCard = memo(function MomentCard({ moment, onApprove, onUnapprove, on
               Pendiente
             </span>
           )}
+        </div>
+      )}
+
+      {/* ── Oversized badge (top-right) ─────────────────────── */}
+      {isOversized(moment) && (
+        <div className="absolute top-2 right-2 z-10">
+          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400">
+            <ExclamationTriangleIcon className="h-3 w-3" />
+            {formatBytes(moment.optimized_size_bytes!)}
+          </span>
         </div>
       )}
 
