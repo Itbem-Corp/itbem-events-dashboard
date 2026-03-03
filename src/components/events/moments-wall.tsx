@@ -1003,13 +1003,13 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     return () => document.removeEventListener('visibilitychange', handler)
   }, [])
 
-  const { data: moments = [], isLoading, isValidating } = useSWR<Moment[]>(swrKey, fetcher, {
-    revalidateOnFocus: false,
-    refreshInterval: isTabVisible ? REFRESH_INTERVAL : 0,
-  })
-
   // ─── Drag & drop reorder ──────────────────────────────────────────────────────
   const [dragMode, setDragMode] = useState(false)
+
+  const { data: moments = [], isLoading, isValidating } = useSWR<Moment[]>(swrKey, fetcher, {
+    revalidateOnFocus: false,
+    refreshInterval: isTabVisible && !dragMode ? REFRESH_INTERVAL : 0,
+  })
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   // Local ordered copy used only while drag mode is active
   const [orderedMoments, setOrderedMoments] = useState<Moment[]>([])
@@ -1068,6 +1068,9 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
         toast.error('Error al guardar el orden', { id: toastId })
       }
     }, 800)
+    return () => {
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
+    }
   }, [orderedMoments, dragMode, swrKey])
 
   // Reset drag mode when filter changes away from approved
