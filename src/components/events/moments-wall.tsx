@@ -68,6 +68,8 @@ function formatBytes(bytes: number): string {
 }
 
 function isOversized(m: Moment): boolean {
+  // Legacy moments: processing_status is '' (falsy) — Go omitempty omits it but model defaults to ''
+  if (!m.processing_status) return true
   if (m.processing_status !== 'done') return false
   // No size data (legacy/pre-metric moments) — include as candidates so Lambda can report their size
   if (!m.optimized_size_bytes || m.optimized_size_bytes === 0) return true
@@ -1326,7 +1328,8 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     const videoCount    = moments.filter((m) => m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))).length
     const notesCount    = moments.filter((m) => !!m.description?.trim()).length
     // Moments that never went through Lambda (legacy direct uploads)
-    const legacyCount   = moments.filter((m) => m.processing_status === '').length
+    // '' is falsy — Go omitempty omits it so the JSON field arrives as "" which TypeScript models as ''
+    const legacyCount   = moments.filter((m) => !m.processing_status).length
 
     // Moments eligible for lightbox (media present + not processing)
     const lightboxMoments = filteredMoments.filter((m) =>
@@ -1496,7 +1499,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     [moments]
   )
   const handleRequeueLegacy = async () => {
-    const legacy = moments.filter((m) => m.processing_status === '')
+    const legacy = moments.filter((m) => !m.processing_status)
     if (legacy.length === 0) return
     if (!window.confirm(
       `¿Reoptimizar ${legacy.length} momento${legacy.length !== 1 ? 's' : ''} sin procesar?\n\nSe reenviarán a Lambda para compresión y optimización.`
