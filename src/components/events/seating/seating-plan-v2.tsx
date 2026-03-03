@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -24,6 +24,7 @@ import { UnassignedPanel } from './unassigned-panel'
 import { TableFormModal } from './table-form-modal'
 import { AssignBottomSheet } from './assign-bottom-sheet'
 import { SeatingToolbar } from './seating-toolbar'
+import { SeatingMiniMap } from './seating-mini-map'
 import { GuestChip } from './guest-chip'
 
 import type { Table } from '@/models/Table'
@@ -59,6 +60,8 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
   })
   const [activeDragGuest, setActiveDragGuest] = useState<Guest | null>(null)
   const [unassignedOpen, setUnassignedOpen] = useState(false)
+  const [miniMapOpen, setMiniMapOpen] = useState(true)
+  const tableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // ─── Derived data ───────────────────────────────────────────────────
   const { tableGuests, unassignedGuests, tableOccupancy } = useMemo(() => {
@@ -87,6 +90,15 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
 
     return { tableGuests: map, unassignedGuests: unassigned, tableOccupancy: occupancy }
   }, [guests, seating.tables, seating.guestTableMap])
+
+  const totalSeated = useMemo(
+    () => Array.from(tableOccupancy.values()).reduce((sum, n) => sum + n, 0),
+    [tableOccupancy],
+  )
+  const totalCapacity = useMemo(
+    () => seating.tables.reduce((sum, t) => sum + t.capacity, 0),
+    [seating.tables],
+  )
 
   // ─── DnD sensors ────────────────────────────────────────────────────
   const pointerSensor = useSensor(PointerSensor, {
@@ -197,6 +209,41 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
     }
   }, [seating, eventId, mutateTables, mutateGuests])
 
+  const handleAutoAssign = useCallback(() => {
+    const unassigned = [...unassignedGuests].sort(
+      (a, b) => (b.guests_count ?? 1) - (a.guests_count ?? 1),
+    )
+    for (const guest of unassigned) {
+      const partySize = guest.guests_count ?? 1
+      let bestTable: { id: string; remaining: number } | null = null
+      for (const table of seating.tables) {
+        const seated = tableOccupancy.get(table.id) ?? 0
+        const remaining = table.capacity - seated
+        if (remaining >= partySize) {
+          if (!bestTable || remaining > bestTable.remaining) {
+            bestTable = { id: table.id, remaining }
+          }
+        }
+      }
+      if (bestTable) {
+        seating.assignGuest(guest.id, bestTable.id)
+      }
+    }
+  }, [unassignedGuests, seating, tableOccupancy])
+
+  const handleMiniMapTableClick = useCallback((tableId: string) => {
+    const el = tableRefs.current.get(tableId)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-zinc-950')
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-zinc-950')
+      }, 1500)
+    }
+  }, [])
+
+  const handlePrint = useCallback(() => window.print(), [])
+
   // ─── Loading state ──────────────────────────────────────────────────
   if (guestsLoading) {
     return (
@@ -230,29 +277,26 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
           pendingCount={seating.pendingChangeCount}
           canUndo={seating.canUndo}
           saving={saving}
+          canAutoAssign={unassignedGuests.length > 0 && seating.tables.length > 0}
           onCreateTable={() => setTableModal({ open: true, table: null })}
           onSave={handleSave}
           onDiscard={seating.reset}
           onUndo={seating.undo}
+          onAutoAssign={handleAutoAssign}
+          onPrint={handlePrint}
+          totalSeated={totalSeated}
+          totalCapacity={totalCapacity}
+          unassignedCount={unassignedGuests.length}
+          tableCount={seating.tables.length}
         />
 
-        {/* Summary stats */}
-        <div className="flex flex-wrap gap-3 text-xs">
-          <div className="rounded-lg border border-white/10 bg-zinc-900/50 px-3 py-2">
-            <span className="text-zinc-500">Mesas</span>{' '}
-            <span className="font-bold text-zinc-200">{seating.tables.length}</span>
-          </div>
-          <div className="rounded-lg border border-white/10 bg-zinc-900/50 px-3 py-2">
-            <span className="text-zinc-500">Con mesa</span>{' '}
-            <span className="font-bold text-zinc-200">
-              {guests.length - unassignedGuests.length}
-            </span>
-          </div>
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
-            <span className="text-amber-400">Sin mesa</span>{' '}
-            <span className="font-bold text-amber-300">{unassignedGuests.length}</span>
-          </div>
-        </div>
+        <SeatingMiniMap
+          tables={seating.tables}
+          occupancy={tableOccupancy}
+          isOpen={miniMapOpen}
+          onToggle={() => setMiniMapOpen((v) => !v)}
+          onTableClick={handleMiniMapTableClick}
+        />
 
         {/* Main layout */}
         <div className="flex flex-col md:flex-row gap-4 pb-16 md:pb-0">
@@ -292,17 +336,23 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
             ) : (
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
                 {seating.tables.map((table, i) => (
-                  <TableCard
+                  <div
                     key={table.id}
-                    table={table}
-                    guests={tableGuests.get(table.id) ?? []}
-                    onEdit={(t) => setTableModal({ open: true, table: t })}
-                    onDelete={(id) => seating.deleteTable(id)}
-                    onMobileAssign={(guest) =>
-                      setBottomSheet({ open: true, guest })
-                    }
-                    index={i}
-                  />
+                    ref={(el) => {
+                      if (el) tableRefs.current.set(table.id, el)
+                      else tableRefs.current.delete(table.id)
+                    }}
+                    className="transition-all duration-300"
+                  >
+                    <TableCard
+                      table={table}
+                      guests={tableGuests.get(table.id) ?? []}
+                      onEdit={(t) => setTableModal({ open: true, table: t })}
+                      onDelete={(id) => seating.deleteTable(id)}
+                      onMobileAssign={(guest) => setBottomSheet({ open: true, guest })}
+                      index={i}
+                    />
+                  </div>
                 ))}
               </div>
             )}
