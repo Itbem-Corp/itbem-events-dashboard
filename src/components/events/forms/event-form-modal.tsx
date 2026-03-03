@@ -47,6 +47,10 @@ const LANGUAGES = [
 
 const schema = z.object({
     name:              z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
+    identifier:        z.string()
+                         .regex(/^[a-z0-9-]+$/, 'Solo minúsculas, números y guiones')
+                         .min(3, 'Mínimo 3 caracteres')
+                         .optional(),
     description:       z.string().optional(),
     client_id:         z.string().optional(),
     event_type_id:     z.string().optional(),
@@ -124,6 +128,7 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
         resolver: zodResolver(schema),
         defaultValues: {
             name:            '',
+            identifier:      '',
             description:     '',
             client_id:       currentClient?.id ?? '',
             event_type_id:   '',
@@ -152,6 +157,7 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
 
             reset({
                 name:            event.name,
+                identifier:      event.identifier ?? '',
                 description:     event.description ?? '',
                 client_id:       event.client_id ?? currentClient?.id ?? '',
                 event_type_id:   event.event_type_id,
@@ -233,6 +239,29 @@ export function EventFormModal({ isOpen, setIsOpen, event }: Props) {
                         <Input {...register('name')} placeholder="Ej. Boda García & López" />
                         {errors.name && <ErrorMessage>{errors.name.message}</ErrorMessage>}
                     </Field>
+
+                    {/* Slug / URL del evento — solo en modo edición */}
+                    {isEdit && (
+                        <Field>
+                            <Label>URL del evento (slug)</Label>
+                            <Description className="text-amber-600 text-xs font-medium">
+                                ⚠️ Cambiar esto romperá los QR codes y links ya distribuidos.
+                            </Description>
+                            <div className="mt-1 flex items-center gap-2">
+                                <span className="text-zinc-400 text-sm shrink-0 select-none">
+                                    eventiapp.com.mx/e/
+                                </span>
+                                <Input
+                                    {...register('identifier')}
+                                    placeholder="mi-evento"
+                                    className="font-mono text-sm"
+                                />
+                            </div>
+                            {errors.identifier && (
+                                <ErrorMessage>{errors.identifier.message}</ErrorMessage>
+                            )}
+                        </Field>
+                    )}
 
                     {/* Descripción */}
                     <Field>
