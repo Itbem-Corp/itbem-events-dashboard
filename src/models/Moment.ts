@@ -26,4 +26,9 @@ export interface Moment extends BaseEntity {
   is_approved: boolean
   processing_status: ProcessingStatus
   order?: number
+  /** Lambda processing metrics — populated when processing_status = 'done' */
+  original_size_bytes?: number
+  optimized_size_bytes?: number
+  /** Original MIME type from upload (e.g. 'image/jpeg', 'video/mp4') */
+  content_type?: string
 }
