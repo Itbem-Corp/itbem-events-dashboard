@@ -165,7 +165,7 @@ Returns moments currently queued for re-optimization (`processing_status` is `pe
 **Notes:** Only returns moments whose `content_url` does not contain `/raw/` — i.e., already-processed files being re-optimized, not fresh uploads. Dashboard polls this endpoint every 5 seconds and fires a completion toast when the count drops.
 
 ### `GET /moments/in-flight?event_id=<uuid>`
-Returns moments with `processing_status IN ('pending','processing')` and a raw S3 key — brand-new uploads being processed by Lambda for the first time. Used by `InFlightSection` in `moments-wall.tsx` (polls every 5s).
+Returns moments with `processing_status IN ('pending','processing')` and a raw S3 key — brand-new uploads being processed by Lambda for the first time. Used by `InFlightSection` in `moments-wall.tsx` (polls every 5s and fires a completion toast when the count drops — "listo para aprobar").
 Response: `Moment[]` (unwrapped by fetcher).
 
 ### Moments (public — no auth)
