@@ -1319,6 +1319,12 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
 
   // ─── Bulk requeue (legacy moments never processed by Lambda) ─────────────
   const [requeuingLegacy, setRequeuingLegacy] = useState(false)
+  const [requeuingOversized, setRequeuingOversized] = useState(false)
+
+  const oversizedMoments = useMemo(
+    () => (moments ?? []).filter(isOversized),
+    [moments]
+  )
   const handleRequeueLegacy = async () => {
     const legacy = moments.filter((m) => m.processing_status === '')
     if (legacy.length === 0) return
@@ -1340,6 +1346,26 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     await globalMutate(swrKey)
     setRequeuingLegacy(false)
     toast.success(`${succeeded} de ${legacy.length} momentos enviados a optimizar`, { id: toastId })
+  }
+
+  const handleReoptimizeOversized = async () => {
+    if (oversizedMoments.length === 0 || requeuingOversized) return
+    setRequeuingOversized(true)
+    try {
+      const ids = oversizedMoments.map((m) => m.id)
+      const res = await api.post('/moments/batch/reoptimize', { ids })
+      const { succeeded, skipped, failed } = res.data?.data ?? { succeeded: 0, skipped: 0, failed: 0 }
+      if (failed > 0) {
+        toast.error(`${succeeded} reencolados, ${failed} con error`)
+      } else {
+        toast.success(`${succeeded} archivos reencolados para reoptimización${skipped > 0 ? ` (${skipped} omitidos)` : ''}`)
+      }
+      await globalMutate(swrKey)
+    } catch {
+      toast.error('Error al reoptimizar archivos')
+    } finally {
+      setRequeuingOversized(false)
+    }
   }
 
   const toggleSelect = (id: string) => {
@@ -1710,6 +1736,23 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                 )}
                 <span className="hidden sm:inline">{requeuingLegacy ? 'Reoptimizando…' : `Reoptimizar (${legacyCount})`}</span>
                 <span className="sm:hidden">{requeuingLegacy ? '…' : `Opt. (${legacyCount})`}</span>
+              </button>
+            )}
+
+            {/* Reoptimize oversized moments */}
+            {oversizedMoments.length > 0 && (
+              <button
+                onClick={handleReoptimizeOversized}
+                disabled={requeuingOversized}
+                className="flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-amber-400 hover:bg-amber-500/30 transition-colors disabled:opacity-50"
+                title={`${oversizedMoments.length} archivo${oversizedMoments.length !== 1 ? 's' : ''} por encima del umbral de tamaño`}
+              >
+                {requeuingOversized ? (
+                  <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <SparklesIcon className="h-3.5 w-3.5" />
+                )}
+                Reoptimizar ({oversizedMoments.length})
               </button>
             )}
 
