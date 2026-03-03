@@ -1969,7 +1969,8 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_ASTRO_URL ?? 'https://www.eventiapp.com.mx'
-  const uploadUrl = `${siteUrl}/events/${eventIdentifier}/upload`
+  // Use the stable UUID (eventId) so the QR never breaks if the identifier slug changes.
+  const uploadUrl = `${siteUrl}/events/${eventId}/upload`
   const wallUrl = `${siteUrl}/e/${eventIdentifier}/momentos`
 
   if (isLoading) {
