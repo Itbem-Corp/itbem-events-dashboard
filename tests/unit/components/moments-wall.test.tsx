@@ -615,12 +615,16 @@ describe('MomentsWall — filter tabs scroll', () => {
 
     beforeEach(() => vi.clearAllMocks())
 
+    // Intentional: className coupling is acceptable here — overflow-x-auto is the mechanism
+    // that enables horizontal scroll on mobile. If the implementation changes, update this test.
     it('tablist has overflow-x-auto class for horizontal scroll', async () => {
         await renderWall([])
         const tablist = screen.getByRole('tablist')
         expect(tablist.className).toContain('overflow-x-auto')
     })
 
+    // Intentional: flex-shrink-0 prevents tabs from compressing on mobile.
+    // If Tailwind class strategy changes, update this test accordingly.
     it('each tab has flex-shrink-0 so it does not compress', async () => {
         await renderWall([])
         const tabs = screen.getAllByRole('tab')
