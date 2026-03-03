@@ -628,6 +628,43 @@ React class component Error Boundary. Wraps the event detail page. Catches rende
 
 ---
 
+## Mobile UI Primitives
+
+### BottomSheet (`ui/bottom-sheet.tsx`)
+
+Mobile-optimized action sheet that slides up from the bottom of the screen. Blocks body scroll when open, dismisses on backdrop click or Escape key. Built with Motion `AnimatePresence` (spring animation).
+
+```tsx
+<BottomSheet isOpen={open} onClose={() => setOpen(false)} title="Acciones">
+  <SheetRow icon={<CheckIcon />} label="Aprobar" onClick={handleApprove} />
+  <SheetRow icon={<TrashIcon />} label="Eliminar" onClick={handleDelete} variant="danger" />
+</BottomSheet>
+```
+
+- `isOpen` / `onClose` — controlled open state
+- `title` (optional) — shown above the rows with a border separator
+- Renders at `z-50` with a `z-40` semi-transparent backdrop
+
+### SheetRow (`ui/bottom-sheet.tsx`)
+
+Reusable tappable row for use inside a `BottomSheet`.
+
+```tsx
+<SheetRow
+  icon={<SomeIcon className="size-5" />}
+  label="Label text"
+  onClick={handler}
+  variant="default"   // "default" | "danger"
+  trailing={<Badge>3</Badge>}  // optional right slot
+  disabled={false}
+/>
+```
+
+- `variant="danger"` renders text in `rose-400` with a rose hover background
+- `disabled` prop dims the row and blocks clicks
+
+---
+
 ## Guest Form Enhancements
 - Added fields: `role` (graduate/guest/host/vip/speaker/staff), `is_host` (boolean), `notes` (textarea), `max_guests` (number)
 - **Perfil público** collapsible section (auto-opens on edit when data exists): `headline` (role/title), `bio` (short profile text), `signature` (dedication/closing phrase)

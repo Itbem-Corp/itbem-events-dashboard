@@ -90,6 +90,7 @@ Backend `GET /moments?event_id=X` already filters out `pending` and `processing`
 | `branded-qr.tsx` | QR code with branding overlay |
 | `dropdown-menu.tsx` | Dropdown menu primitives |
 | `UserAvatar.tsx` | Avatar with initials fallback |
+| `bottom-sheet.tsx` | Mobile bottom sheet (`BottomSheet` + `SheetRow`) — spring animation, body-scroll lock |
 
 ### Events — business logic (`src/components/events/`)
 
