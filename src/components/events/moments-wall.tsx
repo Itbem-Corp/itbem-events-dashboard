@@ -1532,7 +1532,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
         {[...Array(8)].map((_, i) => (
           <div key={i} className="aspect-square skeleton rounded-xl" />
         ))}
@@ -2085,7 +2085,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
                 <span className="text-xs font-medium text-zinc-500 tabular-nums">{label}</span>
                 <div className="h-px flex-1 bg-white/10" />
               </div>
-              <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5" layout>
+              <motion.div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-1.5" layout>
                 <AnimatePresence>
                   {items.map((moment) => (
                     <MomentCard
@@ -2116,7 +2116,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={orderedMoments.map((m) => m.id)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-1.5">
                 {orderedMoments.map((moment) => (
                   <SortableMomentCard
                     key={moment.id}
@@ -2157,7 +2157,7 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             </DragOverlay>
           </DndContext>
         ) : (
-          <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1 sm:gap-1.5" layout>
+          <motion.div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-1 sm:gap-1.5" layout>
             <AnimatePresence>
               {visibleMoments.map((moment) => (
                 <MomentCard
