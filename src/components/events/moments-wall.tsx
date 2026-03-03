@@ -230,89 +230,100 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl, onAppro
             </span>
           )}
         </span>
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {!video && (
-            <div className="hidden sm:flex items-center gap-2">
-              <button
-                onClick={() => setScale((s) => Math.max(0.5, s - 0.25))}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-                title="Alejar"
-              >
-                <MagnifyingGlassMinusIcon className="size-5" />
-              </button>
-              <button
-                onClick={() => setScale((s) => Math.min(4, s + 0.25))}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-                title="Acercar"
-              >
-                <MagnifyingGlassPlusIcon className="size-5" />
-              </button>
-            </div>
-          )}
+          {/* Desktop-only controls */}
+          <div className="hidden md:flex items-center gap-1 sm:gap-2 shrink-0">
+            {!video && (
+              <div className="hidden sm:flex items-center gap-2">
+                <button
+                  onClick={() => setScale((s) => Math.max(0.5, s - 0.25))}
+                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  title="Alejar"
+                >
+                  <MagnifyingGlassMinusIcon className="size-5" />
+                </button>
+                <button
+                  onClick={() => setScale((s) => Math.min(4, s + 0.25))}
+                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+                  title="Acercar"
+                >
+                  <MagnifyingGlassPlusIcon className="size-5" />
+                </button>
+              </div>
+            )}
 
-          {/* Approve / Unapprove */}
-          {!moment.is_approved ? (
+            {/* Approve / Unapprove */}
+            {!moment.is_approved ? (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  setActioning('approve')
+                  await onApprove(moment)
+                  setActioning(null)
+                }}
+                disabled={actioning !== null}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-lime-500/20 hover:bg-lime-500/30 text-lime-300 text-xs font-semibold transition-colors disabled:opacity-40"
+                title="Aprobar momento"
+              >
+                <CheckIcon className="size-4 shrink-0" />
+                <span className="hidden sm:inline">{actioning === 'approve' ? '…' : 'Aprobar'}</span>
+              </button>
+            ) : (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  setActioning('unapprove')
+                  await onUnapprove(moment)
+                  setActioning(null)
+                }}
+                disabled={actioning !== null}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold transition-colors disabled:opacity-40"
+                title="Desaprobar momento"
+              >
+                <ArrowUturnLeftIcon className="size-4 shrink-0" />
+                <span className="hidden sm:inline">{actioning === 'unapprove' ? '…' : 'Desaprobar'}</span>
+              </button>
+            )}
+
+            {/* Delete */}
             <button
               onClick={async (e) => {
                 e.stopPropagation()
-                setActioning('approve')
-                await onApprove(moment)
+                setActioning('delete')
+                await onDelete(moment)
                 setActioning(null)
               }}
               disabled={actioning !== null}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-lime-500/20 hover:bg-lime-500/30 text-lime-300 text-xs font-semibold transition-colors disabled:opacity-40"
-              title="Aprobar momento"
+              className="p-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 transition-colors disabled:opacity-40"
+              title="Eliminar momento"
             >
-              <CheckIcon className="size-4 shrink-0" />
-              <span className="hidden sm:inline">{actioning === 'approve' ? '…' : 'Aprobar'}</span>
+              <TrashIcon className="size-5" />
             </button>
-          ) : (
+
             <button
-              onClick={async (e) => {
-                e.stopPropagation()
-                setActioning('unapprove')
-                await onUnapprove(moment)
-                setActioning(null)
-              }}
-              disabled={actioning !== null}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold transition-colors disabled:opacity-40"
-              title="Desaprobar momento"
+              onClick={handleDownload}
+              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+              title="Descargar"
             >
-              <ArrowUturnLeftIcon className="size-4 shrink-0" />
-              <span className="hidden sm:inline">{actioning === 'unapprove' ? '…' : 'Desaprobar'}</span>
+              <ArrowDownTrayIcon className="size-5" />
             </button>
-          )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+              title="Cerrar (Esc)"
+            >
+              <XMarkIcon className="size-5" />
+            </button>
+          </div>
 
-          {/* Delete */}
+          {/* Mobile-only close button */}
           <button
-            onClick={async (e) => {
-              e.stopPropagation()
-              setActioning('delete')
-              await onDelete(moment)
-              setActioning(null)
-            }}
-            disabled={actioning !== null}
-            className="p-2 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 transition-colors disabled:opacity-40"
-            title="Eliminar momento"
-          >
-            <TrashIcon className="size-5" />
-          </button>
-
-          <button
-            onClick={handleDownload}
-            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-            title="Descargar"
-          >
-            <ArrowDownTrayIcon className="size-5" />
-          </button>
-          <button
+            type="button"
             onClick={onClose}
-            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-            title="Cerrar (Esc)"
+            className="md:hidden p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            aria-label="Cerrar"
           >
-            <XMarkIcon className="size-5" />
+            <XMarkIcon className="w-4 h-4" />
           </button>
-        </div>
       </div>
 
       {/* Prev — hidden on mobile, use swipe instead */}
@@ -361,6 +372,64 @@ function Lightbox({ moments, index, onClose, onNext, onPrev, resolveUrl, onAppro
           </div>
         </div>
       )}
+
+      {/* Mobile bottom action bar — md:hidden */}
+      <div
+        className="md:hidden absolute bottom-0 left-0 right-0 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-t from-black/80 to-transparent z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {!moment.is_approved && moment.processing_status !== 'failed' && (
+          <button
+            type="button"
+            onClick={async () => {
+              setActioning('approve')
+              await onApprove(moment)
+              setActioning(null)
+            }}
+            disabled={actioning !== null}
+            className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl bg-lime-500/20 hover:bg-lime-500/30 text-lime-300 text-sm font-semibold transition-colors disabled:opacity-40"
+          >
+            <CheckIcon className="w-4 h-4" />
+            {actioning === 'approve' ? '…' : 'Aprobar'}
+          </button>
+        )}
+        {moment.is_approved && (
+          <button
+            type="button"
+            onClick={async () => {
+              setActioning('unapprove')
+              await onUnapprove(moment)
+              setActioning(null)
+            }}
+            disabled={actioning !== null}
+            className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-sm font-semibold transition-colors disabled:opacity-40"
+          >
+            <ArrowUturnLeftIcon className="w-4 h-4" />
+            {actioning === 'unapprove' ? '…' : 'Quitar'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={async () => {
+            setActioning('delete')
+            await onDelete(moment)
+            setActioning(null)
+          }}
+          disabled={actioning !== null}
+          className="flex items-center justify-center w-12 h-12 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 transition-colors disabled:opacity-40"
+          aria-label="Eliminar"
+        >
+          <TrashIcon className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={handleDownload}
+          className="flex items-center justify-center w-12 h-12 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+          aria-label="Descargar"
+        >
+          <ArrowDownTrayIcon className="w-4 h-4" />
+        </button>
+      </div>
 
       {/* Next — hidden on mobile, use swipe instead */}
       {moments.length > 1 && (
