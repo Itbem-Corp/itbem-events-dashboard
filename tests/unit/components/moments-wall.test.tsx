@@ -611,6 +611,23 @@ describe('MomentsWall — time grouping', () => {
   })
 })
 
+describe('MomentsWall — filter tabs scroll', () => {
+
+    beforeEach(() => vi.clearAllMocks())
+
+    it('tablist has overflow-x-auto class for horizontal scroll', async () => {
+        await renderWall([])
+        const tablist = screen.getByRole('tablist')
+        expect(tablist.className).toContain('overflow-x-auto')
+    })
+
+    it('each tab has flex-shrink-0 so it does not compress', async () => {
+        await renderWall([])
+        const tabs = screen.getAllByRole('tab')
+        tabs.forEach(tab => expect(tab.className).toContain('flex-shrink-0'))
+    })
+})
+
 describe('MomentsWall — ZIP split dropdown', () => {
 
     beforeEach(() => vi.clearAllMocks())
