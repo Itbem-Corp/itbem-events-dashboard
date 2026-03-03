@@ -641,6 +641,83 @@ function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uplo
   )
 }
 
+// ─── Reoptimizing section ─────────────────────────────────────────────────
+
+interface ReoptimizingSectionProps {
+  moments: Moment[]
+  resolveUrl: (m: Moment) => string
+}
+
+function ReoptimizingSection({ moments, resolveUrl }: ReoptimizingSectionProps) {
+  const [collapsed, setCollapsed] = useState(false)
+
+  if (moments.length === 0) return null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.2 }}
+      className="mx-4 mt-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5 overflow-hidden"
+    >
+      {/* Header */}
+      <button
+        type="button"
+        onClick={() => setCollapsed((v) => !v)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+      >
+        <ArrowPathIcon className="size-3.5 text-indigo-400 animate-spin shrink-0" />
+        <span className="text-xs font-medium text-indigo-300 flex-1">
+          Procesando ({moments.length})
+        </span>
+        <span className="text-[10px] text-indigo-400/60">
+          {collapsed ? 'mostrar' : 'ocultar'}
+        </span>
+      </button>
+
+      {/* Cards */}
+      <AnimatePresence>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 px-4 pb-4">
+              {moments.map((m) => {
+                const url = resolveUrl(m)
+                const video = url && isVideo(url)
+                const thumb = video ? m.thumbnail_url : url
+                return (
+                  <div key={m.id} className="relative aspect-square rounded-lg overflow-hidden bg-zinc-800">
+                    {thumb && (
+                      <Image
+                        src={thumb}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="96px"
+                        unoptimized
+                      />
+                    )}
+                    {/* Spinner overlay */}
+                    <div className="absolute inset-0 bg-zinc-900/60 flex items-center justify-center">
+                      <ArrowPathIcon className="size-5 text-indigo-400 animate-spin" />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
 // ─── Processing status badge ──────────────────────────────────────────────────
 
 function ProcessingBadge({ status }: { status: Moment['processing_status'] }) {
@@ -1109,6 +1186,26 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     revalidateOnFocus: false,
     refreshInterval: isTabVisible && !dragMode ? REFRESH_INTERVAL : 0,
   })
+
+  // ─── In-flight re-optimization (separate 5s hook) ────────────────────────
+  const reoptimizingSwrKey = eventId ? `/moments/reoptimizing?event_id=${eventId}` : null
+  const { data: reoptimizingMoments = [] } = useSWR<Moment[]>(reoptimizingSwrKey, fetcher, {
+    revalidateOnFocus: false,
+    refreshInterval: isTabVisible ? 5_000 : 0,
+  })
+
+  // Toast when Lambda finishes — fires when count drops
+  const prevReoptimizingCount = useRef(0)
+  useEffect(() => {
+    const curr = reoptimizingMoments.length
+    const prev = prevReoptimizingCount.current
+    if (prev > 0 && curr < prev) {
+      const finished = prev - curr
+      toast.success(`${finished} archivo${finished !== 1 ? 's' : ''} reoptimizado${finished !== 1 ? 's' : ''}`)
+    }
+    prevReoptimizingCount.current = curr
+  }, [reoptimizingMoments.length])
+
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   // Local ordered copy used only while drag mode is active
   const [orderedMoments, setOrderedMoments] = useState<Moment[]>([])
@@ -2243,6 +2340,16 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           />
         )}
       </BottomSheet>
+
+      {/* ── Re-optimization in-flight section ────────────────────────── */}
+      <AnimatePresence>
+        {reoptimizingMoments.length > 0 && (
+          <ReoptimizingSection
+            moments={reoptimizingMoments}
+            resolveUrl={resolveUrl}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Grid ───────────────────────────────────────────────────────── */}
       <div role="tabpanel" id={`tab-panel-${filter}`}>
