@@ -719,6 +719,170 @@ function ReoptimizingSection({ moments, resolveUrl }: ReoptimizingSectionProps) 
   )
 }
 
+// ─── FailedSection ──────────────────────────────────────────────────────────
+// Shows Lambda-failed moments above the main grid.
+// • Error message visible on hover/long-press per card.
+// • Individual retry per card + "retry all" in header.
+// • Smart retry: raw S3 key → PUT /moments/:id/requeue
+//               opt S3 key → POST /moments/batch/reoptimize (ForceReoptimize)
+
+interface FailedSectionProps {
+  moments: Moment[]
+  resolveUrl: (m: Moment) => string
+  onRetried: () => void
+}
+
+function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
+  const [collapsed, setCollapsed] = useState(false)
+  const [retrying, setRetrying] = useState<Set<string>>(new Set())
+  const [retryingAll, setRetryingAll] = useState(false)
+
+  if (moments.length === 0) return null
+
+  async function retryOne(m: Moment) {
+    if (retrying.has(m.id)) return
+    setRetrying(prev => new Set(prev).add(m.id))
+    try {
+      if (m.content_url.includes('/raw/')) {
+        await api.put(`/moments/${m.id}/requeue`, {})
+      } else {
+        await api.post('/moments/batch/reoptimize', { ids: [m.id] })
+      }
+    } catch {
+      toast.error('Error al reintentar')
+    } finally {
+      setRetrying(prev => { const s = new Set(prev); s.delete(m.id); return s })
+      onRetried()
+    }
+  }
+
+  async function retryAll() {
+    if (retryingAll) return
+    setRetryingAll(true)
+    const toastId = toast.loading(`Reintentando ${moments.length} momentos…`)
+    const rawMoments = moments.filter(m => m.content_url.includes('/raw/'))
+    const optMoments = moments.filter(m => !m.content_url.includes('/raw/'))
+    let succeeded = 0
+    let failed = 0
+
+    for (const m of rawMoments) {
+      try { await api.put(`/moments/${m.id}/requeue`, {}); succeeded++ }
+      catch { failed++ }
+    }
+
+    const CHUNK = 200
+    for (let i = 0; i < optMoments.length; i += CHUNK) {
+      const chunk = optMoments.slice(i, i + CHUNK)
+      try {
+        const res = await api.post('/moments/batch/reoptimize', { ids: chunk.map(m => m.id) })
+        const { succeeded: s = 0, failed: f = 0 } = res.data?.data ?? {}
+        succeeded += s; failed += f
+      } catch { failed += chunk.length }
+    }
+
+    setRetryingAll(false)
+    if (failed > 0) {
+      toast.error(`${succeeded} reencolados, ${failed} con error`, { id: toastId })
+    } else {
+      toast.success(`${succeeded} momentos reencolados`, { id: toastId })
+    }
+    onRetried()
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.2 }}
+      className="mx-4 mt-4 rounded-xl border border-red-500/20 bg-red-500/5 overflow-hidden"
+    >
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-2.5">
+        <button
+          type="button"
+          onClick={() => setCollapsed(v => !v)}
+          className="flex items-center gap-2 flex-1 text-left hover:opacity-80 transition-opacity"
+        >
+          <ExclamationTriangleIcon className="size-3.5 text-red-400 shrink-0" />
+          <span className="text-xs font-medium text-red-300 flex-1">
+            Fallidos ({moments.length})
+          </span>
+          <span className="text-[10px] text-red-400/60">{collapsed ? 'mostrar' : 'ocultar'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={retryAll}
+          disabled={retryingAll}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-red-500/10 text-red-300 hover:bg-red-500/20 transition-colors disabled:opacity-50 shrink-0"
+        >
+          {retryingAll
+            ? <ArrowPathIcon className="size-3 animate-spin" />
+            : <ArrowPathIcon className="size-3" />
+          }
+          Reintentar todos
+        </button>
+      </div>
+
+      {/* Cards grid */}
+      <AnimatePresence>
+        {!collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 px-4 pb-4">
+              {moments.map((m) => {
+                const url = resolveUrl(m)
+                const video = url && isVideo(url)
+                const thumb = video ? m.thumbnail_url : url
+                const spinning = retrying.has(m.id)
+                return (
+                  <div key={m.id} className="group relative aspect-square rounded-lg overflow-hidden bg-zinc-900">
+                    {thumb ? (
+                      <Image src={thumb} alt="" fill className="object-cover opacity-40" sizes="96px" unoptimized />
+                    ) : (
+                      <div className="absolute inset-0 bg-zinc-800" />
+                    )}
+
+                    {/* Error message — shown on hover */}
+                    {m.error_message && (
+                      <div className="absolute inset-x-0 bottom-0 bg-black/80 px-1.5 py-1 translate-y-full group-hover:translate-y-0 transition-transform duration-150 z-10">
+                        <p className="text-[9px] text-red-300 line-clamp-3 leading-tight">{m.error_message}</p>
+                      </div>
+                    )}
+
+                    {/* Retry button overlay */}
+                    <button
+                      type="button"
+                      onClick={() => retryOne(m)}
+                      disabled={spinning}
+                      className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/50 transition-colors"
+                      title={m.error_message ?? 'Lambda falló — click para reintentar'}
+                    >
+                      {spinning ? (
+                        <ArrowPathIcon className="size-5 text-white animate-spin" />
+                      ) : (
+                        <div className="flex flex-col items-center gap-1">
+                          <ExclamationTriangleIcon className="size-4 text-red-400" />
+                          <span className="text-[9px] text-white/70 font-medium group-hover:text-white transition-colors">retry</span>
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
 // ─── Processing status badge ──────────────────────────────────────────────────
 
 function ProcessingBadge({ status }: { status: Moment['processing_status'] }) {
@@ -1305,11 +1469,10 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
     const filteredMoments = moments.filter((m) => {
       if (filter === 'pending')  return !m.is_approved && m.processing_status !== 'failed'
       if (filter === 'approved') return m.is_approved
-      if (filter === 'failed')   return m.processing_status === 'failed'
       if (filter === 'photos')   return m.is_approved && !!resolveUrl(m) && !isVideo(resolveUrl(m))
       if (filter === 'videos')   return m.is_approved && !!resolveUrl(m) && isVideo(resolveUrl(m))
       if (filter === 'notes')    return !!m.description?.trim()
-      return true
+      return m.processing_status !== 'failed'
     }).filter((m) => {
       if (!timeRange) return true
       if (!m.created_at) return true
@@ -1494,6 +1657,11 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
 
   const oversizedMoments = useMemo(
     () => (moments ?? []).filter(isOversized),
+    [moments]
+  )
+
+  const failedMoments = useMemo(
+    () => (moments ?? []).filter((m) => m.processing_status === 'failed'),
     [moments]
   )
 
@@ -2166,7 +2334,6 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             ...(photoCount  > 0 ? [{ value: 'photos', label: 'Fotos',  count: photoCount  }] : []),
             ...(videoCount  > 0 ? [{ value: 'videos', label: 'Videos', count: videoCount  }] : []),
             ...(notesCount  > 0 ? [{ value: 'notes',  label: 'Notas',  count: notesCount  }] : []),
-            ...(failedCount > 0 ? [{ value: 'failed', label: 'Errores', count: failedCount }] : []),
           ] as const).map((f) => (
             <button
               key={f.value}
@@ -2325,6 +2492,17 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           />
         )}
       </BottomSheet>
+
+      {/* ── Failed moments section ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {failedMoments.length > 0 && (
+          <FailedSection
+            moments={failedMoments}
+            resolveUrl={resolveUrl}
+            onRetried={() => globalMutate(swrKey)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── Re-optimization in-flight section ────────────────────────── */}
       <AnimatePresence>

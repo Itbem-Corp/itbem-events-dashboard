@@ -31,4 +31,6 @@ export interface Moment extends BaseEntity {
   optimized_size_bytes?: number
   /** Original MIME type from upload (e.g. 'image/jpeg', 'video/mp4') */
   content_type?: string
+  /** Error detail from Lambda — populated when processing_status = 'failed' */
+  error_message?: string
 }
