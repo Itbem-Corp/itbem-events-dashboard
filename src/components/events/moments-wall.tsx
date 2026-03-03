@@ -412,7 +412,7 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        className="relative rounded-2xl bg-zinc-900 border border-white/10 p-6 w-full max-w-sm flex flex-col items-center gap-4 shadow-2xl"
+        className="relative rounded-2xl bg-zinc-900 border border-white/10 p-6 w-full max-w-sm mx-4 flex flex-col items-center gap-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -496,7 +496,7 @@ function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uplo
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        className="relative rounded-2xl bg-zinc-900 border border-white/10 p-6 w-full max-w-sm flex flex-col items-center gap-4 shadow-2xl"
+        className="relative rounded-2xl bg-zinc-900 border border-white/10 p-6 w-full max-w-sm mx-4 flex flex-col items-center gap-4 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <button
