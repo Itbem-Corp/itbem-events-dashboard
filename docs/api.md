@@ -149,6 +149,21 @@ toast.error('Failed')
 | DELETE | `/moments/:id` | Delete moment |
 | POST | `/moments/batch/reoptimize` | Re-queue oversized optimized moments for a second Lambda pass. Body: `{ ids: string[] }` (max 200). Response: `{ succeeded, skipped, failed }` |
 
+### GET /moments/reoptimizing
+
+Returns moments currently queued for re-optimization (`processing_status` is `pending` or `processing`) whose `content_url` is already an optimized path (not `/raw/`). Used by the dashboard to show an in-flight processing section while Lambda works.
+
+**Query params:** `event_id` (UUID, required)
+
+**Response 200:**
+```json
+{ "data": [ ...Moment[] ] }
+```
+
+**Response 400:** `event_id` missing or invalid UUID
+
+**Notes:** Only returns moments whose `content_url` does not contain `/raw/` — i.e., already-processed files being re-optimized, not fresh uploads. Dashboard polls this endpoint every 5 seconds and fires a completion toast when the count drops.
+
 ### Moments (public — no auth)
 
 | Method | Path | Notes |
