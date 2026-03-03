@@ -119,7 +119,7 @@ describe('MomentsWall — empty state', () => {
 
     it('shows coming-soon hero when no moments at all', async () => {
         await renderWall([])
-        expect(screen.getByText('El muro de momentos esta listo')).toBeInTheDocument()
+        expect(screen.getByText('El muro de momentos está listo')).toBeInTheDocument()
         expect(screen.getByText(/Cuando los invitados compartan fotos/)).toBeInTheDocument()
     })
 
