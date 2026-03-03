@@ -147,6 +147,7 @@ toast.error('Failed')
 | GET | `/moments?event_id=:id` | List all moments for an event |
 | PUT | `/moments/:id` | Update moment — used to approve (`is_approved: true`) |
 | DELETE | `/moments/:id` | Delete moment |
+| POST | `/moments/batch/reoptimize` | Re-queue oversized optimized moments for a second Lambda pass. Body: `{ ids: string[] }` (max 200). Response: `{ succeeded, skipped, failed }` |
 
 ### Moments (public — no auth)
 

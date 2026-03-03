@@ -16,9 +16,11 @@ All entities extend `BaseEntity` (`id: number`, `created_at`, `updated_at`, `del
 
 **Resource** — `path` `url` `file_name` `file_size` `mime_type` `resource_type_id` `resource_type?` — scoped to `event_id?` or `user_id?`
 
-**Moment** — `event_id` `invitation_id?` `content_url` `thumbnail_url?` `description?` `is_approved` `processing_status` (`ProcessingStatus`) `order?`
+**Moment** — `event_id` `invitation_id?` `content_url` `thumbnail_url?` `description?` `is_approved` `processing_status` (`ProcessingStatus`) `order?` `original_size_bytes?` `optimized_size_bytes?` `content_type?`
 
 `ProcessingStatus` = `''` (legacy) | `'pending'` | `'processing'` | `'done'` | `'failed'`
+
+**Oversized thresholds** — photo: `optimized_size_bytes > 100_000` (100 KB) · video: `optimized_size_bytes > 5_000_000` (5 MB) · only applies when `processing_status === 'done'` and `optimized_size_bytes > 0`
 
 ## Supporting Entities
 
