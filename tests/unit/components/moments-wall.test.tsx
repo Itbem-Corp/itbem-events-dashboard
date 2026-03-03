@@ -389,9 +389,9 @@ describe('MomentsWall — moment card content', () => {
         expect(screen.getByText('En cola')).toBeInTheDocument()
     })
 
-    it('shows error state for failed processing', async () => {
+    it('shows failed moment in FailedSection instead of main grid', async () => {
         await renderWall([makeMoment({ processing_status: 'failed' })])
-        expect(screen.getByText('Error al procesar')).toBeInTheDocument()
+        expect(screen.getByText('Fallidos (1)')).toBeInTheDocument()
     })
 
     it('shows description chip when moment has media and a description', async () => {
