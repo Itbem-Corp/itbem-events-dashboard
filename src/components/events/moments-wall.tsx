@@ -1822,6 +1822,23 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
             <span className="sm:hidden">{wallPublished ? 'Publicado' : 'Publicar'}</span>
           </button>
 
+          {/* TV mode link */}
+          {eventIdentifier && (
+            <a
+              href={`${process.env.NEXT_PUBLIC_ASTRO_URL ?? 'http://localhost:4321'}/e/${eventIdentifier}/tv`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 border border-white/10 transition-colors"
+              title="Abrir modo TV en nueva pestaña"
+              aria-label="Abrir modo TV en nueva pestaña"
+            >
+              <svg className="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125z" />
+              </svg>
+              <span className="hidden sm:inline">Modo TV</span>
+            </a>
+          )}
+
           {/* Separator */}
           <div className="hidden sm:block h-5 w-px bg-white/10" />
 
