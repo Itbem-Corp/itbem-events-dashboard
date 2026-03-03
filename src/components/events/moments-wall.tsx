@@ -68,8 +68,9 @@ function formatBytes(bytes: number): string {
 }
 
 function isOversized(m: Moment): boolean {
-  if (!m.optimized_size_bytes || m.optimized_size_bytes === 0) return false
   if (m.processing_status !== 'done') return false
+  // No size data (legacy/pre-metric moments) — include as candidates so Lambda can report their size
+  if (!m.optimized_size_bytes || m.optimized_size_bytes === 0) return true
   return isVideo(m.content_url)
     ? m.optimized_size_bytes > OVERSIZED_VIDEO_BYTES
     : m.optimized_size_bytes > OVERSIZED_PHOTO_BYTES
@@ -2197,6 +2198,23 @@ export function MomentsWall({ eventId, eventIdentifier, eventName, shareUploadsE
           label="Ver muro público"
           onClick={() => { setShowMoreSheet(false); window.open(wallUrl, '_blank') }}
         />
+        <SheetRow
+          icon={<EyeIcon className="w-4 h-4" />}
+          label={generatingPreview ? 'Generando preview…' : 'Vista previa (solo tú)'}
+          disabled={generatingPreview}
+          onClick={() => { setShowMoreSheet(false); handleOpenPreview() }}
+        />
+        {eventIdentifier && (
+          <SheetRow
+            icon={
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125z" />
+              </svg>
+            }
+            label="Modo TV"
+            onClick={() => { setShowMoreSheet(false); window.open(`${siteUrl}/e/${eventIdentifier}/tv`, '_blank') }}
+          />
+        )}
         <SheetRow
           icon={
             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
