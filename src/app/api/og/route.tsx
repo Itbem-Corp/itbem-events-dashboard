@@ -76,7 +76,6 @@ export async function GET(req: NextRequest) {
                                 fontSize: '18px',
                                 fontWeight: 700,
                                 color: '#ffffff',
-                                textShadow: '0 1px 4px rgba(0,0,0,0.6)',
                                 fontFamily: 'Inter, sans-serif',
                                 letterSpacing: '-0.3px',
                             }}
