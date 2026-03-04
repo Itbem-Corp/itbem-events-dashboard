@@ -34,11 +34,21 @@ export function EventCoverUpload({ event }: Props) {
       const fd = new FormData()
       fd.append('file', file)
 
-      await api.post(`/events/${event.id}/cover`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      const res = await api.post<{ data: { cover_image_url: string; view_url: string } }>(
+        `/events/${event.id}/cover`, fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      )
 
-      await mutate(`/events/${event.id}`)
+      // Use the presigned view_url from the response to update the SWR cache directly.
+      // Revalidating would fetch from the public endpoint which may return the raw S3 path.
+      const viewUrl = res.data?.data?.view_url || res.data?.data?.cover_image_url
+      await mutate(`/events/${event.id}`, (current: unknown) => {
+        const patch = (e: Record<string, unknown>) => ({ ...e, cover_image_url: viewUrl })
+        if (Array.isArray(current)) return current.map((e, i) => (i === 0 ? patch(e) : e))
+        if (current && typeof current === 'object') return patch(current as Record<string, unknown>)
+        return current
+      }, { revalidate: false })
+
       toast.success('Portada actualizada')
     } catch {
       toast.error('Error al subir la portada')
@@ -62,12 +72,15 @@ export function EventCoverUpload({ event }: Props) {
 
   const handleRemoveCover = async () => {
     try {
-      await api.put(`/events/${event.id}`, {
-        name: event.name,
-        identifier: event.identifier,
-        cover_image_url: '',
-      })
-      await mutate(`/events/${event.id}`)
+      // Spread full event so GORM receives all required fields (client_id, event_type_id, etc.)
+      // A sparse payload causes 0 rows affected when GORM tries to zero out NOT NULL columns.
+      await api.put(`/events/${event.id}`, { ...event, cover_image_url: '' })
+      await mutate(`/events/${event.id}`, (current: unknown) => {
+        const patch = (e: Record<string, unknown>) => ({ ...e, cover_image_url: '' })
+        if (Array.isArray(current)) return current.map((e, i) => (i === 0 ? patch(e) : e))
+        if (current && typeof current === 'object') return patch(current as Record<string, unknown>)
+        return current
+      }, { revalidate: false })
       toast.success('Portada eliminada')
     } catch {
       toast.error('Error al eliminar la portada')
