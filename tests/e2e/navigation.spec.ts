@@ -16,6 +16,21 @@ test.describe('Navegación global', () => {
     await page.waitForLoadState('networkidle')
   })
 
+  test('la búsqueda global muestra progreso accesible durante una navegación imperativa lenta', async ({ page }) => {
+    await page.route(/http:\/\/localhost:3000\/events(?:\?.*)?$/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await route.continue()
+    })
+
+    await page.keyboard.press('Control+k')
+    await expect(page.getByRole('dialog')).toBeVisible()
+    await page.getByText('Ir a Eventos', { exact: true }).click()
+
+    await expect(page.getByText('Cargando nueva vista', { exact: true })).toBeVisible()
+    await expect(page).toHaveURL('/events')
+    await expect(page.getByText('Cargando nueva vista', { exact: true })).not.toBeVisible()
+  })
+
   // ─── Sidebar desktop ────────────────────────────────────────
 
   test.describe('Sidebar (desktop)', () => {
@@ -24,7 +39,7 @@ test.describe('Navegación global', () => {
     test('el sidebar muestra los ítems de navegación principales', async ({ page }) => {
       await expect(page.getByRole('link', { name: /^Inicio$/i })).toBeVisible()
       await expect(page.getByRole('link', { name: /^Eventos$/i })).toBeVisible()
-      await expect(page.getByRole('link', { name: /^Órdenes$/i })).toBeVisible()
+      await expect(page.getByRole('link', { name: /^Órdenes$/i })).toHaveCount(0)
       await expect(page.getByRole('link', { name: /^Usuarios$/i })).toBeVisible()
       await expect(page.getByRole('link', { name: /^Clientes$/i })).toBeVisible()
     })
@@ -42,6 +57,33 @@ test.describe('Navegación global', () => {
       await expect(page.getByRole('heading', { name: 'Eventos' })).toBeVisible()
     })
 
+    test('el hover no vuelve a consultar una ruta que ya está en caché', async ({ page }) => {
+      await page.getByRole('link', { name: /^Eventos$/i }).hover()
+      await page.getByRole('link', { name: /^Eventos$/i }).click()
+      await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible()
+
+      await page.getByRole('link', { name: /^Inicio$/i }).click()
+      await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible()
+
+      const repeatedRequests: string[] = []
+      page.on('request', (request) => {
+        const url = new URL(request.url())
+        if (
+          request.method() === 'GET' &&
+          url.origin === 'http://localhost:8080' &&
+          url.pathname === '/api/events' &&
+          url.searchParams.get('page') === '1'
+        ) {
+          repeatedRequests.push(url.href)
+        }
+      })
+
+      await page.getByRole('link', { name: /^Eventos$/i }).hover()
+      await page.waitForTimeout(200)
+
+      expect(repeatedRequests).toEqual([])
+    })
+
     test('Usuarios lleva a la lista de usuarios', async ({ page }) => {
       await page.getByRole('link', { name: /^Usuarios$/i }).click()
       await page.waitForLoadState('networkidle')
@@ -54,13 +96,6 @@ test.describe('Navegación global', () => {
       await page.waitForLoadState('networkidle')
       await expect(page).toHaveURL('/clients')
       await expect(page.getByRole('heading', { name: 'Clientes' })).toBeVisible()
-    })
-
-    test('Órdenes lleva a la página de órdenes', async ({ page }) => {
-      await page.getByRole('link', { name: /^Órdenes$/i }).click()
-      await page.waitForLoadState('networkidle')
-      await expect(page).toHaveURL('/orders')
-      await expect(page.getByRole('heading', { name: 'Órdenes' })).toBeVisible()
     })
 
     test('el sidebar muestra el nombre del cliente actual', async ({ page }) => {

@@ -1,3 +1,4 @@
+import { AUTH_COOKIE_NAMES } from '@/lib/auth-session'
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -21,9 +22,11 @@ export async function GET() {
     expires: new Date(0), // Refuerzo para navegadores antiguos
   };
 
-  response.cookies.set("session", "", cookieOptions);
+  response.cookies.set(AUTH_COOKIE_NAMES.session, "", cookieOptions);
   response.cookies.set("access_token", "", cookieOptions);
-  response.cookies.set("refresh_token", "", cookieOptions);
+  response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, "", cookieOptions);
+  response.cookies.set(AUTH_COOKIE_NAMES.oauthState, "", cookieOptions);
+  response.cookies.set(AUTH_COOKIE_NAMES.pkceVerifier, "", cookieOptions);
 
   return response;
 }

@@ -8,6 +8,8 @@ export function Combobox<T>({
   options,
   displayValue,
   filter,
+  remoteFiltering = false,
+  onQueryChange,
   anchor = 'bottom',
   className,
   placeholder,
@@ -19,6 +21,8 @@ export function Combobox<T>({
   options: T[]
   displayValue: (value: T | null) => string | undefined
   filter?: (value: T, query: string) => boolean
+  remoteFiltering?: boolean
+  onQueryChange?: (query: string) => void
   className?: string
   placeholder?: string
   autoFocus?: boolean
@@ -28,14 +32,22 @@ export function Combobox<T>({
   const [query, setQuery] = useState('')
 
   const filteredOptions =
-    query === ''
+    remoteFiltering || query === ''
       ? options
       : options.filter((option) =>
           filter ? filter(option, query) : displayValue(option)?.toLowerCase().includes(query.toLowerCase())
         )
 
   return (
-    <Headless.Combobox {...props} multiple={false} virtual={{ options: filteredOptions }} onClose={() => setQuery('')}>
+    <Headless.Combobox
+      {...props}
+      multiple={false}
+      virtual={{ options: filteredOptions }}
+      onClose={() => {
+        setQuery('')
+        onQueryChange?.('')
+      }}
+    >
       <span
         data-slot="control"
         className={clsx([
@@ -59,7 +71,10 @@ export function Combobox<T>({
           data-slot="control"
           aria-label={ariaLabel}
           displayValue={(option: T) => displayValue(option) ?? ''}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value)
+            onQueryChange?.(event.target.value)
+          }}
           placeholder={placeholder}
           className={clsx([
             className,

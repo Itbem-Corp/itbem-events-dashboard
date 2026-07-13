@@ -1,19 +1,48 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import useSWR, { mutate as globalMutate } from 'swr'
-import { fetcher } from '@/lib/fetcher'
-import { motion, AnimatePresence } from 'motion/react'
+import { UploadStatus } from '@/components/ui/upload-status'
+import { useUploadTask } from '@/hooks/use-upload-task'
 import { api } from '@/lib/api'
-import { toast } from 'sonner'
+import { readApiData } from '@/lib/api-envelope'
+import {
+  resourcePath,
+  resourceReplacePath,
+  resourcesPath,
+  resourceTypesPath,
+  sectionResourcesPath,
+} from '@/lib/api-paths'
+import { fetcher } from '@/lib/fetcher'
+import { prepareImageForUpload } from '@/lib/image-upload-optimization'
+import {
+  getSectionResourcesRefreshDelay,
+  hasResourceFileMutationData,
+  patchResourceFileCacheValue,
+  removeResourceCacheValue,
+  sectionResourcesMediaRefreshKey,
+  upsertResourceCacheValue,
+} from '@/lib/resource-cache'
+import { readResourceMediaUrl } from '@/lib/resource-media'
+import {
+  SECTION_IMAGE_UPLOAD_ACCEPT,
+  SECTION_IMAGE_UPLOAD_LIMIT_HELP_TEXT,
+  sectionImageUploadValidationError,
+} from '@/lib/resource-upload-policy'
+import { canonicalSectionType } from '@/lib/section-type-aliases'
+import { getUploadErrorMessage } from '@/lib/upload-transport'
 import type { EventSection } from '@/models/EventSection'
+import type { Resource, ResourceFileMutationResponse } from '@/models/Resource'
+import { AnimatePresence, motion } from 'motion/react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
+import useSWR from 'swr'
 
 import {
-  PhotoIcon,
-  TrashIcon,
+  ArrowPathIcon,
   ArrowUpTrayIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
+  PhotoIcon,
+  TrashIcon,
 } from '@heroicons/react/20/solid'
 
 // ─── Section image requirements per SDUI component type ──────────────────────
@@ -21,33 +50,32 @@ import {
 const SECTION_IMAGES: Record<string, Array<{ position: number; label: string; ratio: string }>> = {
   GraduationHero: [
     { position: 0, label: 'Imagen principal (hero)', ratio: '3:2' },
-    { position: 1, label: 'Logo de la escuela',       ratio: '1:1' },
+    { position: 1, label: 'Logo de la escuela', ratio: '1:1' },
   ],
   EventVenue: [
     { position: 0, label: 'Foto izquierda (columna 2)', ratio: '3:2' },
-    { position: 1, label: 'Foto derecha (columna 2)',   ratio: '3:2' },
-    { position: 2, label: 'Foto central (centrada)',    ratio: '3:2' },
+    { position: 1, label: 'Foto derecha (columna 2)', ratio: '3:2' },
+    { position: 2, label: 'Foto central (centrada)', ratio: '3:2' },
   ],
   Reception: [
     { position: 0, label: 'Foto superior izquierda', ratio: '3:2' },
-    { position: 1, label: 'Foto superior derecha',   ratio: '3:2' },
+    { position: 1, label: 'Foto superior derecha', ratio: '3:2' },
     { position: 2, label: 'Foto inferior izquierda', ratio: '3:2' },
-    { position: 3, label: 'Foto inferior derecha',   ratio: '3:2' },
+    { position: 3, label: 'Foto inferior derecha', ratio: '3:2' },
   ],
-  GraduatesList: [
-    { position: 0, label: 'Foto grupal (footer)', ratio: '5:2' },
-  ],
+  GraduatesList: [{ position: 0, label: 'Foto grupal (footer)', ratio: '5:2' }],
   PhotoGrid: [
-    { position: 0, label: 'Foto 1 (fila 2-col)',   ratio: '3:2' },
-    { position: 1, label: 'Foto 2 (fila 2-col)',   ratio: '3:2' },
-    { position: 2, label: 'Foto 3 (fila 3-col)',   ratio: '4:3' },
-    { position: 3, label: 'Foto 4 (fila 3-col)',   ratio: '4:3' },
-    { position: 4, label: 'Foto 5 (fila 3-col)',   ratio: '4:3' },
+    { position: 0, label: 'Foto 1 (fila 2-col)', ratio: '3:2' },
+    { position: 1, label: 'Foto 2 (fila 2-col)', ratio: '3:2' },
+    { position: 2, label: 'Foto 3 (fila 3-col)', ratio: '4:3' },
+    { position: 3, label: 'Foto 4 (fila 3-col)', ratio: '4:3' },
+    { position: 4, label: 'Foto 5 (fila 3-col)', ratio: '4:3' },
   ],
   RSVPConfirmation: [
-    { position: 0, label: 'Imagen "Declinado"',   ratio: '3:2' },
-    { position: 1, label: 'Imagen "Confirmado"',  ratio: '3:2' },
+    { position: 0, label: 'Imagen "Declinado"', ratio: '3:2' },
+    { position: 1, label: 'Imagen "Confirmado"', ratio: '3:2' },
   ],
+  HERO: [{ position: 0, label: 'Imagen de portada', ratio: '16:9' }],
   GALLERY: [
     { position: 0, label: 'Foto 1', ratio: '4:3' },
     { position: 1, label: 'Foto 2', ratio: '4:3' },
@@ -58,13 +86,24 @@ const SECTION_IMAGES: Record<string, Array<{ position: number; label: string; ra
   ],
 }
 
-interface Resource {
-  id: string
-  path: string
-  view_url?: string
-  title?: string
-  alt_text?: string
-  position: number
+export function sectionImageSlotsForType(
+  componentType: string
+): Array<{ position: number; label: string; ratio: string }> {
+  const type = canonicalSectionType(componentType)
+  switch (type) {
+    case 'Hosts':
+      return SECTION_IMAGES.GraduatesList
+    default:
+      return SECTION_IMAGES[type] ?? []
+  }
+}
+
+export function readCreatedSectionResourcePayload(payload: unknown): Resource | null | undefined {
+  return readApiData<Resource | null | undefined>(payload)
+}
+
+export function readReplacedSectionResourcePayload(payload: unknown): ResourceFileMutationResponse | null | undefined {
+  return readApiData<ResourceFileMutationResponse | null | undefined>(payload)
 }
 
 // ─── Image Slot ───────────────────────────────────────────────────────────────
@@ -74,111 +113,151 @@ interface ImageSlotProps {
   resource?: Resource
   sectionId: string
   resourceTypeId: string
-  onUploaded: () => void
-  onDeleted: () => void
+  onCreated: (resource: Resource | null | undefined) => void
+  onReplaced: (resourceId: string, file: ResourceFileMutationResponse | null | undefined) => void
+  onDelete: (resource: Resource) => Promise<void>
 }
 
-function ImageSlot({ slot, resource, sectionId, resourceTypeId, onUploaded, onDeleted }: ImageSlotProps) {
+function ImageSlot({ slot, resource, sectionId, resourceTypeId, onCreated, onReplaced, onDelete }: ImageSlotProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
+  const upload = useUploadTask('No pudimos subir la imagen')
+  const creationUnavailable = !resource && !resourceTypeId
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (upload.isUploading) return
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Show local preview immediately
-    const localUrl = URL.createObjectURL(file)
-    setPreview(localUrl)
-
-    setUploading(true)
-    try {
-      const form = new FormData()
-      form.append('file', file)
-      form.append('event_section_id', sectionId)
-      form.append('position', String(slot.position))
-      form.append('title', slot.label)
-      form.append('alt_text', slot.label)
-      if (resourceTypeId) form.append('resource_type_id', resourceTypeId)
-
-      await api.post('/resources', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      toast.success('Imagen subida')
-      onUploaded()
-      URL.revokeObjectURL(localUrl)
-      setPreview(null)
-    } catch {
-      toast.error('Error al subir la imagen')
-      URL.revokeObjectURL(localUrl)
-      setPreview(null)
-    } finally {
-      setUploading(false)
-      if (inputRef.current) inputRef.current.value = ''
+    const validationError = sectionImageUploadValidationError(file)
+    if (validationError) {
+      toast.error(validationError)
+      e.target.value = ''
+      return
     }
+
+    if (creationUnavailable) {
+      toast.error('El tipo de recurso todavía no está disponible. Reintenta la carga del catálogo.')
+      e.target.value = ''
+      return
+    }
+
+    await upload.start(async (requestConfig) => {
+      const localUrl = URL.createObjectURL(file)
+      setPreview(localUrl)
+      try {
+        const prepared = await prepareImageForUpload(file, {
+          maxWidth: 2400,
+          maxHeight: 2400,
+          quality: 0.9,
+          signal: requestConfig.signal as AbortSignal,
+        })
+        const form = new FormData()
+        form.append('file', prepared.file)
+        form.append('position', String(slot.position))
+        form.append('title', slot.label)
+        form.append('alt_text', slot.label)
+
+        let confirmed = false
+        if (resource) {
+          const response = await api.put<ResourceFileMutationResponse>(
+            resourceReplacePath(resource.id),
+            form,
+            requestConfig
+          )
+          if (requestConfig.signal?.aborted) throw new DOMException('Upload canceled', 'AbortError')
+          const replaced = readReplacedSectionResourcePayload(response.data)
+          confirmed = hasResourceFileMutationData(replaced)
+          onReplaced(resource.id, replaced)
+        } else {
+          form.append('section_id', sectionId)
+          form.append('resource_type_id', resourceTypeId)
+
+          const response = await api.post<Resource>(resourcesPath(), form, requestConfig)
+          if (requestConfig.signal?.aborted) throw new DOMException('Upload canceled', 'AbortError')
+          const created = readCreatedSectionResourcePayload(response.data)
+          confirmed = Boolean(created?.id)
+          onCreated(created)
+        }
+        if (confirmed) {
+          toast.success(
+            prepared.optimized
+              ? resource
+                ? 'Imagen optimizada y reemplazada'
+                : 'Imagen optimizada y subida'
+              : resource
+                ? 'Imagen reemplazada'
+                : 'Imagen subida'
+          )
+        } else {
+          toast.info('Archivo recibido; verificando almacenamiento…')
+        }
+        return prepared
+      } finally {
+        URL.revokeObjectURL(localUrl)
+        setPreview(null)
+        if (inputRef.current) inputRef.current.value = ''
+      }
+    })
   }
 
   const handleDelete = async () => {
     if (!resource) return
     setDeleting(true)
     try {
-      await api.delete(`/resources/${resource.id}`)
-      toast.success('Imagen eliminada')
-      onDeleted()
-    } catch {
-      toast.error('Error al eliminar la imagen')
+      await onDelete(resource)
     } finally {
       setDeleting(false)
     }
   }
 
-  const imgSrc = preview ?? resource?.view_url ?? resource?.path
+  const imgSrc = preview ?? readResourceMediaUrl(resource)
   const isFilled = Boolean(imgSrc)
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className={[
-            'flex size-5 items-center justify-center rounded-full text-[10px] font-bold',
-            isFilled ? 'bg-lime-500/20 text-lime-400' : 'bg-zinc-800 text-zinc-600',
-          ].join(' ')}>
+          <span
+            className={[
+              'flex size-5 items-center justify-center rounded-full text-[10px] font-bold',
+              isFilled ? 'bg-lime-500/20 text-lime-400' : 'bg-zinc-800 text-zinc-600',
+            ].join(' ')}
+          >
             {slot.position + 1}
           </span>
           <p className="text-xs font-medium text-zinc-300">{slot.label}</p>
           <span className="text-[10px] text-zinc-700">{slot.ratio}</span>
         </div>
         {isFilled ? (
-          <CheckCircleIcon className="size-4 text-lime-400 shrink-0" />
+          <CheckCircleIcon className="size-4 shrink-0 text-lime-400" />
         ) : (
-          <ExclamationCircleIcon className="size-4 text-zinc-700 shrink-0" />
+          <ExclamationCircleIcon className="size-4 shrink-0 text-zinc-700" />
         )}
       </div>
 
       {/* Image preview / upload area */}
-      <div className="relative group">
+      <div className="group relative">
         {imgSrc ? (
-          <div className="relative rounded-lg overflow-hidden border border-white/10">
-            <img
-              src={imgSrc}
-              alt={slot.label}
-              className="w-full h-32 object-cover"
-            />
+          <div className="relative overflow-hidden rounded-lg border border-white/10">
+            <img src={imgSrc} alt={slot.label} className="h-32 w-full object-cover" />
             {/* Overlay actions */}
-            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
               <button
+                type="button"
                 onClick={() => inputRef.current?.click()}
-                disabled={uploading || deleting}
-                className="flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/20 transition-colors"
+                disabled={upload.isUploading || deleting}
+                className="flex min-h-11 items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-white/20"
               >
                 <ArrowUpTrayIcon className="size-3.5" />
                 Cambiar
               </button>
               <button
+                type="button"
                 onClick={handleDelete}
-                disabled={uploading || deleting}
-                className="flex items-center gap-1 rounded-lg bg-pink-500/20 px-2.5 py-1.5 text-xs font-medium text-pink-400 hover:bg-pink-500/30 transition-colors"
+                disabled={upload.isUploading || deleting}
+                className="flex min-h-11 items-center gap-1 rounded-lg bg-pink-500/20 px-2.5 py-1.5 text-xs font-medium text-pink-400 transition-colors hover:bg-pink-500/30"
               >
                 <TrashIcon className="size-3.5" />
                 {deleting ? '…' : 'Eliminar'}
@@ -187,25 +266,26 @@ function ImageSlot({ slot, resource, sectionId, resourceTypeId, onUploaded, onDe
           </div>
         ) : (
           <button
+            type="button"
             onClick={() => inputRef.current?.click()}
-            disabled={uploading}
+            disabled={upload.isUploading || creationUnavailable}
             className={[
-              'w-full h-28 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed transition-all',
-              uploading
-                ? 'border-indigo-500/30 bg-indigo-500/5 cursor-not-allowed'
-                : 'border-white/10 hover:border-white/20 hover:bg-white/5 cursor-pointer',
+              'flex h-28 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed transition-all',
+              upload.isUploading || creationUnavailable
+                ? 'cursor-not-allowed border-indigo-500/30 bg-indigo-500/5'
+                : 'cursor-pointer border-white/10 hover:border-white/20 hover:bg-white/5',
             ].join(' ')}
           >
-            {uploading ? (
+            {upload.isUploading ? (
               <div className="flex flex-col items-center gap-2">
-                <div className="size-5 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
+                <div className="size-5 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
                 <span className="text-xs text-zinc-500">Subiendo…</span>
               </div>
             ) : (
               <>
                 <ArrowUpTrayIcon className="size-5 text-zinc-600" />
                 <span className="text-xs text-zinc-500">Subir imagen</span>
-                <span className="text-[10px] text-zinc-700">JPG, PNG, WebP</span>
+                <span className="text-[10px] text-zinc-700">{SECTION_IMAGE_UPLOAD_LIMIT_HELP_TEXT}</span>
               </>
             )}
           </button>
@@ -215,11 +295,22 @@ function ImageSlot({ slot, resource, sectionId, resourceTypeId, onUploaded, onDe
         <input
           ref={inputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
+          accept={SECTION_IMAGE_UPLOAD_ACCEPT}
           onChange={handleFileChange}
+          disabled={upload.isUploading || deleting || creationUnavailable}
           className="hidden"
         />
       </div>
+      <UploadStatus
+        compact
+        status={upload.status}
+        progress={upload.progress}
+        error={upload.error}
+        onCancel={upload.cancel}
+        onRetry={() => void upload.retry()}
+        label={`Subiendo ${slot.label.toLowerCase()}`}
+        preparingLabel="Optimizando imagen…"
+      />
     </div>
   )
 }
@@ -229,29 +320,128 @@ function ImageSlot({ slot, resource, sectionId, resourceTypeId, onUploaded, onDe
 interface Props {
   section: EventSection
   onClose: () => void
+  onResourcesChanged?: () => void
 }
 
-export function EventSectionResources({ section, onClose }: Props) {
+export function EventSectionResources({ section, onClose, onResourcesChanged }: Props) {
   const componentType = section.component_type || section.type || ''
-  const slots = SECTION_IMAGES[componentType]
+  const slots = sectionImageSlotsForType(componentType)
+  const lastResourceRefreshKeyRef = useRef<string | null>(null)
 
-  const { data: resources = [], mutate } = useSWR<Resource[]>(
-    section.id ? `/resources/section/${section.id}` : null,
-    fetcher,
-    { revalidateOnFocus: false }
-  )
+  const {
+    data: resources = [],
+    error: resourcesError,
+    isLoading: resourcesLoading,
+    isValidating: resourcesValidating,
+    mutate,
+  } = useSWR<Resource[]>(section.id ? sectionResourcesPath(section.id) : null, fetcher, { revalidateOnFocus: false })
+  const resourceRefreshDelay = useMemo(() => getSectionResourcesRefreshDelay(resources), [resources])
+  const resourceRefreshKey = useMemo(() => sectionResourcesMediaRefreshKey(resources), [resources])
+  useEffect(() => {
+    if (resourceRefreshDelay === null || !resourceRefreshKey) return
+    const refreshResources = () => {
+      lastResourceRefreshKeyRef.current = resourceRefreshKey
+      void mutate()
+    }
+
+    if (resourceRefreshDelay <= 0) {
+      if (lastResourceRefreshKeyRef.current === resourceRefreshKey) return
+      refreshResources()
+      return
+    }
+    const timer = window.setTimeout(refreshResources, resourceRefreshDelay)
+    return () => window.clearTimeout(timer)
+  }, [mutate, resourceRefreshDelay, resourceRefreshKey])
 
   // Fetch image resource type ID from catalogs
-  const { data: resourceTypes = [] } = useSWR<Array<{ id: string; code: string }>>(
-    '/catalogs/resource-types',
-    fetcher,
-    { shouldRetryOnError: false, revalidateOnFocus: false }
-  )
-  const imageTypeId = resourceTypes.find((rt) => rt.code === 'IMAGE')?.id ?? ''
+  const {
+    data: resourceTypes = [],
+    error: resourceTypesError,
+    isLoading: resourceTypesLoading,
+    isValidating: resourceTypesValidating,
+    mutate: retryResourceTypes,
+  } = useSWR<Array<{ id: string; code: string }>>(resourceTypesPath(), fetcher, {
+    shouldRetryOnError: false,
+    revalidateOnFocus: false,
+  })
+  const imageTypeId = resourceTypes.find((rt) => rt.code?.toLowerCase() === 'image')?.id ?? ''
 
   const revalidate = () => {
     mutate()
-    globalMutate(`/resources/section/${section.id}`)
+  }
+
+  const updateResources = (updater: (current: Resource[] | undefined) => unknown) => {
+    mutate((current) => updater(current) as Resource[], { revalidate: false })
+  }
+
+  const handleCreated = (resource: Resource | null | undefined) => {
+    if (!resource?.id) {
+      revalidate()
+      onResourcesChanged?.()
+      return
+    }
+    updateResources((current) => upsertResourceCacheValue(current, resource))
+    onResourcesChanged?.()
+  }
+
+  const handleReplaced = (resourceId: string, file: ResourceFileMutationResponse | null | undefined) => {
+    if (!hasResourceFileMutationData(file)) {
+      revalidate()
+      onResourcesChanged?.()
+      return
+    }
+    updateResources((current) => patchResourceFileCacheValue(current, resourceId, file))
+    onResourcesChanged?.()
+  }
+
+  const handleDelete = async (resource: Resource) => {
+    const snapshot = resources
+    updateResources((current) => removeResourceCacheValue(current, resource.id))
+    try {
+      await api.delete(resourcePath(resource.id))
+      onResourcesChanged?.()
+      toast.success('Imagen eliminada')
+    } catch (err: unknown) {
+      await mutate(snapshot, { revalidate: false })
+      toast.error(getUploadErrorMessage(err, 'No pudimos eliminar la imagen'))
+    }
+  }
+
+  if (resourcesLoading) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-zinc-900 p-5" role="status" aria-live="polite">
+        <div className="flex items-center gap-3 text-sm text-zinc-400">
+          <ArrowPathIcon className="size-4 animate-spin" />
+          Cargando imágenes de la sección…
+        </div>
+      </div>
+    )
+  }
+
+  if (resourcesError) {
+    return (
+      <div className="rounded-xl border border-red-400/20 bg-red-400/[0.06] p-5" role="alert">
+        <p className="text-sm font-semibold text-red-100">No pudimos cargar las imágenes de esta sección.</p>
+        <p className="mt-1 text-xs text-red-200/70">No se habilitarán nuevas cargas para evitar recursos duplicados.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={resourcesValidating}
+            onClick={() => void mutate()}
+            className="min-h-11 rounded-lg border border-red-300/20 px-3 text-xs font-semibold text-red-100 hover:bg-red-300/10 disabled:opacity-50"
+          >
+            {resourcesValidating ? 'Reintentando…' : 'Reintentar'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-11 px-3 text-xs font-semibold text-zinc-400 hover:text-white"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (!slots || slots.length === 0) {
@@ -261,22 +451,21 @@ export function EventSectionResources({ section, onClose }: Props) {
         animate={{ opacity: 1, y: 0 }}
         className="rounded-xl border border-white/10 bg-zinc-900 p-5"
       >
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-semibold text-zinc-100">Recursos — {section.name}</p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Este tipo de sección no requiere imágenes predefinidas.
-            </p>
+            <p className="mt-0.5 text-xs text-zinc-500">Este tipo de sección no requiere imágenes predefinidas.</p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="min-h-11 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
           >
             Cerrar
           </button>
         </div>
         <div className="py-6 text-center">
-          <PhotoIcon className="mx-auto size-8 text-zinc-700 mb-2" />
+          <PhotoIcon className="mx-auto mb-2 size-8 text-zinc-700" />
           <p className="text-sm text-zinc-600">
             Las imágenes para esta sección se gestionan directamente desde el backend.
           </p>
@@ -285,9 +474,7 @@ export function EventSectionResources({ section, onClose }: Props) {
     )
   }
 
-  const filledSlots = slots.filter((slot) =>
-    resources.some((r) => r.position === slot.position)
-  ).length
+  const filledSlots = slots.filter((slot) => resources.some((r) => r.position === slot.position)).length
 
   return (
     <motion.div
@@ -298,37 +485,62 @@ export function EventSectionResources({ section, onClose }: Props) {
       className="rounded-xl border border-white/10 bg-zinc-900 p-5 shadow-xl"
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-zinc-100">Imágenes — {section.name}</p>
-            <span className={[
-              'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-              filledSlots === slots.length
-                ? 'bg-lime-500/10 text-lime-400 border border-lime-500/20'
-                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
-            ].join(' ')}>
+            <span
+              className={[
+                'rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                filledSlots === slots.length
+                  ? 'border border-lime-500/20 bg-lime-500/10 text-lime-400'
+                  : 'border border-amber-500/20 bg-amber-500/10 text-amber-400',
+              ].join(' ')}
+            >
               {filledSlots}/{slots.length}
             </span>
           </div>
-          <p className="text-xs text-zinc-500 mt-0.5">
-            Sube las imágenes requeridas para esta sección SDUI.
-          </p>
+          <p className="mt-0.5 text-xs text-zinc-500">Sube las imágenes requeridas para esta sección SDUI.</p>
         </div>
         <button
+          type="button"
           onClick={onClose}
-          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="min-h-11 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
         >
           Cerrar
         </button>
       </div>
 
       {/* Image slots grid */}
-      <div className={[
-        'grid gap-4',
-        slots.length >= 4 ? 'grid-cols-2 sm:grid-cols-3' :
-        slots.length >= 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
-      ].join(' ')}>
+      {(resourceTypesError || (!resourceTypesLoading && !imageTypeId)) && (
+        <div
+          className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.06] p-3 sm:flex-row sm:items-center sm:justify-between"
+          role="alert"
+        >
+          <p className="text-xs leading-5 text-amber-100">
+            No pudimos cargar el tipo de recurso. Puedes reemplazar imágenes existentes, pero las nuevas cargas están
+            pausadas.
+          </p>
+          <button
+            type="button"
+            disabled={resourceTypesValidating}
+            onClick={() => void retryResourceTypes()}
+            className="min-h-10 shrink-0 rounded-lg border border-amber-300/20 px-3 text-xs font-semibold text-amber-100 hover:bg-amber-300/10 disabled:opacity-50"
+          >
+            {resourceTypesValidating ? 'Reintentando…' : 'Reintentar catálogo'}
+          </button>
+        </div>
+      )}
+      <div
+        className={[
+          'grid gap-4',
+          slots.length >= 4
+            ? 'grid-cols-2 sm:grid-cols-3'
+            : slots.length >= 2
+              ? 'grid-cols-1 sm:grid-cols-2'
+              : 'grid-cols-1',
+        ].join(' ')}
+      >
         <AnimatePresence>
           {slots.map((slot) => {
             const resource = resources.find((r) => r.position === slot.position)
@@ -344,8 +556,9 @@ export function EventSectionResources({ section, onClose }: Props) {
                   resource={resource}
                   sectionId={section.id}
                   resourceTypeId={imageTypeId}
-                  onUploaded={revalidate}
-                  onDeleted={revalidate}
+                  onCreated={handleCreated}
+                  onReplaced={handleReplaced}
+                  onDelete={handleDelete}
                 />
               </motion.div>
             )
@@ -354,27 +567,25 @@ export function EventSectionResources({ section, onClose }: Props) {
       </div>
 
       {/* Progress footer */}
-      <div className="mt-5 pt-4 border-t border-white/5">
-        <div className="flex items-center justify-between text-xs text-zinc-600 mb-1.5">
+      <div className="mt-5 border-t border-white/5 pt-4">
+        <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-600">
           <span>Imágenes completas</span>
           <span className={filledSlots === slots.length ? 'text-lime-400' : 'text-amber-400'}>
             {filledSlots} / {slots.length}
           </span>
         </div>
-        <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${Math.round((filledSlots / slots.length) * 100)}%` }}
             transition={{ duration: 0.5 }}
-            className={[
-              'h-full rounded-full',
-              filledSlots === slots.length ? 'bg-lime-500' : 'bg-amber-500',
-            ].join(' ')}
+            className={['h-full rounded-full', filledSlots === slots.length ? 'bg-lime-500' : 'bg-amber-500'].join(' ')}
           />
         </div>
         {filledSlots < slots.length && (
           <p className="mt-1.5 text-xs text-zinc-700">
-            Faltan {slots.length - filledSlots} imagen{slots.length - filledSlots !== 1 ? 'es' : ''} para completar esta sección.
+            Faltan {slots.length - filledSlots} imagen{slots.length - filledSlots !== 1 ? 'es' : ''} para completar esta
+            sección.
           </p>
         )}
       </div>

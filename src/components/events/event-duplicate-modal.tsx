@@ -1,22 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { mutate } from 'swr'
+import { Button } from '@/components/button'
 import { Dialog, DialogActions, DialogBody, DialogTitle } from '@/components/dialog'
 import { Field, Label } from '@/components/fieldset'
 import { Input } from '@/components/input'
-import { Button } from '@/components/button'
 import { api } from '@/lib/api'
-import { toast } from 'sonner'
+import { readApiData } from '@/lib/api-envelope'
+import { getApiErrorMessage } from '@/lib/api-error'
+import { eventDuplicatePath } from '@/lib/api-paths'
+import { addDaysToLocalDateTime, toDateTimeLocalValue, toRFC3339 } from '@/lib/date-time'
+import { normalizeEventMutationPayload } from '@/lib/event-payload'
 import type { Event } from '@/models/Event'
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 
 interface Props {
   event: Event | null
   isOpen: boolean
   setIsOpen: (v: boolean) => void
+  onCreated?: (event: Event | null) => Promise<void> | void
 }
 
-export function EventDuplicateModal({ event, isOpen, setIsOpen }: Props) {
+export function EventDuplicateModal({ event, isOpen, setIsOpen, onCreated }: Props) {
   const [name, setName] = useState('')
   const [dateTime, setDateTime] = useState('')
   const [loading, setLoading] = useState(false)
@@ -24,10 +29,9 @@ export function EventDuplicateModal({ event, isOpen, setIsOpen }: Props) {
   useEffect(() => {
     if (!isOpen || !event) return
     setName(`${event.name} (copia)`)
-    // Default: push date 30 days forward
-    const future = new Date(event.event_date_time)
-    future.setDate(future.getDate() + 30)
-    setDateTime(future.toISOString().substring(0, 16))
+    // Default: push date 30 days forward in the event's own wall time.
+    const timezone = event.timezone ?? 'America/Mexico_City'
+    setDateTime(addDaysToLocalDateTime(toDateTimeLocalValue(event.event_date_time, timezone), 30))
   }, [isOpen, event])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,25 +40,19 @@ export function EventDuplicateModal({ event, isOpen, setIsOpen }: Props) {
 
     setLoading(true)
     try {
-      await api.post('/events', {
+      const payload = normalizeEventMutationPayload({
         name: name.trim(),
-        event_date_time: dateTime,
+        event_date_time: toRFC3339(dateTime, event.timezone ?? 'America/Mexico_City'),
         timezone: event.timezone,
-        language: event.language ?? 'es',
-        event_type_id: event.event_type_id,
-        description: event.description ?? '',
-        address: event.address ?? '',
-        organizer_name: event.organizer_name ?? '',
-        organizer_email: event.organizer_email ?? '',
-        organizer_phone: event.organizer_phone ?? '',
-        max_guests: event.max_guests ?? null,
         is_active: false, // start inactive until organizer reviews
       })
-      await mutate('/events/all')
+
+      const response = await api.post(eventDuplicatePath(event.id), payload)
+      await onCreated?.(readApiData<Event | null>(response.data))
       toast.success('Evento duplicado correctamente')
       setIsOpen(false)
-    } catch {
-      toast.error('Error al duplicar el evento')
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Error al duplicar el evento'))
     } finally {
       setLoading(false)
     }
@@ -66,32 +64,22 @@ export function EventDuplicateModal({ event, isOpen, setIsOpen }: Props) {
       <form onSubmit={handleSubmit}>
         <DialogBody className="space-y-4">
           <p className="text-sm text-zinc-400">
-            Se creará una copia de <span className="font-medium text-zinc-200">{event?.name}</span> con los mismos ajustes.
-            El evento duplicado comenzará como <span className="font-medium text-zinc-300">inactivo</span>.
+            Se creará una copia de <span className="font-medium text-zinc-200">{event?.name}</span> con los mismos
+            ajustes. El evento duplicado comenzará como <span className="font-medium text-zinc-300">inactivo</span>.
           </p>
 
           <Field>
             <Label>Nombre del nuevo evento</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              autoFocus
-            />
+            <Input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
           </Field>
 
           <Field>
             <Label>Fecha y hora</Label>
-            <Input
-              type="datetime-local"
-              value={dateTime}
-              onChange={(e) => setDateTime(e.target.value)}
-              required
-            />
+            <Input type="datetime-local" value={dateTime} onChange={(e) => setDateTime(e.target.value)} required />
           </Field>
         </DialogBody>
         <DialogActions>
-          <Button plain onClick={() => setIsOpen(false)} disabled={loading}>
+          <Button type="button" plain onClick={() => setIsOpen(false)} disabled={loading}>
             Cancelar
           </Button>
           <Button type="submit" disabled={loading || !name.trim() || !dateTime}>

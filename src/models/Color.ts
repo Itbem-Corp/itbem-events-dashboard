@@ -2,5 +2,6 @@
 
 export interface Color extends BaseEntity {
   name: string;
-  hex_code: string;
+  value?: string;
+  hex_code?: string;
 }

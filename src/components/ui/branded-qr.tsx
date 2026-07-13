@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useCallback, useState } from 'react'
+import { useRef, useCallback, useEffect, useId, useState } from 'react'
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/20/solid'
 import { motion, AnimatePresence } from 'motion/react'
@@ -56,15 +56,30 @@ export function BrandedQR({
   showDownload = true,
   dark = false,
 }: BrandedQRProps) {
-  const canvasId = useRef(`branded-qr-${Math.random().toString(36).slice(2, 8)}`).current
+  const reactId = useId()
+  const canvasId = `branded-qr-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`
   const [downloading, setDownloading] = useState(false)
   const [done, setDone] = useState(false)
 
+  useEffect(() => {
+    if (!done) return
+    const timer = window.setTimeout(() => setDone(false), 2000)
+    return () => window.clearTimeout(timer)
+  }, [done])
+
   const handleDownload = useCallback(async () => {
-    const qrCanvas = document.getElementById(canvasId) as HTMLCanvasElement | null
-    if (!qrCanvas || downloading) return
+    if (downloading) return
 
     setDownloading(true)
+
+    // The 2400px canvas is intentionally mounted only for an active export.
+    // Wait for React to commit it before composing the downloadable card.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    const qrCanvas = document.getElementById(canvasId) as HTMLCanvasElement | null
+    if (!qrCanvas) {
+      setDownloading(false)
+      return
+    }
 
     // Small delay so canvas finishes rendering logo
     await new Promise((r) => setTimeout(r, 80))
@@ -177,7 +192,6 @@ export function BrandedQR({
       a.download = `${downloadName}.png`
       a.click()
       setDone(true)
-      setTimeout(() => setDone(false), 2000)
     } catch {
       toast.error('Error al descargar el QR')
     } finally {
@@ -333,22 +347,24 @@ export function BrandedQR({
       )}
 
       {/* Hidden hi-res canvas for download */}
-      <div className="absolute -left-[9999px] -top-[9999px]" aria-hidden>
-        <QRCodeCanvas
-          id={canvasId}
-          value={value}
-          size={downloadSize}
-          bgColor="#ffffff"
-          fgColor="#18181b"
-          level="H"
-          imageSettings={{
-            src: LOGO_DATA_URI,
-            height: Math.round(downloadSize * 0.16),
-            width: Math.round(downloadSize * 0.15),
-            excavate: true,
-          }}
-        />
-      </div>
+      {downloading && (
+        <div className="absolute -left-[9999px] -top-[9999px]" aria-hidden>
+          <QRCodeCanvas
+            id={canvasId}
+            value={value}
+            size={downloadSize}
+            bgColor="#ffffff"
+            fgColor="#18181b"
+            level="H"
+            imageSettings={{
+              src: LOGO_DATA_URI,
+              height: Math.round(downloadSize * 0.16),
+              width: Math.round(downloadSize * 0.15),
+              excavate: true,
+            }}
+          />
+        </div>
+      )}
     </motion.div>
   )
 }

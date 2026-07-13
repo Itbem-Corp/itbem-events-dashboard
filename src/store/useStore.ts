@@ -13,6 +13,7 @@ interface User {
     profile_image?: string
     is_active?: boolean
     is_root?: boolean
+    root_level?: number
     cognito_sub?: string
     clients?: number
     full_name?: string
@@ -23,6 +24,10 @@ interface Client {
     name: string
     code: string
     logo?: string
+    // Provided by the organization list API for the authenticated user. Keep
+    // it in the selected context so route-level controls can mirror the
+    // server-side capability ceiling without an extra request.
+    access_role?: string
     client_type: {
         code: string
     }
@@ -118,6 +123,7 @@ export const useStore = create<AppState>()(
         }),
         {
             name: 'eventi-storage',
+            skipHydration: true,
 
             partialize: (state) => ({
                 user: state.user,

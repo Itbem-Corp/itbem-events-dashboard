@@ -121,8 +121,9 @@ test.describe.serial('Moments Wall — flujo completo', () => {
     const guestCtx  = await browser.newContext()
     const guestPage = await guestCtx.newPage()
 
-    const uploadUrl = `${PUBLIC_URL}/events/${eventIdentifier}/upload`
-    await guestPage.goto(uploadUrl)
+    const uploadUrl = new URL('/events/upload', PUBLIC_URL)
+    uploadUrl.searchParams.set('e', eventIdentifier)
+    await guestPage.goto(uploadUrl.toString())
     await guestPage.waitForLoadState('networkidle')
 
     // Page must show the upload UI (not the "uploads disabled" screen)

@@ -1,21 +1,32 @@
 import { ImageResponse } from '@vercel/og'
 import { NextRequest } from 'next/server'
+import { fetchOgCover } from '@/lib/og-cover'
+import {
+    formatOgDate,
+    formatOgEventType,
+    ogLabelsForLanguage,
+    readOgRouteParams,
+    truncateOgAddress,
+} from '@/lib/og-route-params'
 
 export const runtime = 'edge'
 
 export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl
-    const title = searchParams.get('title') || 'Evento'
-    const date = searchParams.get('date') || ''
-    const address = searchParams.get('address') || ''
-    const cover = searchParams.get('cover') || ''
-    const type = searchParams.get('type') || ''
+    const { title, date, timezone, language, address, cover, type } = readOgRouteParams(
+        searchParams,
+        process.env.NEXT_PUBLIC_BACKEND_URL,
+    )
+    const safeCover = cover
+        ? await fetchOgCover(cover, {
+              backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL,
+              configuredHosts: process.env.OG_IMAGE_ALLOWED_HOSTS,
+          })
+        : null
 
-    // Logo URL — served from same deployment (edge runtime compatible)
     const logoUrl = new URL('/eventiapp-icon.svg', req.url).toString()
 
-    // ── Mode A: cover photo full + logo corner ─────────────────────────────
-    if (cover) {
+    if (safeCover) {
         return new ImageResponse(
             (
                 <div
@@ -26,9 +37,8 @@ export async function GET(req: NextRequest) {
                         position: 'relative',
                     }}
                 >
-                    {/* Cover photo — full, no overlay */}
                     <img
-                        src={cover}
+                        src={safeCover.bytes as unknown as string}
                         alt=""
                         style={{
                             position: 'absolute',
@@ -40,7 +50,6 @@ export async function GET(req: NextRequest) {
                         }}
                     />
 
-                    {/* Subtle vignette so logo is readable on any photo */}
                     <div
                         style={{
                             position: 'absolute',
@@ -53,7 +62,6 @@ export async function GET(req: NextRequest) {
                         }}
                     />
 
-                    {/* Logo + wordmark — bottom-right corner */}
                     <div
                         style={{
                             position: 'absolute',
@@ -77,7 +85,7 @@ export async function GET(req: NextRequest) {
                                 fontWeight: 700,
                                 color: '#ffffff',
                                 fontFamily: 'Inter, sans-serif',
-                                letterSpacing: '-0.3px',
+                                letterSpacing: '0',
                             }}
                         >
                             eventiapp
@@ -89,17 +97,9 @@ export async function GET(req: NextRequest) {
         )
     }
 
-    // ── Mode B: no cover — dark branded fallback ───────────────────────────
-    let formattedDate = ''
-    if (date) {
-        try {
-            formattedDate = new Intl.DateTimeFormat('es', {
-                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-            }).format(new Date(date))
-        } catch {
-            formattedDate = date
-        }
-    }
+    const formattedDate = formatOgDate(date, timezone, language)
+    const eventType = formatOgEventType(type)
+    const labels = ogLabelsForLanguage(language)
 
     return new ImageResponse(
         (
@@ -113,17 +113,18 @@ export async function GET(req: NextRequest) {
                     fontFamily: 'Inter, sans-serif',
                 }}
             >
-                {/* Gradient background */}
                 <div
                     style={{
                         position: 'absolute',
-                        top: 0, left: 0, width: '100%', height: '100%',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
                         background: 'linear-gradient(135deg, #1a0a2e 0%, #09090b 60%, #0d1a2e 100%)',
                         display: 'flex',
                     }}
                 />
 
-                {/* Content */}
                 <div
                     style={{
                         position: 'relative',
@@ -135,10 +136,10 @@ export async function GET(req: NextRequest) {
                         padding: '60px',
                     }}
                 >
-                    {type && (
+                    {eventType && (
                         <div style={{ display: 'flex', marginBottom: '16px' }}>
-                            <span style={{ fontSize: '18px', fontWeight: 600, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '2px' }}>
-                                {type}
+                            <span style={{ fontSize: '18px', fontWeight: 600, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0' }}>
+                                {eventType}
                             </span>
                         </div>
                     )}
@@ -150,21 +151,24 @@ export async function GET(req: NextRequest) {
                     <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
                         {formattedDate && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ fontSize: '22px' }}>📅</span>
+                                <span style={{ fontSize: '13px', color: '#818cf8', fontWeight: 700, letterSpacing: '0', textTransform: 'uppercase' }}>
+                                    {labels.date}
+                                </span>
                                 <span style={{ fontSize: '22px', color: '#a1a1aa', fontWeight: 500 }}>{formattedDate}</span>
                             </div>
                         )}
                         {address && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ fontSize: '22px' }}>📍</span>
+                                <span style={{ fontSize: '13px', color: '#818cf8', fontWeight: 700, letterSpacing: '0', textTransform: 'uppercase' }}>
+                                    {labels.place}
+                                </span>
                                 <span style={{ fontSize: '22px', color: '#a1a1aa', fontWeight: 500 }}>
-                                    {address.length > 40 ? address.slice(0, 40) + '...' : address}
+                                    {truncateOgAddress(address)}
                                 </span>
                             </div>
                         )}
                     </div>
 
-                    {/* Branding — bottom-right */}
                     <div
                         style={{
                             position: 'absolute',
@@ -176,7 +180,7 @@ export async function GET(req: NextRequest) {
                         }}
                     >
                         <img src={logoUrl} width={36} height={36} style={{ borderRadius: '50%' }} alt="eventiapp" />
-                        <span style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', letterSpacing: '-0.3px' }}>
+                        <span style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', letterSpacing: '0' }}>
                             eventiapp
                         </span>
                     </div>

@@ -1,37 +1,46 @@
 ﻿import axios from "axios";
 import { useStore } from "@/store/useStore";
+import { readApiData } from "@/lib/api-envelope";
+import { normalizeBackendBaseUrl } from "@/lib/base-url";
+import { getApiErrorMessage } from "@/lib/api-error";
+import { normalizeKeys } from "@/lib/normalizer";
 import { toast } from "sonner";
 
 // 1. Leemos la URL base pública y le pegamos "/api" al final.
 // Si no existe la variable, usamos localhost como fallback.
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+const BASE_URL = normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, "http://localhost:8080");
 const API_URL = `${BASE_URL}/api`;
 
 export const api = axios.create({
     baseURL: API_URL
 });
 
-let tokenPromise: Promise<string> | null = null;
+export function normalizeApiResponseData(data: unknown, responseType?: string): unknown {
+    if (responseType === 'blob') return data
+    return normalizeKeys(readApiData(data))
+}
 
-const getAuthToken = async () => {
+let tokenPromise: Promise<string | null> | null = null;
+
+const getAuthToken = async (forceRefresh = false) => {
     const { token, setToken } = useStore.getState();
 
-    if (token) return token;
+    if (token && !forceRefresh) return token;
 
     if (tokenPromise) return tokenPromise;
 
-    tokenPromise = fetch("/api/auth/token")
+    tokenPromise = fetch(forceRefresh ? "/api/auth/token?refresh=1" : "/api/auth/token")
         .then((res) => {
-            if (!res.ok) throw new Error("No session");
+            if (!res.ok) {
+                const error = new Error("No session") as Error & { status?: number }
+                error.status = res.status
+                throw error
+            }
             return res.json();
         })
         .then((data) => {
             setToken(data.token);
             return data.token;
-        })
-        .catch(() => {
-            useStore.getState().clearSession();
-            return null;
         })
         .finally(() => {
             tokenPromise = null;
@@ -57,33 +66,38 @@ api.interceptors.request.use(async (config) => {
     return config;
 });
 
-// --- NORMALIZER: PascalCase → snake_case ---
-import { normalizeKeys } from "@/lib/normalizer"
-
 api.interceptors.response.use((response) => {
-    // Skip key normalization for binary responses — normalizeKeys() would convert
-    // a Blob to {} (Object.entries(blob) === []), corrupting image/ZIP downloads.
-    if (response.config.responseType !== 'blob') {
-        response.data = normalizeKeys(response.data)
-    }
+    // Skip binary responses: normalizeKeys() would convert a Blob to {}, corrupting downloads.
+    response.data = normalizeApiResponseData(response.data, response.config.responseType)
     return response
 })
 
 // --- INTERCEPTOR DE RESPONSE ---
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
         const status = error?.response?.status
+        const requestConfig = error?.config as (typeof error.config & { _eventiAuthRetried?: boolean }) | undefined
 
-        // Si Go responde 401 (Unauthorized), significa que el token expiró o es falso
-        if (status === 401) {
-            useStore.getState().clearSession();
-            // Redirigimos al endpoint de Next.js que limpia las cookies
-            if (typeof window !== "undefined") {
-                window.location.href = "/logout";
+        if (status === 401 && requestConfig && !requestConfig._eventiAuthRetried) {
+            requestConfig._eventiAuthRetried = true
+            useStore.getState().setToken(null)
+
+            try {
+                const refreshedToken = await getAuthToken(true)
+                if (refreshedToken) {
+                    requestConfig.headers.Authorization = `Bearer ${refreshedToken}`
+                    return api.request(requestConfig)
+                }
+            } catch (refreshError) {
+                const refreshStatus = (refreshError as Error & { status?: number }).status
+                if (refreshStatus !== 401) return Promise.reject(error)
             }
+
+            useStore.getState().clearSession()
+            if (typeof window !== "undefined") window.location.href = "/logout"
         } else if (status === 403) {
-            toast.error('Sin permisos para realizar esta acción')
+            toast.error(getApiErrorMessage(error, 'Sin permisos para realizar esta acción'))
         } else if (!error?.response) {
             // Network error (no response from server at all)
             toast.error('Sin conexión. Verifica tu red e intenta de nuevo')

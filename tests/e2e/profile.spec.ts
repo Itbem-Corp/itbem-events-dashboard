@@ -5,7 +5,7 @@
  * se agregan nuevos campos, o cambia el comportamiento del avatar.
  */
 
-import { test, expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 
 test.use({ storageState: 'tests/e2e/.auth/session.json' })
 
@@ -52,5 +52,46 @@ test.describe('Perfil', () => {
 
   test('muestra sección de foto de perfil', async ({ page }) => {
     await expect(page.getByText('Foto de perfil')).toBeVisible()
+  })
+
+  test('carga el editor de avatar solamente cuando se solicita', async ({ page }) => {
+    await expect(page.locator('input[type="file"]')).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Cambiar foto' }).click()
+
+    const modalTitle = page.getByRole('heading', { name: 'Actualizar foto de perfil' })
+    await expect(modalTitle).toBeVisible()
+    await expect(page.locator('input[type="file"]')).toHaveCount(1)
+
+    await page.getByRole('button', { name: 'Cerrar' }).click()
+    await expect(modalTitle).not.toBeVisible()
+  })
+
+  test('precarga el perfil desde la intenciÃ³n del menÃº mÃ³vil', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'Este contrato cubre la superficie mÃ³vil')
+    await page.goto('/')
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible()
+    await page.waitForTimeout(750)
+
+    const accountButton = page.locator('button[aria-label="Abrir menÃº de cuenta"]:visible').last()
+    await expect(accountButton).toBeVisible()
+    await accountButton.focus()
+    await page.keyboard.press('Enter')
+
+    const profileItem = page.getByRole('menuitem', { name: 'Mi Perfil' })
+    await expect(profileItem).toBeVisible()
+    await profileItem.hover()
+
+    const startedAt = performance.now()
+    await profileItem.click()
+    await expect(page).toHaveURL('/settings/profile')
+    await expect(page.getByRole('heading', { name: 'Mi perfil', exact: true })).toBeVisible()
+    const durationMs = performance.now() - startedAt
+
+    await testInfo.attach('profile-intent-navigation.json', {
+      body: JSON.stringify({ durationMs }, null, 2),
+      contentType: 'application/json',
+    })
+    expect(durationMs, `El perfil tardÃ³ ${Math.round(durationMs)}ms en mostrar contenido`).toBeLessThan(1_500)
   })
 })

@@ -60,6 +60,7 @@ interface DraggableSectionListProps {
   onReorder: (newOrder: EventSection[]) => void
   onToggleVisible: (section: EventSection) => void
   onSaveConfig: (section: EventSection, config: Record<string, unknown>) => Promise<void>
+  onResourcesChanged?: () => void
 }
 
 export function DraggableSectionList({
@@ -68,15 +69,20 @@ export function DraggableSectionList({
   onReorder,
   onToggleVisible,
   onSaveConfig,
+  onResourcesChanged,
 }: DraggableSectionListProps) {
-  const [expandedSectionId, setExpandedSectionId] = useState<string | null>(null)
+  const [expandedPanel, setExpandedPanel] = useState<{ id: string; panel: 'config' | 'media' } | null>(null)
 
   const handleToggleExpand = useCallback((id: string) => {
-    setExpandedSectionId((prev) => (prev === id ? null : id))
+    setExpandedPanel((prev) => (prev?.id === id && prev.panel === 'config' ? null : { id, panel: 'config' }))
+  }, [])
+
+  const handleToggleMedia = useCallback((id: string) => {
+    setExpandedPanel((prev) => (prev?.id === id && prev.panel === 'media' ? null : { id, panel: 'media' }))
   }, [])
 
   const handleDragStart = useCallback(() => {
-    setExpandedSectionId(null)
+    setExpandedPanel(null)
   }, [])
 
   // Loading skeleton
@@ -131,10 +137,13 @@ export function DraggableSectionList({
           <DraggableSectionRow
             key={section.id}
             section={section}
-            isExpanded={expandedSectionId === section.id}
+            isExpanded={expandedPanel?.id === section.id && expandedPanel.panel === 'config'}
+            isMediaOpen={expandedPanel?.id === section.id && expandedPanel.panel === 'media'}
             onToggleExpand={handleToggleExpand}
+            onToggleMedia={handleToggleMedia}
             onToggleVisible={onToggleVisible}
             onSaveConfig={onSaveConfig}
+            onResourcesChanged={onResourcesChanged}
             onDragStart={handleDragStart}
           />
         ))}

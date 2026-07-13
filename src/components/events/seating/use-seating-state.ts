@@ -1,12 +1,17 @@
-import { useReducer, useCallback, useMemo } from 'react'
 import type { Guest } from '@/models/Guest'
 import type { Table } from '@/models/Table'
+import { useCallback, useMemo, useReducer } from 'react'
 
 type UndoEntry =
   | { type: 'ASSIGN_GUEST'; guestId: string; tableId: string | null; prevTableId: string | null }
   | { type: 'CREATE_TABLE'; table: Table }
   | { type: 'UPDATE_TABLE'; tableId: string; changes: Partial<Table>; prev: Partial<Table> }
-  | { type: 'DELETE_TABLE'; tableId: string; guestsOnTable: string[] }
+  | {
+      type: 'DELETE_TABLE'
+      table: Table
+      wasCreated: boolean
+      assignmentsBefore: Array<[string, string | null | undefined]>
+    }
 
 interface SeatingState {
   assignments: Map<string, string | null>
@@ -20,7 +25,7 @@ type SeatingAction =
   | { type: 'ASSIGN_GUEST'; guestId: string; tableId: string | null; serverTableId: string | null }
   | { type: 'CREATE_TABLE'; table: Table }
   | { type: 'UPDATE_TABLE'; tableId: string; changes: Partial<Table>; prev: Partial<Table> }
-  | { type: 'DELETE_TABLE'; tableId: string; guestsOnTable: string[] }
+  | { type: 'DELETE_TABLE'; table: Table; guestsOnTable: string[] }
   | { type: 'UNDO' }
   | { type: 'RESET' }
 
@@ -50,6 +55,16 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
         undoStack: [...state.undoStack, action],
       }
     case 'UPDATE_TABLE': {
+      const createdTable = state.createdTables.find((table) => table.id === action.tableId)
+      if (createdTable) {
+        return {
+          ...state,
+          createdTables: state.createdTables.map((table) =>
+            table.id === action.tableId ? { ...table, ...action.changes } : table
+          ),
+          undoStack: [...state.undoStack, action],
+        }
+      }
       const next = new Map(state.updatedTables)
       next.set(action.tableId, { ...next.get(action.tableId), ...action.changes })
       return {
@@ -59,18 +74,31 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
       }
     }
     case 'DELETE_TABLE': {
+      const wasCreated = state.createdTables.some((table) => table.id === action.table.id)
       const nextDeleted = new Set(state.deletedTableIds)
-      nextDeleted.add(action.tableId)
+      if (!wasCreated) nextDeleted.add(action.table.id)
+
+      const nextCreatedTables = wasCreated
+        ? state.createdTables.filter((table) => table.id !== action.table.id)
+        : state.createdTables
+
+      const nextUpdatedTables = new Map(state.updatedTables)
+      nextUpdatedTables.delete(action.table.id)
+
       // Auto-unassign all guests from this table
       const nextAssignments = new Map(state.assignments)
+      const assignmentsBefore: Array<[string, string | null | undefined]> = []
       for (const guestId of action.guestsOnTable) {
+        assignmentsBefore.push([guestId, state.assignments.has(guestId) ? state.assignments.get(guestId) : undefined])
         nextAssignments.set(guestId, null)
       }
       return {
         ...state,
+        createdTables: nextCreatedTables,
+        updatedTables: nextUpdatedTables,
         deletedTableIds: nextDeleted,
         assignments: nextAssignments,
-        undoStack: [...state.undoStack, action],
+        undoStack: [...state.undoStack, { type: 'DELETE_TABLE', table: action.table, wasCreated, assignmentsBefore }],
       }
     }
     case 'UNDO': {
@@ -95,6 +123,14 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
         }
       }
       if (last.type === 'UPDATE_TABLE') {
+        if (state.createdTables.some((table) => table.id === last.tableId)) {
+          return {
+            ...base,
+            createdTables: state.createdTables.map((table) =>
+              table.id === last.tableId ? { ...table, ...last.prev } : table
+            ),
+          }
+        }
         const next = new Map(state.updatedTables)
         if (Object.keys(last.prev).length === 0) {
           next.delete(last.tableId)
@@ -105,13 +141,17 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
       }
       if (last.type === 'DELETE_TABLE') {
         const nextDeleted = new Set(state.deletedTableIds)
-        nextDeleted.delete(last.tableId)
-        // Restore guest assignments (remove the null assignments we added)
+        nextDeleted.delete(last.table.id)
+
+        const nextCreatedTables = last.wasCreated ? [...state.createdTables, last.table] : state.createdTables
+
+        // Restore guest assignments to their exact local state before deletion.
         const nextAssignments = new Map(state.assignments)
-        for (const guestId of last.guestsOnTable) {
-          nextAssignments.delete(guestId) // revert to server state
+        for (const [guestId, previous] of last.assignmentsBefore) {
+          if (previous === undefined) nextAssignments.delete(guestId)
+          else nextAssignments.set(guestId, previous)
         }
-        return { ...base, deletedTableIds: nextDeleted, assignments: nextAssignments }
+        return { ...base, createdTables: nextCreatedTables, deletedTableIds: nextDeleted, assignments: nextAssignments }
       }
       return state
     }
@@ -134,13 +174,19 @@ function initialState(): SeatingState {
 
 export function useSeatingState(serverTables: Table[], serverGuests: Guest[]) {
   const [state, dispatch] = useReducer(reducer, undefined, initialState)
+  const serverGuestByID = useMemo(() => new Map(serverGuests.map((guest) => [guest.id, guest])), [serverGuests])
+  const serverTableByID = useMemo(() => new Map(serverTables.map((table) => [table.id, table])), [serverTables])
+  const createdTableByID = useMemo(
+    () => new Map(state.createdTables.map((table) => [table.id, table])),
+    [state.createdTables]
+  )
 
   const assignGuest = useCallback(
     (guestId: string, tableId: string | null) => {
-      const guest = serverGuests.find((g) => g.id === guestId)
+      const guest = serverGuestByID.get(guestId)
       dispatch({ type: 'ASSIGN_GUEST', guestId, tableId, serverTableId: guest?.table_id ?? null })
     },
-    [serverGuests],
+    [serverGuestByID]
   )
 
   const createTable = useCallback((table: Table) => {
@@ -149,31 +195,31 @@ export function useSeatingState(serverTables: Table[], serverGuests: Guest[]) {
 
   const updateTable = useCallback(
     (tableId: string, changes: Partial<Table>) => {
-      const existing = serverTables.find((t) => t.id === tableId)
+      const existing = serverTableByID.get(tableId) ?? createdTableByID.get(tableId)
       const prev: Partial<Table> = {}
       for (const key of Object.keys(changes) as (keyof Table)[]) {
-        (prev as any)[key] = existing?.[key]
+        ;(prev as any)[key] = existing?.[key]
       }
       dispatch({ type: 'UPDATE_TABLE', tableId, changes, prev })
     },
-    [serverTables],
+    [createdTableByID, serverTableByID]
   )
 
   const deleteTable = useCallback(
     (tableId: string) => {
+      const table = serverTableByID.get(tableId) ?? createdTableByID.get(tableId)
+      if (!table) return
       // Find all guests currently assigned to this table
       const guestsOnTable: string[] = []
       for (const guest of serverGuests) {
-        const effectiveTableId = state.assignments.has(guest.id)
-          ? state.assignments.get(guest.id)
-          : guest.table_id
+        const effectiveTableId = state.assignments.has(guest.id) ? state.assignments.get(guest.id) : guest.table_id
         if (effectiveTableId === tableId) {
           guestsOnTable.push(guest.id)
         }
       }
-      dispatch({ type: 'DELETE_TABLE', tableId, guestsOnTable })
+      dispatch({ type: 'DELETE_TABLE', table, guestsOnTable })
     },
-    [serverGuests, state.assignments],
+    [createdTableByID, serverGuests, serverTableByID, state.assignments]
   )
 
   const undo = useCallback(() => dispatch({ type: 'UNDO' }), [])
@@ -201,10 +247,7 @@ export function useSeatingState(serverTables: Table[], serverGuests: Guest[]) {
   }, [serverGuests, state.assignments])
 
   const pendingChangeCount =
-    state.assignments.size +
-    state.createdTables.length +
-    state.updatedTables.size +
-    state.deletedTableIds.size
+    state.assignments.size + state.createdTables.length + state.updatedTables.size + state.deletedTableIds.size
 
   const canUndo = state.undoStack.length > 0
 

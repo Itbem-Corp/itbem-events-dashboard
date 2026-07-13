@@ -2,19 +2,19 @@
 
 import * as Headless from '@headlessui/react'
 import clsx from 'clsx'
-import { LayoutGroup, motion } from 'motion/react'
-import React, { forwardRef, useId } from 'react'
+import React, { forwardRef } from 'react'
 import { TouchTarget } from './button'
 import { Link } from './link'
 
 export function Sidebar({ className, ...props }: React.ComponentPropsWithoutRef<'nav'>) {
-  return <nav {...props} className={clsx(className, 'flex h-full min-h-0 flex-col')} />
+  return <nav {...props} data-slot="sidebar" className={clsx(className, 'flex h-full min-h-0 flex-col')} />
 }
 
 export function SidebarHeader({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
   return (
     <div
       {...props}
+      data-slot="sidebar-header"
       className={clsx(
         className,
         'flex flex-col border-b border-zinc-950/5 p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5'
@@ -27,6 +27,7 @@ export function SidebarBody({ className, ...props }: React.ComponentPropsWithout
   return (
     <div
       {...props}
+      data-slot="sidebar-body"
       className={clsx(
         className,
         'flex flex-1 flex-col overflow-y-auto p-4 [&>[data-slot=section]+[data-slot=section]]:mt-8'
@@ -39,6 +40,7 @@ export function SidebarFooter({ className, ...props }: React.ComponentPropsWitho
   return (
     <div
       {...props}
+      data-slot="sidebar-footer"
       className={clsx(
         className,
         'flex flex-col border-t border-zinc-950/5 p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5'
@@ -48,13 +50,7 @@ export function SidebarFooter({ className, ...props }: React.ComponentPropsWitho
 }
 
 export function SidebarSection({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
-  let id = useId()
-
-  return (
-    <LayoutGroup id={id}>
-      <div {...props} data-slot="section" className={clsx(className, 'flex flex-col gap-0.5')} />
-    </LayoutGroup>
-  )
+  return <div {...props} data-slot="section" className={clsx(className, 'flex flex-col gap-0.5')} />
 }
 
 export function SidebarDivider({ className, ...props }: React.ComponentPropsWithoutRef<'hr'>) {
@@ -108,8 +104,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
   return (
     <span className={clsx(className, 'relative')}>
       {current && (
-        <motion.span
-          layoutId="current-indicator"
+        <span
           className="absolute inset-y-2 -left-4 w-0.5 rounded-full bg-zinc-950 dark:bg-white"
         />
       )}

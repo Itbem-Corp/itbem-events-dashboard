@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
-import { useVideoThumbnail, isBlackFrame } from '@/hooks/useVideoThumbnail'
+import { getVideoThumbnailDimensions, useVideoThumbnail, isBlackFrame } from '@/hooks/useVideoThumbnail'
 
 // ---------------------------------------------------------------------------
 // Helpers for isBlackFrame tests
@@ -80,6 +80,25 @@ describe('isBlackFrame', () => {
   it('returns true when getContext returns null', () => {
     const canvas = { width: 160, height: 90, getContext: () => null } as unknown as HTMLCanvasElement
     expect(isBlackFrame(canvas)).toBe(true)
+  })
+})
+
+describe('getVideoThumbnailDimensions', () => {
+  it('bounds a 4K landscape frame while preserving its aspect ratio', () => {
+    expect(getVideoThumbnailDimensions(3840, 2160)).toEqual({ width: 640, height: 360 })
+  })
+
+  it('bounds portrait video by its longest edge', () => {
+    expect(getVideoThumbnailDimensions(1080, 1920)).toEqual({ width: 360, height: 640 })
+  })
+
+  it('does not upscale small video frames', () => {
+    expect(getVideoThumbnailDimensions(320, 180)).toEqual({ width: 320, height: 180 })
+  })
+
+  it('rejects invalid dimensions without allocating a canvas surface', () => {
+    expect(getVideoThumbnailDimensions(0, 1080)).toEqual({ width: 0, height: 0 })
+    expect(getVideoThumbnailDimensions(Number.NaN, 1080)).toEqual({ width: 0, height: 0 })
   })
 })
 

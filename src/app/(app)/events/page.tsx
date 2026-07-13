@@ -1,60 +1,94 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
-import dynamic from 'next/dynamic'
-import Image from 'next/image'
-import useSWR from 'swr'
-import { fetcher } from '@/lib/fetcher'
-import type { Event } from '@/models/Event'
-import { eventTypeLabel } from '@/lib/event-type-label'
-import { useDebounce } from '@/hooks/useDebounce'
-import { useStore } from '@/store/useStore'
-
-// MomentSummary is the shape returned by GET /moments/summary
-interface MomentSummary { event_id: string; pending_count: number }
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
+import { loadEventFormModal, preloadEventFormIntent } from '@/components/events/preload-event-form'
+import { preloadEventWorkspace } from '@/components/events/preload-event-workspace'
 import { Heading } from '@/components/heading'
 import { Link } from '@/components/link'
-import { PageTransition } from '@/components/ui/page-transition'
-import { AnimatedList, AnimatedListItem } from '@/components/ui/animated-list'
 import { EmptyState } from '@/components/ui/empty-state'
+import { IntentModalSkeleton } from '@/components/ui/intent-modal-skeleton'
+import { PageDataError } from '@/components/ui/page-data-error'
+import { PageTransition } from '@/components/ui/page-transition'
+import { Pagination } from '@/components/ui/pagination'
+import { StaleDataNotice } from '@/components/ui/stale-data-notice'
+import { useDebounce } from '@/hooks/useDebounce'
+import { useListViewState } from '@/hooks/useListViewState'
+import { readApiData } from '@/lib/api-envelope'
+import { scopedEventsPagePath } from '@/lib/api-paths'
+import { getCalendarDaysUntil } from '@/lib/date-time'
+import { removeEventCacheValue, upsertEventCacheValue } from '@/lib/event-cache'
+import { eventCoversMediaRefreshKey, getEventCoversRefreshDelay, resolveEventCoverUrl } from '@/lib/event-media'
+import { eventTypeLabel } from '@/lib/event-type-label'
+import { fetcher } from '@/lib/fetcher'
+import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import { getDataErrorState } from '@/lib/swr-data-state'
+import type { Event, EventListPage } from '@/models/Event'
+import { useStore } from '@/store/useStore'
 import {
-  Square2StackIcon,
-  PencilIcon,
-  MagnifyingGlassIcon,
   ArrowRightIcon,
-  CalendarDaysIcon,
-  MapPinIcon,
-  DocumentDuplicateIcon,
-  PaintBrushIcon,
   BuildingOfficeIcon,
+  CalendarDaysIcon,
   EllipsisVerticalIcon,
+  MagnifyingGlassIcon,
+  MapPinIcon,
+  PlusIcon,
+  Square2StackIcon,
 } from '@heroicons/react/20/solid'
-import { EventActiveToggle } from '@/components/events/event-active-toggle'
-import { motion } from 'motion/react'
+import dynamic from 'next/dynamic'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import useSWR, { preload } from 'swr'
 
 // Lazy-loaded modals
-const EventFormModal = dynamic(
-  () => import('@/components/events/forms/event-form-modal').then((m) => m.EventFormModal),
-  { ssr: false }
-)
-const EventDuplicateModal = dynamic(
-  () => import('@/components/events/event-duplicate-modal').then((m) => m.EventDuplicateModal),
-  { ssr: false }
-)
+const loadEventDuplicateModal = () => import('@/components/events/event-duplicate-modal')
+const loadEventDeleteModal = () => import('@/components/events/event-delete-modal')
+const loadEventListActionsMenu = () => import('@/components/events/event-list-actions-menu')
+
+const EventFormModal = dynamic(() => loadEventFormModal().then((module) => module.EventFormModal), {
+  ssr: false,
+  loading: () => <IntentModalSkeleton title="Preparando evento" />,
+})
+const EventDuplicateModal = dynamic(() => loadEventDuplicateModal().then((module) => module.EventDuplicateModal), {
+  ssr: false,
+  loading: () => <IntentModalSkeleton title="Preparando duplicado" />,
+})
+const EventDeleteModal = dynamic(() => loadEventDeleteModal().then((module) => module.EventDeleteModal), {
+  ssr: false,
+  loading: () => <IntentModalSkeleton title="Preparando confirmación" />,
+})
+const EventListActionsMenu = dynamic(() => loadEventListActionsMenu().then((module) => module.EventListActionsMenu), {
+  ssr: false,
+  loading: () => (
+    <div className="absolute top-full right-0 z-30 mt-2 h-36 w-52 animate-pulse rounded-xl border border-white/10 bg-zinc-900" />
+  ),
+})
+
+function preloadEventForm() {
+  void preloadEventFormIntent().catch(() => undefined)
+}
+
+function preloadEventActions() {
+  void loadEventListActionsMenu().catch(() => undefined)
+}
+
+function preloadEventDuplicate() {
+  void loadEventDuplicateModal().catch(() => undefined)
+}
+
+function preloadEventDelete() {
+  void loadEventDeleteModal().catch(() => undefined)
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getDaysUntil(dateString: string | undefined | null): number | null {
-  if (!dateString) return null
-  const ms = new Date(dateString).getTime()
-  if (isNaN(ms)) return null
-  return Math.ceil((ms - Date.now()) / (1000 * 60 * 60 * 24))
+function getDaysUntil(dateString: string | undefined | null, timeZone?: string | null): number | null {
+  return getCalendarDaysUntil(dateString, timeZone)
 }
 
-function CountdownBadge({ dateString }: { dateString: string }) {
-  const days = getDaysUntil(dateString)
+function CountdownBadge({ dateString, timeZone }: { dateString: string; timeZone?: string | null }) {
+  const days = getDaysUntil(dateString, timeZone)
   if (days === null) return <Badge color="zinc">Sin fecha</Badge>
   if (days === 0) return <Badge color="amber">Hoy</Badge>
   if (days < 0) return <Badge color="zinc">Hace {Math.abs(days)}d</Badge>
@@ -64,13 +98,17 @@ function CountdownBadge({ dateString }: { dateString: string }) {
 }
 
 type FilterType = 'all' | 'upcoming' | 'past' | 'today'
+const EVENT_FILTERS = ['all', 'upcoming', 'today', 'past'] as const satisfies readonly FilterType[]
+const EVENTS_PAGE_SIZE = 12
+const EMPTY_EVENTS: Event[] = []
+const EMPTY_COUNTS: EventListPage['counts'] = { all: 0, upcoming: 0, today: 0, past: 0 }
 
 // ─── Pending moments badge ────────────────────────────────────────────────────
 
 function EventMomentsBadge({ pending }: { pending: number }) {
   if (pending === 0) return null
   return (
-    <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 ring-1 ring-amber-500/20 shrink-0">
+    <span className="inline-flex shrink-0 items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 ring-1 ring-amber-500/20">
       {pending} pendiente{pending !== 1 ? 's' : ''}
     </span>
   )
@@ -79,97 +117,180 @@ function EventMomentsBadge({ pending }: { pending: number }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EventsPage() {
+  const router = useRouter()
   const currentClient = useStore((s) => s.currentClient)
   const user = useStore((s) => s.user)
   const isRoot = Boolean(user?.is_root)
-
-  const swrKey = currentClient
-    ? `/events?client_id=${currentClient.id}`
-    : isRoot
-    ? '/events'
-    : null
-
-  const { data: events = [], isLoading, error } = useSWR<Event[]>(
-    swrKey,
-    fetcher,
-    { revalidateOnFocus: false, revalidateIfStale: false }
-  )
-
-  // Batch fetch pending moment counts — one request for all events instead of N+1.
-  const summaryKey = events.length > 0
-    ? `/moments/summary?event_ids=${events.map((e) => e.id).join(',')}`
-    : null
-  const { data: summaryList = [] } = useSWR<MomentSummary[]>(
-    summaryKey,
-    fetcher,
-    { revalidateOnFocus: false, revalidateIfStale: false, refreshInterval: 30000 }
-  )
-  const pendingByEvent = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const s of summaryList) map[s.event_id] = s.pending_count
-    return map
-  }, [summaryList])
+  const isOperationalRoot = user?.root_level === 2
+  const organizationRole = (currentClient?.access_role ?? '').replace('INHERITED_', '').toUpperCase()
+  const organizationCanManageEvents = ['OWNER', 'ADMIN', 'EVENT_MANAGER', 'EDITOR', 'MEMBER'].includes(organizationRole)
+  const canManageEventPortfolio = !isOperationalRoot && (isRoot || organizationCanManageEvents)
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [isDuplicateOpen, setIsDuplicateOpen] = useState(false)
   const [eventToDuplicate, setEventToDuplicate] = useState<Event | null>(null)
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<FilterType>('all')
+  const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
+  const [openActionEventId, setOpenActionEventId] = useState<string | null>(null)
+  const { search, setSearch, filter, setFilter, page, setPage } = useListViewState<FilterType>({
+    defaultFilter: 'all',
+    filterParam: 'filter',
+    pagination: true,
+    validFilters: EVENT_FILTERS,
+  })
 
   const debouncedSearch = useDebounce(search, 200)
+  const swrKey = scopedEventsPagePath(currentClient?.id, isRoot, {
+    page,
+    page_size: EVENTS_PAGE_SIZE,
+    search: debouncedSearch,
+    filter,
+  })
+  const {
+    data: rawEvents,
+    isLoading,
+    isValidating,
+    error,
+    mutate: mutateEvents,
+  } = useSWR<EventListPage>(swrKey, fetcher, {
+    ...responsiveListSwrOptions,
+    keepPreviousData: true,
+  })
+  const eventsPage = useMemo(() => readApiData<EventListPage | undefined>(rawEvents), [rawEvents])
+  const events = eventsPage?.data ?? EMPTY_EVENTS
+  const counts = eventsPage?.counts ?? EMPTY_COUNTS
+  const dataErrorState = getDataErrorState(error, rawEvents)
+  const lastCoverRefreshKey = useRef<string | null>(null)
 
   const openNewEventModal = useCallback(() => {
     setSelectedEvent(null)
     setIsFormOpen(true)
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('create') !== '1' || !canManageEventPortfolio) return
+
+    preloadEventForm()
+    setSelectedEvent(null)
+    setIsFormOpen(true)
+    params.delete('create')
+    const query = params.toString()
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
+  }, [canManageEventPortfolio])
+
   const openEditEventModal = useCallback((event: Event) => {
     setSelectedEvent(event)
     setIsFormOpen(true)
   }, [])
 
-  const filteredEvents = useMemo(() => {
-    return events.filter((event) => {
-      // Text search
-      const matchesSearch =
-        debouncedSearch === '' ||
-        event.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        (event.address ?? '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-        (event.organizer_name ?? '').toLowerCase().includes(debouncedSearch.toLowerCase())
-
-      // Date filter
-      const days = getDaysUntil(event.event_date_time) ?? 0
-      const matchesFilter =
-        filter === 'all' ||
-        (filter === 'upcoming' && days > 0) ||
-        (filter === 'past' && days < 0) ||
-        (filter === 'today' && days === 0)
-
-      return matchesSearch && matchesFilter
-    })
-  }, [events, debouncedSearch, filter])
-
-  const upcomingCount = useMemo(
-    () => events.filter((e) => (getDaysUntil(e.event_date_time) ?? 0) > 0).length,
-    [events]
+  const preloadEventDetail = useCallback(
+    (event: Event) => {
+      router.prefetch(`/events/${event.id}`)
+      void preloadEventWorkspace(event).catch(() => undefined)
+    },
+    [router]
   )
-  const pastCount = useMemo(
-    () => events.filter((e) => (getDaysUntil(e.event_date_time) ?? 0) < 0).length,
-    [events]
+
+  const preloadEventStudio = useCallback(
+    (event: Event) => {
+      router.prefetch(`/events/${event.id}/studio`)
+      void import('@/components/studio/preload-studio-panel')
+        .then((module) => module.preloadStudioWorkspace(event.id))
+        .catch(() => undefined)
+    },
+    [router]
   )
-  const todayCount = useMemo(
-    () => events.filter((e) => getDaysUntil(e.event_date_time) === 0).length,
-    [events]
+
+  useEffect(() => {
+    if (isLoading || !eventsPage) return
+    const lastPage = Math.max(eventsPage.total_pages, 1)
+    if (page > lastPage) setPage(lastPage, 'replace')
+  }, [eventsPage, isLoading, page, setPage])
+
+  const preloadEventsPage = useCallback(
+    (nextPage: number) => {
+      const nextPath = scopedEventsPagePath(currentClient?.id, isRoot, {
+        page: nextPage,
+        page_size: EVENTS_PAGE_SIZE,
+        search: debouncedSearch,
+        filter,
+      })
+      if (!nextPath) return
+      void Promise.resolve(preload(nextPath, fetcher))
+        .then(() => undefined)
+        .catch(() => undefined)
+    },
+    [currentClient?.id, debouncedSearch, filter, isRoot]
   )
+
+  const saveEventInCurrentPage = useCallback(
+    async (savedEvent: Event | null) => {
+      if (!savedEvent) {
+        void mutateEvents()
+        return
+      }
+      const alreadyVisible = events.some((event) => event.id === savedEvent.id)
+      const matchesSearch = `${savedEvent.name} ${savedEvent.identifier ?? ''}`
+        .toLowerCase()
+        .includes(debouncedSearch.toLowerCase())
+      if (!alreadyVisible && (page !== 1 || filter !== 'all' || !matchesSearch)) {
+        void mutateEvents()
+        return
+      }
+      await mutateEvents((current) => upsertEventCacheValue(current ?? rawEvents, savedEvent) as EventListPage, {
+        revalidate: false,
+      })
+    },
+    [debouncedSearch, events, filter, mutateEvents, page, rawEvents]
+  )
+
+  const removeEventFromCurrentPage = useCallback(
+    async (event: Event) => {
+      await mutateEvents((current) => removeEventCacheValue(current ?? rawEvents, event.id) as EventListPage, {
+        revalidate: false,
+      })
+    },
+    [mutateEvents, rawEvents]
+  )
+
+  const restoreEventToCurrentPage = useCallback(
+    async (event: Event) => {
+      await mutateEvents((current) => upsertEventCacheValue(current ?? rawEvents, event) as EventListPage, {
+        revalidate: false,
+      })
+    },
+    [mutateEvents, rawEvents]
+  )
+
+  const coverRefreshDelay = useMemo(() => getEventCoversRefreshDelay(events), [events])
+  const coverRefreshKey = useMemo(() => eventCoversMediaRefreshKey(events), [events])
+
+  useEffect(() => {
+    if (coverRefreshDelay === null || !coverRefreshKey) return
+
+    const refreshCovers = () => {
+      lastCoverRefreshKey.current = coverRefreshKey
+      void mutateEvents()
+    }
+
+    if (coverRefreshDelay <= 0) {
+      if (lastCoverRefreshKey.current === coverRefreshKey) return
+      refreshCovers()
+      return
+    }
+
+    const timer = window.setTimeout(refreshCovers, coverRefreshDelay)
+    return () => window.clearTimeout(timer)
+  }, [coverRefreshDelay, coverRefreshKey, mutateEvents])
 
   if (!swrKey && !isRoot) {
     return (
       <PageTransition>
         <div className="flex flex-col items-center justify-center py-32 text-center">
-          <BuildingOfficeIcon className="size-12 text-zinc-700 mb-4" />
+          <BuildingOfficeIcon className="mb-4 size-12 text-zinc-700" />
           <h2 className="text-lg font-semibold text-zinc-300">Sin organización seleccionada</h2>
-          <p className="mt-2 text-sm text-zinc-500 max-w-sm">
+          <p className="mt-2 max-w-sm text-sm text-zinc-500">
             Selecciona una organización en el menú superior para ver sus eventos.
           </p>
         </div>
@@ -177,52 +298,75 @@ export default function EventsPage() {
     )
   }
 
-  if (error) {
+  if (dataErrorState === 'fatal') {
     return (
-      <div className="py-24 text-center text-sm text-red-400">
-        Error al cargar eventos. Intenta de nuevo.
-      </div>
+      <PageDataError
+        title="No pudimos cargar los eventos"
+        description="La operación permanece intacta. Reintenta para recuperar tu portafolio de eventos."
+        onRetry={() => void mutateEvents()}
+        retrying={isValidating}
+        icon={Square2StackIcon}
+      />
     )
   }
 
   const FILTER_TABS: { id: FilterType; label: string; count: number }[] = [
-    { id: 'all', label: 'Todos', count: events.length },
-    { id: 'upcoming', label: 'Próximos', count: upcomingCount },
-    { id: 'today', label: 'Hoy', count: todayCount },
-    { id: 'past', label: 'Pasados', count: pastCount },
+    { id: 'all', label: 'Todos', count: counts.all },
+    { id: 'upcoming', label: 'Próximos', count: counts.upcoming },
+    { id: 'today', label: 'Hoy', count: counts.today },
+    { id: 'past', label: 'Pasados', count: counts.past },
   ]
 
   return (
     <PageTransition>
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="max-sm:w-full sm:flex-1">
-          <Heading>Eventos</Heading>
-          {!isLoading && events.length > 0 && (
-            <p className="mt-1 text-sm text-zinc-500">
-              {events.length} evento{events.length !== 1 ? 's' : ''} registrado{events.length !== 1 ? 's' : ''}
-            </p>
-          )}
+      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="mb-2 text-[11px] font-semibold tracking-[0.18em] text-indigo-400 uppercase">
+            Portafolio de eventos
+          </p>
+          <Heading className="text-3xl/9 tracking-tight sm:text-3xl/9">Eventos</Heading>
+          <p className="mt-2 max-w-xl text-sm text-zinc-500">
+            {isOperationalRoot
+              ? 'Vista operativa: consulta y opera asistentes, check-in y analítica sin cambiar la estructura del evento.'
+              : 'Planea, publica y opera cada experiencia desde un solo lugar.'}
+          </p>
         </div>
-        <Button onClick={openNewEventModal}>
-          Crear evento
-        </Button>
-      </div>
+        {canManageEventPortfolio && (
+          <Button
+            color="indigo"
+            onClick={openNewEventModal}
+            onPointerEnter={preloadEventForm}
+            onPointerDown={preloadEventForm}
+            onFocus={preloadEventForm}
+          >
+            <PlusIcon />
+            Crear evento
+          </Button>
+        )}
+      </header>
+
+      {dataErrorState === 'stale' && (
+        <div className="mt-6">
+          <StaleDataNotice label="eventos" onRetry={() => void mutateEvents()} retrying={isValidating} />
+        </div>
+      )}
 
       {/* Filters + Search */}
-      {!isLoading && events.length > 0 && (
-        <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {!isLoading && (counts.all > 0 || search || filter !== 'all') && (
+        <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-white/7 bg-white/[0.02] p-2 sm:flex-row sm:items-center sm:justify-between">
           {/* Date filter tabs */}
-          <div className="flex rounded-xl overflow-x-auto border border-white/10 self-start">
+          <div className="flex max-w-full self-start overflow-x-auto rounded-xl p-0.5">
             {FILTER_TABS.map((tab) => (
               <button
+                type="button"
                 key={tab.id}
+                aria-pressed={filter === tab.id}
                 onClick={() => setFilter(tab.id)}
                 className={[
-                  'shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium transition-colors',
+                  'flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors',
                   filter === tab.id
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5',
+                    ? 'bg-white/8 text-white shadow-sm ring-1 ring-white/8'
+                    : 'text-zinc-500 hover:bg-white/[0.035] hover:text-zinc-200',
                 ].join(' ')}
               >
                 {tab.label}
@@ -230,7 +374,7 @@ export default function EventsPage() {
                   <span
                     className={[
                       'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                      filter === tab.id ? 'bg-white/20 text-white' : 'bg-zinc-800 text-zinc-500',
+                      filter === tab.id ? 'bg-indigo-500/20 text-indigo-300' : 'bg-zinc-800/80 text-zinc-600',
                     ].join(' ')}
                   >
                     {tab.count}
@@ -241,14 +385,15 @@ export default function EventsPage() {
           </div>
 
           {/* Search */}
-          <div className="relative max-w-xs w-full sm:w-auto">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-zinc-500" />
+          <div className="relative w-full sm:max-w-xs">
+            <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-500" />
             <input
               type="search"
+              aria-label="Buscar evento"
               placeholder="Buscar evento..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-zinc-900/50 pl-9 pr-4 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-xl border border-transparent bg-black/15 py-2 pr-4 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
             />
           </div>
         </div>
@@ -256,35 +401,35 @@ export default function EventsPage() {
 
       {/* List */}
       {isLoading ? (
-        <div className="mt-8 space-y-3">
+        <div className="mt-8 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02]">
           {[...Array(4)].map((_, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-4 rounded-2xl border border-white/10 bg-zinc-900/50 p-5 animate-pulse"
-            >
-              <div className="size-14 rounded-xl bg-zinc-800 shrink-0" />
-              <div className="flex-1 min-w-0 space-y-2">
-                <div className="h-4 w-3/4 max-w-[12rem] bg-zinc-800 rounded" />
-                <div className="h-3 w-full max-w-[16rem] bg-zinc-800 rounded" />
-                <div className="h-3 w-1/2 max-w-[8rem] bg-zinc-800 rounded" />
+            <div key={i} className="flex animate-pulse items-center gap-4 border-b border-white/6 p-5 last:border-b-0">
+              <div className="size-14 shrink-0 rounded-xl bg-zinc-800" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="h-4 w-3/4 max-w-[12rem] rounded bg-zinc-800" />
+                <div className="h-3 w-full max-w-[16rem] rounded bg-zinc-800" />
+                <div className="h-3 w-1/2 max-w-[8rem] rounded bg-zinc-800" />
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="h-5 w-16 bg-zinc-800 rounded-full" />
-                <div className="h-5 w-12 bg-zinc-800 rounded-full hidden sm:block" />
-                <div className="size-7 bg-zinc-800 rounded" />
+              <div className="flex shrink-0 items-center gap-2">
+                <div className="h-5 w-16 rounded-full bg-zinc-800" />
+                <div className="hidden h-5 w-12 rounded-full bg-zinc-800 sm:block" />
+                <div className="size-7 rounded bg-zinc-800" />
               </div>
             </div>
           ))}
         </div>
-      ) : filteredEvents.length === 0 ? (
-        <div className="mt-10">
+      ) : events.length === 0 ? (
+        <div className="mt-8 rounded-2xl border border-white/7 bg-white/[0.02]">
           {debouncedSearch || filter !== 'all' ? (
             <div className="py-16 text-center">
-              <MagnifyingGlassIcon className="mx-auto size-8 text-zinc-700 mb-3" />
+              <MagnifyingGlassIcon className="mx-auto mb-3 size-8 text-zinc-700" />
               <p className="text-sm text-zinc-500">Sin resultados</p>
               <button
-                onClick={() => { setSearch(''); setFilter('all') }}
-                className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                onClick={() => {
+                  setSearch('')
+                  setFilter('all')
+                }}
+                className="mt-3 text-xs text-indigo-400 transition-colors hover:text-indigo-300"
               >
                 Limpiar filtros
               </button>
@@ -293,201 +438,204 @@ export default function EventsPage() {
             <EmptyState
               icon={Square2StackIcon}
               title="Sin eventos"
-              description="Esta organización aún no tiene eventos registrados."
-              action={{ label: 'Crear primer evento', onClick: openNewEventModal }}
+              description={
+                isOperationalRoot
+                  ? 'No hay eventos para operar en este alcance.'
+                  : 'Esta organización aún no tiene eventos registrados.'
+              }
+              action={
+                canManageEventPortfolio ? { label: 'Crear primer evento', onClick: openNewEventModal } : undefined
+              }
             />
           )}
         </div>
       ) : (
-        <AnimatedList className="mt-6">
-          <ul className="space-y-3">
-            {filteredEvents.map((event) => {
-              const days = getDaysUntil(event.event_date_time) ?? 0
-              const isPast = days < 0
+        <ul className="mt-6 divide-y divide-white/6 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02] shadow-xl shadow-black/5">
+          {events.map((event) => {
+            const days = getDaysUntil(event.event_date_time, event.timezone) ?? 0
+            const isPast = days < 0
+            const coverImageUrl = resolveEventCoverUrl(event, process.env.NEXT_PUBLIC_BACKEND_URL)
 
-              return (
-                <AnimatedListItem key={event.id}>
-                  <li>
-                    <motion.div
-                      whileHover={{ y: -1 }}
-                      transition={{ duration: 0.15 }}
-                      className={[
-                        'flex items-center gap-4 rounded-2xl border bg-zinc-900/50 p-4 transition-colors',
-                        isPast ? 'border-white/5' : 'border-white/10 hover:border-white/20',
-                      ].join(' ')}
-                    >
-                      {/* Cover thumbnail or placeholder */}
-                      <div className="relative size-14 shrink-0">
-                        {event.cover_image_url ? (
-                          <Image
-                            src={event.cover_image_url}
-                            alt={event.name}
-                            fill
-                            sizes="56px"
-                            className={[
-                              'rounded-xl object-cover',
-                              isPast ? 'opacity-40 grayscale' : '',
-                            ].join(' ')}
+            return (
+              <li key={event.id}>
+                <div
+                  onPointerEnter={() => preloadEventDetail(event)}
+                  onPointerDown={() => preloadEventDetail(event)}
+                  onFocusCapture={() => preloadEventDetail(event)}
+                  className={[
+                    'group relative flex items-center gap-3 p-4 transition-colors focus-within:ring-2 focus-within:ring-pink-400/60 focus-within:ring-inset sm:gap-4 sm:p-5',
+                    isPast ? 'hover:bg-white/[0.02]' : 'hover:bg-white/[0.035]',
+                  ].join(' ')}
+                >
+                  <Link
+                    href={`/events/${event.id}`}
+                    aria-label={`Abrir evento ${event.name}`}
+                    className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none"
+                  >
+                    <span className="sr-only">Abrir evento {event.name}</span>
+                  </Link>
+
+                  {/* Cover thumbnail or placeholder */}
+                  <div className="pointer-events-none relative z-10 size-12 shrink-0 sm:size-16">
+                    {coverImageUrl ? (
+                      <Image
+                        src={coverImageUrl}
+                        alt={event.name}
+                        fill
+                        sizes="(max-width: 640px) 48px, 64px"
+                        className={['rounded-xl object-cover', isPast ? 'opacity-45 grayscale' : ''].join(' ')}
+                      />
+                    ) : (
+                      <div
+                        className={[
+                          'flex size-12 items-center justify-center rounded-xl sm:size-16',
+                          isPast ? 'bg-zinc-800/50' : 'bg-indigo-500/10',
+                        ].join(' ')}
+                      >
+                        <CalendarDaysIcon
+                          className={['size-5 sm:size-6', isPast ? 'text-zinc-700' : 'text-indigo-400'].join(' ')}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="pointer-events-none relative z-10 min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-x-2">
+                      <span
+                        className={[
+                          'min-w-0 truncate text-sm font-semibold transition-colors group-hover:text-white sm:text-base',
+                          isPast ? 'text-zinc-400' : 'text-zinc-100',
+                        ].join(' ')}
+                      >
+                        {event.name}
+                      </span>
+                      {event.event_type?.name && (
+                        <span className="hidden rounded border border-zinc-800 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-zinc-600 uppercase sm:inline-flex">
+                          {eventTypeLabel(event.event_type.name)}
+                        </span>
+                      )}
+                      <EventMomentsBadge pending={event.pending_moment_count ?? 0} />
+                    </div>
+
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                      <span className="flex min-w-0 items-center gap-1 text-xs whitespace-nowrap text-zinc-500">
+                        <CalendarDaysIcon className="size-3 shrink-0" />
+                        <span className="sm:hidden">
+                          {new Date(event.event_date_time).toLocaleDateString('es-MX', {
+                            day: '2-digit',
+                            month: 'short',
+                            timeZone: event.timezone || 'UTC',
+                          })}
+                        </span>
+                        <span className="hidden sm:inline">
+                          {new Date(event.event_date_time).toLocaleString('es-MX', {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                            timeZone: event.timezone || 'UTC',
+                          })}
+                        </span>
+                      </span>
+                      {event.address && (
+                        <span className="hidden max-w-[220px] items-center gap-1 truncate text-xs text-zinc-600 sm:flex">
+                          <MapPinIcon className="size-3 shrink-0" />
+                          {event.address}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="mt-1 hidden text-[11px] text-zinc-700 sm:block">
+                      {event.max_guests != null
+                        ? `Capacidad para ${event.max_guests} invitados`
+                        : 'Capacidad sin definir'}
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="relative z-20 flex shrink-0 items-center gap-2">
+                    <CountdownBadge dateString={event.event_date_time} timeZone={event.timezone} />
+                    <span className="pointer-events-none hidden min-h-9 items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-zinc-300 transition-colors group-hover:border-white/15 group-hover:text-white sm:flex">
+                      Abrir
+                      <ArrowRightIcon className="size-4" />
+                    </span>
+
+                    {canManageEventPortfolio && (
+                      <details
+                        name="event-actions"
+                        className="group/actions relative"
+                        onToggle={(eventDetails) => {
+                          setOpenActionEventId(eventDetails.currentTarget.open ? event.id : null)
+                        }}
+                      >
+                        <summary
+                          role="button"
+                          aria-label={`Más acciones para ${event.name}`}
+                          onPointerEnter={preloadEventActions}
+                          onPointerDown={preloadEventActions}
+                          onFocus={preloadEventActions}
+                          className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+                        >
+                          <EllipsisVerticalIcon className="size-5" />
+                        </summary>
+                        {openActionEventId === event.id && (
+                          <EventListActionsMenu
+                            event={event}
+                            onEdit={openEditEventModal}
+                            onEditIntent={preloadEventForm}
+                            onDuplicateIntent={preloadEventDuplicate}
+                            onDeleteIntent={preloadEventDelete}
+                            onStudioIntent={preloadEventStudio}
+                            onDuplicate={(selected) => {
+                              setEventToDuplicate(selected)
+                              setIsDuplicateOpen(true)
+                            }}
+                            onDelete={setEventToDelete}
                           />
-                        ) : (
-                          <div
-                            className={[
-                              'size-14 rounded-xl flex items-center justify-center',
-                              isPast ? 'bg-zinc-800/50' : 'bg-indigo-500/10',
-                            ].join(' ')}
-                          >
-                            <CalendarDaysIcon
-                              className={[
-                                'size-6',
-                                isPast ? 'text-zinc-700' : 'text-indigo-400',
-                              ].join(' ')}
-                            />
-                          </div>
                         )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <Link
-                            href={`/events/${event.id}`}
-                            className={[
-                              'text-sm font-semibold truncate hover:text-white transition-colors',
-                              isPast ? 'text-zinc-500' : 'text-zinc-100',
-                            ].join(' ')}
-                          >
-                            {event.name}
-                          </Link>
-                          {event.event_type?.name && (
-                            <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-600 border border-zinc-800 rounded px-1.5 py-0.5">
-                              {eventTypeLabel(event.event_type.name)}
-                            </span>
-                          )}
-                          <EventMomentsBadge pending={pendingByEvent[event.id] ?? 0} />
-                        </div>
-
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                          <span className="flex items-center gap-1 text-xs text-zinc-500">
-                            <CalendarDaysIcon className="size-3 shrink-0" />
-                            {new Date(event.event_date_time).toLocaleString('es-MX', {
-                              dateStyle: 'medium',
-                              timeStyle: 'short',
-                            })}
-                          </span>
-                          {event.address && (
-                            <span className="flex items-center gap-1 text-xs text-zinc-600 truncate max-w-[140px] sm:max-w-[220px]">
-                              <MapPinIcon className="size-3 shrink-0" />
-                              {event.address}
-                            </span>
-                          )}
-                        </div>
-
-                        {event.max_guests != null && (
-                          <p className="mt-0.5 text-[11px] text-zinc-700">
-                            Máx. {event.max_guests} invitados
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                        <CountdownBadge dateString={event.event_date_time} />
-                        <div title={event.is_active ? 'Desactivar evento' : 'Activar evento'} className="hidden sm:block">
-                          <EventActiveToggle event={event} />
-                        </div>
-                        <Button
-                          plain
-                          onClick={() => {
-                            setEventToDuplicate(event)
-                            setIsDuplicateOpen(true)
-                          }}
-                          aria-label={`Duplicar ${event.name}`}
-                          title="Duplicar evento"
-                          className="hidden sm:inline-flex"
-                        >
-                          <DocumentDuplicateIcon className="size-4 text-zinc-400" />
-                        </Button>
-                        <a
-                          href={`/events/${event.id}/studio`}
-                          title="Abrir Studio"
-                          aria-label={`Studio de ${event.name}`}
-                          className="hidden sm:flex items-center rounded p-1 text-zinc-600 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
-                        >
-                          <PaintBrushIcon className="size-4" />
-                        </a>
-                        <Button
-                          plain
-                          onClick={() => openEditEventModal(event)}
-                          aria-label={`Editar ${event.name}`}
-                          className="hidden sm:inline-flex"
-                        >
-                          <PencilIcon className="size-4 text-zinc-400" />
-                        </Button>
-                        <Link href={`/events/${event.id}`}>
-                          <Button plain aria-label={`Ver ${event.name}`}>
-                            <ArrowRightIcon className="size-4 text-zinc-400" />
-                          </Button>
-                        </Link>
-
-                        {/* Mobile kebab menu */}
-                        <div className="relative sm:hidden group">
-                          <button
-                            className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
-                            aria-label="Más acciones"
-                          >
-                            <EllipsisVerticalIcon className="size-5" />
-                          </button>
-                          <div className="hidden group-focus-within:block absolute right-0 top-full mt-1 z-20 w-44 rounded-xl border border-white/10 bg-zinc-900 shadow-xl shadow-black/40 py-1">
-                            <button
-                              onClick={() => openEditEventModal(event)}
-                              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5 transition-colors"
-                            >
-                              <PencilIcon className="size-4 text-zinc-500" />
-                              Editar
-                            </button>
-                            <a
-                              href={`/events/${event.id}/studio`}
-                              className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5 transition-colors"
-                            >
-                              <PaintBrushIcon className="size-4 text-zinc-500" />
-                              Studio
-                            </a>
-                            <button
-                              onClick={() => {
-                                setEventToDuplicate(event)
-                                setIsDuplicateOpen(true)
-                              }}
-                              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-zinc-300 hover:bg-white/5 transition-colors"
-                            >
-                              <DocumentDuplicateIcon className="size-4 text-zinc-500" />
-                              Duplicar
-                            </button>
-                            <div className="px-3 py-2">
-                              <EventActiveToggle event={event} />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </li>
-                </AnimatedListItem>
-              )
-            })}
-          </ul>
-        </AnimatedList>
+                      </details>
+                    )}
+                  </div>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
       )}
 
-      <EventFormModal
-        isOpen={isFormOpen}
-        setIsOpen={setIsFormOpen}
-        event={selectedEvent}
-      />
+      {!isLoading && (eventsPage?.total ?? 0) > EVENTS_PAGE_SIZE && (
+        <Pagination
+          total={eventsPage?.total ?? 0}
+          page={page}
+          pageSize={EVENTS_PAGE_SIZE}
+          onPageChange={setPage}
+          onPageIntent={preloadEventsPage}
+        />
+      )}
 
-      <EventDuplicateModal
-        event={eventToDuplicate}
-        isOpen={isDuplicateOpen}
-        setIsOpen={setIsDuplicateOpen}
-      />
+      {isFormOpen && (
+        <EventFormModal isOpen setIsOpen={setIsFormOpen} event={selectedEvent} onSaved={saveEventInCurrentPage} />
+      )}
+
+      {isDuplicateOpen && eventToDuplicate && (
+        <EventDuplicateModal
+          event={eventToDuplicate}
+          isOpen
+          setIsOpen={setIsDuplicateOpen}
+          onCreated={saveEventInCurrentPage}
+        />
+      )}
+
+      {eventToDelete && (
+        <EventDeleteModal
+          event={eventToDelete}
+          open
+          onClose={() => setEventToDelete(null)}
+          onDeleted={() => setOpenActionEventId(null)}
+          onOptimisticDelete={removeEventFromCurrentPage}
+          onDeleteRollback={restoreEventToCurrentPage}
+          onRevalidate={() => void mutateEvents()}
+        />
+      )}
     </PageTransition>
   )
 }

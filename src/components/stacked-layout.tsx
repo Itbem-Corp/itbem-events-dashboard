@@ -33,7 +33,7 @@ function MobileSidebar({ open, close, children }: React.PropsWithChildren<{ open
       >
         <div className="flex h-full flex-col rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
           <div className="-mb-3 px-4 pt-3">
-            <Headless.CloseButton as={NavbarItem} aria-label="Close navigation">
+            <Headless.CloseButton as={NavbarItem} aria-label="Cerrar navegación">
               <CloseMenuIcon />
             </Headless.CloseButton>
           </div>
@@ -61,7 +61,7 @@ export function StackedLayout({
       {/* Navbar */}
       <header className="flex items-center px-4">
         <div className="py-2.5 lg:hidden">
-          <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation">
+          <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Abrir navegación">
             <OpenMenuIcon />
           </NavbarItem>
         </div>

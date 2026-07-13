@@ -1,35 +1,52 @@
 'use client'
 
 import { useState } from 'react'
-import { mutate } from 'swr'
 
 import { Alert, AlertActions, AlertDescription, AlertTitle } from '@/components/alert'
 import { Button } from '@/components/button'
 
 import { api } from '@/lib/api'
-import { toast } from 'sonner'
+import { getApiErrorMessage } from '@/lib/api-error'
+import { guestPath } from '@/lib/api-paths'
 import type { Guest } from '@/models/Guest'
+import { toast } from 'sonner'
 
 interface Props {
   guest: Guest | null
   eventIdentifier: string
   eventId?: string
   onClose: () => void
+  onPublicContentChanged?: () => void
+  onOptimisticDelete?: (guest: Guest) => Promise<void> | void
+  onDeleteRollback?: (guest: Guest) => Promise<void> | void
+  onRevalidate?: () => void
 }
 
-export function GuestDeleteModal({ guest, eventIdentifier, eventId, onClose }: Props) {
+export function GuestDeleteModal({
+  guest,
+  eventIdentifier,
+  eventId,
+  onClose,
+  onPublicContentChanged,
+  onOptimisticDelete,
+  onDeleteRollback,
+  onRevalidate,
+}: Props) {
   const [loading, setLoading] = useState(false)
 
   const handleDelete = async () => {
     if (!guest) return
     setLoading(true)
     try {
-      await api.delete(`/guests/${guest.id}`)
-      await mutate(`/guests/all:${eventId ?? eventIdentifier}`)
+      await onOptimisticDelete?.(guest)
+      await api.delete(guestPath(guest.id))
+      onRevalidate?.()
+      onPublicContentChanged?.()
       onClose()
       toast.success('Invitado eliminado')
-    } catch {
-      toast.error('Error al eliminar el invitado')
+    } catch (err: unknown) {
+      await onDeleteRollback?.(guest)
+      toast.error(getApiErrorMessage(err, 'Error al eliminar el invitado'))
     } finally {
       setLoading(false)
     }

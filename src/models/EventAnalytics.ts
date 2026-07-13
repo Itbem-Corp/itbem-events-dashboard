@@ -6,6 +6,28 @@ export interface EventAnalytics {
   rsvp_declined: number
   moment_uploads: number
   moment_comments: number
+  moment_total?: number
+  moment_approved?: number
+  moment_pending?: number
   created_at?: string
   updated_at?: string
+  guests: EventGuestAnalyticsSummary
 }
+
+export interface AnalyticsCount { name: string; value: number }
+export interface EventGuestAnalyticsSummary {
+  total_guests: number
+  confirmed: number
+  declined: number
+  pending: number
+  total_companions: number
+  estimated_attendees: number
+  dietary: AnalyticsCount[]
+  methods: AnalyticsCount[]
+  roles: AnalyticsCount[]
+  tables: AnalyticsCount[]
+  timeline: Array<{ date: string; confirmed: number; declined: number }>
+  top_companions: Array<{ id: string; first_name: string; last_name: string; role: string; companion_count: number }>
+}
+
+export type EventAnalyticsResponse = EventAnalytics

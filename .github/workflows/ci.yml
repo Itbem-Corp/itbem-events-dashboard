@@ -5,6 +5,10 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   # ── Unit tests + type check + build (runs on every push & PR) ────────────
@@ -14,10 +18,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify source revision
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 20.19
           cache: npm
 
       - name: Install dependencies
@@ -26,8 +38,13 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
 
+      - name: Lint
+        run: npm run lint
+
       - name: Unit tests
-        run: npm run test:unit
+        # Shared DOM globals and fake timers make the full UI suite flaky when
+        # files run concurrently; keep CI deterministic.
+        run: npm run test:unit -- --maxWorkers=1
 
       - name: Build
         run: npm run build
@@ -39,37 +56,108 @@ jobs:
     name: Deploy to Vercel
     runs-on: ubuntu-latest
     needs: unit
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # A manual dispatch is reserved for the isolated E2E job below; it must not
+    # promote production as a side effect.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 30
+    environment: production
+    concurrency:
+      group: dashboard-ts-production
+      cancel-in-progress: false
+    env:
+      VERCEL_CLI_VERSION: 55.0.0
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      PRODUCTION_SMOKE_URL: ${{ vars.PRODUCTION_SMOKE_URL || 'https://dashboard.eventiapp.com.mx' }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify deployment revision
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 20.19
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify pinned Vercel CLI
+        run: test "$(npx --yes vercel@${VERCEL_CLI_VERSION} --version)" = "${VERCEL_CLI_VERSION}"
+
       - name: Pull Vercel project config
-        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: npx --yes vercel@${VERCEL_CLI_VERSION} pull --yes --environment=production --token="${VERCEL_TOKEN}"
 
       - name: Build for Vercel
-        run: npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: npx --yes vercel@${VERCEL_CLI_VERSION} build --prod --token="${VERCEL_TOKEN}"
         env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL || 'https://api.eventiapp.com.mx' }}
 
-      - name: Deploy pre-built output to production
-        run: npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Capture current production deployment
+        id: previous
+        run: |
+          PREVIOUS_JSON="$(npx --yes vercel@${VERCEL_CLI_VERSION} inspect \
+            "${PRODUCTION_SMOKE_URL}" --format=json --token="${VERCEL_TOKEN}")"
+          PREVIOUS_ID="$(jq -er '.id | select(startswith("dpl_"))' <<< "${PREVIOUS_JSON}")"
+          echo "deployment_id=${PREVIOUS_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Deploy immutable candidate without production aliases
+        id: candidate
+        run: |
+          DEPLOYMENT_JSON="$(npx --yes vercel@${VERCEL_CLI_VERSION} deploy \
+            --prebuilt --prod --skip-domain --yes --format=json \
+            --meta "githubCommitSha=${GITHUB_SHA}" \
+            --token="${VERCEL_TOKEN}")"
+          DEPLOYMENT_ID="$(jq -er '.id | select(startswith("dpl_"))' <<< "${DEPLOYMENT_JSON}")"
+          DEPLOYMENT_URL="$(jq -er '.url | select(startswith("https://"))' <<< "${DEPLOYMENT_JSON}")"
+          echo "deployment_id=${DEPLOYMENT_ID}" >> "${GITHUB_OUTPUT}"
+          echo "deployment_url=${DEPLOYMENT_URL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Smoke immutable candidate
         env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DEPLOYMENT_URL: ${{ steps.candidate.outputs.deployment_url }}
+        run: |
+          curl --fail --silent --show-error --location \
+            --retry 6 --retry-all-errors --retry-delay 5 --max-time 20 \
+            "${DEPLOYMENT_URL%/}/" > /dev/null
+
+      - name: Promote, smoke production alias, and roll back on failure
+        env:
+          DEPLOYMENT_ID: ${{ steps.candidate.outputs.deployment_id }}
+          PREVIOUS_DEPLOYMENT_ID: ${{ steps.previous.outputs.deployment_id }}
+        run: |
+          set +e
+          npx --yes vercel@${VERCEL_CLI_VERSION} promote "${DEPLOYMENT_ID}" \
+            --yes --timeout=3m --token="${VERCEL_TOKEN}"
+          PROMOTE_STATUS=$?
+
+          SMOKE_STATUS=1
+          if [[ ${PROMOTE_STATUS} -eq 0 ]]; then
+            curl --fail --silent --show-error --location \
+              --retry 6 --retry-all-errors --retry-delay 5 --max-time 20 \
+              "${PRODUCTION_SMOKE_URL%/}/" > /dev/null
+            SMOKE_STATUS=$?
+          fi
+          set -e
+
+          if [[ ${PROMOTE_STATUS} -ne 0 || ${SMOKE_STATUS} -ne 0 ]]; then
+            if [[ "${PREVIOUS_DEPLOYMENT_ID}" == dpl_* ]]; then
+              npx --yes vercel@${VERCEL_CLI_VERSION} rollback \
+                "${PREVIOUS_DEPLOYMENT_ID}" --yes --timeout=3m \
+                --token="${VERCEL_TOKEN}"
+            else
+              echo "Promotion failed and the previous production deployment is invalid." >&2
+            fi
+            exit 1
+          fi
 
 # ── E2E tests — manual trigger only ──────────────────────────────────────────
 # E2E requires a real Cognito staging pool (stagingauth.eventiapp.com.mx),
@@ -86,7 +174,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 20.19
           cache: npm
 
       - name: Install dependencies

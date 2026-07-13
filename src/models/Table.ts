@@ -6,3 +6,5 @@ export interface Table extends BaseEntity {
   capacity: number
   sort_order: number
 }
+
+export type EventTableResponse = Table

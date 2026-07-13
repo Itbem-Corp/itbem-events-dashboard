@@ -2,25 +2,26 @@
 
 ## Axios Instance (`src/lib/api.ts`)
 
-- `baseURL`: `${NEXT_PUBLIC_BACKEND_URL}/api` → all paths below are relative to this
+- `baseURL`: `${NEXT_PUBLIC_BACKEND_URL}/api` -> all paths below are relative to this
 - **Request interceptor**: injects `Authorization: Bearer <token>`
-- **Response interceptor**: HTTP 401 → `store.clearSession()` + redirect `/logout`
+- **Response interceptor**: unwraps backend envelopes (`{ status, message, data }`), normalizes Go/Pascal keys to dashboard `snake_case`, skips binary/blob responses, and handles HTTP 401 with `store.clearSession()` + redirect `/logout`
+- Use `src/lib/api-paths.ts` for backend paths instead of hardcoded strings.
 
 ## SWR Fetcher
 
 ```typescript
 // src/lib/fetcher.ts
-export const fetcher = (url: string) => api.get(url).then(r => r.data?.data ?? r.data)
+export const fetcher = (url: string) => api.get(url).then(r => r.data)
 ```
 
-Backend wraps responses in `{ data: T }`. The fetcher unwraps automatically — SWR consumers receive the data array/object directly, no manual `.data` unwrapping needed in pages.
+Backend wraps responses in `{ status, message, data }`. The Axios response interceptor unwraps that envelope before the fetcher runs, so SWR consumers receive the data array/object directly.
 
 ## Fetching Pattern
 
 ```tsx
 const { currentClient } = useStore()
 const { data = [], isLoading, error, mutate } = useSWR<Model[]>(
-  currentClient ? `/endpoint?client_id=${currentClient.id}` : null,
+  currentClient ? endpointPath(currentClient.id) : null,
   fetcher
 )
 if (error) return <div className="text-red-400 p-4">Error al cargar datos</div>
@@ -31,12 +32,13 @@ Always destructure `error` from `useSWR` and render an error state.
 ## Mutation Pattern
 
 ```tsx
-import api from '@/lib/api'
+import { api } from '@/lib/api'
+import { resourcePath, resourcesPath } from '@/lib/api-paths'
 
-await api.post('/resource', payload)           // JSON body
-await api.post('/resource', formData)          // multipart (files)
-await api.put(`/resource/${id}`, data)
-await api.delete(`/resource/${id}`)
+await api.post(resourcesPath(), payload)       // JSON body
+await api.post(resourcesPath(), formData)      // multipart (files)
+await api.put(resourcePath(id), data)
+await api.delete(resourcePath(id))
 mutate()  // always revalidate SWR after write
 ```
 
@@ -100,15 +102,15 @@ toast.error('Failed')
 |---|---|---|
 | GET | `/events/all` | All events (public, Redis-cached) — SWR key `/events/all` |
 | GET | `/events?client_id=` | Events for client (query param) |
-| GET | `/events/:id` | Event detail |
+| GET | `/events/:id/detail` | Event detail |
 | POST | `/events` | Create event |
 | PUT | `/events/:id` | Update event |
 | DELETE | `/events/:id` | Delete event |
 | POST | `/events/:id/repair` | Self-healing: detect and fix malformed event data atomically |
-| POST | `/events/:id/preview-token` | Generate admin preview OTP (UUID v4, 1h Redis TTL) → `{ token, expires_in }` |
+| POST | `/events/:id/preview-token` | Generate signed admin preview token, currently valid for 30 minutes. Response envelope data: `{ token, expires_at }` |
 | GET | `/events/:id/analytics` | Event analytics — views, RSVPs, moment counts |
 | GET | `/events/:id/config` | Event configuration |
-| PUT | `/events/:id/config` | Update configuration |
+| PUT | `/events/:id/config` | Update configuration. If `active_until` is sent, it must be strictly after `active_from`; open-ended ranges are valid. |
 | GET | `/events/:id/sections` | Event sections |
 | POST | `/events/:id/sections` | Create section |
 | PUT | `/sections/:id` | Update section |
@@ -119,20 +121,22 @@ toast.error('Failed')
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/guests/:identifier` | List guests for an event by its public identifier — used by the dashboard to load the invitados/RSVP tabs |
+| GET | `/guests/all:<eventID>` | List guests for an event by UUID — used by the dashboard to load the invitados/RSVP tabs |
 | POST | `/guests` | Create single guest |
 | POST | `/guests/batch` | Bulk-create guests (atomic) — also creates RSVP invitations and access tokens; rate-limited ~10 req/min |
 | PUT | `/guests/:id` | Update guest |
 | DELETE | `/guests/:id` | Delete guest |
 
-> SWR key for the guest list: `/guests/${event.identifier}` (uses public identifier, not numeric ID).
+> SWR key for the guest list: `/guests/all:${event.id}` via `eventGuestsPath(event.id)`.
 > Guest responses include all fields including rich profile (`bio`, `headline`, `signature`, image URLs) and RSVP tracking (`rsvp_status`, `rsvp_at`, `rsvp_method`, `rsvp_guest_count`).
 
 ### Section Attendees
 
+Public route documented here only because it shares section data with Cafetton. Dashboard does not call it.
+
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/events/section/:sectionId/attendees` | Public attendee list for a specific section (e.g. GraduatesList) |
+| GET | `/events/section/:sectionId/attendees` | Public attendee list for a specific section (e.g. GraduatesList). Password-protected events require `X-Event-Access-Token` unless `preview_token` is valid. |
 
 ### Invitations (protected)
 
@@ -195,9 +199,9 @@ Response: `Moment[]` (unwrapped by fetcher).
 ---
 
 > **Not used by this dashboard** (public event guest-facing routes):
-> `GET /events/:key` · `GET /invitations/ByToken/:token` · `POST /invitations/rsvp`
+> `GET /events/:key` · `GET /resources/section/:sectionId` · `GET /events/section/:sectionId/attendees` · `GET /invitations/ByToken?token=...` · `POST /invitations/rsvp`
 >
-> Note: `GET /guests/:identifier` **is** used by the dashboard (invitados/RSVP tabs) — its path looks public but it is called with the admin auth token.
+> Note: dashboard guest lists use protected `GET /guests/all:<eventID>` through `eventGuestsPath(event.id)`.
 
 ---
 
@@ -205,7 +209,7 @@ Response: `Moment[]` (unwrapped by fetcher).
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/resources/section/:sectionId` | List resources for a section (images by position) |
+| GET | `/admin/resources/section/:sectionId` | List resources for a section in the dashboard admin context. |
 | POST | `/resources` | Upload file for section (multipart: file, event_section_id, position, title, alt_text, resource_type_id) |
 | DELETE | `/resources/:id` | Delete a resource |
 | GET | `/catalogs/resource-types` | Get resource type codes (IMAGE, VIDEO, etc.) |

@@ -18,6 +18,7 @@ import { CapacityRing } from './capacity-ring'
 import { GuestChip } from './guest-chip'
 import type { Table } from '@/models/Table'
 import type { Guest } from '@/models/Guest'
+import { getGuestPartySize } from '@/lib/guest-utils'
 
 interface TableCardProps {
   table: Table
@@ -41,7 +42,7 @@ export function TableCard({
     data: { type: 'table', tableId: table.id },
   })
 
-  const totalAttendees = guests.reduce((sum, g) => sum + (g.guests_count ?? 1), 0)
+  const totalAttendees = guests.reduce((sum, g) => sum + getGuestPartySize(g), 0)
   const guestIds = guests.map((g) => g.id)
 
   return (
@@ -49,7 +50,7 @@ export function TableCard({
       ref={setNodeRef}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.03 }}
+      transition={{ delay: Math.min(index, 6) * 0.015 }}
       className={[
         'rounded-xl border overflow-hidden transition-colors duration-150',
         isOver

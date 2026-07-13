@@ -1,24 +1,27 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { mutate } from 'swr'
-import { motion, AnimatePresence } from 'motion/react'
 import { ChevronDownIcon } from '@heroicons/react/16/solid'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { AnimatePresence, motion } from 'motion/react'
+import { useEffect, useRef, useState } from 'react'
+import { Controller, useForm } from 'react-hook-form'
+import * as z from 'zod'
 
+import { Button } from '@/components/button'
+import { Checkbox, CheckboxField } from '@/components/checkbox'
 import { Dialog, DialogActions, DialogBody, DialogTitle } from '@/components/dialog'
-import { Field, Label, ErrorMessage, Description } from '@/components/fieldset'
+import { Description, ErrorMessage, Field, Label } from '@/components/fieldset'
 import { Input } from '@/components/input'
 import { Select } from '@/components/select'
 import { Textarea } from '@/components/textarea'
-import { Checkbox, CheckboxField } from '@/components/checkbox'
-import { Button } from '@/components/button'
 
 import { api } from '@/lib/api'
-import { toast } from 'sonner'
+import { readApiData } from '@/lib/api-envelope'
+import { getApiErrorMessage } from '@/lib/api-error'
+import { guestPath, guestsPath } from '@/lib/api-paths'
+import { PUBLIC_GUEST_ROLES, isHostGuestRole } from '@/lib/public-guest-roles'
 import type { Guest } from '@/models/Guest'
+import { toast } from 'sonner'
 
 const schema = z.object({
   first_name: z.string().min(2, 'Mínimo 2 caracteres'),
@@ -34,6 +37,9 @@ const schema = z.object({
   notes: z.string().optional(),
   is_host: z.boolean().optional(),
   // Rich profile (used by GraduatesList / public page)
+  nickname: z.string().optional(),
+  order: z.number().int('Debe ser entero').min(0, 'Minimo 0').max(9999, 'Maximo 9999').optional().nullable(),
+  image_url: z.string().optional(),
   headline: z.string().optional(),
   bio: z.string().optional(),
   signature: z.string().optional(),
@@ -45,13 +51,15 @@ interface Props {
   isOpen: boolean
   setIsOpen: (v: boolean) => void
   eventId: string
-  eventIdentifier: string
   guest?: Guest | null
+  onPublicContentChanged?: () => void
+  onSaved?: (guest: Guest | null) => Promise<void> | void
 }
 
-export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, guest }: Props) {
+export function GuestFormModal({ isOpen, setIsOpen, eventId, guest, onPublicContentChanged, onSaved }: Props) {
   const [loading, setLoading] = useState(false)
   const [profileExpanded, setProfileExpanded] = useState(false)
+  const autoCheckedHostRef = useRef(false)
   const isEdit = Boolean(guest?.id)
 
   const {
@@ -59,6 +67,8 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
     control,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -75,6 +85,9 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
       role: '',
       notes: '',
       is_host: false,
+      nickname: '',
+      order: undefined,
+      image_url: '',
       headline: '',
       bio: '',
       signature: '',
@@ -84,6 +97,7 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
   useEffect(() => {
     if (!isOpen) return
     setProfileExpanded(false)
+    autoCheckedHostRef.current = false
     if (isEdit && guest) {
       reset({
         first_name: guest.first_name,
@@ -98,12 +112,22 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
         role: guest.role ?? '',
         notes: guest.notes ?? '',
         is_host: guest.is_host ?? false,
+        nickname: guest.nickname ?? '',
+        order: guest.order ?? undefined,
+        image_url: guest.image_url ?? '',
         headline: guest.headline ?? '',
         bio: guest.bio ?? '',
         signature: guest.signature ?? '',
       })
       // Auto-expand profile section if any profile data exists
-      if (guest.headline || guest.bio || guest.signature) {
+      if (
+        guest.nickname ||
+        guest.image_url ||
+        guest.headline ||
+        guest.bio ||
+        guest.signature ||
+        (guest.order ?? 0) > 0
+      ) {
         setProfileExpanded(true)
       }
     } else {
@@ -120,6 +144,9 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
         role: '',
         notes: '',
         is_host: false,
+        nickname: '',
+        order: undefined,
+        image_url: '',
         headline: '',
         bio: '',
         signature: '',
@@ -127,19 +154,37 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
     }
   }, [isOpen, isEdit, guest, reset])
 
+  const selectedRole = watch('role')
+
+  useEffect(() => {
+    if (isHostGuestRole(selectedRole)) {
+      setValue('is_host', true, { shouldDirty: true })
+      autoCheckedHostRef.current = true
+      return
+    }
+    if (autoCheckedHostRef.current) {
+      setValue('is_host', false, { shouldDirty: true })
+      autoCheckedHostRef.current = false
+    }
+  }, [selectedRole, setValue])
+
   const onSubmit = async (data: FormValues) => {
     setLoading(true)
     try {
+      let savedGuest: Guest | null = null
       if (isEdit && guest) {
-        await api.put(`/guests/${guest.id}`, { ...data, event_id: eventId })
+        const res = await api.put(guestPath(guest.id), { ...data, event_id: eventId })
+        savedGuest = readApiData<Guest | null>(res.data)
       } else {
-        await api.post('/guests', { ...data, event_id: eventId })
+        const res = await api.post(guestsPath(), { ...data, event_id: eventId })
+        savedGuest = readApiData<Guest | null>(res.data)
       }
-      await mutate(`/guests/all:${eventId}`)
+      await onSaved?.(savedGuest)
+      onPublicContentChanged?.()
       setIsOpen(false)
       toast.success(isEdit ? 'Invitado actualizado' : 'Invitado agregado')
-    } catch {
-      toast.error('Error al guardar el invitado')
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Error al guardar el invitado'))
     } finally {
       setLoading(false)
     }
@@ -179,16 +224,11 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
           </div>
 
           {/* Acompañantes + Máximo + Mesa */}
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Field>
               <Label>Asistentes</Label>
               <Description>Confirmados.</Description>
-              <Input
-                type="number"
-                min={1}
-                max={20}
-                {...register('guests_count', { valueAsNumber: true })}
-              />
+              <Input type="number" min={1} max={20} {...register('guests_count', { valueAsNumber: true })} />
               {errors.guests_count && <ErrorMessage>{errors.guests_count.message}</ErrorMessage>}
             </Field>
             <Field>
@@ -199,7 +239,13 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
                 min={1}
                 max={20}
                 placeholder="—"
-                {...register('max_guests', { valueAsNumber: true, setValueAs: (v) => (v === '' || isNaN(v) ? null : Number(v)) })}
+                {...register('max_guests', {
+                  setValueAs: (v) => {
+                    if (v === '' || v == null) return null
+                    const number = Number(v)
+                    return Number.isFinite(number) ? number : null
+                  },
+                })}
               />
             </Field>
             <Field>
@@ -214,12 +260,11 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
               <Label>Rol</Label>
               <Select {...register('role')}>
                 <option value="">Sin rol</option>
-                <option value="guest">Invitado</option>
-                <option value="graduate">Graduado</option>
-                <option value="host">Anfitrión</option>
-                <option value="vip">VIP</option>
-                <option value="speaker">Orador</option>
-                <option value="staff">Staff</option>
+                {PUBLIC_GUEST_ROLES.map((role) => (
+                  <option key={role.value} value={role.value}>
+                    {role.label}
+                  </option>
+                ))}
               </Select>
             </Field>
             <Field className="flex flex-col justify-end pb-1">
@@ -239,17 +284,16 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
           {/* Restricciones alimentarias */}
           <Field>
             <Label>Restricciones alimentarias</Label>
-            <Input {...register('dietary_restrictions')} placeholder="Ej. Vegetariano, sin gluten, alérgico a nueces…" />
+            <Input
+              {...register('dietary_restrictions')}
+              placeholder="Ej. Vegetariano, sin gluten, alérgico a nueces…"
+            />
           </Field>
 
           {/* Notas internas */}
           <Field>
             <Label>Notas internas</Label>
-            <Textarea
-              {...register('notes')}
-              placeholder="Notas privadas sobre este invitado…"
-              rows={2}
-            />
+            <Textarea {...register('notes')} placeholder="Notas privadas sobre este invitado…" rows={2} />
           </Field>
 
           {/* Perfil público — collapsible (for GraduatesList / public profile page) */}
@@ -257,9 +301,11 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
             <button
               type="button"
               onClick={() => setProfileExpanded((v) => !v)}
-              className="flex w-full items-center justify-between text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="flex w-full items-center justify-between text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-300"
             >
-              <span>Perfil público <span className="text-zinc-700 font-normal">(graduados / perfiles)</span></span>
+              <span>
+                Perfil público <span className="font-normal text-zinc-700">(graduados / perfiles)</span>
+              </span>
               <ChevronDownIcon
                 className={['size-4 transition-transform', profileExpanded ? 'rotate-180' : ''].join(' ')}
               />
@@ -275,12 +321,37 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
                   className="overflow-hidden"
                 >
                   <div className="space-y-4 pt-4">
+                    <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_9rem]">
+                      <Field>
+                        <Label>Nombre publico / apodo</Label>
+                        <Input {...register('nickname')} placeholder="Anita o Generacion 2026" />
+                      </Field>
+                      <Field>
+                        <Label>Orden publico</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={9999}
+                          step={1}
+                          placeholder="0"
+                          {...register('order', {
+                            setValueAs: (v) => {
+                              if (v === '' || v == null) return undefined
+                              const number = Number(v)
+                              return Number.isFinite(number) ? number : undefined
+                            },
+                          })}
+                        />
+                        {errors.order && <ErrorMessage>{errors.order.message}</ErrorMessage>}
+                      </Field>
+                    </div>
+                    <Field>
+                      <Label>Imagen publica</Label>
+                      <Input {...register('image_url')} placeholder="profiles/ana.webp o https://..." />
+                    </Field>
                     <Field>
                       <Label>Titular / cargo</Label>
-                      <Input
-                        {...register('headline')}
-                        placeholder="Ej. Ingeniería en Sistemas · Generación 2025"
-                      />
+                      <Input {...register('headline')} placeholder="Ej. Ingeniería en Sistemas · Generación 2025" />
                     </Field>
                     <Field>
                       <Label>Biografía</Label>
@@ -292,11 +363,7 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
                     </Field>
                     <Field>
                       <Label>Dedicatoria / firma</Label>
-                      <Textarea
-                        {...register('signature')}
-                        placeholder="Frase o dedicatoria personal…"
-                        rows={2}
-                      />
+                      <Textarea {...register('signature')} placeholder="Frase o dedicatoria personal…" rows={2} />
                     </Field>
                   </div>
                 </motion.div>
@@ -310,9 +377,7 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, eventIdentifier, gu
             Cancelar
           </Button>
           <Button type="submit" disabled={loading}>
-            {loading
-              ? isEdit ? 'Actualizando…' : 'Agregando…'
-              : isEdit ? 'Actualizar invitado' : 'Agregar invitado'}
+            {loading ? (isEdit ? 'Actualizando…' : 'Agregando…') : isEdit ? 'Actualizar invitado' : 'Agregar invitado'}
           </Button>
         </DialogActions>
       </form>

@@ -1,6 +1,15 @@
 'use client'
 
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StaleDataNotice } from '@/components/ui/stale-data-notice'
+import { api } from '@/lib/api'
+import { readApiData } from '@/lib/api-envelope'
+import { getApiErrorMessage } from '@/lib/api-error'
+import { eventSeatingWorkspacePath, eventTablesPlanPath } from '@/lib/api-paths'
+import { fetcher } from '@/lib/fetcher'
+import { getGuestPartySize } from '@/lib/guest-utils'
+import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import { getDataErrorState } from '@/lib/swr-data-state'
 import {
   DndContext,
   DragOverlay,
@@ -8,44 +17,66 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
-  type DragStartEvent,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core'
-import useSWR from 'swr'
-import { fetcher } from '@/lib/fetcher'
-import { api } from '@/lib/api'
+import { ChevronDownIcon, RectangleGroupIcon } from '@heroicons/react/20/solid'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { EmptyState } from '@/components/ui/empty-state'
-import { RectangleGroupIcon, ChevronDownIcon } from '@heroicons/react/20/solid'
+import useSWR from 'swr'
 
-import { useSeatingState } from './use-seating-state'
-import { TableCard } from './table-card'
-import { UnassignedPanel } from './unassigned-panel'
-import { TableFormModal } from './table-form-modal'
 import { AssignBottomSheet } from './assign-bottom-sheet'
-import { SeatingToolbar } from './seating-toolbar'
-import { SeatingMiniMap } from './seating-mini-map'
 import { GuestChip } from './guest-chip'
+import { SeatingMiniMap } from './seating-mini-map'
+import { SeatingToolbar } from './seating-toolbar'
+import { TableCard } from './table-card'
+import { TableFormModal } from './table-form-modal'
+import { UnassignedPanel } from './unassigned-panel'
+import { useSeatingState } from './use-seating-state'
 
-import type { Table } from '@/models/Table'
 import type { Guest } from '@/models/Guest'
+import type { Table } from '@/models/Table'
 
 interface Props {
   eventId: string
-  eventIdentifier: string
+  eventIdentifier?: string
 }
 
-export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
+interface SeatingWorkspace {
+  tables: Table[]
+  guests: Guest[]
+}
+
+export function SeatingPlanV2({ eventId }: Props) {
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const highlightedTableRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
+      highlightedTableRef.current?.classList.remove(
+        'ring-2',
+        'ring-violet-400',
+        'ring-offset-2',
+        'ring-offset-zinc-950'
+      )
+    }
+  }, [])
   // ─── Data fetching ──────────────────────────────────────────────────
-  const { data: serverTables = [], mutate: mutateTables } = useSWR<Table[]>(
-    `/events/${eventId}/tables`,
-    fetcher,
-  )
-  const { data: rawGuests, isLoading: guestsLoading, mutate: mutateGuests } = useSWR<Guest[] | { data: Guest[] }>(
-    `/guests/${eventIdentifier}`,
-    fetcher,
-  )
-  const guests: Guest[] = Array.isArray(rawGuests) ? rawGuests : Array.isArray(rawGuests?.data) ? rawGuests.data : []
+  const {
+    data: workspace,
+    isLoading: workspaceLoading,
+    isValidating: workspaceValidating,
+    error: workspaceError,
+    mutate: mutateWorkspace,
+  } = useSWR<SeatingWorkspace>(eventSeatingWorkspacePath(eventId), fetcher, responsiveListSwrOptions)
+  const serverTables = useMemo(() => workspace?.tables ?? [], [workspace?.tables])
+  const guests = useMemo(() => workspace?.guests ?? [], [workspace?.guests])
+  const guestByID = useMemo(() => new Map(guests.map((guest) => [guest.id, guest])), [guests])
+  const workspaceErrorState = getDataErrorState(workspaceError, workspace)
+  const workspaceFatalError = workspaceErrorState === 'fatal'
+  const workspaceStaleError = workspaceErrorState === 'stale'
+  const workspaceRetrying = workspaceValidating
 
   // ─── Local state ────────────────────────────────────────────────────
   const seating = useSeatingState(serverTables, guests)
@@ -78,10 +109,7 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
       const assignedTableId = seating.guestTableMap.get(guest.id)
       if (assignedTableId && map.has(assignedTableId)) {
         map.get(assignedTableId)!.push(guest)
-        occupancy.set(
-          assignedTableId,
-          (occupancy.get(assignedTableId) ?? 0) + (guest.guests_count ?? 1),
-        )
+        occupancy.set(assignedTableId, (occupancy.get(assignedTableId) ?? 0) + getGuestPartySize(guest))
       } else {
         // Guest is unassigned OR assigned to a deleted table
         unassigned.push(guest)
@@ -93,12 +121,9 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
 
   const totalSeated = useMemo(
     () => Array.from(tableOccupancy.values()).reduce((sum, n) => sum + n, 0),
-    [tableOccupancy],
+    [tableOccupancy]
   )
-  const totalCapacity = useMemo(
-    () => seating.tables.reduce((sum, t) => sum + t.capacity, 0),
-    [seating.tables],
-  )
+  const totalCapacity = useMemo(() => seating.tables.reduce((sum, t) => sum + t.capacity, 0), [seating.tables])
 
   // ─── DnD sensors ────────────────────────────────────────────────────
   const pointerSensor = useSensor(PointerSensor, {
@@ -112,10 +137,10 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
   // ─── DnD handlers ──────────────────────────────────────────────────
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
-      const guest = guests.find((g) => g.id === event.active.id)
+      const guest = guestByID.get(String(event.active.id))
       setActiveDragGuest(guest ?? null)
     },
-    [guests],
+    [guestByID]
   )
 
   const handleDragEnd = useCallback(
@@ -139,7 +164,7 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
         }
       }
     },
-    [seating],
+    [seating]
   )
 
   // ─── Table CRUD ─────────────────────────────────────────────────────
@@ -160,63 +185,54 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
         })
       }
     },
-    [tableModal.table, seating, eventId],
+    [tableModal.table, seating, eventId]
   )
 
   // ─── Batch save ─────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      // 1. Create new tables
-      const tableIdMap = new Map<string, string>()
-      for (const table of seating.state.createdTables) {
-        const res = await api.post(`/events/${eventId}/tables`, {
+      const updated = Array.from(seating.state.updatedTables.keys()).flatMap((tableId) => {
+        const table = seating.tables.find((candidate) => candidate.id === tableId)
+        return table ? [{ id: table.id, name: table.name, capacity: table.capacity, sort_order: table.sort_order }] : []
+      })
+      const res = await api.put(eventTablesPlanPath(eventId), {
+        created: seating.state.createdTables.map((table) => ({
+          temp_id: table.id,
           name: table.name,
           capacity: table.capacity,
           sort_order: table.sort_order,
-        })
-        tableIdMap.set(table.id, res.data?.data?.id ?? res.data?.id)
-      }
+        })),
+        updated,
+        deleted_ids: Array.from(seating.state.deletedTableIds),
+        assignments: Array.from(seating.state.assignments, ([guestId, tableId]) => ({
+          guest_id: guestId,
+          table_id: tableId,
+        })),
+      })
 
-      // 2. Update existing tables
-      for (const [tableId, changes] of seating.state.updatedTables) {
-        await api.put(`/tables/${tableId}`, changes)
+      const savedWorkspace = readApiData<SeatingWorkspace | null>(res.data)
+      if (savedWorkspace && Array.isArray(savedWorkspace.tables) && Array.isArray(savedWorkspace.guests)) {
+        await mutateWorkspace(savedWorkspace, { revalidate: false })
+        seating.reset()
+      } else {
+        seating.reset()
+        void mutateWorkspace()
       }
-
-      // 3. Batch assign guests (before deleting tables so FKs are cleared first)
-      const assignments: { guest_id: string; table_id: string | null }[] = []
-      for (const [guestId, tableId] of seating.state.assignments) {
-        const resolvedTableId = tableId ? (tableIdMap.get(tableId) ?? tableId) : null
-        assignments.push({ guest_id: guestId, table_id: resolvedTableId })
-      }
-      if (assignments.length > 0) {
-        await api.put(`/events/${eventId}/tables/assign`, { assignments })
-      }
-
-      // 4. Delete tables (after unassigning guests)
-      for (const tableId of seating.state.deletedTableIds) {
-        await api.delete(`/tables/${tableId}`)
-      }
-
-      // 5. Reset and revalidate
-      seating.reset()
-      await Promise.all([mutateTables(), mutateGuests()])
       toast.success('Cambios guardados')
-    } catch {
-      toast.error('Error al guardar cambios')
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Error al guardar cambios'))
     } finally {
       setSaving(false)
     }
-  }, [seating, eventId, mutateTables, mutateGuests])
+  }, [seating, eventId, mutateWorkspace])
 
   const handleAutoAssign = useCallback(() => {
     // Local mutable copy so mid-loop assignments reflect immediately
     const localOccupancy = new Map(tableOccupancy)
-    const unassigned = [...unassignedGuests].sort(
-      (a, b) => (b.guests_count ?? 1) - (a.guests_count ?? 1),
-    )
+    const unassigned = [...unassignedGuests].sort((a, b) => getGuestPartySize(b) - getGuestPartySize(a))
     for (const guest of unassigned) {
-      const partySize = guest.guests_count ?? 1
+      const partySize = getGuestPartySize(guest)
       let bestTable: { id: string; remaining: number } | null = null
       for (const table of seating.tables) {
         const seated = localOccupancy.get(table.id) ?? 0
@@ -237,10 +253,20 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
   const handleMiniMapTableClick = useCallback((tableId: string) => {
     const el = tableRefs.current.get(tableId)
     if (el) {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
+      highlightedTableRef.current?.classList.remove(
+        'ring-2',
+        'ring-violet-400',
+        'ring-offset-2',
+        'ring-offset-zinc-950'
+      )
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       el.classList.add('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-zinc-950')
-      setTimeout(() => {
+      highlightedTableRef.current = el
+      highlightTimerRef.current = setTimeout(() => {
         el.classList.remove('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-zinc-950')
+        highlightedTableRef.current = null
+        highlightTimerRef.current = null
       }, 1500)
     }
   }, [])
@@ -248,12 +274,30 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
   const handlePrint = useCallback(() => window.print(), [])
 
   // ─── Loading state ──────────────────────────────────────────────────
-  if (guestsLoading) {
+  if (workspaceLoading && workspace === undefined) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 animate-pulse">
+      <div className="grid animate-pulse gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-48 bg-zinc-800/50 rounded-xl" />
+          <div key={i} className="h-48 rounded-xl bg-zinc-800/50" />
         ))}
+      </div>
+    )
+  }
+
+  if (workspaceFatalError) {
+    return (
+      <div role="alert" className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-6 py-12 text-center">
+        <RectangleGroupIcon className="mx-auto size-10 text-amber-500/60" />
+        <p className="mt-4 text-sm font-semibold text-amber-100">No pudimos preparar el plano de asientos.</p>
+        <button
+          type="button"
+          onClick={() => void mutateWorkspace()}
+          disabled={workspaceRetrying}
+          aria-busy={workspaceRetrying}
+          className="mt-4 text-xs font-semibold text-amber-300 hover:text-white disabled:cursor-wait disabled:opacity-60"
+        >
+          {workspaceRetrying ? 'Reintentando…' : 'Reintentar'}
+        </button>
       </div>
     )
   }
@@ -270,12 +314,16 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
 
   // ─── Render ─────────────────────────────────────────────────────────
   return (
-    <DndContext
-      sensors={sensors}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="space-y-4">
+        {workspaceStaleError && (
+          <StaleDataNotice
+            label="el plano de asientos"
+            onRetry={() => void mutateWorkspace()}
+            retrying={workspaceRetrying}
+          />
+        )}
+
         <SeatingToolbar
           pendingCount={seating.pendingChangeCount}
           canUndo={seating.canUndo}
@@ -302,26 +350,24 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
         />
 
         {/* Main layout */}
-        <div className="flex flex-col md:flex-row gap-4 pb-16 md:pb-0">
+        <div className="flex flex-col gap-4 pb-16 md:flex-row md:pb-0">
           {unassignedGuests.length > 0 && (
-            <div className="w-full md:w-72 md:flex-shrink-0 md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-8rem)]">
+            <div className="w-full md:sticky md:top-4 md:max-h-[calc(100vh-8rem)] md:w-72 md:flex-shrink-0 md:self-start">
               {/* Collapsible header on mobile */}
               <button
                 type="button"
                 onClick={() => setUnassignedOpen(!unassignedOpen)}
-                className="md:hidden w-full flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 mb-2"
+                className="mb-2 flex w-full items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 md:hidden"
               >
-                <span className="text-sm font-medium text-amber-300">
-                  Sin mesa ({unassignedGuests.length})
-                </span>
-                <ChevronDownIcon className={`size-5 text-amber-400 transition-transform ${unassignedOpen ? 'rotate-180' : ''}`} />
+                <span className="text-sm font-medium text-amber-300">Sin mesa ({unassignedGuests.length})</span>
+                <ChevronDownIcon
+                  className={`size-5 text-amber-400 transition-transform ${unassignedOpen ? 'rotate-180' : ''}`}
+                />
               </button>
               <div className={`${unassignedOpen ? 'block' : 'hidden'} md:block`}>
                 <UnassignedPanel
                   guests={unassignedGuests}
-                  onMobileAssign={(guest) =>
-                    setBottomSheet({ open: true, guest })
-                  }
+                  onMobileAssign={(guest) => setBottomSheet({ open: true, guest })}
                 />
               </div>
             </div>
@@ -330,14 +376,12 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
           <div className="flex-1">
             {seating.tables.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <RectangleGroupIcon className="size-12 text-zinc-700 mb-3" />
+                <RectangleGroupIcon className="mb-3 size-12 text-zinc-700" />
                 <p className="text-sm text-zinc-500">No hay mesas creadas aun</p>
-                <p className="text-xs text-zinc-600 mt-1">
-                  Crea tu primera mesa para comenzar a organizar invitados
-                </p>
+                <p className="mt-1 text-xs text-zinc-600">Crea tu primera mesa para comenzar a organizar invitados</p>
               </div>
             ) : (
-              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {seating.tables.map((table, i) => (
                   <div
                     key={table.id}
@@ -365,7 +409,7 @@ export function SeatingPlanV2({ eventId, eventIdentifier }: Props) {
 
       <DragOverlay>
         {activeDragGuest && (
-          <div className="opacity-80 pointer-events-none">
+          <div className="pointer-events-none opacity-80">
             <GuestChip guest={activeDragGuest} isDraggable={false} />
           </div>
         )}

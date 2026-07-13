@@ -5,6 +5,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react'
 interface Props {
   children: ReactNode
   eventId?: string
+  onRetry: () => void
 }
 
 interface State {
@@ -28,16 +29,15 @@ export class EventErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="py-24 text-center">
-          <p className="text-sm text-red-400 mb-4">
-            Algo salió mal al mostrar este evento.
-          </p>
+        <div role="alert" className="rounded-2xl border border-red-400/15 bg-red-400/[0.04] px-6 py-20 text-center">
+          <p className="mb-4 text-sm text-red-400">Algo salió mal al mostrar este evento.</p>
           <button
+            type="button"
             onClick={() => {
+              this.props.onRetry()
               this.setState({ hasError: false })
-              window.location.reload()
             }}
-            className="rounded-lg bg-zinc-800 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-700 transition-colors"
+            className="min-h-11 rounded-xl bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
           >
             Reintentar
           </button>

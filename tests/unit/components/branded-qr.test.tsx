@@ -2,8 +2,8 @@ import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('qrcode.react', () => ({
-  QRCodeSVG: ({ value }: { value: string }) =>
-    <div data-testid="qr-svg" data-value={value} />,
+  QRCodeSVG: ({ value, imageSettings }: any) =>
+    <div data-testid="qr-svg" data-value={value} data-image-settings={JSON.stringify(imageSettings ?? null)} />,
   QRCodeCanvas: ({ id, value, imageSettings }: any) =>
     <canvas id={id} data-testid="qr-canvas" data-image-settings={JSON.stringify(imageSettings ?? null)} />,
 }))
@@ -11,12 +11,13 @@ vi.mock('qrcode.react', () => ({
 import { BrandedQR } from '@/components/ui/branded-qr'
 
 describe('BrandedQR', () => {
-  it('hidden canvas has imageSettings for logo', () => {
+  it('keeps the branded logo while deferring the high-resolution canvas', () => {
     render(<BrandedQR value="https://example.com" />)
-    const canvas = screen.getByTestId('qr-canvas')
-    const settings = JSON.parse(canvas.getAttribute('data-image-settings') ?? 'null')
+    const qr = screen.getByTestId('qr-svg')
+    const settings = JSON.parse(qr.getAttribute('data-image-settings') ?? 'null')
     expect(settings).not.toBeNull()
     expect(settings.src).toMatch(/^data:image\/svg\+xml,/)
     expect(settings.excavate).toBe(true)
+    expect(screen.queryByTestId('qr-canvas')).not.toBeInTheDocument()
   })
 })

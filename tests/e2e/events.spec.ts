@@ -107,7 +107,7 @@ test.describe('Eventos', () => {
       }
     })
 
-    test('el detalle muestra sección de Órdenes con placeholder', async ({ page }) => {
+    test('el detalle no promete un módulo de pagos sin contrato', async ({ page }) => {
       await page.goto('/events')
       await page.waitForLoadState('networkidle')
 
@@ -115,7 +115,7 @@ test.describe('Eventos', () => {
       if (await firstEventLink.isVisible()) {
         await firstEventLink.click()
         await page.waitForLoadState('networkidle')
-        await expect(page.getByText(/Órdenes/i)).toBeVisible()
+        await expect(page.getByText(/módulo de pagos|gestión de órdenes|pagos integrados/i)).toHaveCount(0)
       }
     })
 

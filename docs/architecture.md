@@ -4,19 +4,19 @@
 
 This repo (`dashboard-ts`) is the **admin dashboard frontend only**.
 
-| Frontend | Purpose | Local path | GitHub |
-|---|---|---|---|
-| **dashboard-ts** (this repo) | Admin dashboard — management, analytics | `C:\Users\AndBe\Desktop\Projects\dashboard-ts` | *(check `git remote -v`)* |
-| **cafetton-casero** | Public event pages — RSVP, gallery, countdown | `C:\Users\AndBe\Desktop\Projects\cafetton-casero` | `https://github.com/Itbem-Corp/itbem-events-frontend.git` |
+| Frontend                     | Purpose                                       | Local path                                                  | GitHub                                                    |
+| ---------------------------- | --------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------- |
+| **dashboard-ts** (this repo) | Admin dashboard — management, analytics       | `C:\Users\AndBe\Desktop\Projects\EventiApp\dashboard-ts`    | _(check `git remote -v`)_                                 |
+| **cafetton-casero**          | Public event pages — RSVP, gallery, countdown | `C:\Users\AndBe\Desktop\Projects\EventiApp\cafetton-casero` | `https://github.com/Itbem-Corp/itbem-events-frontend.git` |
 
-The backend serves **both** frontends. Dashboard uses only the **protected routes** (Cognito JWT required). Public event routes (`/api/invitations/*`, `/api/resources/section/*`) are for cafetton-casero.
+The backend serves **both** frontends. Dashboard uses only the **protected routes** (Cognito JWT required), including admin-only section media under `/api/admin/resources/section/*`. Public event routes (`/api/invitations/*`, `/api/resources/section/*`, `/api/events/section/*/attendees`) are for cafetton-casero.
 
 Cross-project tasks → `docs/frontend-integrator.md`
 
 ## Backend Reference
 
 - **GitHub**: `git@github.com:Itbem-Corp/itbem-events-backend.git`
-- **Local (WSL)**: `\\wsl.localhost\Ubuntu\var\www\itbem-events-backend`
+- **Local**: `C:\Users\AndBe\Desktop\Projects\EventiApp\itbem-events-backend`
 - **Stack**: Go 1.24 + Echo v4 + GORM + PostgreSQL + Redis + AWS S3 + Cognito
 - **Pattern**: Controller → Service → Repository (3-layer clean architecture)
 - Full route list and contracts → `docs/backend-agent.md`
@@ -30,7 +30,7 @@ src/
 │   │   ├── page.tsx        Dashboard — KPIs + active events
 │   │   ├── clients/        Client management (root only)
 │   │   ├── events/         Event listing + [id] detail
-│   │   ├── orders/         Orders listing
+│   │   ├── orders/         Legacy server redirects → /events (no payment contract yet)
 │   │   ├── users/          User management (root only)
 │   │   └── settings/profile/ Profile editor
 │   ├── (auth)/             Public auth routes
@@ -62,7 +62,6 @@ src/
 ├── models/                 40+ TypeScript interfaces (mirror backend GORM models)
 ├── store/useStore.ts       Zustand global state
 ├── styles/tailwind.css     Tailwind v4 CSS entry point
-├── data.ts                 Mock data (getOrders, getEvents, getCountries)
 └── utils/
     ├── jwt.ts              decodeJWT() — client-side, no sig verification
     └── client-context.ts   isRootClient() helper
@@ -86,18 +85,19 @@ Browser → middleware.ts (session cookie check)
 
 ## Role Access Matrix
 
-| Role | Can access | Blocked from |
-|---|---|---|
-| `is_root=true` | `/clients` `/users` | `/events` `/team` |
-| `is_root=false` | `/events` `/orders` `/team` | `/clients` `/users` |
-| AGENCY client | `/sub-clients` | — |
-| non-AGENCY | — | `/sub-clients` |
+| Role            | Can access          | Blocked from        |
+| --------------- | ------------------- | ------------------- |
+| `is_root=true`  | `/clients` `/users` | `/events` `/team`   |
+| `is_root=false` | `/events` `/team`   | `/clients` `/users` |
+| AGENCY client   | `/sub-clients`      | —                   |
+| non-AGENCY      | —                   | `/sub-clients`      |
 
 Enforced in `src/app/(app)/layout.tsx` after `profileLoaded = true`.
 
 ## Component Library Notes
 
 Two dropdown implementations — use the right one:
+
 - `src/components/dropdown.tsx` (Headless UI) → table row action menus
 - `src/components/ui/dropdown-menu.tsx` (Radix UI) → shadcn-style components only
 

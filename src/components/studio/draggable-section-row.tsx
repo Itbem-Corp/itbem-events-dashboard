@@ -8,7 +8,9 @@ import {
   EyeSlashIcon,
   ChevronDownIcon,
   ArrowPathIcon,
+  PhotoIcon,
 } from '@heroicons/react/20/solid'
+import { EventSectionResources, sectionImageSlotsForType } from '@/components/events/event-section-resources'
 import { getTypeMeta } from '@/components/studio/studio-constants'
 import SectionConfigEditor from '@/components/studio/section-config-editor'
 import type { EventSection } from '@/models/EventSection'
@@ -16,18 +18,24 @@ import type { EventSection } from '@/models/EventSection'
 interface DraggableSectionRowProps {
   section: EventSection
   isExpanded: boolean
+  isMediaOpen: boolean
   onToggleExpand: (id: string) => void
+  onToggleMedia: (id: string) => void
   onToggleVisible: (section: EventSection) => void
   onSaveConfig: (section: EventSection, config: Record<string, unknown>) => Promise<void>
+  onResourcesChanged?: () => void
   onDragStart?: () => void
 }
 
 export const DraggableSectionRow = memo(function DraggableSectionRow({
   section,
   isExpanded,
+  isMediaOpen,
   onToggleExpand,
+  onToggleMedia,
   onToggleVisible,
   onSaveConfig,
+  onResourcesChanged,
   onDragStart,
 }: DraggableSectionRowProps) {
   const controls = useDragControls()
@@ -35,6 +43,7 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
   const typeName = section.component_type || section.type || ''
   const meta = getTypeMeta(typeName)
   const Icon = meta.icon
+  const hasMediaSlots = sectionImageSlotsForType(typeName).length > 0
 
   const handleToggleVisible = async () => {
     setTogglingVisible(true)
@@ -107,6 +116,21 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
           )}
         </button>
 
+        {hasMediaSlots && (
+          <button
+            onClick={() => onToggleMedia(section.id)}
+            className={[
+              'shrink-0 rounded-lg p-1.5 transition-colors',
+              isMediaOpen
+                ? 'bg-pink-500/10 text-pink-400'
+                : 'text-zinc-600 hover:bg-pink-500/10 hover:text-pink-400',
+            ].join(' ')}
+            title="Editar imagenes"
+          >
+            <PhotoIcon className="size-3.5" />
+          </button>
+        )}
+
         {/* Expand chevron */}
         <button
           onClick={() => onToggleExpand(section.id)}
@@ -129,6 +153,13 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
             section={section}
             onSave={onSaveConfig}
             onClose={() => onToggleExpand(section.id)}
+          />
+        )}
+        {isMediaOpen && (
+          <EventSectionResources
+            section={section}
+            onClose={() => onToggleMedia(section.id)}
+            onResourcesChanged={onResourcesChanged}
           />
         )}
       </AnimatePresence>

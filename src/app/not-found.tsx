@@ -1,22 +1,29 @@
-import Link from 'next/link'
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { Button } from '@/components/button'
+import { ArrowLeftIcon, Squares2X2Icon } from '@heroicons/react/20/solid'
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center bg-zinc-950">
-      <div className="flex size-16 items-center justify-center rounded-2xl border border-white/10 bg-zinc-900 mb-6">
-        <ExclamationTriangleIcon className="size-8 text-zinc-500" />
-      </div>
-      <h1 className="text-sm font-semibold text-zinc-200">Página no encontrada</h1>
-      <p className="mt-2 text-sm text-zinc-500 max-w-sm">
-        La página que buscas no existe o fue movida.
-      </p>
-      <Link
-        href="/"
-        className="mt-6 inline-flex items-center rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-600 transition-colors"
-      >
-        Ir al inicio
-      </Link>
-    </div>
+    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-5 py-12 text-white">
+      <section className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-900/55 p-8 shadow-2xl shadow-black/30 sm:p-12">
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-violet-500/[0.06]" />
+        <div className="relative">
+          <p className="font-mono text-sm font-medium tracking-[0.22em] text-indigo-300">404</p>
+          <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Esta vista no existe</h1>
+          <p className="mt-4 max-w-md text-sm leading-6 text-zinc-400">
+            El enlace pudo cambiar o ya no estar disponible. Regresa al dashboard para continuar con tus eventos.
+          </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Button href="/" color="indigo">
+              <Squares2X2Icon />
+              Volver al dashboard
+            </Button>
+            <Button href="/events" outline>
+              <ArrowLeftIcon />
+              Ver eventos
+            </Button>
+          </div>
+        </div>
+      </section>
+    </main>
   )
 }

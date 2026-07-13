@@ -1,3 +1,4 @@
+import { isNilUuid } from '@/lib/uuid'
 import type { Event } from '@/models/Event'
 
 /**
@@ -6,11 +7,15 @@ import type { Event } from '@/models/Event'
  * The backend repair endpoint handles persistence.
  */
 export function sanitizeEvent(event: Event): Event {
+  const config = event.config ?? event.event_config ?? undefined
+
   return {
     ...event,
     timezone: event.timezone || 'America/Mexico_City',
     language: event.language || 'es',
     identifier: event.identifier || event.id,
+    event_config: event.event_config ?? config,
+    config,
   }
 }
 
@@ -20,11 +25,18 @@ export interface EventIssue {
   issue: string
 }
 
+interface DetectEventIssuesOptions {
+  checkRelations?: boolean
+}
+
 /**
  * Analyzes an event for data integrity problems.
  * Returns an array of issues — if empty, no repair is needed.
  */
-export function detectEventIssues(event: Event): EventIssue[] {
+export function detectEventIssues(
+  event: Event,
+  { checkRelations = true }: DetectEventIssuesOptions = {}
+): EventIssue[] {
   const issues: EventIssue[] = []
 
   if (!event.identifier) {
@@ -39,10 +51,10 @@ export function detectEventIssues(event: Event): EventIssue[] {
   if (!event.language) {
     issues.push({ field: 'language', issue: 'empty' })
   }
-  if (event.event_type_id && !event.event_type) {
+  if (checkRelations && event.event_type_id && !isNilUuid(event.event_type_id) && !event.event_type) {
     issues.push({ field: 'event_type', issue: 'FK present but relation not loaded' })
   }
-  if (!event.config) {
+  if (checkRelations && !event.config && !event.event_config) {
     issues.push({ field: 'config', issue: 'missing event_config' })
   }
 

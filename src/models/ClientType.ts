@@ -4,4 +4,6 @@ export interface ClientType extends BaseEntity {
   name: string;
   code: string; // 'AGENCY', 'PLATFORM', 'CUSTOMER'
   description?: string;
+  level?: number;
+  is_active?: boolean;
 }

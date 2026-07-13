@@ -1,30 +1,49 @@
 'use client'
 
-import { useMemo } from 'react'
-import useSWR from 'swr'
+import { usePageActivity } from '@/hooks/usePageActivity'
+import { readApiData } from '@/lib/api-envelope'
+import { eventAnalyticsPath } from '@/lib/api-paths'
+import { EVENT_LIVE_REFRESH_INTERVAL_MS } from '@/lib/event-live-refresh'
 import { fetcher } from '@/lib/fetcher'
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, AreaChart, Area,
-} from 'recharts'
-import type { EventAnalytics } from '@/models/EventAnalytics'
+import { buildEventGuestAnalytics } from '@/lib/event-guest-analytics'
+import { normalizeKeys } from '@/lib/normalizer'
+import type { EventAnalytics, EventGuestAnalyticsSummary } from '@/models/EventAnalytics'
 import type { Guest } from '@/models/Guest'
-import type { Moment } from '@/models/Moment'
-import { getEffectiveStatus } from '@/lib/guest-utils'
+import { ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/20/solid'
+import { useMemo } from 'react'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import useSWR from 'swr'
 
 interface Props {
   eventId: string
   eventIdentifier: string
+  eventCapacity?: number | null
+  guests?: Guest[]
+  guestsLoading?: boolean
+  liveRefreshEnabled?: boolean
 }
 
 const ROLE_COLORS: Record<string, string> = {
   graduate: '#6366f1',
-  guest:    '#a78bfa',
-  vip:      '#f59e0b',
-  speaker:  '#10b981',
-  staff:    '#3b82f6',
-  host:     '#ec4899',
-  '':       '#71717a',
+  guest: '#a78bfa',
+  vip: '#f59e0b',
+  speaker: '#10b981',
+  staff: '#3b82f6',
+  host: '#ec4899',
+  '': '#71717a',
 }
 
 const PALETTE = ['#6366f1', '#f59e0b', '#10b981', '#ec4899', '#3b82f6', '#a78bfa', '#71717a']
@@ -46,202 +65,272 @@ const tooltipStyle = {
 }
 
 const cardCls = 'rounded-xl bg-zinc-900 border border-zinc-800 p-4'
+const liveEventSwrOptions = {
+  revalidateOnFocus: true,
+} as const
+
+function nonNegativeInt(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.trunc(value))
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return 0
+
+    const parsed = Number(trimmed)
+    if (Number.isFinite(parsed)) return Math.max(0, Math.trunc(parsed))
+  }
+
+  return 0
+}
+
+function normalizeEventAnalyticsPayload(value: unknown): EventAnalytics | undefined {
+  const data = readApiData<unknown>(normalizeKeys(value))
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+  const record = data as Record<string, unknown>
+  const analytics: EventAnalytics = {
+    id: typeof record.id === 'string' ? record.id : '',
+    event_id: typeof record.event_id === 'string' ? record.event_id : '',
+    views: nonNegativeInt(record.views),
+    rsvp_confirmed: nonNegativeInt(record.rsvp_confirmed),
+    rsvp_declined: nonNegativeInt(record.rsvp_declined),
+    moment_uploads: nonNegativeInt(record.moment_uploads),
+    moment_comments: nonNegativeInt(record.moment_comments),
+    moment_total: nonNegativeInt(record.moment_total),
+    moment_approved: nonNegativeInt(record.moment_approved),
+    moment_pending: nonNegativeInt(record.moment_pending),
+    guests: normalizeGuestAnalytics(record.guests),
+  }
+
+  if (typeof record.created_at === 'string') analytics.created_at = record.created_at
+  if (typeof record.updated_at === 'string') analytics.updated_at = record.updated_at
+
+  return analytics
+}
+
+function normalizeGuestAnalytics(value: unknown): EventGuestAnalyticsSummary {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+  const counts = (key: string) => Array.isArray(source[key]) ? (source[key] as Array<Record<string, unknown>>).map(item => ({ name: typeof item.name === 'string' ? item.name : '', value: nonNegativeInt(item.value) })) : []
+  return {
+    total_guests: nonNegativeInt(source.total_guests), confirmed: nonNegativeInt(source.confirmed),
+    declined: nonNegativeInt(source.declined), pending: nonNegativeInt(source.pending),
+    total_companions: nonNegativeInt(source.total_companions), estimated_attendees: nonNegativeInt(source.estimated_attendees),
+    dietary: counts('dietary'), methods: counts('methods'), roles: counts('roles'), tables: counts('tables'),
+    timeline: Array.isArray(source.timeline) ? (source.timeline as Array<Record<string, unknown>>).map(item => ({ date: typeof item.date === 'string' ? item.date : '', confirmed: nonNegativeInt(item.confirmed), declined: nonNegativeInt(item.declined) })) : [],
+    top_companions: Array.isArray(source.top_companions) ? (source.top_companions as Array<Record<string, unknown>>).map(item => ({ id: typeof item.id === 'string' ? item.id : '', first_name: typeof item.first_name === 'string' ? item.first_name : '', last_name: typeof item.last_name === 'string' ? item.last_name : '', role: typeof item.role === 'string' ? item.role : '', companion_count: nonNegativeInt(item.companion_count) })) : [],
+  }
+}
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
 function Skeleton() {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-pulse">
+    <div className="grid animate-pulse grid-cols-1 gap-4 sm:grid-cols-2">
       {[...Array(8)].map((_, i) => (
         <div key={i} className="h-24 rounded-xl bg-zinc-800" />
       ))}
-      <div className="col-span-1 sm:col-span-2 h-48 rounded-xl bg-zinc-800" />
-      <div className="col-span-1 sm:col-span-2 h-48 rounded-xl bg-zinc-800" />
+      <div className="col-span-1 h-48 rounded-xl bg-zinc-800 sm:col-span-2" />
+      <div className="col-span-1 h-48 rounded-xl bg-zinc-800 sm:col-span-2" />
     </div>
   )
 }
 
-function KPICard({ label, value, sub, accent }: { label: string; value: number | string; sub?: string; accent?: string }) {
+function KPICard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string
+  value: number | string
+  sub?: string
+  accent?: string
+}) {
   return (
     <div className={cardCls + ' flex flex-col gap-1'}>
-      <p className="text-xs text-zinc-500 uppercase tracking-wide">{label}</p>
-      <p className={`text-2xl sm:text-3xl font-bold truncate ${accent ?? 'text-white'}`}>{value}</p>
+      <p className="text-xs tracking-wide text-zinc-500 uppercase">{label}</p>
+      <p className={`truncate text-2xl font-bold sm:text-3xl ${accent ?? 'text-white'}`}>{value}</p>
       {sub && <p className="text-xs text-zinc-500">{sub}</p>}
     </div>
   )
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-sm font-medium text-zinc-400 mb-4">{children}</h3>
+  return <h3 className="mb-4 text-sm font-medium text-zinc-400">{children}</h3>
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
-export function EventAnalyticsPanel({ eventId }: Props) {
+export function EventAnalyticsPanel({
+  eventId,
+  eventCapacity,
+  guests: providedGuests,
+  guestsLoading: providedGuestsLoading,
+  liveRefreshEnabled = true,
+}: Props) {
+  const isPageActive = usePageActivity()
+  const liveRefreshInterval = isPageActive && liveRefreshEnabled ? EVENT_LIVE_REFRESH_INTERVAL_MS : 0
   // ── Data fetching ──────────────────────────────────────────────────────────
-  const { data: analytics, isLoading: loadingA, error: errorA } = useSWR<EventAnalytics>(
-    eventId ? `/events/${eventId}/analytics` : null,
-    fetcher,
-  )
-  const { data: rawGuests, isLoading: loadingG, error: errorG } = useSWR(
-    eventId ? `/guests/all:${eventId}` : null,
-    fetcher,
-  )
-  const { data: rawMoments } = useSWR(
-    eventId ? `/moments?event_id=${eventId}` : null,
-    fetcher,
-  )
-
-  const parsed = Array.isArray(rawGuests) ? rawGuests : rawGuests?.data
-  const guests: Guest[] = Array.isArray(parsed) ? parsed : []
-
-  const parsedMoments = Array.isArray(rawMoments) ? rawMoments : rawMoments?.data
-  const moments: Moment[] = Array.isArray(parsedMoments) ? parsedMoments : []
+  const {
+    data: rawAnalytics,
+    isLoading: loadingA,
+    isValidating: validatingA,
+    error: errorA,
+    mutate: retryAnalytics,
+  } = useSWR<unknown>(eventId ? eventAnalyticsPath(eventId) : null, fetcher, {
+    ...liveEventSwrOptions,
+    refreshInterval: liveRefreshInterval,
+  })
+  const analytics = useMemo(() => normalizeEventAnalyticsPayload(rawAnalytics), [rawAnalytics])
 
   // ── Computed data (all hooks before early returns) ─────────────────────────
 
+  const guestAnalytics = useMemo(() => providedGuests ? buildEventGuestAnalytics(providedGuests) : analytics?.guests, [analytics?.guests, providedGuests])
   const dietaryData = useMemo(() => {
-    if (!guests.length) return []
-    const counts: Record<string, number> = {}
-    for (const g of guests) {
-      const key = g.dietary_restrictions?.trim() || 'Ninguna'
-      counts[key] = (counts[key] ?? 0) + 1
-    }
-    return Object.entries(counts)
-      .map(([name, value], i) => ({ name, value, color: PALETTE[i % PALETTE.length] }))
+    return (guestAnalytics && 'dietary' in guestAnalytics ? guestAnalytics.dietary : Object.entries(guestAnalytics?.dietaryCounts ?? {}).map(([name, value]) => ({ name, value })))
+      .map(({ name, value }, i) => ({ name, value, color: PALETTE[i % PALETTE.length] }))
       .sort((a, b) => b.value - a.value)
-  }, [guests])
-
-  const rsvpTimeline = useMemo(() => {
-    const dated = guests
-      .filter(g => g.rsvp_at && getEffectiveStatus(g) !== 'PENDING')
-      .sort((a, b) => new Date(a.rsvp_at!).getTime() - new Date(b.rsvp_at!).getTime())
-    if (!dated.length) return []
-
-    const byDay: Record<string, { confirmed: number; declined: number }> = {}
-    for (const g of dated) {
-      const day = new Date(g.rsvp_at!).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' })
-      if (!byDay[day]) byDay[day] = { confirmed: 0, declined: 0 }
-      if (getEffectiveStatus(g) === 'CONFIRMED') byDay[day].confirmed++
-      else if (getEffectiveStatus(g) === 'DECLINED') byDay[day].declined++
-    }
-
-    let cumConfirmed = 0
-    let cumDeclined = 0
-    return Object.entries(byDay).map(([date, v]) => {
-      cumConfirmed += v.confirmed
-      cumDeclined += v.declined
-      return { date, confirmados: cumConfirmed, declinados: cumDeclined }
-    })
-  }, [guests])
+  }, [guestAnalytics])
+  const rsvpTimeline = guestAnalytics && 'timeline' in guestAnalytics ? guestAnalytics.timeline.map(point => ({ date: new Date(`${point.date}T00:00:00`).toLocaleDateString('es-MX', { month: 'short', day: 'numeric' }), confirmados: point.confirmed, declinados: point.declined })) : guestAnalytics?.rsvpTimeline ?? []
 
   const tableData = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const g of guests) {
-      const table = g.table_number?.trim()
-      if (table) counts[table] = (counts[table] ?? 0) + 1
-    }
-    return Object.entries(counts)
-      .map(([name, value]) => ({ name: `Mesa ${name}`, value }))
+    return guestAnalytics && 'tables' in guestAnalytics ? guestAnalytics.tables : Object.entries(guestAnalytics?.tableCounts ?? {}).map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-  }, [guests])
+  }, [guestAnalytics])
 
   const rsvpMethodData = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const g of guests) {
-      if (getEffectiveStatus(g) === 'PENDING') continue
-      const method = g.rsvp_method || ''
-      counts[method] = (counts[method] ?? 0) + 1
-    }
-    return Object.entries(counts)
-      .map(([name, value], i) => ({ name: METHOD_LABELS[name] ?? name, value, color: PALETTE[i % PALETTE.length] }))
+    const entries = guestAnalytics && 'methods' in guestAnalytics ? guestAnalytics.methods : Object.entries(guestAnalytics?.methodCounts ?? {}).map(([name, value]) => ({ name, value }))
+    return entries.map(({ name, value }, i) => ({ name: METHOD_LABELS[name] ?? name, value, color: PALETTE[i % PALETTE.length] }))
       .sort((a, b) => b.value - a.value)
-  }, [guests])
-
-  const topPlusOnes = useMemo(() => {
-    return guests
-      .filter(g => (g.guests_count ?? 0) > 0 && getEffectiveStatus(g) === 'CONFIRMED')
-      .sort((a, b) => b.guests_count - a.guests_count)
-      .slice(0, 5)
-  }, [guests])
+  }, [guestAnalytics])
+  const topPlusOnes = guestAnalytics && 'top_companions' in guestAnalytics ? guestAnalytics.top_companions : guestAnalytics?.topPlusOnes ?? []
 
   // ── Derived scalars ────────────────────────────────────────────────────────
 
-  const hasDietary = guests.some(g => g.dietary_restrictions?.trim())
+  const hasDietary = dietaryData.some(item => item.name !== 'Ninguna' && item.value > 0)
+  const fatalAnalyticsError = Boolean(errorA && rawAnalytics === undefined)
+  const hasBackgroundRefreshError = Boolean(errorA && !fatalAnalyticsError)
+  const retrying = Boolean(validatingA)
+
+  const retryData = () => {
+    void retryAnalytics()
+  }
 
   // ── Early returns ──────────────────────────────────────────────────────────
 
-  if ((loadingA || loadingG) && !errorA && !errorG) return <Skeleton />
+  if ((loadingA || providedGuestsLoading) && !errorA) return <Skeleton />
 
-  if (errorA || errorG) {
+  if (fatalAnalyticsError) {
     return (
-      <div className={cardCls + ' p-6 text-center'}>
-        <p className="text-zinc-400">No se pudieron cargar las analíticas.</p>
-        <p className="text-xs text-zinc-600 mt-1">Intenta recargar la página.</p>
+      <div className={cardCls + ' p-7 text-center'} role="alert" aria-live="polite">
+        <ExclamationTriangleIcon className="mx-auto size-7 text-amber-400" />
+        <p className="mt-4 font-medium text-zinc-200">No pudimos cargar las analíticas</p>
+        <p className="mt-1 text-xs text-zinc-500">Tus datos permanecen intactos. Reintenta sin salir del evento.</p>
+        <button
+          type="button"
+          onClick={retryData}
+          disabled={retrying}
+          aria-busy={retrying}
+          className="mt-5 inline-flex min-h-9 items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-wait disabled:opacity-60"
+        >
+          <ArrowPathIcon className={retrying ? 'size-4 animate-spin motion-reduce:animate-none' : 'size-4'} />
+          {retrying ? 'Reintentando…' : 'Reintentar'}
+        </button>
       </div>
     )
   }
 
-  const totalGuests     = guests.length
-  const confirmedGuests = guests.filter(g => getEffectiveStatus(g) === 'CONFIRMED')
-  const responded       = guests.filter(g => getEffectiveStatus(g) !== 'PENDING').length
-  const confirmed       = analytics?.rsvp_confirmed ?? confirmedGuests.length
-  const declined        = analytics?.rsvp_declined  ?? guests.filter(g => getEffectiveStatus(g) === 'DECLINED').length
-  const pendingRsvp     = totalGuests - responded
-  const responseRate    = totalGuests > 0 ? Math.round((responded / totalGuests) * 100) : 0
-  const views           = analytics?.views ?? 0
-  const momentUploads   = analytics?.moment_uploads ?? moments.length
+  const totalGuests = guestAnalytics && 'total_guests' in guestAnalytics ? guestAnalytics.total_guests : providedGuests?.length ?? 0
+  const confirmedPrimary = guestAnalytics?.confirmed ?? 0
+  const confirmed = guestAnalytics?.confirmed ?? 0
+  const declined = guestAnalytics?.declined ?? 0
+  const responded = confirmed + declined
+  const pendingRsvp = guestAnalytics?.pending ?? 0
+  const responseRate = totalGuests > 0 ? Math.round((responded / totalGuests) * 100) : 0
+  const views = analytics?.views ?? 0
+  const momentUploads = analytics?.moment_uploads ?? 0
 
-  // +1s
-  const totalPlusOnes      = confirmedGuests.reduce((sum, g) => sum + (g.guests_count ?? 0), 0)
-  const estimatedAttendees = confirmed + totalPlusOnes
+  // Party size fields from RSVP are total people, so companions are partySize - 1.
+  const totalPlusOnes = guestAnalytics && 'total_companions' in guestAnalytics ? guestAnalytics.total_companions : guestAnalytics?.totalPlusOnes ?? 0
+  const estimatedAttendees = guestAnalytics && 'estimated_attendees' in guestAnalytics ? guestAnalytics.estimated_attendees : guestAnalytics?.estimatedAttendees ?? 0
 
   // Moments breakdown
-  const approvedMoments = moments.filter(m => m.is_approved).length
-  const pendingMoments  = moments.filter(m => !m.is_approved && m.processing_status !== 'failed').length
-  const momentsWithMsg   = moments.filter(m => m.description?.trim()).length
-  const approvalRate     = moments.length > 0 ? Math.round((approvedMoments / moments.length) * 100) : 0
+  const currentMoments = analytics?.moment_total ?? 0
+  const approvedMoments = analytics?.moment_approved ?? 0
+  const pendingMoments = analytics?.moment_pending ?? 0
+  const momentComments = analytics?.moment_comments ?? 0
+  const hasMomentEngagement = momentUploads > 0 || currentMoments > 0
+  const approvalRate = currentMoments > 0 ? Math.round((approvedMoments / currentMoments) * 100) : 0
 
   // Capacity — guard against zero to prevent NaN in percentage calculations
-  const capacityTotal = Math.max(estimatedAttendees, 1)
+  const capacityTotal = Math.max(nonNegativeInt(eventCapacity), totalGuests, estimatedAttendees, 1)
 
   // Funnel
   const funnelData = [
-    { name: 'Invitados',    value: totalGuests },
+    { name: 'Invitados', value: totalGuests },
     { name: 'Respondieron', value: responded },
-    { name: 'Confirmados',  value: confirmed },
-    { name: 'Declinaron',   value: declined },
+    { name: 'Confirmados', value: confirmed },
+    { name: 'Declinaron', value: declined },
   ]
 
   // Roles
-  const roleCounts: Record<string, number> = {}
-  for (const g of guests) {
-    const role = g.role || ''
-    roleCounts[role] = (roleCounts[role] ?? 0) + 1
-  }
-  const roleData = Object.entries(roleCounts)
-    .map(([name, value]) => ({ name: name || 'sin rol', value, color: ROLE_COLORS[name] ?? '#71717a' }))
+  const roleEntries = guestAnalytics && 'roles' in guestAnalytics ? guestAnalytics.roles : Object.entries(guestAnalytics?.roleCounts ?? {}).map(([name, value]) => ({ name, value }))
+  const roleData = roleEntries.map(({ name, value }) => ({ name: name || 'sin rol', value, color: ROLE_COLORS[name] ?? '#71717a' }))
     .sort((a, b) => b.value - a.value)
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
-
+      {hasBackgroundRefreshError && (
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-2.5">
+            <ExclamationTriangleIcon className="mt-0.5 size-4 shrink-0 text-amber-400" />
+            <p className="text-xs leading-5 text-amber-200/80">
+              Mostrando la última información disponible; no pudimos completar la actualización.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={retryData}
+            disabled={retrying}
+            aria-busy={retrying}
+            className="inline-flex min-h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-200 transition-colors hover:bg-amber-400/10 disabled:opacity-60"
+          >
+            <ArrowPathIcon className={retrying ? 'size-3.5 animate-spin motion-reduce:animate-none' : 'size-3.5'} />
+            {retrying ? 'Actualizando…' : 'Reintentar'}
+          </button>
+        </div>
+      )}
       {/* ── KPI Row 1 ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Vistas"         value={views}              sub="veces que se cargó la página" />
-        <KPICard label="Confirmados"    value={confirmed}          sub={`de ${totalGuests} invitados`} accent="text-lime-400" />
-        <KPICard label="Declinaron"     value={declined}           sub="no asistirán" accent="text-pink-400" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KPICard label="Vistas" value={views} sub="veces que se cargó la página" />
+        <KPICard label="Confirmados" value={confirmed} sub={`de ${totalGuests} invitados`} accent="text-lime-400" />
+        <KPICard label="Declinaron" value={declined} sub="no asistirán" accent="text-pink-400" />
         <KPICard label="Tasa respuesta" value={`${responseRate}%`} sub={`${responded} respondieron`} />
       </div>
 
       {/* ── KPI Row 2 ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard label="Acompañantes"       value={totalPlusOnes}        sub="invitados extra (+1s)" />
-        <KPICard label="Asistentes est."     value={estimatedAttendees}   sub="confirmados + acompañantes" accent="text-indigo-400" />
-        <KPICard label="Momentos"            value={momentUploads}        sub={`${approvedMoments} aprobados`} />
-        <KPICard label="Pendientes RSVP"     value={pendingRsvp}          sub="sin responder" accent={pendingRsvp > 0 ? 'text-amber-400' : 'text-zinc-400'} />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KPICard label="Acompañantes" value={totalPlusOnes} sub="invitados extra (+1s)" />
+        <KPICard
+          label="Asistentes est."
+          value={estimatedAttendees}
+          sub="confirmados + acompañantes"
+          accent="text-indigo-400"
+        />
+        <KPICard label="Momentos" value={momentUploads} sub={`${approvedMoments} aprobados`} />
+        <KPICard
+          label="Pendientes RSVP"
+          value={pendingRsvp}
+          sub="sin responder"
+          accent={pendingRsvp > 0 ? 'text-amber-400' : 'text-zinc-400'}
+        />
       </div>
 
       {/* ── Capacity Bar ───────────────────────────────────────────────────── */}
@@ -252,41 +341,59 @@ export function EventAnalyticsPanel({ eventId }: Props) {
             <span>{estimatedAttendees} asistentes estimados</span>
             <span>{capacityTotal} capacidad</span>
           </div>
-          <div className="h-4 rounded-full bg-zinc-800 overflow-hidden flex">
-            {confirmed > 0 && (
+          <div className="flex h-4 overflow-hidden rounded-full bg-zinc-800">
+            {confirmedPrimary > 0 && (
               <div
                 className="h-full bg-lime-500 transition-all duration-500"
-                style={{ width: `${Math.min((confirmed / capacityTotal) * 100, 100)}%` }}
-                title={`${confirmed} confirmados`}
+                style={{ width: `${Math.min((confirmedPrimary / capacityTotal) * 100, 100)}%` }}
+                title={`${confirmedPrimary} confirmados`}
               />
             )}
             {totalPlusOnes > 0 && (
               <div
                 className="h-full bg-lime-500/50 transition-all duration-500"
-                style={{ width: `${Math.min((totalPlusOnes / capacityTotal) * 100, 100 - (confirmed / capacityTotal) * 100)}%` }}
+                style={{
+                  width: `${Math.min((totalPlusOnes / capacityTotal) * 100, 100 - (confirmedPrimary / capacityTotal) * 100)}%`,
+                }}
                 title={`${totalPlusOnes} acompañantes`}
               />
             )}
             {pendingRsvp > 0 && (
               <div
                 className="h-full bg-amber-500/40 transition-all duration-500"
-                style={{ width: `${Math.min((pendingRsvp / capacityTotal) * 100, 100 - ((confirmed + totalPlusOnes) / capacityTotal) * 100)}%` }}
+                style={{
+                  width: `${Math.min((pendingRsvp / capacityTotal) * 100, 100 - ((confirmedPrimary + totalPlusOnes) / capacityTotal) * 100)}%`,
+                }}
                 title={`${pendingRsvp} pendientes`}
               />
             )}
             {declined > 0 && (
               <div
                 className="h-full bg-pink-500/40 transition-all duration-500"
-                style={{ width: `${Math.min((declined / capacityTotal) * 100, 100 - ((confirmed + totalPlusOnes + pendingRsvp) / capacityTotal) * 100)}%` }}
+                style={{
+                  width: `${Math.min((declined / capacityTotal) * 100, 100 - ((confirmedPrimary + totalPlusOnes + pendingRsvp) / capacityTotal) * 100)}%`,
+                }}
                 title={`${declined} declinados`}
               />
             )}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-600">
-            <span><span className="inline-block size-2 rounded-full bg-lime-500 mr-1" />Confirmados</span>
-            <span><span className="inline-block size-2 rounded-full bg-lime-500/50 mr-1" />Acompañantes</span>
-            <span><span className="inline-block size-2 rounded-full bg-amber-500/40 mr-1" />Pendientes</span>
-            <span><span className="inline-block size-2 rounded-full bg-pink-500/40 mr-1" />Declinados</span>
+            <span>
+              <span className="mr-1 inline-block size-2 rounded-full bg-lime-500" />
+              Confirmados
+            </span>
+            <span>
+              <span className="mr-1 inline-block size-2 rounded-full bg-lime-500/50" />
+              Acompañantes
+            </span>
+            <span>
+              <span className="mr-1 inline-block size-2 rounded-full bg-amber-500/40" />
+              Pendientes
+            </span>
+            <span>
+              <span className="mr-1 inline-block size-2 rounded-full bg-pink-500/40" />
+              Declinados
+            </span>
           </div>
         </div>
       </div>
@@ -294,11 +401,18 @@ export function EventAnalyticsPanel({ eventId }: Props) {
       {/* ── RSVP Funnel ────────────────────────────────────────────────────── */}
       <div className={cardCls}>
         <SectionTitle>Embudo RSVP</SectionTitle>
-        <p className="text-xs text-zinc-600 mb-3">Muestra cuántos invitados avanzan en cada etapa del proceso.</p>
+        <p className="mb-3 text-xs text-zinc-600">Muestra cuántos invitados avanzan en cada etapa del proceso.</p>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={funnelData} layout="vertical" margin={{ left: 0, right: 16 }}>
             <XAxis type="number" tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis type="category" dataKey="name" tick={{ fill: '#a1a1aa', fontSize: 10 }} axisLine={false} tickLine={false} width={65} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              tick={{ fill: '#a1a1aa', fontSize: 10 }}
+              axisLine={false}
+              tickLine={false}
+              width={65}
+            />
             <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#27272a' }} />
             <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} name="Personas" />
           </BarChart>
@@ -324,8 +438,22 @@ export function EventAnalyticsPanel({ eventId }: Props) {
               <XAxis dataKey="date" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={tooltipStyle} />
-              <Area type="monotone" dataKey="confirmados" stroke="#84cc16" fill="url(#gradConfirmed)" strokeWidth={2} name="Confirmados" />
-              <Area type="monotone" dataKey="declinados" stroke="#ec4899" fill="url(#gradDeclined)" strokeWidth={2} name="Declinados" />
+              <Area
+                type="monotone"
+                dataKey="confirmados"
+                stroke="#84cc16"
+                fill="url(#gradConfirmed)"
+                strokeWidth={2}
+                name="Confirmados"
+              />
+              <Area
+                type="monotone"
+                dataKey="declinados"
+                stroke="#ec4899"
+                fill="url(#gradDeclined)"
+                strokeWidth={2}
+                name="Declinados"
+              />
               <Legend formatter={(value) => <span style={{ color: '#a1a1aa', fontSize: 12 }}>{value}</span>} />
             </AreaChart>
           </ResponsiveContainer>
@@ -333,14 +461,25 @@ export function EventAnalyticsPanel({ eventId }: Props) {
       )}
 
       {/* ── Two-column: Role + RSVP Method ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {roleData.length > 0 && (
           <div className={cardCls}>
             <SectionTitle>Composición por rol</SectionTitle>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={roleData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
-                  {roleData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                <Pie
+                  data={roleData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={45}
+                  outerRadius={75}
+                  paddingAngle={2}
+                >
+                  {roleData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
                 </Pie>
                 <Tooltip contentStyle={tooltipStyle} />
                 <Legend formatter={(value) => <span style={{ color: '#a1a1aa', fontSize: 11 }}>{value}</span>} />
@@ -354,8 +493,19 @@ export function EventAnalyticsPanel({ eventId }: Props) {
             <SectionTitle>Canal de respuesta RSVP</SectionTitle>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
-                <Pie data={rsvpMethodData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
-                  {rsvpMethodData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                <Pie
+                  data={rsvpMethodData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={45}
+                  outerRadius={75}
+                  paddingAngle={2}
+                >
+                  {rsvpMethodData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
                 </Pie>
                 <Tooltip contentStyle={tooltipStyle} />
                 <Legend formatter={(value) => <span style={{ color: '#a1a1aa', fontSize: 11 }}>{value}</span>} />
@@ -372,7 +522,14 @@ export function EventAnalyticsPanel({ eventId }: Props) {
           <ResponsiveContainer width="100%" height={Math.max(120, tableData.length * 32)}>
             <BarChart data={tableData} layout="vertical" margin={{ left: 0, right: 16 }}>
               <XAxis type="number" tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" tick={{ fill: '#a1a1aa', fontSize: 11 }} axisLine={false} tickLine={false} width={70} />
+              <YAxis
+                type="category"
+                dataKey="name"
+                tick={{ fill: '#a1a1aa', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+                width={70}
+              />
               <Tooltip contentStyle={tooltipStyle} cursor={{ fill: '#27272a' }} />
               <Bar dataKey="value" fill="#a78bfa" radius={[0, 4, 4, 0]} name="Invitados" />
             </BarChart>
@@ -386,8 +543,19 @@ export function EventAnalyticsPanel({ eventId }: Props) {
           <SectionTitle>Restricciones alimentarias</SectionTitle>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={dietaryData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
-                {dietaryData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              <Pie
+                data={dietaryData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={45}
+                outerRadius={75}
+                paddingAngle={2}
+              >
+                {dietaryData.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
+                ))}
               </Pie>
               <Tooltip contentStyle={tooltipStyle} />
               <Legend formatter={(value) => <span style={{ color: '#a1a1aa', fontSize: 11 }}>{value}</span>} />
@@ -397,30 +565,30 @@ export function EventAnalyticsPanel({ eventId }: Props) {
       )}
 
       {/* ── Moments Engagement ─────────────────────────────────────────────── */}
-      {moments.length > 0 && (
+      {hasMomentEngagement && (
         <div className={cardCls}>
           <SectionTitle>Engagement de momentos</SectionTitle>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div className="rounded-lg bg-zinc-800/50 p-3 text-center">
-              <p className="text-2xl font-bold text-white">{moments.length}</p>
-              <p className="text-xs text-zinc-500 mt-0.5">Total subidos</p>
+              <p className="text-2xl font-bold text-white">{momentUploads}</p>
+              <p className="mt-0.5 text-xs text-zinc-500">Total subidos</p>
             </div>
             <div className="rounded-lg bg-zinc-800/50 p-3 text-center">
               <p className="text-2xl font-bold text-lime-400">{approvedMoments}</p>
-              <p className="text-xs text-zinc-500 mt-0.5">Aprobados</p>
+              <p className="mt-0.5 text-xs text-zinc-500">Aprobados</p>
             </div>
             <div className="rounded-lg bg-zinc-800/50 p-3 text-center">
               <p className="text-2xl font-bold text-amber-400">{pendingMoments}</p>
-              <p className="text-xs text-zinc-500 mt-0.5">Pendientes</p>
+              <p className="mt-0.5 text-xs text-zinc-500">Pendientes</p>
             </div>
             <div className="rounded-lg bg-zinc-800/50 p-3 text-center">
               <p className="text-2xl font-bold text-indigo-400">{approvalRate}%</p>
-              <p className="text-xs text-zinc-500 mt-0.5">Tasa aprobación</p>
+              <p className="mt-0.5 text-xs text-zinc-500">Tasa aprobación</p>
             </div>
           </div>
-          {momentsWithMsg > 0 && (
-            <p className="text-xs text-zinc-600 mt-3">
-              {momentsWithMsg} momento{momentsWithMsg !== 1 ? 's' : ''} con mensaje de invitado
+          {momentComments > 0 && (
+            <p className="mt-3 text-xs text-zinc-600">
+              {momentComments} momento{momentComments !== 1 ? 's' : ''} con mensaje de invitado
             </p>
           )}
         </div>
@@ -433,12 +601,14 @@ export function EventAnalyticsPanel({ eventId }: Props) {
           <div className="space-y-2">
             {topPlusOnes.map((g, i) => (
               <div key={g.id} className="flex items-center gap-3 rounded-lg bg-zinc-800/50 px-3 py-2">
-                <span className="text-xs font-bold text-zinc-500 w-5 text-center">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-zinc-200 truncate">{g.first_name} {g.last_name}</p>
+                <span className="w-5 text-center text-xs font-bold text-zinc-500">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm text-zinc-200">
+                    {g.first_name} {g.last_name}
+                  </p>
                   {g.role && <p className="text-xs text-zinc-600">{g.role}</p>}
                 </div>
-                <span className="text-sm font-bold text-indigo-400">+{g.guests_count}</span>
+                <span className="text-sm font-bold text-indigo-400">+{'companion_count' in g ? g.companion_count : Math.max((g.rsvp_guest_count || g.guests_count || 1) - 1, 0)}</span>
               </div>
             ))}
           </div>

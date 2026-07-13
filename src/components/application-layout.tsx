@@ -1,19 +1,18 @@
 'use client'
 
 import UserAvatar from '@/components/ui/UserAvatar'
-import { NotificationBell } from '@/components/ui/notification-bell'
-import { CommandPalette } from '@/components/ui/command-palette'
 
 import {
   Dropdown,
   DropdownButton,
   DropdownDivider,
+  DropdownHeader,
   DropdownItem,
   DropdownLabel,
   DropdownMenu,
-  DropdownHeader,
 } from '@/components/dropdown'
-import { Navbar, NavbarItem, NavbarSection, NavbarSpacer } from '@/components/navbar'
+import { MobilePrimaryNavigation } from '@/components/mobile-primary-navigation'
+import { Navbar, NavbarItem, NavbarSection } from '@/components/navbar'
 import {
   Sidebar,
   SidebarBody,
@@ -32,25 +31,101 @@ import {
   ChevronUpIcon,
   UserCircleIcon,
   UsersIcon,
-  ShoppingCartIcon,
 } from '@heroicons/react/16/solid'
-import {
-  HomeIcon,
-  Square2StackIcon,
-  MagnifyingGlassIcon,
-} from '@heroicons/react/20/solid'
+import { BellIcon, HomeIcon, MagnifyingGlassIcon, Square2StackIcon } from '@heroicons/react/20/solid'
 
-import { usePathname, useRouter } from 'next/navigation'
-import useSWR from 'swr'
-import { fetcher } from '@/lib/fetcher'
-import { useStore } from '@/store/useStore'
-import { useEffect, useState } from 'react'
 import { Avatar } from '@/components/avatar'
+import { Link } from '@/components/link'
+import { useDebounce } from '@/hooks/useDebounce'
+import { useStoreHydration } from '@/hooks/useStoreHydration'
+import { readApiData } from '@/lib/api-envelope'
+import {
+  clientsPagePath,
+  eventsPagePath,
+  scopedEventsDashboardPath,
+  scopedEventsPagePath,
+  usersAllPath,
+  usersPath,
+} from '@/lib/api-paths'
+import { fetcher } from '@/lib/fetcher'
+import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import { getDataErrorState } from '@/lib/swr-data-state'
+import type { ClientsPageResponse } from '@/models/Client'
+import { useStore } from '@/store/useStore'
+import dynamic from 'next/dynamic'
+import Image from 'next/image'
+import { usePathname, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import useSWR, { preload, useSWRConfig } from 'swr'
+
+const loadCommandPalette = () => import('@/components/ui/command-palette')
+const loadNotificationBell = () => import('@/components/ui/notification-bell')
+
+const NotificationBell = dynamic(() => loadNotificationBell().then((module) => module.NotificationBell), {
+  ssr: false,
+  loading: NotificationBellPlaceholder,
+})
+
+function NotificationBellPlaceholder() {
+  return (
+    <span
+      role="status"
+      aria-label="Preparando notificaciones"
+      className="flex size-8 items-center justify-center rounded-lg text-zinc-600"
+    >
+      <BellIcon className="size-5" />
+    </span>
+  )
+}
+
+function CommandPaletteFallback() {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Preparando búsqueda global"
+      aria-busy="true"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/65 px-4 pt-[12vh] backdrop-blur-sm"
+    >
+      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/50">
+        <div className="flex items-center gap-3 border-b border-white/10 px-4 py-4">
+          <MagnifyingGlassIcon className="size-5 text-zinc-600" />
+          <div className="h-4 w-44 animate-pulse rounded bg-zinc-800" />
+        </div>
+        <div className="space-y-2 p-3" role="status" aria-live="polite">
+          <span className="sr-only">Preparando búsqueda…</span>
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
+              <div className="size-9 animate-pulse rounded-lg bg-zinc-900" />
+              <div className="space-y-2">
+                <div className="h-3 w-36 animate-pulse rounded bg-zinc-800" />
+                <div className="h-2.5 w-24 animate-pulse rounded bg-zinc-900" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const CommandPalette = dynamic(() => loadCommandPalette().then((module) => module.CommandPalette), {
+  ssr: false,
+  loading: CommandPaletteFallback,
+})
+
+function preloadCommandPaletteResources(clientId: string | undefined, isRoot: boolean) {
+  const eventsPath = scopedEventsPagePath(clientId, isRoot, { page: 1, page_size: 6, filter: 'all' })
+  const tasks: Promise<unknown>[] = [loadCommandPalette()]
+  if (eventsPath) tasks.push(Promise.resolve(preload(eventsPath, fetcher)))
+  void Promise.all(tasks).catch(() => undefined)
+}
 interface ClientRaw {
   id: string
   name: string
   code: string
   logo?: string
+  access_role?: string
   client_type?: { code: string }
 }
 
@@ -61,6 +136,7 @@ function normalizeClient(raw: ClientRaw) {
     name: raw.name,
     code: raw.code,
     logo: raw.logo,
+    access_role: raw.access_role,
     client_type: raw.client_type ?? { code: '' },
   }
 }
@@ -70,31 +146,38 @@ function normalizeClient(raw: ClientRaw) {
  * ========================= */
 
 function AccountDropdownMenu({
-                               anchor,
-                               clearSession,
-                             }: {
+  anchor,
+  clearSession,
+  onProfileIntent,
+}: {
   anchor: 'top start' | 'bottom end'
   clearSession: () => void
+  onProfileIntent: () => void
 }) {
   return (
-      <DropdownMenu className="min-w-64" anchor={anchor}>
-        <DropdownItem href="/settings/profile">
-          <UserCircleIcon />
-          <DropdownLabel>Mi Perfil</DropdownLabel>
-        </DropdownItem>
+    <DropdownMenu className="min-w-64" anchor={anchor}>
+      <DropdownItem
+        href="/settings/profile"
+        onFocus={onProfileIntent}
+        onPointerDown={onProfileIntent}
+        onPointerEnter={onProfileIntent}
+      >
+        <UserCircleIcon />
+        <DropdownLabel>Mi Perfil</DropdownLabel>
+      </DropdownItem>
 
-        <DropdownDivider />
+      <DropdownDivider />
 
-        <DropdownItem
-            onClick={() => {
-              clearSession()
-              window.location.href = '/logout'
-            }}
-        >
-          <ArrowRightStartOnRectangleIcon />
-          <DropdownLabel>Cerrar sesión</DropdownLabel>
-        </DropdownItem>
-      </DropdownMenu>
+      <DropdownItem
+        onClick={() => {
+          clearSession()
+          window.location.href = '/logout'
+        }}
+      >
+        <ArrowRightStartOnRectangleIcon />
+        <DropdownLabel>Cerrar sesión</DropdownLabel>
+      </DropdownItem>
+    </DropdownMenu>
   )
 }
 
@@ -105,33 +188,111 @@ function AccountDropdownMenu({
 export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const storeHydrated = useStoreHydration()
+  const { cache: swrCache } = useSWRConfig()
 
   const [cmdOpen, setCmdOpen] = useState(false)
+  const [notificationsRequested, setNotificationsRequested] = useState(false)
+  const [notificationsOpenRequested, setNotificationsOpenRequested] = useState(false)
+  const [clientsRequested, setClientsRequested] = useState(false)
+  const [organizationSearch, setOrganizationSearch] = useState('')
+  const [commandShortcutLabel, setCommandShortcutLabel] = useState('Ctrl K')
+  const debouncedOrganizationSearch = useDebounce(organizationSearch, 200)
 
   const currentClient = useStore((s) => s.currentClient)
   const setCurrentClient = useStore((s) => s.setCurrentClient)
   const clearSession = useStore((s) => s.clearSession)
   const user = useStore((s) => s.user)
 
+  const isRoot = Boolean(user?.is_root)
+  const preloadCommandPaletteIntent = () => preloadCommandPaletteResources(currentClient?.id, isRoot)
+  // On a cold login, resolve the first organization in parallel with the profile.
+  // The paginated endpoint scopes itself from the authenticated identity, so this
+  // does not need to wait until the profile reveals whether the user is root.
+  const shouldBootstrapClient = storeHydrated && !currentClient
+  const shouldLoadClients = clientsRequested || shouldBootstrapClient
+
+  const preloadDataIfMissing = useCallback(
+    (path: string) => {
+      if (swrCache.get(path)?.data !== undefined) return
+      void Promise.resolve(preload(path, fetcher)).catch(() => undefined)
+    },
+    [swrCache]
+  )
+
+  const preloadRoute = useCallback(
+    (href: '/' | '/events' | '/users' | '/clients') => {
+      router.prefetch(href)
+
+      const dataPath =
+        href === '/'
+          ? scopedEventsDashboardPath(currentClient?.id, isRoot)
+          : href === '/events'
+            ? currentClient?.id || isRoot
+              ? eventsPagePath(currentClient?.id, { page: 1, page_size: 12, filter: 'all' })
+              : null
+            : href === '/users'
+              ? usersAllPath({ page: 1, page_size: 10 })
+              : clientsPagePath({ page: 1, page_size: 12 })
+
+      if (dataPath) preloadDataIfMissing(dataPath)
+    },
+    [currentClient?.id, isRoot, preloadDataIfMissing, router]
+  )
+
+  function preloadClientPortfolio(clientId: string) {
+    router.prefetch('/')
+    router.prefetch('/events')
+    preloadDataIfMissing(eventsPagePath(clientId, { page: 1, page_size: 12, filter: 'all' }))
+    const dashboardPath = scopedEventsDashboardPath(clientId, isRoot)
+    if (dashboardPath) preloadDataIfMissing(dashboardPath)
+  }
+
+  function preloadProfile() {
+    router.prefetch('/settings/profile')
+    preloadDataIfMissing(usersPath())
+  }
+
   // ⌘K / Ctrl+K global shortcut
   useEffect(() => {
     function handle(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
+        preloadCommandPaletteResources(currentClient?.id, isRoot)
         setCmdOpen((v) => !v)
       }
     }
     window.addEventListener('keydown', handle)
     return () => window.removeEventListener('keydown', handle)
+  }, [currentClient?.id, isRoot])
+
+  useEffect(() => {
+    const isApplePlatform = /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
+    setCommandShortcutLabel(isApplePlatform ? '⌘ K' : 'Ctrl K')
   }, [])
 
-  const { data: clients, error: clientsError } = useSWR('/clients', fetcher)
-  const isRoot = Boolean(user?.is_root)
+  const clientsKey = shouldLoadClients
+    ? clientsPagePath({ page: 1, page_size: 50, search: isRoot ? debouncedOrganizationSearch : undefined })
+    : null
+  const {
+    data: rawClients,
+    error: clientsError,
+    isLoading: clientsLoading,
+    isValidating: clientsValidating,
+    mutate: retryClients,
+  } = useSWR<ClientsPageResponse>(clientsKey, fetcher, {
+    ...responsiveListSwrOptions,
+    keepPreviousData: true,
+  })
+  const clientsPage = useMemo(() => readApiData<ClientsPageResponse | undefined>(rawClients), [rawClients])
+  const clients = useMemo(() => clientsPage?.data ?? [], [clientsPage?.data])
+  const clientsTotal = clientsPage?.total ?? clients.length
+  const clientsErrorState = getDataErrorState(clientsError, rawClients)
   /* Auto-select client */
   useEffect(() => {
-    if (!clients || clientsError) return
+    if (!rawClients) return
 
-    const list: ClientRaw[] = Array.isArray(clients) ? clients : []
+    const list: ClientRaw[] = clients
 
     // ✅ Si hay clientes y no hay currentClient → seleccionar
     if (list.length > 0 && !currentClient) {
@@ -140,170 +301,333 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     }
 
     // 🚫 SOLO usuarios NO ROOT van a onboarding
-    if (list.length === 0 && !isRoot) {
+    if (list.length === 0 && user && !isRoot) {
       router.push('/')
     }
 
     // ✅ ROOT con 0 clientes → NO REDIRECT
-  }, [clients, currentClient, isRoot, setCurrentClient, router, clientsError])
+  }, [clients, currentClient, isRoot, rawClients, router, setCurrentClient, user])
 
   return (
     <>
       <SidebarLayout
-          navbar={
-            <Navbar>
-              <NavbarSpacer />
-              <NavbarSection>
-                {/* ⌘K quick search */}
+        navbar={
+          <Navbar>
+            <Link
+              href="/"
+              aria-label="EventiApp — ir al inicio"
+              className="group flex min-w-0 items-center gap-2.5 rounded-xl py-1 pr-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] shadow-lg shadow-black/20">
+                <Image src="/eventiapp-icon.svg" alt="" width={24} height={26} priority />
+              </span>
+              <span className="hidden min-[420px]:block">
+                <span className="block text-sm font-semibold tracking-tight text-white">EventiApp</span>
+                <span className="block text-[9px] font-medium tracking-[0.16em] text-zinc-500 uppercase">
+                  Dashboard
+                </span>
+              </span>
+            </Link>
+            <span className="flex-1" aria-hidden="true" />
+            <NavbarSection>
+              {/* ⌘K quick search */}
+              <button
+                type="button"
+                onClick={() => setCmdOpen(true)}
+                onPointerEnter={preloadCommandPaletteIntent}
+                onPointerDown={preloadCommandPaletteIntent}
+                onFocus={preloadCommandPaletteIntent}
+                aria-label="Buscar"
+                className="flex min-h-10 items-center gap-2 rounded-lg border border-white/10 bg-zinc-900/50 px-2.5 py-1.5 text-xs text-zinc-500 transition-colors hover:border-white/20 hover:text-zinc-300 sm:min-h-0 sm:px-3"
+              >
+                <MagnifyingGlassIcon className="size-4 sm:size-3.5" />
+                <span className="hidden sm:inline">Buscar…</span>
+                <kbd className="hidden rounded border border-zinc-800 bg-zinc-800 px-1 py-0.5 font-mono text-[9px] text-zinc-700 sm:inline">
+                  {commandShortcutLabel}
+                </kbd>
+              </button>
+
+              {notificationsRequested ? (
+                <NotificationBell initialOpen={notificationsOpenRequested} />
+              ) : (
                 <button
-                  onClick={() => setCmdOpen(true)}
-                  className="hidden sm:flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-900/50 px-3 py-1.5 text-xs text-zinc-500 hover:border-white/20 hover:text-zinc-300 transition-colors"
+                  type="button"
+                  aria-label="Notificaciones"
+                  onPointerEnter={() => setNotificationsRequested(true)}
+                  onFocus={() => void loadNotificationBell()}
+                  onClick={() => {
+                    setNotificationsOpenRequested(true)
+                    setNotificationsRequested(true)
+                  }}
+                  className="flex size-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 >
-                  <MagnifyingGlassIcon className="size-3.5" />
-                  Buscar…
-                  <kbd className="rounded border border-zinc-800 bg-zinc-800 px-1 py-0.5 font-mono text-[9px] text-zinc-700">⌘K</kbd>
+                  <BellIcon className="size-5" />
                 </button>
+              )}
+              <Dropdown>
+                <DropdownButton
+                  as={NavbarItem}
+                  aria-label="Abrir menú de cuenta"
+                  onFocus={preloadProfile}
+                  onPointerDown={preloadProfile}
+                  onPointerEnter={preloadProfile}
+                >
+                  <UserAvatar user={user} size="sm" />
+                </DropdownButton>
 
-                <NotificationBell />
-                <Dropdown>
-                  <DropdownButton as={NavbarItem}>
-                    <UserAvatar user={user} size="sm" />
-                  </DropdownButton>
-
-                  <AccountDropdownMenu
-                      anchor="bottom end"
-                      clearSession={clearSession}
-                  />
-                </Dropdown>
-              </NavbarSection>
-            </Navbar>
-          }
-
-          sidebar={
-            <Sidebar>
-              {/* HEADER CLIENT */}
-              <SidebarHeader>
-                <Dropdown>
-                  <DropdownButton as={SidebarItem}>
-                    <Avatar
-                        src={currentClient?.logo}
-                        initials={currentClient?.name?.substring(0, 2).toUpperCase() || '??'}
-                        className="bg-indigo-600 text-white"
-                    />
-                    <SidebarLabel className="font-semibold">
-                      {currentClient?.name || 'Cargando…'}
-                    </SidebarLabel>
-                    <ChevronDownIcon />
-                  </DropdownButton>
-
-                  <DropdownMenu className="min-w-80 max-w-[90vw] lg:min-w-64" anchor="bottom start">
-                    <DropdownHeader>Mis organizaciones</DropdownHeader>
-
-                    {(['PLATFORM', 'AGENCY', 'CUSTOMER'] as const).map((typeCode) => {
-                      const group = (Array.isArray(clients) ? (clients as ClientRaw[]) : []).filter(
-                        (c) => (c.client_type?.code ?? '').toUpperCase() === typeCode
-                      )
-                      if (group.length === 0) return null
-                      const typeLabel = typeCode === 'PLATFORM' ? 'Plataformas' : typeCode === 'AGENCY' ? 'Agencias' : 'Clientes'
-                      return (
-                        <div key={typeCode}>
-                          <div className="px-3 pt-2 pb-1">
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                              {typeLabel}
-                            </span>
-                          </div>
-                          {group.map((client) => (
-                            <DropdownItem
-                              key={client.id}
-                              onClick={() => setCurrentClient(normalizeClient(client))}
-                            >
-                              <Avatar
-                                slot="icon"
-                                src={client.logo}
-                                initials={(client.name ?? '??').substring(0, 2).toUpperCase()}
-                              />
-                              <DropdownLabel>{client.name}</DropdownLabel>
-                            </DropdownItem>
-                          ))}
-                        </div>
-                      )
-                    })}
-                  </DropdownMenu>
-                </Dropdown>
-              </SidebarHeader>
-
-              {/* NAV */}
-              <SidebarBody>
-                <SidebarSection>
-                  <SidebarItem href="/" current={pathname === '/'}>
-                    <HomeIcon />
-                    <SidebarLabel>Inicio</SidebarLabel>
-                  </SidebarItem>
-
-                  <SidebarItem href="/events" current={pathname.startsWith('/events')}>
-                    <Square2StackIcon />
-                    <SidebarLabel>Eventos</SidebarLabel>
-                  </SidebarItem>
-
-                  {!isRoot && (
-                    <SidebarItem href="/orders" current={pathname.startsWith('/orders')}>
-                      <ShoppingCartIcon />
-                      <SidebarLabel>Órdenes</SidebarLabel>
-                    </SidebarItem>
-                  )}
-
-                  {isRoot && (
-                    <SidebarItem href="/users" current={pathname.startsWith('/users')}>
-                      <UsersIcon />
-                      <SidebarLabel>Usuarios</SidebarLabel>
-                    </SidebarItem>
-                  )}
-                </SidebarSection>
-
-                <SidebarSpacer />
-
-                {isRoot && (
-                  <SidebarSection>
-                    <SidebarItem href="/clients" current={pathname.startsWith('/clients')}>
-                      <BuildingOfficeIcon />
-                      <SidebarLabel>Clientes</SidebarLabel>
-                    </SidebarItem>
-                  </SidebarSection>
-                )}
-              </SidebarBody>
-
-              {/* FOOTER USER */}
-              <SidebarFooter className="max-lg:hidden border-t border-white/10 pt-4">
-                <Dropdown>
-                  <DropdownButton as={SidebarItem}>
-                <span className="flex min-w-0 items-center gap-3">
-                  <UserAvatar user={user} size="md" />
-
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">
-                      {user?.first_name} {user?.last_name}
-                    </span>
-                    <span className="block truncate text-xs text-zinc-400">
-                      {user?.email}
-                    </span>
+                <AccountDropdownMenu anchor="bottom end" clearSession={clearSession} onProfileIntent={preloadProfile} />
+              </Dropdown>
+            </NavbarSection>
+          </Navbar>
+        }
+        sidebar={
+          <Sidebar>
+            {/* HEADER CLIENT */}
+            <SidebarHeader className="gap-3 border-white/[0.07] bg-gradient-to-b from-white/[0.025] to-transparent pb-3">
+              <Link
+                href="/"
+                aria-label="EventiApp — ir al inicio"
+                className="group flex items-center gap-3 rounded-xl px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] shadow-xl shadow-black/20 transition-transform group-hover:scale-[1.03] motion-reduce:transition-none">
+                  <Image src="/eventiapp-icon.svg" alt="" width={29} height={31} priority />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-base font-semibold tracking-[-0.02em] text-white">EventiApp</span>
+                  <span className="block text-[10px] font-medium tracking-[0.16em] text-zinc-500 uppercase">
+                    Event operations
                   </span>
                 </span>
-                    <ChevronUpIcon />
-                  </DropdownButton>
+              </Link>
 
-                  <AccountDropdownMenu
-                      anchor="top start"
-                      clearSession={clearSession}
+              <p className="px-2 text-[10px] font-semibold tracking-[0.16em] text-zinc-500 uppercase">
+                Espacio de trabajo
+              </p>
+              <Dropdown>
+                <DropdownButton
+                  as={SidebarItem}
+                  onFocus={() => setClientsRequested(true)}
+                  onMouseEnter={() => setClientsRequested(true)}
+                  onPointerDown={() => setClientsRequested(true)}
+                >
+                  <Avatar
+                    src={currentClient?.logo}
+                    initials={currentClient?.name?.substring(0, 2).toUpperCase() || (isRoot ? 'TO' : '??')}
+                    className="bg-indigo-600 text-white"
                   />
-                </Dropdown>
-              </SidebarFooter>
-            </Sidebar>
-          }
+                  <SidebarLabel className="font-semibold">
+                    {currentClient?.name || (isRoot ? 'Todas las organizaciones' : 'Seleccionar organización')}
+                  </SidebarLabel>
+                  <ChevronDownIcon />
+                </DropdownButton>
+
+                <DropdownMenu className="max-w-[90vw] min-w-80 lg:min-w-64" anchor="bottom start">
+                  <DropdownHeader>Mis organizaciones</DropdownHeader>
+
+                  {isRoot && (
+                    <div className="px-2 pb-2" onClick={(event) => event.stopPropagation()}>
+                      <div className="relative">
+                        <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-600" />
+                        <input
+                          type="search"
+                          aria-label="Buscar organización"
+                          placeholder="Buscar organización…"
+                          value={organizationSearch}
+                          onChange={(event) => setOrganizationSearch(event.target.value)}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          className="w-full rounded-lg border border-white/10 bg-zinc-900 py-2 pr-3 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
+                        />
+                      </div>
+                      <p className="mt-1.5 px-1 text-[10px] text-zinc-600" aria-live="polite">
+                        {clients.length} de {clientsTotal} organizaciones
+                      </p>
+                    </div>
+                  )}
+
+                  {clientsLoading && (
+                    <div className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">Cargando organizaciones…</div>
+                  )}
+
+                  {clientsErrorState && (
+                    <div className="mx-2 my-1 rounded-lg border border-amber-500/15 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+                      <p>
+                        {clientsErrorState === 'stale'
+                          ? 'Mostrando organizaciones guardadas.'
+                          : 'No se pudieron cargar las organizaciones.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => void retryClients()}
+                        disabled={clientsValidating}
+                        aria-busy={clientsValidating}
+                        className="mt-1 font-semibold hover:text-white disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {clientsValidating ? 'Reintentando…' : 'Reintentar'}
+                      </button>
+                    </div>
+                  )}
+
+                  {(['PLATFORM', 'AGENCY', 'CUSTOMER'] as const).map((typeCode) => {
+                    const group = clients.filter((c) => (c.client_type?.code ?? '').toUpperCase() === typeCode)
+                    if (group.length === 0) return null
+                    const typeLabel =
+                      typeCode === 'PLATFORM' ? 'Plataformas' : typeCode === 'AGENCY' ? 'Agencias' : 'Clientes'
+                    return (
+                      <div key={typeCode}>
+                        <div className="px-3 pt-2 pb-1">
+                          <span className="text-[10px] font-semibold tracking-wider text-zinc-500 uppercase">
+                            {typeLabel}
+                          </span>
+                        </div>
+                        {group.map((client) => (
+                          <DropdownItem
+                            key={client.id}
+                            onClick={() => setCurrentClient(normalizeClient(client))}
+                            onFocus={() => preloadClientPortfolio(client.id)}
+                            onPointerDown={() => preloadClientPortfolio(client.id)}
+                            onPointerEnter={() => preloadClientPortfolio(client.id)}
+                          >
+                            <Avatar
+                              slot="icon"
+                              src={client.logo}
+                              initials={(client.name ?? '??').substring(0, 2).toUpperCase()}
+                            />
+                            <DropdownLabel>{client.name}</DropdownLabel>
+                          </DropdownItem>
+                        ))}
+                      </div>
+                    )
+                  })}
+                </DropdownMenu>
+              </Dropdown>
+            </SidebarHeader>
+
+            {/* NAV */}
+            <SidebarBody>
+              <SidebarSection>
+                <SidebarItem
+                  href="/"
+                  current={pathname === '/'}
+                  onPointerEnter={() => preloadRoute('/')}
+                  onPointerDown={() => preloadRoute('/')}
+                  onFocus={() => preloadRoute('/')}
+                >
+                  <HomeIcon />
+                  <SidebarLabel>Inicio</SidebarLabel>
+                </SidebarItem>
+
+                <SidebarItem
+                  href="/events"
+                  current={pathname.startsWith('/events')}
+                  onPointerEnter={() => preloadRoute('/events')}
+                  onPointerDown={() => preloadRoute('/events')}
+                  onFocus={() => preloadRoute('/events')}
+                >
+                  <Square2StackIcon />
+                  <SidebarLabel>Eventos</SidebarLabel>
+                </SidebarItem>
+
+                {isRoot && (
+                  <SidebarItem
+                    href="/users"
+                    current={pathname.startsWith('/users')}
+                    onPointerEnter={() => preloadRoute('/users')}
+                    onPointerDown={() => preloadRoute('/users')}
+                    onFocus={() => preloadRoute('/users')}
+                  >
+                    <UsersIcon />
+                    <SidebarLabel>Usuarios</SidebarLabel>
+                  </SidebarItem>
+                )}
+              </SidebarSection>
+
+              <SidebarSpacer />
+
+              {isRoot && (
+                <SidebarSection>
+                  <SidebarItem
+                    href="/clients"
+                    current={pathname.startsWith('/clients')}
+                    onPointerEnter={() => preloadRoute('/clients')}
+                    onPointerDown={() => preloadRoute('/clients')}
+                    onFocus={() => preloadRoute('/clients')}
+                  >
+                    <BuildingOfficeIcon />
+                    <SidebarLabel>Clientes</SidebarLabel>
+                  </SidebarItem>
+                </SidebarSection>
+              )}
+            </SidebarBody>
+
+            {/* FOOTER USER */}
+            <SidebarFooter className="border-t border-white/10 pt-4 max-lg:hidden">
+              <div className="mb-2 flex items-center gap-2 px-2">
+                <button
+                  type="button"
+                  onClick={() => setCmdOpen(true)}
+                  onPointerEnter={preloadCommandPaletteIntent}
+                  onPointerDown={preloadCommandPaletteIntent}
+                  onFocus={preloadCommandPaletteIntent}
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                >
+                  <MagnifyingGlassIcon className="size-4 shrink-0" />
+                  <span>Buscar</span>
+                  <kbd className="ml-auto rounded border border-white/10 px-1 py-0.5 font-mono text-[9px] text-zinc-600">
+                    {commandShortcutLabel}
+                  </kbd>
+                </button>
+                {notificationsRequested ? (
+                  <NotificationBell initialOpen={notificationsOpenRequested} />
+                ) : (
+                  <button
+                    type="button"
+                    aria-label="Notificaciones"
+                    onPointerEnter={() => setNotificationsRequested(true)}
+                    onFocus={() => void loadNotificationBell()}
+                    onClick={() => {
+                      setNotificationsOpenRequested(true)
+                      setNotificationsRequested(true)
+                    }}
+                    className="flex size-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  >
+                    <BellIcon className="size-5" />
+                  </button>
+                )}
+              </div>
+              <Dropdown>
+                <DropdownButton
+                  as={SidebarItem}
+                  aria-label="Abrir menú de cuenta"
+                  onFocus={preloadProfile}
+                  onPointerDown={preloadProfile}
+                  onPointerEnter={preloadProfile}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    <UserAvatar user={user} size="md" />
+
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">
+                        {user?.first_name} {user?.last_name}
+                      </span>
+                      <span className="block truncate text-xs text-zinc-400">{user?.email}</span>
+                    </span>
+                  </span>
+                  <ChevronUpIcon />
+                </DropdownButton>
+
+                <AccountDropdownMenu anchor="top start" clearSession={clearSession} onProfileIntent={preloadProfile} />
+              </Dropdown>
+            </SidebarFooter>
+          </Sidebar>
+        }
       >
         {children}
+        <MobilePrimaryNavigation pathname={pathname} isRoot={isRoot} onIntent={preloadRoute} />
       </SidebarLayout>
 
-      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
+      {cmdOpen && (
+        <CommandPalette open onClose={() => setCmdOpen(false)} isRoot={isRoot} clientId={currentClient?.id} />
+      )}
     </>
   )
 }

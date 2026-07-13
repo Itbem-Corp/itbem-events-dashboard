@@ -1,35 +1,90 @@
 'use client'
 
-import useSWR, { mutate } from 'swr'
-import { fetcher } from '@/lib/fetcher'
-import { motion, AnimatePresence } from 'motion/react'
 import { api } from '@/lib/api'
-import { toast } from 'sonner'
-import { useState } from 'react'
-import type { DesignTemplate } from '@/models/DesignTemplate'
-import type { ColorPalette } from '@/models/ColorPalette'
-import type { FontSet } from '@/models/FontSet'
-import type { EventConfig } from '@/models/EventConfig'
-
+import { readApiData } from '@/lib/api-envelope'
+import { getApiErrorMessage } from '@/lib/api-error'
+import { designCatalogWorkspacePath, eventConfigPath } from '@/lib/api-paths'
+import { designCatalogMediaRefreshKey, getDesignCatalogMediaRefreshDelay } from '@/lib/design-catalog-media'
 import {
-  CheckCircleIcon,
-  SwatchIcon,
-  SparklesIcon,
-} from '@heroicons/react/20/solid'
+  hasEventConfigCacheIdentity,
+  isEventConfigBackedEventCacheKey,
+  patchEventConfigIntoEventCacheValue,
+  replaceEventConfigCacheValue,
+} from '@/lib/event-config-cache'
+import { fetcher } from '@/lib/fetcher'
+import { resolveBackendMediaUrl } from '@/lib/media-url'
+import { normalizeKeys } from '@/lib/normalizer'
+import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import { getDataErrorState } from '@/lib/swr-data-state'
+import type { ColorPalette } from '@/models/ColorPalette'
+import type { ColorPalettePattern } from '@/models/ColorPalettePattern'
+import type { DesignTemplate } from '@/models/DesignTemplate'
+import type { EventConfig, EventConfigPatch } from '@/models/EventConfig'
+import type { FontSet } from '@/models/FontSet'
+import type { FontSetPattern } from '@/models/FontSetPattern'
+import { trackProductEvent, type SeededDesignTemplate } from '@/lib/product-analytics'
+import { AnimatePresence, motion } from 'motion/react'
+import type { ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
+import useSWR, { mutate } from 'swr'
 
-// ─── Color Swatch Preview ─────────────────────────────────────────────────────
+import { CheckCircleIcon, SwatchIcon } from '@heroicons/react/20/solid'
+import { StaleDataNotice } from '@/components/ui/stale-data-notice'
+
+function normalizePatternKey(value?: string) {
+  return value
+    ?.trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_')
+}
+
+function colorPatternKey(pattern: ColorPalettePattern) {
+  return normalizePatternKey(pattern.role ?? pattern.key)
+}
+
+function colorValue(pattern: ColorPalettePattern) {
+  return pattern.color?.hex_code ?? pattern.color?.value
+}
+
+function fontPatternKey(pattern: FontSetPattern) {
+  return normalizePatternKey(pattern.role ?? pattern.key)
+}
+
+function fontName(pattern: FontSetPattern) {
+  return pattern.font?.family ?? pattern.font?.name
+}
+
+function normalizeSWRRecord<T>(value: T | undefined): T | undefined {
+  return value ? (normalizeKeys(value) as T) : undefined
+}
+
+function normalizeSWRList<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? (normalizeKeys(value) as T[]) : []
+}
 
 function ColorSwatches({ palette }: { palette: ColorPalette }) {
-  const colors = palette.patterns ?? []
-  const primary = colors.find((p) => p.role === 'PRIMARY')?.color?.hex_code
-  const secondary = colors.find((p) => p.role === 'SECONDARY')?.color?.hex_code
-  const bg = colors.find((p) => p.role === 'BACKGROUND')?.color?.hex_code
+  const patterns = palette.patterns ?? []
+  const colorsByKey = new Map<string, string>()
+  for (const pattern of patterns) {
+    const key = colorPatternKey(pattern)
+    const value = colorValue(pattern)
+    if (key && value) colorsByKey.set(key, value)
+  }
+
+  const preferred = ['PRIMARY', 'SECONDARY', 'BACKGROUND']
+    .map((key) => colorsByKey.get(key))
+    .filter(Boolean) as string[]
+  const fallback = patterns.map(colorValue).filter(Boolean).slice(0, 4) as string[]
+  const swatches = preferred.length > 0 ? preferred : fallback
+
+  if (swatches.length === 0) return null
 
   return (
     <div className="flex gap-1">
-      {[primary, secondary, bg].filter(Boolean).map((hex, i) => (
+      {swatches.map((hex, i) => (
         <div
-          key={i}
+          key={`${hex}-${i}`}
           className="size-4 rounded-full border border-white/10"
           style={{ backgroundColor: hex }}
           title={hex}
@@ -39,17 +94,81 @@ function ColorSwatches({ palette }: { palette: ColorPalette }) {
   )
 }
 
-// ─── Template Card ────────────────────────────────────────────────────────────
-
-interface TemplateCardProps {
-  template: DesignTemplate
-  isSelected: boolean
-  onSelect: () => void
+interface TemplatePreviewPalette {
+  background: string
+  surface: string
+  text: string
+  heading: string
+  accent: string
+  border: string
 }
 
-function TemplateCard({ template, isSelected, onSelect }: TemplateCardProps) {
+export function getDesignTemplatePreviewPalette(template: DesignTemplate): TemplatePreviewPalette | null {
+  const palette = template.default_color_palette ?? template.color_palette
+  const values = new Map<string, string>()
+  for (const pattern of palette?.patterns ?? []) {
+    const key = colorPatternKey(pattern)
+    const value = colorValue(pattern)?.trim()
+    if (key && value) values.set(key, value)
+  }
+  if (values.size === 0) return null
+
+  const first = [...values.values()][0]
+  const read = (...keys: string[]) => keys.map((key) => values.get(key)).find(Boolean)
+  const background = read('BACKGROUND', 'BACKGROUND_SOFT', 'SURFACE') ?? first
+  const surface = read('SURFACE', 'BACKGROUND_SOFT', 'BACKGROUND') ?? background
+  const text = read('TEXT', 'BODY', 'FOREGROUND', 'PRIMARY') ?? first
+  const heading = read('HEADING', 'TITLE', 'PRIMARY', 'TEXT') ?? text
+  const accent = read('ACCENT', 'SECONDARY', 'PRIMARY', 'GOLD') ?? heading
+  const border = read('BORDER', 'LINE', 'MUTED', 'ACCENT') ?? accent
+
+  return { background, surface, text, heading, accent, border }
+}
+
+function TemplatePalettePreview({ template, compact }: { template: DesignTemplate; compact: boolean }) {
+  const colors = getDesignTemplatePreviewPalette(template)
+  if (!colors) return null
+
+  return (
+    <div
+      role="img"
+      aria-label={`Vista previa de ${template.name}`}
+      data-template-palette-preview={template.identifier}
+      className={[
+        compact ? 'h-20' : 'h-28',
+        'relative mb-3 w-full overflow-hidden rounded-lg border p-3',
+      ].join(' ')}
+      style={{ backgroundColor: colors.background, borderColor: colors.border }}
+    >
+      <div
+        className="absolute -top-5 -right-3 size-16 rounded-full opacity-25 blur-xl"
+        style={{ backgroundColor: colors.accent }}
+      />
+      <div
+        className="relative h-full rounded-md border px-3 py-2 shadow-sm"
+        style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+      >
+        <div className="h-1.5 w-8 rounded-full" style={{ backgroundColor: colors.accent }} />
+        <div className="mt-2 h-2 w-3/4 rounded-full opacity-90" style={{ backgroundColor: colors.heading }} />
+        <div className="mt-1.5 h-1.5 w-1/2 rounded-full opacity-45" style={{ backgroundColor: colors.text }} />
+        <div className="absolute right-3 bottom-2 left-3 h-px opacity-50" style={{ backgroundColor: colors.border }} />
+      </div>
+    </div>
+  )
+}
+
+interface SelectableCardProps {
+  title: string
+  subtitle?: string
+  isSelected: boolean
+  onSelect: () => void
+  children?: ReactNode
+}
+
+function SelectableCard({ title, subtitle, isSelected, onSelect, children }: SelectableCardProps) {
   return (
     <button
+      type="button"
       onClick={onSelect}
       className={[
         'relative rounded-xl border p-4 text-left transition-all hover:border-indigo-500/50',
@@ -58,43 +177,17 @@ function TemplateCard({ template, isSelected, onSelect }: TemplateCardProps) {
           : 'border-white/10 bg-zinc-900/50 hover:bg-zinc-900',
       ].join(' ')}
     >
-      {/* Preview image */}
-      {template.preview_image_url ? (
-        <img
-          src={template.preview_image_url}
-          alt={template.name}
-          className="w-full h-28 object-cover rounded-lg mb-3 border border-white/10"
-        />
-      ) : (
-        <div className="w-full h-28 rounded-lg mb-3 border border-white/10 bg-zinc-800 flex items-center justify-center">
-          <SwatchIcon className="size-8 text-zinc-700" />
-        </div>
-      )}
-
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold text-zinc-200">{template.name}</p>
-          <p className="text-xs text-zinc-600 mt-0.5 font-mono">{template.identifier}</p>
-          {template.default_color_palette && (
-            <div className="mt-2">
-              <ColorSwatches palette={template.default_color_palette} />
-            </div>
-          )}
-          {template.default_font_set && (
-            <p className="mt-1 text-xs text-zinc-600">
-              {template.default_font_set.name}
-            </p>
-          )}
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-zinc-200">{title}</p>
+          {subtitle && <p className="mt-0.5 text-xs text-zinc-600">{subtitle}</p>}
+          {children && <div className="mt-2">{children}</div>}
         </div>
 
         <AnimatePresence>
           {isSelected && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-            >
-              <CheckCircleIcon className="size-5 text-indigo-400 shrink-0" />
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+              <CheckCircleIcon className="size-5 shrink-0 text-indigo-400" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -103,250 +196,410 @@ function TemplateCard({ template, isSelected, onSelect }: TemplateCardProps) {
   )
 }
 
-// ─── Palette Card ─────────────────────────────────────────────────────────────
-
-interface PaletteCardProps {
-  palette: ColorPalette
+interface TemplateCardProps {
+  template: DesignTemplate
   isSelected: boolean
   onSelect: () => void
+  compact?: boolean
 }
 
-function PaletteCard({ palette, isSelected, onSelect }: PaletteCardProps) {
-  const colors = palette.patterns ?? []
-  const primary = colors.find((p) => p.role === 'PRIMARY')?.color?.hex_code ?? '#6366f1'
-  const secondary = colors.find((p) => p.role === 'SECONDARY')?.color?.hex_code ?? '#8b5cf6'
-  const bg = colors.find((p) => p.role === 'BACKGROUND')?.color?.hex_code ?? '#09090b'
+function firstNonEmptyString(...values: Array<string | null | undefined>): string {
+  for (const value of values) {
+    const trimmed = value?.trim()
+    if (trimmed) return trimmed
+  }
+  return ''
+}
 
-  return (
-    <button
-      onClick={onSelect}
-      title={palette.name}
-      className={[
-        'relative flex flex-col items-center gap-2 rounded-xl border p-3 transition-all',
-        isSelected
-          ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500'
-          : 'border-white/10 bg-zinc-900/50 hover:border-white/20',
-      ].join(' ')}
-    >
-      {/* Color preview */}
-      <div
-        className="w-full h-12 rounded-lg border border-white/10"
-        style={{ background: `linear-gradient(135deg, ${primary} 0%, ${secondary} 50%, ${bg} 100%)` }}
-      />
-      <p className="text-xs font-medium text-zinc-400 truncate w-full text-center">{palette.name}</p>
-      {palette.is_premium && (
-        <span className="absolute top-1.5 right-1.5 flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-          <SparklesIcon className="size-2.5" />
-          PRO
-        </span>
-      )}
-      {isSelected && (
-        <CheckCircleIcon className="absolute top-1.5 left-1.5 size-4 text-indigo-400" />
-      )}
-    </button>
+const SEEDED_TEMPLATE_IDENTIFIERS = new Set<SeededDesignTemplate>([
+  'editorial-romance',
+  'contemporary-night',
+  'warm-celebration',
+])
+
+function productTemplateKind(identifier?: string | null): SeededDesignTemplate | 'custom' {
+  return identifier && SEEDED_TEMPLATE_IDENTIFIERS.has(identifier as SeededDesignTemplate)
+    ? (identifier as SeededDesignTemplate)
+    : 'custom'
+}
+
+export function resolveDesignTemplatePreviewUrl(
+  template: DesignTemplate,
+  backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
+): string {
+  return resolveBackendMediaUrl(
+    firstNonEmptyString(template.preview_view_url, template.preview_image_url, template.preview_url),
+    backendUrl
   )
 }
 
-// ─── Font Set Card ────────────────────────────────────────────────────────────
+function TemplateCard({ template, isSelected, onSelect, compact = false }: TemplateCardProps) {
+  const previewSrc = resolveDesignTemplatePreviewUrl(template)
+  const hasPalettePreview = getDesignTemplatePreviewPalette(template) !== null
 
-function FontSetCard({ fontSet, isSelected, onSelect }: { fontSet: FontSet; isSelected: boolean; onSelect: () => void }) {
   return (
     <button
+      type="button"
       onClick={onSelect}
       className={[
-        'relative flex flex-col gap-1 rounded-xl border p-4 text-left transition-all',
+        'relative rounded-xl border p-4 text-left transition-all hover:border-indigo-500/50',
         isSelected
           ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500'
-          : 'border-white/10 bg-zinc-900/50 hover:border-white/20',
+          : 'border-white/10 bg-zinc-900/50 hover:bg-zinc-900',
       ].join(' ')}
     >
-      <p className="text-sm font-semibold text-zinc-200">{fontSet.name}</p>
-      {fontSet.patterns?.map((p) => (
-        <p key={p.id} className="text-xs text-zinc-600">
-          <span className="text-zinc-500">{p.role}:</span> {p.font?.name ?? '—'}
-        </p>
-      ))}
-      {isSelected && (
-        <CheckCircleIcon className="absolute top-2 right-2 size-4 text-indigo-400" />
+      {previewSrc ? (
+        <img
+          src={previewSrc}
+          alt={template.name}
+          className={[compact ? 'h-20' : 'h-28', 'mb-3 w-full rounded-lg border border-white/10 object-cover'].join(
+            ' '
+          )}
+        />
+      ) : hasPalettePreview ? (
+        <TemplatePalettePreview template={template} compact={compact} />
+      ) : (
+        <div
+          className={[
+            compact ? 'h-20' : 'h-28',
+            'mb-3 flex w-full items-center justify-center rounded-lg border border-white/10 bg-zinc-800',
+          ].join(' ')}
+        >
+          <SwatchIcon className="size-8 text-zinc-700" />
+        </div>
       )}
+
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-zinc-200">{template.name}</p>
+          <p className="mt-0.5 truncate font-mono text-xs text-zinc-600">{template.identifier}</p>
+          {template.default_color_palette && (
+            <div className="mt-2">
+              <ColorSwatches palette={template.default_color_palette} />
+            </div>
+          )}
+          {template.default_font_set && (
+            <p className="mt-1 truncate text-xs text-zinc-600">{template.default_font_set.name}</p>
+          )}
+        </div>
+
+        <AnimatePresence>
+          {isSelected && (
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }}>
+              <CheckCircleIcon className="size-5 shrink-0 text-indigo-400" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </button>
   )
 }
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   eventId: string
+  compact?: boolean
+  initialConfig?: EventConfig | null
+  onSaved?: (config?: EventConfig) => void
 }
 
-export function EventDesignPicker({ eventId }: Props) {
+interface DesignCatalogWorkspace {
+  templates: DesignTemplate[]
+  palettes: ColorPalette[]
+  font_sets: FontSet[]
+}
+
+export function EventDesignPicker({ eventId, compact = false, initialConfig, onSaved }: Props) {
   const [saving, setSaving] = useState(false)
+  const configPath = eventId ? eventConfigPath(eventId) : null
 
-  const { data: config, error: configError } = useSWR<EventConfig>(
-    eventId ? `/events/${eventId}/config` : null,
+  const { data: rawConfig, error: configError, isLoading: configLoading } = useSWR<EventConfig>(
+    configPath,
     fetcher,
-    { revalidateOnFocus: false }
+    {
+      ...responsiveListSwrOptions,
+      fallbackData: initialConfig ?? undefined,
+      revalidateOnMount: !initialConfig,
+    }
   )
+  const { data: rawCatalogs, error: catalogError, isLoading: catalogsLoading } = useSWR<DesignCatalogWorkspace>(designCatalogWorkspacePath(), fetcher, {
+    ...responsiveListSwrOptions,
+    shouldRetryOnError: false,
+  })
 
-  const { data: templates = [] } = useSWR<DesignTemplate[]>(
-    '/catalogs/design-templates',
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false }
-  )
+  const config = useMemo(() => normalizeSWRRecord(rawConfig), [rawConfig])
+  const templates = useMemo(() => normalizeSWRList(rawCatalogs?.templates), [rawCatalogs])
+  const palettes = useMemo(() => normalizeSWRList(rawCatalogs?.palettes), [rawCatalogs])
+  const fontSets = useMemo(() => normalizeSWRList(rawCatalogs?.font_sets), [rawCatalogs])
+  const configErrorState = getDataErrorState(configError, rawConfig)
+  const lastCatalogMediaRefreshKeyRef = useRef<string | null>(null)
 
-  const { data: palettes = [] } = useSWR<ColorPalette[]>(
-    '/catalogs/color-palettes',
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false }
-  )
+  useEffect(() => {
+    const refreshDelay = getDesignCatalogMediaRefreshDelay({ templates, fontSets })
+    const refreshKey = designCatalogMediaRefreshKey({ templates, fontSets })
+    if (refreshDelay === null || !refreshKey) return
 
-  const { data: fontSets = [] } = useSWR<FontSet[]>(
-    '/catalogs/font-sets',
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false }
-  )
+    const refreshCatalogs = () => {
+      lastCatalogMediaRefreshKeyRef.current = refreshKey
+      void mutate(designCatalogWorkspacePath())
+    }
+
+    if (refreshDelay <= 0) {
+      if (lastCatalogMediaRefreshKeyRef.current === refreshKey) return
+      refreshCatalogs()
+      return
+    }
+
+    const timeoutId = window.setTimeout(refreshCatalogs, refreshDelay)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [templates, fontSets])
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>(undefined)
   const [selectedPaletteId, setSelectedPaletteId] = useState<string | undefined>(undefined)
   const [selectedFontSetId, setSelectedFontSetId] = useState<string | undefined>(undefined)
 
-  // Initialize from config when loaded
-  const [initialized, setInitialized] = useState(false)
-  if (config && !initialized) {
-    setSelectedTemplateId(config.design_template_id)
-    setInitialized(true)
-  }
+  useEffect(() => {
+    if (!config || saving) return
+    setSelectedTemplateId(config.design_template_id ?? undefined)
+    setSelectedPaletteId(config.color_palette_id ?? undefined)
+    setSelectedFontSetId(config.font_set_id ?? undefined)
+  }, [config, saving])
 
+  const selectedTemplate = useMemo(
+    () => templates.find((template) => template.id === selectedTemplateId),
+    [selectedTemplateId, templates]
+  )
+
+  const currentTemplateId = config?.design_template_id ?? undefined
+  const currentPaletteId = config?.color_palette_id ?? undefined
+  const currentFontSetId = config?.font_set_id ?? undefined
   const hasChanges =
-    selectedTemplateId !== config?.design_template_id ||
-    selectedPaletteId !== undefined ||
-    selectedFontSetId !== undefined
+    selectedTemplateId !== currentTemplateId ||
+    selectedPaletteId !== currentPaletteId ||
+    selectedFontSetId !== currentFontSetId
+  const hasCatalogs = templates.length > 0 || palettes.length > 0 || fontSets.length > 0
+  const catalogRefreshError = Boolean(catalogError && hasCatalogs)
+  const catalogGridClass = compact ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3 sm:grid-cols-3'
 
   const handleSave = async () => {
-    setSaving(true)
-    try {
-      const payload: Record<string, unknown> = {}
-      if (selectedTemplateId !== config?.design_template_id) {
-        payload.design_template_id = selectedTemplateId ?? null
-      }
+    if (!config) return
+    const payload: EventConfigPatch = {}
+      if (selectedTemplateId !== currentTemplateId) payload.design_template_id = selectedTemplateId ?? null
+      if (selectedPaletteId !== currentPaletteId) payload.color_palette_id = selectedPaletteId ?? null
+      if (selectedFontSetId !== currentFontSetId) payload.font_set_id = selectedFontSetId ?? null
+
       if (Object.keys(payload).length === 0) {
         toast.info('Sin cambios')
-        setSaving(false)
         return
       }
-      await api.put(`/events/${eventId}/config`, { ...config, ...payload })
-      await mutate(`/events/${eventId}/config`)
+
+    const snapshot = config
+    const optimistic: EventConfig = { ...config, ...payload }
+    setSaving(true)
+    onSaved?.(optimistic)
+    await mutate(eventConfigPath(eventId), optimistic, { revalidate: false })
+    await mutate(
+      (key) => isEventConfigBackedEventCacheKey(key, eventId),
+      (current: unknown) => patchEventConfigIntoEventCacheValue(current, eventId, optimistic),
+      { revalidate: false }
+    )
+    try {
+
+      const res = await api.put<EventConfig>(eventConfigPath(eventId), payload)
+      const updated = readApiData<EventConfig | null>(res.data)
+      if (hasEventConfigCacheIdentity(updated)) {
+        await mutate(
+          eventConfigPath(eventId),
+          (current: EventConfig | undefined) => replaceEventConfigCacheValue(current, updated) as EventConfig,
+          { revalidate: false }
+        )
+        await mutate(
+          (key) => isEventConfigBackedEventCacheKey(key, eventId),
+          (current: unknown) => patchEventConfigIntoEventCacheValue(current, eventId, updated),
+          { revalidate: false }
+        )
+      } else {
+        await mutate(eventConfigPath(eventId))
+        await mutate((key) => isEventConfigBackedEventCacheKey(key, eventId))
+      }
+      onSaved?.(updated ?? undefined)
+      const appliedTemplate = templates.find((template) => template.id === selectedTemplateId)
+      trackProductEvent('design_saved', {
+        template_kind: productTemplateKind(appliedTemplate?.identifier),
+        palette_override: Boolean(selectedPaletteId),
+        font_override: Boolean(selectedFontSetId),
+      })
       toast.success('Diseño guardado')
-    } catch {
-      toast.error('Error al guardar el diseño')
+    } catch (err: unknown) {
+      await mutate(eventConfigPath(eventId), snapshot, { revalidate: false })
+      await mutate(
+        (key) => isEventConfigBackedEventCacheKey(key, eventId),
+        (current: unknown) => patchEventConfigIntoEventCacheValue(current, eventId, snapshot),
+        { revalidate: false }
+      )
+      onSaved?.(snapshot)
+      toast.error(getApiErrorMessage(err, 'Error al guardar el diseño'))
     } finally {
       setSaving(false)
     }
   }
 
-  const isLoading = !config && !configError
+  const isLoading = Boolean((!config && configLoading) || catalogsLoading)
 
   if (isLoading) {
     return (
-      <div className="space-y-4 animate-pulse">
-        <div className="h-4 w-32 bg-zinc-800 rounded" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-40 bg-zinc-800 rounded-xl" />)}
+      <div className="animate-pulse space-y-4">
+        <div className="h-4 w-32 rounded bg-zinc-800" />
+        <div className={catalogGridClass}>
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-40 rounded-xl bg-zinc-800" />
+          ))}
         </div>
       </div>
     )
   }
 
-  if (configError || !config) {
-    return (
-      <div className="py-12 text-center text-sm text-zinc-500">
-        No se pudo cargar la configuración de diseño.
-      </div>
-    )
+  if (!config) {
+    return <div className="py-12 text-center text-sm text-zinc-500">No se pudo cargar la configuración de diseño.</div>
   }
 
   return (
-    <div className="space-y-8">
-      {/* Design Templates */}
+    <div className={compact ? 'space-y-6' : 'space-y-8'}>
+      {(configErrorState === 'stale' || catalogRefreshError) && (
+        <StaleDataNotice
+          label="el diseño"
+          onRetry={() => {
+            void mutate(eventConfigPath(eventId))
+            void mutate(designCatalogWorkspacePath())
+          }}
+        />
+      )}
       {templates.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-sm font-semibold text-zinc-200">Plantilla de diseño</p>
-              <p className="text-xs text-zinc-500 mt-0.5">Elige la plantilla visual para la página pública.</p>
-            </div>
+          <div className="mb-4">
+            <p className="text-sm font-semibold text-zinc-200">Plantilla de diseño</p>
+            <p className="mt-0.5 text-xs text-zinc-500">Elige la plantilla visual base para la página pública.</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {templates.map((t) => (
+          <div className={catalogGridClass}>
+            {templates.map((template) => (
               <TemplateCard
-                key={t.id}
-                template={t}
-                isSelected={selectedTemplateId === t.id}
-                onSelect={() => setSelectedTemplateId(t.id)}
+                key={template.id}
+                template={template}
+                isSelected={selectedTemplateId === template.id}
+                onSelect={() => !saving && setSelectedTemplateId(template.id)}
+                compact={compact}
               />
             ))}
           </div>
         </div>
       )}
 
-      {/* Color Palettes */}
       {palettes.length > 0 && (
         <div>
           <div className="mb-4">
             <p className="text-sm font-semibold text-zinc-200">Paleta de colores</p>
-            <p className="text-xs text-zinc-500 mt-0.5">Personaliza los colores de la página.</p>
+            <p className="mt-0.5 text-xs text-zinc-500">Override opcional; vacío usa la paleta de la plantilla.</p>
           </div>
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-            {palettes.map((p) => (
-              <PaletteCard
-                key={p.id}
-                palette={p}
-                isSelected={selectedPaletteId === p.id}
-                onSelect={() => setSelectedPaletteId(selectedPaletteId === p.id ? undefined : p.id)}
-              />
+          <div className={catalogGridClass}>
+            <SelectableCard
+              title="Usar plantilla"
+              subtitle={selectedTemplate?.default_color_palette?.name ?? 'Sin override'}
+              isSelected={!selectedPaletteId}
+              onSelect={() => !saving && setSelectedPaletteId(undefined)}
+            >
+              {selectedTemplate?.default_color_palette && (
+                <ColorSwatches palette={selectedTemplate.default_color_palette} />
+              )}
+            </SelectableCard>
+            {palettes.map((palette) => (
+              <SelectableCard
+                key={palette.id}
+                title={palette.name}
+                isSelected={selectedPaletteId === palette.id}
+                onSelect={() => !saving && setSelectedPaletteId(palette.id)}
+              >
+                <ColorSwatches palette={palette} />
+              </SelectableCard>
             ))}
           </div>
         </div>
       )}
 
-      {/* Font Sets */}
       {fontSets.length > 0 && (
         <div>
           <div className="mb-4">
             <p className="text-sm font-semibold text-zinc-200">Tipografía</p>
-            <p className="text-xs text-zinc-500 mt-0.5">Elige la combinación de fuentes.</p>
+            <p className="mt-0.5 text-xs text-zinc-500">Override opcional; vacío usa la fuente de la plantilla.</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {fontSets.map((fs) => (
-              <FontSetCard
-                key={fs.id}
-                fontSet={fs}
-                isSelected={selectedFontSetId === fs.id}
-                onSelect={() => setSelectedFontSetId(selectedFontSetId === fs.id ? undefined : fs.id)}
-              />
-            ))}
+          <div className={catalogGridClass}>
+            <SelectableCard
+              title="Usar plantilla"
+              subtitle={selectedTemplate?.default_font_set?.name ?? 'Sin override'}
+              isSelected={!selectedFontSetId}
+              onSelect={() => !saving && setSelectedFontSetId(undefined)}
+            />
+            {fontSets.map((fontSet) => {
+              const sample = (fontSet.patterns ?? [])
+                .map((pattern) => {
+                  const key = fontPatternKey(pattern)
+                  const name = fontName(pattern)
+                  return key && name ? `${key.toLowerCase()}: ${name}` : name
+                })
+                .filter(Boolean)
+                .join(' · ')
+
+              return (
+                <SelectableCard
+                  key={fontSet.id}
+                  title={fontSet.name}
+                  subtitle={sample || undefined}
+                  isSelected={selectedFontSetId === fontSet.id}
+                  onSelect={() => !saving && setSelectedFontSetId(fontSet.id)}
+                />
+              )
+            })}
           </div>
         </div>
       )}
 
-      {/* No catalogs loaded */}
-      {templates.length === 0 && palettes.length === 0 && fontSets.length === 0 && (
-        <div className="rounded-xl border border-white/10 bg-zinc-900/30 p-8 text-center">
-          <SwatchIcon className="mx-auto size-10 text-zinc-700 mb-3" />
-          <p className="text-sm text-zinc-500">No hay plantillas de diseño disponibles aún.</p>
-          <p className="text-xs text-zinc-700 mt-1">Los catálogos de diseño se configuran desde el panel de administración.</p>
-        </div>
-      )}
-
-      {/* Save button */}
-      {(templates.length > 0 || palettes.length > 0 || fontSets.length > 0) && (
-        <div className="flex justify-end pt-2 border-t border-white/10">
+      {!hasCatalogs && catalogError && (
+        <div role="alert" className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-8 text-center">
+          <SwatchIcon className="mx-auto mb-3 size-10 text-amber-500/60" />
+          <p className="text-sm text-amber-200">No pudimos cargar los catálogos de diseño.</p>
           <button
+            type="button"
+            onClick={() => {
+              void mutate(designCatalogWorkspacePath())
+            }}
+            className="mt-3 text-xs font-semibold text-amber-300 hover:text-white"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {!hasCatalogs && !catalogError && (
+        <div className="rounded-xl border border-white/10 bg-zinc-900/30 p-8 text-center">
+          <SwatchIcon className="mx-auto mb-3 size-10 text-zinc-700" />
+          <p className="text-sm text-zinc-500">No hay catálogos de diseño disponibles aún.</p>
+          <p className="mt-1 text-xs text-zinc-700">
+            Los catálogos de diseño se configuran desde el panel de administración.
+          </p>
+        </div>
+      )}
+
+      {hasCatalogs && (
+        <div className="flex justify-end border-t border-white/10 pt-2">
+          <button
+            type="button"
             onClick={handleSave}
             disabled={saving || !hasChanges}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className={[
+              'flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50',
+              compact ? 'w-full justify-center' : '',
+            ].join(' ')}
           >
-            {saving ? 'Guardando…' : 'Guardar diseño'}
+            {saving ? 'Guardando...' : 'Guardar diseño'}
           </button>
         </div>
       )}

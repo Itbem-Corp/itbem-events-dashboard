@@ -24,7 +24,9 @@ All entities extend `BaseEntity` (`id: number`, `created_at`, `updated_at`, `del
 
 ## Supporting Entities
 
-**EventConfig** — `event_id` `is_public` `show_guest_list` `allow_registration` `password?` `design_template_id?` `color_palette_id?` `font_set_id?`
+**EventConfig** — `event_id` `is_public` `show_guest_list` `allow_registration` `password?` `active_from` `active_until?` `design_template_id?` `color_palette_id?` `font_set_id?`
+
+`active_until`, when set, must be strictly after `active_from`. Blank `active_until` means the public page has no configured close date.
 
 **EventAnalytics** — `event_id` `views` `unique_visitors` `rsvp_yes` `rsvp_no`
 
@@ -53,13 +55,6 @@ All entities extend `BaseEntity` (`id: number`, `created_at`, `updated_at`, `del
 | `MomentType` | `PHOTO` `MESSAGE` |
 | `ResourceType` | `IMAGE` `VIDEO` `DOCUMENT` |
 | `EventSection.type` | `TEXT` `GALLERY` `MAP` `SCHEDULE` `RSVP` |
-
-## Mock Data (`src/data.ts`)
-
-Available for local dev/testing when backend is unavailable:
-- `getOrders()` / `getOrder(id)` / `getRecentOrders()`
-- `getEvents()` / `getEvent(id)` / `getEventOrders(eventId)`
-- `getCountries()` — countries with regions (Canada, Mexico, USA)
 
 ## Helpers
 

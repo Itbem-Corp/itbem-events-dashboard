@@ -1,24 +1,61 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { readApiData } from '@/lib/api-envelope'
+import { getApiErrorMessage } from '@/lib/api-error'
+import { usersPath } from '@/lib/api-paths'
+import { fetcher } from '@/lib/fetcher'
+import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import { getDataErrorState } from '@/lib/swr-data-state'
+import type { UserProfileResponse } from '@/models/User'
 import { useStore } from '@/store/useStore'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { motion } from 'motion/react'
 
-import { Heading, Subheading } from '@/components/heading'
-import { Button } from '@/components/button'
-import { Input } from '@/components/input'
-import { Field, Label, Description } from '@/components/fieldset'
-import { FileUpload } from '@/components/ui/file-upload'
-import { PageTransition } from '@/components/ui/page-transition'
+import { Avatar } from '@/components/avatar'
 import { Badge } from '@/components/badge'
+import { Button } from '@/components/button'
+import { Description, Field, Label } from '@/components/fieldset'
+import { Heading, Subheading } from '@/components/heading'
+import { Input } from '@/components/input'
+import { PageTransition } from '@/components/ui/page-transition'
+import { PageDataError } from '@/components/ui/page-data-error'
+import { StaleDataNotice } from '@/components/ui/stale-data-notice'
+import { ProfilePageSkeleton } from '@/components/profile/profile-page-skeleton'
 import {
-  UserIcon,
-  ShieldCheckIcon,
   BuildingOfficeIcon,
+  CameraIcon,
   EnvelopeIcon,
+  ShieldCheckIcon,
+  UserIcon,
 } from '@heroicons/react/20/solid'
+import dynamic from 'next/dynamic'
+import useSWR from 'swr'
+
+const loadProfileAvatarModal = () => import('@/components/profile/profile-avatar-modal')
+const ProfileAvatarModal = dynamic(() => loadProfileAvatarModal().then((module) => module.ProfileAvatarModal), {
+  ssr: false,
+})
+
+type ComparableProfile = Pick<UserProfileResponse, 'id' | 'email' | 'first_name' | 'last_name'> &
+  Partial<Pick<UserProfileResponse, 'profile_image' | 'is_active' | 'is_root'>>
+
+function isSameProfile(current: ComparableProfile | null, next: UserProfileResponse): boolean {
+  return Boolean(
+    current &&
+      current.id === next.id &&
+      current.email === next.email &&
+      current.first_name === next.first_name &&
+      current.last_name === next.last_name &&
+      (current.profile_image ?? '') === (next.profile_image ?? '') &&
+      current.is_active === next.is_active &&
+      current.is_root === next.is_root
+  )
+}
+
+function preloadProfileAvatarModal() {
+  void loadProfileAvatarModal().catch(() => undefined)
+}
 
 function SectionCard({
   icon: Icon,
@@ -30,79 +67,115 @@ function SectionCard({
   children: React.ReactNode
 }) {
   return (
-    <motion.section
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6"
-    >
-      <div className="flex items-center gap-2.5 mb-5">
+    <section className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+      <div className="mb-5 flex items-center gap-2.5">
         <div className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-zinc-800">
           <Icon className="size-4 text-zinc-400" />
         </div>
         <Subheading>{title}</Subheading>
       </div>
       {children}
-    </motion.section>
+    </section>
   )
 }
 
 export default function ProfilePage() {
-  const user = useStore((s) => s.user)
+  const storedUser = useStore((s) => s.user)
   const setProfile = useStore((s) => s.setProfile)
+  const persistedProfile = useMemo<UserProfileResponse | undefined>(
+    () =>
+      storedUser
+        ? {
+            id: storedUser.id,
+            email: storedUser.email,
+            first_name: storedUser.first_name,
+            last_name: storedUser.last_name,
+            profile_image: storedUser.profile_image ?? '',
+            is_active: storedUser.is_active ?? true,
+            is_root: storedUser.is_root ?? false,
+          }
+        : undefined,
+    [storedUser]
+  )
+  const {
+    data: freshProfile,
+    error: profileError,
+    isValidating: profileRetrying,
+    mutate: retryProfile,
+  } = useSWR<UserProfileResponse>(usersPath(), fetcher, {
+    ...responsiveListSwrOptions,
+    fallbackData: persistedProfile,
+  })
+  const user = freshProfile ?? persistedProfile
+  const profileErrorState = getDataErrorState(profileError, user)
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [loading, setLoading] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
+  const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false)
 
   useEffect(() => {
-    if (!user) return
+    if (!user || isDirty || loading) return
     setFirstName(user.first_name || '')
     setLastName(user.last_name || '')
     setIsDirty(false)
-  }, [user])
+  }, [isDirty, loading, user])
 
-  if (!user) return null
+  useEffect(() => {
+    if (freshProfile && !isSameProfile(storedUser, freshProfile)) setProfile(freshProfile)
+  }, [freshProfile, setProfile, storedUser])
 
-  async function revalidateProfile() {
-    const res = await api.get('/users')
-    setProfile(res.data.data ?? res.data)
+  if (profileErrorState === 'fatal') {
+    return (
+      <PageDataError
+        title="No pudimos cargar tu perfil"
+        description="Revisa tu conexión y vuelve a intentarlo. Tu sesión permanece activa."
+        onRetry={() => void retryProfile()}
+        retrying={profileRetrying}
+        icon={UserIcon}
+      />
+    )
   }
 
+  if (!user) return <ProfilePageSkeleton />
+
   async function handleSave() {
+    if (!user) return
+    const normalizedFirstName = firstName.trim()
+    const normalizedLastName = lastName.trim()
+    if (!normalizedFirstName || !normalizedLastName) return
+
+    const snapshot = user
+    const optimisticProfile: UserProfileResponse = {
+      ...snapshot,
+      first_name: normalizedFirstName,
+      last_name: normalizedLastName,
+    }
     setLoading(true)
+    setProfile(optimisticProfile)
+    await retryProfile(optimisticProfile, { revalidate: false })
     try {
-      await api.put('/users', {
-        first_name: firstName,
-        last_name: lastName,
+      const res = await api.put<UserProfileResponse>(usersPath(), {
+        first_name: normalizedFirstName,
+        last_name: normalizedLastName,
       })
-      await revalidateProfile()
+      const nextProfile = readApiData<UserProfileResponse>(res.data)
+      setProfile(nextProfile)
+      await retryProfile(nextProfile, { revalidate: false })
       setIsDirty(false)
       toast.success('Perfil guardado correctamente')
-    } catch {
-      toast.error('Error al guardar el perfil')
+    } catch (err) {
+      setProfile(snapshot)
+      await retryProfile(snapshot, { revalidate: false })
+      toast.error(getApiErrorMessage(err, 'Error al guardar el perfil'))
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleAvatarChange(file: File | null) {
-    try {
-      if (!file) {
-        await api.delete('/users/avatar')
-      } else {
-        const fd = new FormData()
-        fd.append('avatar', file)
-        await api.post('/users/avatar', fd)
-      }
-      await revalidateProfile()
-      toast.success('Foto de perfil actualizada')
-    } catch {
-      toast.error('Error al actualizar la foto de perfil')
-    }
-  }
-
   const initials = `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
+  const hasValidName = firstName.trim().length > 0 && lastName.trim().length > 0
 
   return (
     <PageTransition>
@@ -110,9 +183,7 @@ export default function ProfilePage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Heading>Mi perfil</Heading>
-          <p className="mt-1 text-sm text-zinc-400">
-            Administra tu información personal y preferencias de cuenta.
-          </p>
+          <p className="mt-1 text-sm text-zinc-400">Administra tu información personal y preferencias de cuenta.</p>
         </div>
         {user.is_root && (
           <Badge color="indigo">
@@ -122,30 +193,59 @@ export default function ProfilePage() {
         )}
       </div>
 
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {profileErrorState === 'stale' && (
+          <div className="md:col-span-2 lg:col-span-3">
+            <StaleDataNotice label="tu perfil" onRetry={() => void retryProfile()} retrying={profileRetrying} />
+          </div>
+        )}
         {/* Avatar */}
         <SectionCard icon={UserIcon} title="Foto de perfil">
-          <FileUpload
-            value={user.profile_image}
-            previewType="user-avatar"
-            onChange={handleAvatarChange}
-          />
-          <div className="mt-4 text-center">
-            <p className="text-sm font-medium text-zinc-200">
+          <div className="flex flex-col items-center text-center">
+            <div className="relative">
+              <Avatar
+                src={user.profile_image}
+                square
+                initials={initials || 'U'}
+                alt={`Foto de ${user.first_name} ${user.last_name}`.trim()}
+                sizes="160px"
+                className="size-32 rounded-3xl bg-gradient-to-br from-indigo-500/25 to-violet-500/10 text-indigo-100 shadow-2xl ring-1 shadow-black/25 ring-white/10 sm:size-36"
+              />
+              <span
+                className="absolute -right-1 -bottom-1 flex size-9 items-center justify-center rounded-xl border border-white/10 bg-zinc-800 text-zinc-300 shadow-lg"
+                aria-hidden="true"
+              >
+                <CameraIcon className="size-4" />
+              </span>
+            </div>
+            <p className="mt-5 text-sm font-medium text-zinc-200">
               {user.first_name} {user.last_name}
             </p>
-            <p className="text-xs text-zinc-500 mt-0.5">{user.email}</p>
+            <p className="mt-0.5 text-xs text-zinc-500">{user.email}</p>
+            <Button
+              outline
+              className="mt-5 w-full"
+              onClick={() => setIsAvatarEditorOpen(true)}
+              onPointerEnter={preloadProfileAvatarModal}
+              onPointerDown={preloadProfileAvatarModal}
+              onFocus={preloadProfileAvatarModal}
+            >
+              <CameraIcon />
+              Cambiar foto
+            </Button>
+            <p className="mt-3 text-[11px] leading-5 text-zinc-600">JPG, PNG, WebP, HEIC, AVIF o SVG · Hasta 10 MB</p>
           </div>
         </SectionCard>
 
         {/* Personal info form */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6 lg:col-span-2">
           <SectionCard icon={EnvelopeIcon} title="Información personal">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-5">
+            <div className="grid grid-cols-1 gap-3 sm:gap-5 md:grid-cols-2">
               <Field>
                 <Label>Nombre</Label>
                 <Input
                   value={firstName}
+                  disabled={loading}
                   onChange={(e) => {
                     setFirstName(e.target.value)
                     setIsDirty(true)
@@ -157,6 +257,7 @@ export default function ProfilePage() {
                 <Label>Apellidos</Label>
                 <Input
                   value={lastName}
+                  disabled={loading}
                   onChange={(e) => {
                     setLastName(e.target.value)
                     setIsDirty(true)
@@ -166,15 +267,23 @@ export default function ProfilePage() {
               </Field>
               <Field className="md:col-span-2">
                 <Label>Correo electrónico</Label>
-                <Description>
-                  Tu correo está gestionado por AWS Cognito y no puede modificarse aquí.
-                </Description>
+                <Description>Tu correo está gestionado por AWS Cognito y no puede modificarse aquí.</Description>
                 <Input value={user.email} disabled />
               </Field>
             </div>
 
+            {isDirty && !hasValidName && (
+              <p role="alert" className="mt-3 text-xs text-red-400">
+                Nombre y apellidos son obligatorios.
+              </p>
+            )}
+
             <div className="mt-6 flex justify-end">
-              <Button onClick={handleSave} disabled={loading || !isDirty} className="w-full sm:w-auto">
+              <Button
+                onClick={handleSave}
+                disabled={loading || !isDirty || !hasValidName}
+                className="w-full sm:w-auto"
+              >
                 {loading ? 'Guardando…' : 'Guardar cambios'}
               </Button>
             </div>
@@ -203,7 +312,7 @@ export default function ProfilePage() {
               ].map((row) => (
                 <div
                   key={row.label}
-                  className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0"
+                  className="flex items-center justify-between border-b border-white/5 py-2.5 last:border-0"
                 >
                   <span className="text-sm text-zinc-500">{row.label}</span>
                   {row.badge ? (
@@ -212,7 +321,7 @@ export default function ProfilePage() {
                     <span
                       className={[
                         'text-sm text-zinc-300',
-                        'mono' in row && row.mono ? 'font-mono text-xs text-zinc-500 truncate max-w-[200px]' : '',
+                        'mono' in row && row.mono ? 'max-w-[200px] truncate font-mono text-xs text-zinc-500' : '',
                       ].join(' ')}
                     >
                       {row.value}
@@ -224,6 +333,19 @@ export default function ProfilePage() {
           </SectionCard>
         </div>
       </div>
+
+      {isAvatarEditorOpen && (
+        <ProfileAvatarModal
+          open
+          value={user.profile_image}
+          onClose={() => setIsAvatarEditorOpen(false)}
+          onAvatarChange={(profileImage) => {
+            const nextProfile = { ...user, profile_image: profileImage ?? '' }
+            setProfile(nextProfile)
+            void retryProfile(nextProfile, { revalidate: false })
+          }}
+        />
+      )}
     </PageTransition>
   )
 }

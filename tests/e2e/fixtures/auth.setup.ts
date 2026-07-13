@@ -22,11 +22,13 @@ const envPath = path.join(process.cwd(), '.env.local')
 try {
   const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf8'))
   for (const [key, val] of Object.entries(parsed)) {
-    process.env[key] = val
+    if (!process.env[key]) process.env[key] = val
   }
 } catch { /* .env.local not found — vars must be set externally */ }
 
 const authFile = path.join(__dirname, '../.auth/session.json')
+
+setup.setTimeout(60_000)
 
 setup('authenticate', async ({ page }) => {
   const email = process.env.TEST_EMAIL
@@ -45,14 +47,26 @@ setup('authenticate', async ({ page }) => {
   // Wait for Cognito hosted UI redirect
   await page.waitForURL(/stagingauth\.eventiapp\.com\.mx/, { timeout: 10_000 })
 
-  // Fill Cognito hosted UI (standard selectors)
-  await page.fill('#signInFormUsername', email)
-  await page.fill('#signInFormPassword', password)
-  await page.click('[name="signInSubmitButton"]')
+  // Cognito Managed Login uses a two-step email → password flow.
+  await page.getByRole('textbox', { name: /email address/i }).fill(email)
+  await page.getByRole('button', { name: /^next$/i }).click()
+  await page.getByRole('textbox', { name: /^password$/i }).fill(password)
+  await page.getByRole('button', { name: /continue|sign in/i }).click()
 
   // Wait for OAuth callback and app load
   await page.waitForURL('http://localhost:3000/**', { timeout: 15_000 })
   await expect(page).not.toHaveURL(/login/)
+
+  await page.waitForFunction(() => {
+    const persisted = window.localStorage.getItem('eventi-storage')
+    if (!persisted) return false
+    try {
+      const state = JSON.parse(persisted)?.state
+      return Boolean(state?.user && (state.user.is_root || state.currentClient?.id))
+    } catch {
+      return false
+    }
+  }, undefined, { timeout: 15_000 })
 
   // Save auth state — reused by all test specs
   await page.context().storageState({ path: authFile })

@@ -27,24 +27,39 @@ test.describe('Mobile (375px)', () => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
     await expect(page.getByRole('heading', { name: /Dashboard/i })).toBeVisible()
-    await expect(page.getByText('Total eventos')).toBeVisible()
+    await expect(page.getByRole('link', { name: /Crear evento/i }).first()).toBeVisible()
   })
 
-  test('KPIs se renderizan en stack vertical en móvil', async ({ page }) => {
+  test('KPIs operativos permanecen visibles en móvil', async ({ page }) => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
-    // All 3 KPI cards should still be visible on mobile (stacked)
-    await expect(page.getByText('Total eventos')).toBeVisible()
-    await expect(page.getByText('Eventos activos')).toBeVisible()
-    await expect(page.getByText('Capacidad total de invitados')).toBeVisible()
+    await expect(page.getByText('Total', { exact: true })).toBeVisible()
+    await expect(page.getByText('Activos', { exact: true })).toBeVisible()
+    await expect(page.getByText('Capacidad', { exact: true })).toBeVisible()
   })
 
-  test('la barra de navegación superior es visible en móvil', async ({ page }) => {
+  test('el control de navegación móvil es visible y accesible', async ({ page }) => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
-    // Mobile shows navbar (top bar) instead of sidebar
-    const navbar = page.locator('nav').first()
-    await expect(navbar).toBeVisible()
+    const navigationButton = page.getByRole('button', { name: 'Abrir navegación' })
+    await expect(navigationButton).toBeVisible()
+    await navigationButton.click()
+    await expect(page.getByRole('button', { name: 'Cerrar navegación' })).toBeVisible()
+  })
+
+  test('las rutas principales están disponibles en una navegación inferior de un toque', async ({ page }) => {
+    await page.goto('/')
+
+    const primaryNavigation = page.getByRole('navigation', { name: 'Navegación principal' })
+    await expect(primaryNavigation).toBeVisible()
+    await expect(primaryNavigation.getByRole('link', { name: 'Inicio', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    await primaryNavigation.getByRole('link', { name: 'Eventos', exact: true }).click()
+
+    await expect(page).toHaveURL('/events')
+    await expect(page.getByRole('heading', { name: 'Eventos', exact: true })).toBeVisible()
   })
 
   test('página de eventos es usable en móvil', async ({ page }) => {
@@ -73,15 +88,10 @@ test.describe('Mobile (375px)', () => {
     await page.goto('/events')
     await page.waitForLoadState('networkidle')
     await page.getByRole('button', { name: 'Crear evento' }).click()
-    const dialog = page.getByRole('dialog')
-    await expect(dialog).toBeVisible()
-    // Fields should be visible and scrollable
+    await expect(page.getByRole('heading', { name: 'Nuevo evento' })).toBeVisible()
     await expect(page.getByLabel('Nombre del evento')).toBeVisible()
-    // Dialog should not overflow viewport
-    const dialogBox = await dialog.boundingBox()
-    if (dialogBox) {
-      expect(dialogBox.width).toBeLessThanOrEqual(375)
-    }
+    const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
+    expect(documentWidth).toBeLessThanOrEqual(377)
     await page.getByRole('button', { name: 'Cancelar' }).click()
   })
 
@@ -94,7 +104,7 @@ test.describe('Mobile (375px)', () => {
     await page.waitForLoadState('networkidle')
     // Stats grid should wrap on mobile (sm:grid-cols-2)
     await expect(page.getByText(/Máx\. invitados/i)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Editar' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Más acciones' })).toBeVisible()
   })
 })
 
@@ -103,11 +113,11 @@ test.describe('Mobile (375px)', () => {
 test.describe('Tablet (768px)', () => {
   test.use({ viewport: { width: 768, height: 1024 } })
 
-  test('dashboard muestra grid de KPIs en 2 columnas en tablet', async ({ page }) => {
+  test('dashboard mantiene KPIs operativos en tablet', async ({ page }) => {
     await page.goto('/')
     await page.waitForLoadState('networkidle')
-    await expect(page.getByText('Total eventos')).toBeVisible()
-    await expect(page.getByText('Eventos activos')).toBeVisible()
+    await expect(page.getByText('Total', { exact: true })).toBeVisible()
+    await expect(page.getByText('Activos', { exact: true })).toBeVisible()
   })
 
   test('clientes muestra lista (no grid) en tablet', async ({ page }) => {
@@ -119,13 +129,13 @@ test.describe('Tablet (768px)', () => {
   test('la búsqueda de usuarios está visible en tablet', async ({ page }) => {
     await page.goto('/users')
     await page.waitForLoadState('networkidle')
-    const searchInput = page.getByPlaceholder('Buscar usuario...')
-    // Only visible when users exist
-    if (await searchInput.isVisible()) {
-      await searchInput.fill('test')
-      await page.waitForTimeout(300)
-      await searchInput.clear()
-    }
+    const searchInput = page.getByRole('searchbox', { name: 'Buscar usuario' })
+    await expect(searchInput).toBeVisible()
+    await searchInput.fill('sin-coincidencias-e2e')
+    await expect(page.getByText(/Sin resultados para/i)).toBeVisible()
+    await expect(searchInput).toBeVisible()
+    await searchInput.clear()
+    await expect(searchInput).toHaveValue('')
   })
 })
 

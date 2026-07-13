@@ -47,5 +47,61 @@ export interface PhotoGridConfig {
 }
 
 export interface RSVPConfirmationConfig {
-  // Dynamic — driven by backend invitation data
+  welcome_message?: string;
+  thank_you_message?: string;
+  guest_signature_title?: string;
+}
+
+export interface AgendaItem {
+  time: string;
+  title: string;
+  description?: string;
+  icon?: 'ceremony' | 'reception' | 'dinner' | 'party' | 'music' | 'photo' | 'default';
+  location?: string;
+}
+
+export interface AgendaConfig {
+  title?: string;
+  subtitle?: string;
+  /** Legacy SCHEDULE sections used this plain text body instead of items */
+  content?: string;
+  items: AgendaItem[];
+}
+
+export interface MomentWallConfig {
+  identifier?: string;
+  title?: string;
+  subtitle?: string;
+  moment_request_message?: string;
+  allow_uploads?: boolean;
+  allow_messages?: boolean;
+  auto_approve_uploads?: boolean;
+  published?: boolean;
+  moments_wall_published?: boolean;
+  show_moment_wall?: boolean;
+  share_uploads_enabled?: boolean;
+  max_uploads_per_guest?: number;
+}
+
+export interface LegacyHeroConfig {
+  title?: string;
+  subtitle?: string;
+  content?: string;
+  imageUrl?: string;
+}
+
+export interface LegacyTextConfig {
+  title?: string;
+  content?: string;
+}
+
+export interface LegacyGalleryConfig {
+  title?: string;
+  subtitle?: string;
+}
+
+export interface LegacyMusicConfig {
+  musicUrl?: string;
+  audioUrl?: string;
+  url?: string;
 }

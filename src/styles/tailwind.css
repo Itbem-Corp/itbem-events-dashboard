@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -47,10 +47,25 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-canvas: var(--app-canvas);
+  --color-surface: var(--app-surface);
+  --color-surface-raised: var(--app-surface-raised);
+  --color-border-subtle: var(--app-border-subtle);
+  --color-brand: var(--app-brand);
+  --color-brand-strong: var(--app-brand-strong);
 }
 
 :root {
   --radius: 0.625rem;
+  --app-canvas: #09090b;
+  --app-surface: #121216;
+  --app-surface-raised: #19191f;
+  --app-border-subtle: rgb(255 255 255 / 8%);
+  --app-border-strong: rgb(129 140 248 / 24%);
+  --app-brand: #818cf8;
+  --app-brand-strong: #6366f1;
+  --app-focus: #a5b4fc;
+  --app-glow: rgb(99 102 241 / 18%);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -91,8 +106,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.585 0.233 277.117);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -102,7 +117,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.785 0.115 274.713);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -110,7 +125,7 @@
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary: oklch(0.585 0.233 277.117);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -122,23 +137,82 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  html {
+    min-height: 100%;
+    background: var(--app-canvas);
+    scrollbar-color: rgb(113 113 122 / 55%) transparent;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    min-height: 100svh;
+    background-color: var(--app-canvas);
+    background-image:
+      radial-gradient(circle at 8% -8%, rgb(99 102 241 / 16%), transparent 32rem),
+      radial-gradient(circle at 92% 4%, rgb(139 92 246 / 10%), transparent 28rem),
+      linear-gradient(180deg, rgb(255 255 255 / 1.8%), transparent 18rem);
+    background-attachment: fixed;
+    color: var(--foreground);
+    caret-color: var(--app-brand);
+  }
+
+  ::selection {
+    background: rgb(129 140 248 / 34%);
+    color: white;
+  }
+
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    scroll-margin: 1rem;
+  }
+
+  :where(input, select, textarea):focus-visible {
+    border-color: var(--app-border-strong);
   }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.page-transition {
+  animation: page-enter 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition {
+    animation: none;
+  }
+
+  .skeleton {
+    animation: none;
+    background: rgb(39 39 42);
+  }
 }
 
 .skeleton {
-  background: linear-gradient(
-    90deg,
-    rgb(39 39 42) 25%,
-    rgb(63 63 70) 50%,
-    rgb(39 39 42) 75%
-  );
+  background: linear-gradient(90deg, rgb(39 39 42) 25%, rgb(63 63 70) 50%, rgb(39 39 42) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Next's development portal can overlap the fixed mobile navigation even
+   when devIndicators are disabled. It never exists in production. */
+nextjs-portal {
+  pointer-events: none !important;
 }

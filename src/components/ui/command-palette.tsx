@@ -1,21 +1,26 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import useSWR from 'swr'
+import { preloadEventWorkspace } from '@/components/events/preload-event-workspace'
+import { useDebounce } from '@/hooks/useDebounce'
+import { readApiData } from '@/lib/api-envelope'
+import { scopedEventsPagePath, userSummaryPath, usersAllPath } from '@/lib/api-paths'
+import { beginNavigationProgress } from '@/lib/navigation-progress'
 import { fetcher } from '@/lib/fetcher'
-import { motion, AnimatePresence } from 'motion/react'
-import type { Event } from '@/models/Event'
-import type { User } from '@/models/User'
+import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import type { Event, EventListPage } from '@/models/Event'
+import type { AdminUsersPageResponse } from '@/models/User'
+import { XMarkIcon } from '@heroicons/react/16/solid'
 import {
+  ArrowRightIcon,
+  CalendarDaysIcon,
   MagnifyingGlassIcon,
   Square2StackIcon,
   UsersIcon,
-  PlusIcon,
-  ArrowRightIcon,
-  CalendarDaysIcon,
 } from '@heroicons/react/20/solid'
-import { XMarkIcon } from '@heroicons/react/16/solid'
+import { AnimatePresence, motion } from 'motion/react'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import useSWR, { preload } from 'swr'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +33,8 @@ interface CommandItem {
   icon: React.ComponentType<{ className?: string }>
   color?: string
   onSelect?: () => void
+  recordId?: string
+  event?: Event
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -35,93 +42,114 @@ interface CommandItem {
 interface Props {
   open: boolean
   onClose: () => void
+  isRoot?: boolean
+  clientId?: string
 }
 
-export function CommandPalette({ open, onClose }: Props) {
+export function CommandPalette({ open, onClose, isRoot = false, clientId }: Props) {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const { data: events = [] } = useSWR<Event[]>(
-    open ? '/events/all' : null,
-    fetcher,
-    { revalidateOnFocus: false }
-  )
-  const { data: users = [] } = useSWR<User[]>(
-    open ? '/users/all' : null,
-    fetcher,
-    { revalidateOnFocus: false, shouldRetryOnError: false }
-  )
+  const debouncedQuery = useDebounce(query.trim(), 180)
+  const eventsKey = open
+    ? scopedEventsPagePath(clientId, isRoot, {
+        page: 1,
+        page_size: 6,
+        search: debouncedQuery,
+        filter: 'all',
+      })
+    : null
+  const usersKey =
+    open && isRoot && debouncedQuery ? usersAllPath({ page: 1, page_size: 4, search: debouncedQuery }) : null
+  const {
+    data: rawEvents,
+    isLoading: eventsLoading,
+    error: eventsError,
+    mutate: retryEvents,
+  } = useSWR<EventListPage>(eventsKey, fetcher, {
+    ...responsiveListSwrOptions,
+    keepPreviousData: true,
+  })
+  const {
+    data: rawUsers,
+    isLoading: usersLoading,
+    error: usersError,
+    mutate: retryUsers,
+  } = useSWR<AdminUsersPageResponse>(usersKey, fetcher, {
+    ...responsiveListSwrOptions,
+    keepPreviousData: true,
+    shouldRetryOnError: false,
+  })
+  const events = useMemo(() => readApiData<EventListPage | undefined>(rawEvents)?.data ?? [], [rawEvents])
+  const users = useMemo(() => readApiData<AdminUsersPageResponse | undefined>(rawUsers)?.data ?? [], [rawUsers])
+  const waitingForQuery = query.trim() !== debouncedQuery
+  const remoteLoading = waitingForQuery || eventsLoading || Boolean(usersKey && usersLoading)
 
-  const staticActions: CommandItem[] = useMemo(() => [
-    {
-      id: 'new-event',
-      type: 'action',
-      title: 'Ir a Eventos',
-      subtitle: 'Lista de todos los eventos',
-      href: '/events',
-      icon: Square2StackIcon,
-      color: 'text-indigo-400',
-    },
-    {
-      id: 'dashboard',
-      title: 'Ir al Dashboard',
-      type: 'action',
-      subtitle: 'Inicio / resumen general',
-      href: '/',
-      icon: CalendarDaysIcon,
-      color: 'text-violet-400',
-    },
-    {
-      id: 'users',
-      title: 'Ir a Usuarios',
-      type: 'action',
-      subtitle: 'Gestión de usuarios',
-      href: '/users',
-      icon: UsersIcon,
-      color: 'text-amber-400',
-    },
-  ], [])
+  const staticActions: CommandItem[] = useMemo(() => {
+    const actions: CommandItem[] = [
+      {
+        id: 'new-event',
+        type: 'action',
+        title: 'Ir a Eventos',
+        subtitle: 'Lista de todos los eventos',
+        href: '/events',
+        icon: Square2StackIcon,
+        color: 'text-indigo-400',
+      },
+      {
+        id: 'dashboard',
+        title: 'Ir al Dashboard',
+        type: 'action',
+        subtitle: 'Inicio / resumen general',
+        href: '/',
+        icon: CalendarDaysIcon,
+        color: 'text-violet-400',
+      },
+    ]
+
+    if (isRoot) {
+      actions.push({
+        id: 'users',
+        title: 'Ir a Usuarios',
+        type: 'action',
+        subtitle: 'Gestión de usuarios',
+        href: '/users',
+        icon: UsersIcon,
+        color: 'text-amber-400',
+      })
+    }
+
+    return actions
+  }, [isRoot])
 
   const items = useMemo<CommandItem[]>(() => {
     const q = query.toLowerCase().trim()
 
-    const eventItems: CommandItem[] = events
-      .filter((e) =>
-        !q ||
-        e.name.toLowerCase().includes(q) ||
-        (e.address ?? '').toLowerCase().includes(q) ||
-        (e.organizer_name ?? '').toLowerCase().includes(q)
-      )
-      .slice(0, 6)
-      .map((e) => ({
-        id: `event-${e.id}`,
-        type: 'event' as const,
-        title: e.name,
-        subtitle: new Date(e.event_date_time).toLocaleDateString('es-MX', { dateStyle: 'medium' }),
-        href: `/events/${e.id}`,
-        icon: Square2StackIcon,
-        color: e.is_active ? 'text-lime-400' : 'text-zinc-600',
-      }))
+    const eventItems: CommandItem[] = (waitingForQuery ? [] : events).map((e) => ({
+      id: `event-${e.id}`,
+      type: 'event' as const,
+      title: e.name,
+      subtitle: new Date(e.event_date_time).toLocaleDateString('es-MX', { dateStyle: 'medium' }),
+      href: `/events/${e.id}`,
+      icon: Square2StackIcon,
+      color: e.is_active ? 'text-lime-400' : 'text-zinc-600',
+      recordId: e.id,
+      event: e,
+    }))
 
-    const userItems: CommandItem[] = users
-      .filter((u) =>
-        !q ||
-        `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) ||
-        (u.email ?? '').toLowerCase().includes(q)
-      )
-      .slice(0, 4)
-      .map((u) => ({
-        id: `user-${u.id}`,
-        type: 'user' as const,
-        title: `${u.first_name} ${u.last_name}`,
-        subtitle: u.email,
-        href: `/users/${u.id}/clients`,
-        icon: UsersIcon,
-        color: 'text-zinc-400',
-      }))
+    const userItems: CommandItem[] = (waitingForQuery ? [] : users).map((u) => ({
+      id: `user-${u.id}`,
+      type: 'user' as const,
+      title: `${u.first_name} ${u.last_name}`,
+      subtitle: u.email,
+      href: `/users/${u.id}/clients`,
+      icon: UsersIcon,
+      color: 'text-zinc-400',
+      recordId: u.id,
+    }))
 
     const actionItems = staticActions.filter(
       (a) => !q || a.title.toLowerCase().includes(q) || (a.subtitle ?? '').toLowerCase().includes(q)
@@ -133,24 +161,42 @@ export function CommandPalette({ open, onClose }: Props) {
     }
 
     return [...eventItems, ...userItems, ...actionItems]
-  }, [query, events, users, staticActions])
+  }, [query, events, users, staticActions, waitingForQuery])
 
-  const selectItem = useCallback((item: CommandItem) => {
-    if (item.onSelect) {
-      item.onSelect()
-    } else if (item.href) {
-      router.push(item.href)
-    }
-    onClose()
-  }, [router, onClose])
+  const selectItem = useCallback(
+    (item: CommandItem) => {
+      if (item.onSelect) {
+        item.onSelect()
+      } else if (item.href) {
+        beginNavigationProgress()
+        router.push(item.href)
+      }
+      onClose()
+    },
+    [router, onClose]
+  )
+
+  const preloadItem = useCallback(
+    (item: CommandItem | undefined) => {
+      if (!item?.href) return
+      router.prefetch(item.href)
+
+      if (item.type === 'event' && item.event) {
+        void preloadEventWorkspace(item.event).catch(() => undefined)
+      } else if (item.type === 'user' && item.recordId) {
+        void preload(userSummaryPath(item.recordId), fetcher).catch(() => undefined)
+      }
+    },
+    [router]
+  )
 
   // Reset on open
   useEffect(() => {
-    if (open) {
-      setQuery('')
-      setActiveIndex(0)
-      setTimeout(() => inputRef.current?.focus(), 50)
-    }
+    if (!open) return
+    setQuery('')
+    setActiveIndex(0)
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 50)
+    return () => window.clearTimeout(focusTimer)
   }, [open])
 
   // Reset active index when results change
@@ -184,7 +230,8 @@ export function CommandPalette({ open, onClose }: Props) {
   useEffect(() => {
     const el = listRef.current?.querySelector(`[data-index="${activeIndex}"]`)
     el?.scrollIntoView({ block: 'nearest' })
-  }, [activeIndex])
+    preloadItem(items[activeIndex])
+  }, [activeIndex, items, preloadItem])
 
   return (
     <AnimatePresence>
@@ -206,11 +253,11 @@ export function CommandPalette({ open, onClose }: Props) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -8 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="fixed left-1/2 top-20 z-50 w-full max-w-lg -translate-x-1/2 rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl shadow-black/60 overflow-hidden"
+            className="fixed top-20 left-1/2 z-50 w-full max-w-lg -translate-x-1/2 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl shadow-black/60"
           >
             {/* Search input */}
-            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/5">
-              <MagnifyingGlassIcon className="size-5 text-zinc-500 shrink-0" />
+            <div className="flex items-center gap-3 border-b border-white/5 px-4 py-3.5">
+              <MagnifyingGlassIcon className="size-5 shrink-0 text-zinc-500" />
               <input
                 ref={inputRef}
                 type="text"
@@ -221,14 +268,11 @@ export function CommandPalette({ open, onClose }: Props) {
               />
               <div className="flex items-center gap-2">
                 {query && (
-                  <button
-                    onClick={() => setQuery('')}
-                    className="text-zinc-600 hover:text-zinc-400"
-                  >
+                  <button onClick={() => setQuery('')} className="text-zinc-600 hover:text-zinc-400">
                     <XMarkIcon className="size-4" />
                   </button>
                 )}
-                <kbd className="hidden sm:block rounded border border-zinc-800 bg-zinc-800/80 px-1.5 py-0.5 font-mono text-[10px] text-zinc-600">
+                <kbd className="hidden rounded border border-zinc-800 bg-zinc-800/80 px-1.5 py-0.5 font-mono text-[10px] text-zinc-600 sm:block">
                   ESC
                 </kbd>
               </div>
@@ -236,14 +280,19 @@ export function CommandPalette({ open, onClose }: Props) {
 
             {/* Results */}
             <div ref={listRef} className="max-h-[400px] overflow-y-auto py-2">
-              {items.length === 0 ? (
+              {remoteLoading && query ? (
+                <div className="flex items-center gap-3 px-4 py-8" role="status" aria-label="Buscando">
+                  <span className="size-4 animate-spin rounded-full border-2 border-indigo-400/25 border-t-indigo-400" />
+                  <p className="text-sm text-zinc-500">Buscando en eventos y usuarios…</p>
+                </div>
+              ) : items.length === 0 ? (
                 <div className="px-4 py-10 text-center">
                   <p className="text-sm text-zinc-600">Sin resultados para &quot;{query}&quot;</p>
                 </div>
               ) : (
                 <>
                   {!query && (
-                    <p className="px-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-700">
+                    <p className="px-4 pb-1 text-[10px] font-semibold tracking-wider text-zinc-700 uppercase">
                       Acceso rápido
                     </p>
                   )}
@@ -255,32 +304,53 @@ export function CommandPalette({ open, onClose }: Props) {
                         key={item.id}
                         data-index={index}
                         onClick={() => selectItem(item)}
-                        onMouseEnter={() => setActiveIndex(index)}
+                        onFocus={() => preloadItem(item)}
+                        onPointerDown={() => preloadItem(item)}
+                        onMouseEnter={() => {
+                          setActiveIndex(index)
+                          preloadItem(item)
+                        }}
                         className={[
                           'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
                           isActive ? 'bg-white/5' : 'hover:bg-white/5',
                         ].join(' ')}
                       >
-                        <div className={[
-                          'flex size-8 shrink-0 items-center justify-center rounded-lg',
-                          item.type === 'event' ? 'bg-indigo-500/10' :
-                          item.type === 'user' ? 'bg-zinc-800' : 'bg-zinc-800',
-                        ].join(' ')}>
+                        <div
+                          className={[
+                            'flex size-8 shrink-0 items-center justify-center rounded-lg',
+                            item.type === 'event'
+                              ? 'bg-indigo-500/10'
+                              : item.type === 'user'
+                                ? 'bg-zinc-800'
+                                : 'bg-zinc-800',
+                          ].join(' ')}
+                        >
                           <Icon className={`size-4 ${item.color ?? 'text-zinc-400'}`} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-zinc-200 truncate">{item.title}</p>
-                          {item.subtitle && (
-                            <p className="text-xs text-zinc-600 truncate">{item.subtitle}</p>
-                          )}
+                          <p className="truncate text-sm font-medium text-zinc-200">{item.title}</p>
+                          {item.subtitle && <p className="truncate text-xs text-zinc-600">{item.subtitle}</p>}
                         </div>
-                        {isActive && (
-                          <ArrowRightIcon className="size-4 text-zinc-600 shrink-0" />
-                        )}
+                        {isActive && <ArrowRightIcon className="size-4 shrink-0 text-zinc-600" />}
                       </button>
                     )
                   })}
                 </>
+              )}
+              {(eventsError || usersError) && !remoteLoading && (
+                <div
+                  className="mx-3 my-2 flex items-center justify-between gap-3 rounded-lg border border-amber-500/15 bg-amber-500/5 px-3 py-2 text-xs text-amber-300"
+                  role="alert"
+                >
+                  <span>No pudimos completar todos los resultados.</span>
+                  <button
+                    type="button"
+                    onClick={() => void Promise.all([retryEvents(), usersKey ? retryUsers() : undefined])}
+                    className="font-semibold hover:text-white"
+                  >
+                    Reintentar
+                  </button>
+                </div>
               )}
             </div>
 

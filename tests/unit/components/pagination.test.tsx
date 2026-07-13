@@ -40,6 +40,7 @@ describe('Pagination', () => {
         )
         // Page 2: items 11–20 of 25
         expect(screen.getByText(/11.*20.*25/)).toBeInTheDocument()
+        expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
     })
 
     it('disables "Anterior" button on first page', () => {
@@ -73,5 +74,29 @@ describe('Pagination', () => {
         )
         fireEvent.click(screen.getByLabelText('Página siguiente'))
         expect(onPageChange).toHaveBeenCalledWith(2)
+    })
+
+    it('reports pointer and keyboard intent for enabled adjacent pages', () => {
+        const onPageIntent = vi.fn()
+        render(
+            <Pagination total={25} page={2} pageSize={10} onPageChange={vi.fn()} onPageIntent={onPageIntent} />
+        )
+
+        fireEvent.pointerEnter(screen.getByRole('button', { name: /siguiente/i }))
+        fireEvent.focus(screen.getByRole('button', { name: /anterior/i }))
+
+        expect(onPageIntent).toHaveBeenNthCalledWith(1, 3)
+        expect(onPageIntent).toHaveBeenNthCalledWith(2, 1)
+    })
+
+    it('does not report intent for a disabled boundary page', () => {
+        const onPageIntent = vi.fn()
+        render(
+            <Pagination total={25} page={1} pageSize={10} onPageChange={vi.fn()} onPageIntent={onPageIntent} />
+        )
+
+        fireEvent.pointerEnter(screen.getByRole('button', { name: /anterior/i }))
+
+        expect(onPageIntent).not.toHaveBeenCalled()
     })
 })

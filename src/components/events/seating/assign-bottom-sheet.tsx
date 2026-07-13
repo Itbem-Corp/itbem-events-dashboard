@@ -5,6 +5,7 @@ import { XMarkIcon } from '@heroicons/react/16/solid'
 import { PlusIcon } from '@heroicons/react/20/solid'
 import type { Table } from '@/models/Table'
 import type { Guest } from '@/models/Guest'
+import { getGuestCompanionCount } from '@/lib/guest-utils'
 
 interface AssignBottomSheetProps {
   isOpen: boolean
@@ -28,6 +29,7 @@ export function AssignBottomSheet({
   onCreateTable,
 }: AssignBottomSheetProps) {
   if (!guest) return null
+  const companionCount = getGuestCompanionCount(guest)
 
   return (
     <AnimatePresence>
@@ -58,8 +60,8 @@ export function AssignBottomSheet({
                   <p className="text-sm font-semibold text-zinc-200">
                     Asignar a {guest.first_name} {guest.last_name}
                   </p>
-                  {guest.guests_count > 1 && (
-                    <p className="text-xs text-zinc-500">+{guest.guests_count - 1} acompañantes</p>
+                  {companionCount > 0 && (
+                    <p className="text-xs text-zinc-500">+{companionCount} acompañantes</p>
                   )}
                 </div>
                 <button

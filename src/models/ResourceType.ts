@@ -1,7 +1,8 @@
 ﻿import { BaseEntity } from "./BaseEntity";
 
 export interface ResourceType extends BaseEntity {
-  name: string;
-  code: string; // 'IMAGE', 'VIDEO', 'DOCUMENT'
-  allowed_extensions: string;
+  code: 'image' | 'video' | 'audio' | 'file' | 'font' | string;
+  label: string;
 }
+
+export type ResourceTypeResponse = ResourceType;

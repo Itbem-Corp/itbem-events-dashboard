@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { BlobUrlLruCache } from '@/lib/blob-url-lru-cache'
 
 /**
  * Extracts the first non-black frame of a video as a blob URL via canvas.
@@ -14,6 +15,20 @@ import { useEffect, useState } from 'react'
  */
 
 const SEEK_TIMESTAMPS = [0.1, 0.5, 1.0, 2.0]
+const MAX_THUMBNAIL_EDGE = 640
+const thumbnailCache = new BlobUrlLruCache(24)
+
+export function getVideoThumbnailDimensions(width: number, height: number): { width: number; height: number } {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return { width: 0, height: 0 }
+  }
+
+  const scale = Math.min(1, MAX_THUMBNAIL_EDGE / Math.max(width, height))
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  }
+}
 
 export function isBlackFrame(canvas: HTMLCanvasElement): boolean {
   const ctx = canvas.getContext('2d')
@@ -36,14 +51,17 @@ export function isBlackFrame(canvas: HTMLCanvasElement): boolean {
 }
 
 export function useVideoThumbnail(videoUrl: string | null): string | null {
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(() =>
+    videoUrl ? (thumbnailCache.get(videoUrl) ?? null) : null
+  )
 
   useEffect(() => {
-    setThumbnailUrl(null)
+    const cachedThumbnail = videoUrl ? thumbnailCache.get(videoUrl) : undefined
+    setThumbnailUrl(cachedThumbnail ?? null)
     if (!videoUrl) return
+    if (cachedThumbnail) return
 
     let cancelled = false
-    let blobUrl: string | null = null
     let seekIndex = 0
 
     const video = document.createElement('video')
@@ -65,8 +83,9 @@ export function useVideoThumbnail(videoUrl: string | null): string | null {
         return
       }
       const canvas = document.createElement('canvas')
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
+      const dimensions = getVideoThumbnailDimensions(video.videoWidth, video.videoHeight)
+      canvas.width = dimensions.width
+      canvas.height = dimensions.height
       const ctx = canvas.getContext('2d')
       if (!ctx) return
       try {
@@ -79,9 +98,10 @@ export function useVideoThumbnail(videoUrl: string | null): string | null {
         }
         canvas.toBlob((blob) => {
           if (cancelled || !blob) return
-          blobUrl = URL.createObjectURL(blob)
+          const blobUrl = URL.createObjectURL(blob)
+          thumbnailCache.set(videoUrl, blobUrl)
           setThumbnailUrl(blobUrl)
-        }, 'image/jpeg', 0.8)
+        }, 'image/jpeg', 0.75)
       } catch {
         // CORS taint or other error — try next timestamp
         seekIndex++
@@ -108,7 +128,6 @@ export function useVideoThumbnail(videoUrl: string | null): string | null {
       cancelled = true
       video.src = ''
       video.load()
-      if (blobUrl) URL.revokeObjectURL(blobUrl)
     }
   }, [videoUrl])
 

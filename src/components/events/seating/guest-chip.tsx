@@ -5,6 +5,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { GuestStatusBadge } from '@/components/guests/guest-status-badge'
 import { ArrowsRightLeftIcon } from '@heroicons/react/16/solid'
 import type { Guest } from '@/models/Guest'
+import { getEffectiveStatus, getGuestCompanionCount } from '@/lib/guest-utils'
 
 interface GuestChipProps {
   guest: Guest
@@ -32,7 +33,9 @@ export function GuestChip({ guest, onMobileTap, isDraggable = true }: GuestChipP
     opacity: isDragging ? 0.4 : 1,
   }
 
-  const isConfirmed = guest.status?.code === 'CONFIRMED'
+  const effectiveStatus = getEffectiveStatus(guest)
+  const isConfirmed = effectiveStatus === 'CONFIRMED'
+  const companionCount = getGuestCompanionCount(guest)
 
   return (
     <div
@@ -51,13 +54,13 @@ export function GuestChip({ guest, onMobileTap, isDraggable = true }: GuestChipP
         <span className="font-medium text-zinc-200 truncate">
           {guest.first_name} {guest.last_name}
         </span>
-        {guest.guests_count > 1 && (
-          <span className="text-zinc-600 flex-shrink-0">+{guest.guests_count - 1}</span>
+        {companionCount > 0 && (
+          <span className="text-zinc-600 flex-shrink-0">+{companionCount}</span>
         )}
       </div>
 
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        <GuestStatusBadge status={guest.status} />
+        <GuestStatusBadge code={effectiveStatus} />
         {onMobileTap && (
           <button
             onClick={(e) => {

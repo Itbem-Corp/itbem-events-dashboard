@@ -1,69 +1,94 @@
-import { NextRequest, NextResponse } from "next/server";
+import {
+  AUTH_COOKIE_NAMES,
+  PRIVATE_NO_STORE_HEADERS,
+  REFRESH_TOKEN_MAX_AGE_SECONDS,
+  authCookieOptions,
+  sessionMaxAge,
+} from '@/lib/auth-session'
+import {
+  buildCognitoTokenRequestBody,
+  cognitoTokenUrl,
+  oauthValuesMatch,
+} from '@/lib/cognito-oauth'
+import { NextRequest, NextResponse } from 'next/server'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+type CognitoTokenResponse = {
+  id_token?: unknown
+  refresh_token?: unknown
+  expires_in?: unknown
+}
+
+function clearOAuthTransaction(response: NextResponse) {
+  response.cookies.set(AUTH_COOKIE_NAMES.oauthState, '', { path: '/', maxAge: 0 })
+  response.cookies.set(AUTH_COOKIE_NAMES.pkceVerifier, '', { path: '/', maxAge: 0 })
+  return response
+}
+
+function callbackError(req: NextRequest, error: string) {
+  const response = NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(error)}`, req.url), {
+    headers: PRIVATE_NO_STORE_HEADERS,
+  })
+  return clearOAuthTransaction(response)
+}
 
 export async function GET(req: NextRequest) {
-  const code = req.nextUrl.searchParams.get("code");
+  const code = req.nextUrl.searchParams.get('code')
+  const returnedState = req.nextUrl.searchParams.get('state') ?? ''
+  const expectedState = req.cookies.get(AUTH_COOKIE_NAMES.oauthState)?.value ?? ''
+  const codeVerifier = req.cookies.get(AUTH_COOKIE_NAMES.pkceVerifier)?.value ?? ''
 
-  // 1. Si no hay código, vuelta al login
-  if (!code) {
-    return NextResponse.redirect(new URL("/login?error=no_code", req.url));
+  if (!oauthValuesMatch(expectedState, returnedState)) {
+    return callbackError(req, 'invalid_state')
   }
+  if (req.nextUrl.searchParams.has('error')) return callbackError(req, 'oauth_denied')
+  if (!code) return callbackError(req, 'no_code')
+  if (!codeVerifier) return callbackError(req, 'invalid_state')
 
   try {
-    // 2. Intercambiar código por tokens
-    const tokenRes = await fetch(
-        `${process.env.COGNITO_DOMAIN}/oauth2/token`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            client_id: process.env.COGNITO_CLIENT_ID!,
-            client_secret: process.env.COGNITO_CLIENT_SECRET!,
-            code,
-            redirect_uri: process.env.COGNITO_REDIRECT_URI!,
-          }),
-        }
-    );
+    const tokenRes = await fetch(cognitoTokenUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: buildCognitoTokenRequestBody(code, process.env, codeVerifier),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8_000),
+    })
 
     if (!tokenRes.ok) {
-      console.error("Cognito Error:", await tokenRes.text());
-      return NextResponse.redirect(new URL("/login?error=invalid_token", req.url));
+      console.error('Cognito token exchange failed', { status: tokenRes.status })
+      return callbackError(req, 'invalid_token')
     }
 
-    const tokens = await tokenRes.json();
+    const tokens = (await tokenRes.json()) as CognitoTokenResponse
+    if (typeof tokens.id_token !== 'string' || !tokens.id_token) {
+      return callbackError(req, 'invalid_token')
+    }
 
-    // 3. Redirigir al DASHBOARD (No a la raíz)
-    const res = NextResponse.redirect(new URL("/", req.url));
-
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax" as const,
-      path: "/",
-    };
-
-    // 4. Guardar ID Token (Sesión principal)
-    // Nota: Usamos id_token porque contiene los claims de identidad (email, sub)
-    res.cookies.set("session", tokens.id_token, {
+    const response = clearOAuthTransaction(
+      NextResponse.redirect(new URL('/', req.url), { headers: PRIVATE_NO_STORE_HEADERS })
+    )
+    const cookieOptions = authCookieOptions()
+    response.cookies.set(AUTH_COOKIE_NAMES.session, tokens.id_token, {
       ...cookieOptions,
-      maxAge: 60 * 60, // 1 hora (lo que dura el token de Cognito)
-    });
+      maxAge: sessionMaxAge(tokens.expires_in),
+    })
 
-    // 5. Guardar Refresh Token (Para futura renovación)
-    // Este dura 30 días por defecto en Cognito
-    if (tokens.refresh_token) {
-      res.cookies.set("refresh_token", tokens.refresh_token, {
+    if (typeof tokens.refresh_token === 'string' && tokens.refresh_token) {
+      response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, tokens.refresh_token, {
         ...cookieOptions,
-        maxAge: 60 * 60 * 24 * 30, // 30 días
-      });
+        maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS,
+      })
+    } else {
+      response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, '', { path: '/', maxAge: 0 })
     }
 
-    return res;
-
+    return response
   } catch (error) {
-    console.error("Callback Error:", error);
-    return NextResponse.redirect(new URL("/login?error=server_error", req.url));
+    console.error('Cognito callback failed', {
+      reason: error instanceof Error ? error.name : 'unknown',
+    })
+    return callbackError(req, 'server_error')
   }
 }

@@ -254,6 +254,12 @@ Props: `bleed` `dense` `grid` `striped`
 <Link href="/events">Events</Link>
 ```
 
+Internal navigations start the shared `NavigationProgress` feedback. The
+indicator waits 120ms before becoming visible to avoid flashes on fast
+transitions, completes when the URL changes, respects reduced motion, and
+announces slower transitions through an accessible status. Cancelled
+`onNavigate` events and links to the current document do not start it.
+
 ## Feature-Specific Components
 
 ### FileUpload (`ui/file-upload.tsx`)
@@ -409,7 +415,8 @@ Settings panel for event visibility and access. Fetches `GET /events/:id/config`
   - **Mostrar lista de invitados** (`show_guest_list`)
   - **Permitir registro** (`allow_registration`)
 - **Contraseña de acceso** — optional free-text field (`password_protection`)
-- **URL pública** — read-only display with copy-to-clipboard; constructed as `NEXT_PUBLIC_FRONTEND_URL/e/:identifier`
+- **URL pública** — read-only display with copy-to-clipboard; constructed as `NEXT_PUBLIC_ASTRO_URL/e/:identifier`
+- Public availability window: `active_until`, when set, must be strictly after `active_from`; open-ended ranges are valid.
 - Save button only enabled when form is dirty (`isDirty` local state); calls `PUT /events/:id/config`
 - Uses Motion staggered `y: 8` fade-in for each section card
 
@@ -456,11 +463,11 @@ Read-only sharing hub showing event public URLs, guest contact stats, and a mail
 - **Stats cards**: guests with email count · guests with phone count
 - **Pendientes con correo** amber callout — visible only when there are pending guests with email; includes a mailto button that opens the default email client pre-filled with all pending emails, subject, and RSVP link
 - **QR code hint** — informational card; no QR generation (links to external service)
-- `PUBLIC_FRONTEND_URL` defaults to `process.env.NEXT_PUBLIC_FRONTEND_URL ?? 'https://itbem.events'`
+- `PUBLIC_FRONTEND_URL` defaults to `process.env.NEXT_PUBLIC_ASTRO_URL ?? 'https://www.eventiapp.com.mx'`
 
 ### EventAnalyticsPanel (`events/event-analytics-panel.tsx`)
 
-KPI dashboard with recharts charts for event analytics. Fetches `GET /events/:id/analytics` and `GET /guests/:identifier` via SWR.
+KPI dashboard with recharts charts for event analytics. Fetches `GET /events/:id/analytics` and protected `GET /guests/all:<eventID>` via SWR.
 
 ```tsx
 <EventAnalyticsPanel eventId={event.id} eventIdentifier={event.identifier} />
@@ -518,7 +525,7 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 - Progress bar showing filled/total slots
 - Inline preview, replace, delete per slot
 - Uses `POST /resources` (multipart) and `DELETE /resources/:id`
-- Fetches existing resources via `GET /resources/section/:sectionId`
+- Fetches existing resources via protected `GET /admin/resources/section/:sectionId`
 
 ### InvitationTracker
 `src/components/events/invitation-tracker.tsx`
@@ -536,7 +543,7 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 `src/components/events/event-config-panel.tsx`
 - Now exposes ALL backend config fields:
   - Guest interaction: allow_uploads, allow_messages, notify_on_moment_upload
-  - Scheduling: active_from, active_until
+  - Scheduling: active_from, active_until (`active_until` must be after `active_from`; blank end means no close date)
   - Custom messages: welcome_message, thank_you_message, moment_message, guest_signature_title
   - Section visibility toggles: show_countdown, show_rsvp, show_location, show_gallery, show_wall, show_contact, show_schedule
 
@@ -558,6 +565,11 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 - **File**: `src/app/(app)/events/[id]/studio/page.tsx`
 - Full-screen editor (`fixed inset-0 z-50`) overlays the sidebar layout
 - Split: 288px left sidebar (Secciones/Ajustes/Diseño panels) + iframe preview right
+- Each sidebar panel is a separate `next/dynamic` chunk. Pointer hover, focus,
+  and keyboard activation preload only the intended panel; accessible,
+  reduced-motion skeletons cover the loading boundary.
+- `StudioPanelTabs` exposes the panels as an ARIA tablist with roving focus and
+  ArrowLeft/ArrowRight/Home/End keyboard navigation.
 - Iframe: device toggle (desktop/tablet/mobile), browser chrome simulation for tablet/mobile, refreshes on any save
 - **Secciones panel**: each row has expand (∨) / reorder (↑↓) / visibility toggle
   - Expand → `SectionConfigEditor` opens inline with fields per `component_type`:

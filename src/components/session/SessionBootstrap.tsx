@@ -1,26 +1,25 @@
 ﻿'use client'
 
-import { useEffect } from 'react'
-import { api } from '@/lib/api'
+import { usersPath } from '@/lib/api-paths'
+import { fetcher } from '@/lib/fetcher'
+import { useStoreHydration } from '@/hooks/useStoreHydration'
+import type { UserProfileResponse } from '@/models/User'
 import { useStore } from '@/store/useStore'
+import { useEffect } from 'react'
+import useSWR from 'swr'
 
 export default function SessionBootstrap() {
-    const token = useStore((s) => s.token)
-    const profileLoaded = useStore((s) => s.profileLoaded)
-    const setProfile = useStore((s) => s.setProfile)
-    const clearSession = useStore((s) => s.clearSession)
+  const hydrated = useStoreHydration()
+  const profileLoaded = useStore((s) => s.profileLoaded)
+  const setProfile = useStore((s) => s.setProfile)
 
-    useEffect(() => {
-        if (!token || profileLoaded) return
+  const { data: profile } = useSWR<UserProfileResponse>(hydrated && !profileLoaded ? usersPath() : null, fetcher, {
+    revalidateOnFocus: false,
+  })
 
-        api.get('/users')
-            .then((res) => {
-                setProfile(res.data.data ?? res.data)
-            })
-            .catch(() => {
-                clearSession()
-            })
-    }, [token, profileLoaded, setProfile, clearSession])
+  useEffect(() => {
+    if (profile) setProfile(profile)
+  }, [profile, setProfile])
 
-    return null
+  return null
 }

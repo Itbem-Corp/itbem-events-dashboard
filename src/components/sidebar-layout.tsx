@@ -1,85 +1,140 @@
 'use client'
 
-import * as Headless from '@headlessui/react'
-import { motion } from 'motion/react'
-import React, { useState } from 'react'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { Bars3Icon, XMarkIcon } from '@heroicons/react/20/solid'
+import { usePathname } from 'next/navigation'
+import React, { useEffect, useRef, useState } from 'react'
 import { NavbarItem } from './navbar'
-
-function OpenMenuIcon() {
-  return (
-    <svg data-slot="icon" viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M2 6.75C2 6.33579 2.33579 6 2.75 6H17.25C17.6642 6 18 6.33579 18 6.75C18 7.16421 17.6642 7.5 17.25 7.5H2.75C2.33579 7.5 2 7.16421 2 6.75ZM2 13.25C2 12.8358 2.33579 12.5 2.75 12.5H17.25C17.6642 12.5 18 12.8358 18 13.25C18 13.6642 17.6642 14 17.25 14H2.75C2.33579 14 2 13.6642 2 13.25Z" />
-    </svg>
-  )
-}
-
-function CloseMenuIcon() {
-  return (
-    <svg data-slot="icon" viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
-    </svg>
-  )
-}
-
-function MobileSidebar({ open, close, children }: React.PropsWithChildren<{ open: boolean; close: () => void }>) {
-  return (
-    <Headless.Dialog open={open} onClose={close} className="lg:hidden">
-      <Headless.DialogBackdrop
-        transition
-        className="fixed inset-0 bg-black/30 transition data-closed:opacity-0 data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in"
-      />
-      <Headless.DialogPanel
-        transition
-        className="fixed inset-y-0 w-full max-w-80 p-2 transition duration-300 ease-in-out data-closed:-translate-x-full"
-      >
-        <div className="flex h-full flex-col rounded-lg bg-white shadow-xs ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
-          <div className="-mb-3 px-4 pt-3">
-            <Headless.CloseButton as={NavbarItem} aria-label="Close navigation">
-              <CloseMenuIcon />
-            </Headless.CloseButton>
-          </div>
-          {children}
-        </div>
-      </Headless.DialogPanel>
-    </Headless.Dialog>
-  )
-}
 
 export function SidebarLayout({
   navbar,
   sidebar,
   children,
 }: React.PropsWithChildren<{ navbar: React.ReactNode; sidebar: React.ReactNode }>) {
-  let [showSidebar, setShowSidebar] = useState(false)
+  const [showSidebar, setShowSidebar] = useState(false)
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
+  const pathname = usePathname()
+  const openButtonRef = useRef<HTMLButtonElement | null>(null)
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
+  const sidebarRef = useRef<HTMLElement | null>(null)
+  const previousPathnameRef = useRef(pathname)
+
+  useEffect(() => {
+    if (previousPathnameRef.current === pathname) return
+    previousPathnameRef.current = pathname
+    setShowSidebar(false)
+  }, [pathname])
+
+  useEffect(() => {
+    if (isDesktop || !showSidebar) return
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeButtonRef.current?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowSidebar(false)
+        window.requestAnimationFrame(() => openButtonRef.current?.focus())
+        return
+      }
+      if (event.key !== 'Tab' || !sidebarRef.current) return
+
+      const focusable = Array.from(
+        sidebarRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isDesktop, showSidebar])
+
+  const closeSidebar = () => {
+    setShowSidebar(false)
+    window.requestAnimationFrame(() => openButtonRef.current?.focus())
+  }
 
   return (
-    <div className="relative isolate flex min-h-svh w-full bg-white max-lg:flex-col lg:bg-zinc-100 dark:bg-zinc-900 dark:lg:bg-zinc-950">
-      {/* Sidebar on desktop */}
-      <motion.div layoutScroll className="fixed inset-y-0 left-0 w-64 max-lg:hidden">
-        {sidebar}
-      </motion.div>
+    <>
+      <a
+        href="#dashboard-main"
+        className="fixed top-3 left-3 z-[100] -translate-y-20 rounded-xl border border-indigo-300/25 bg-zinc-950/95 px-4 py-2.5 text-sm font-semibold text-white shadow-2xl shadow-black/40 backdrop-blur-xl transition-transform focus:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 motion-reduce:transition-none"
+      >
+        Saltar al contenido principal
+      </a>
 
-      {/* Sidebar on mobile */}
-      <MobileSidebar open={showSidebar} close={() => setShowSidebar(false)}>
-        {sidebar}
-      </MobileSidebar>
+      <div className="relative isolate flex min-h-svh w-full min-w-0 overflow-x-clip bg-transparent max-lg:flex-col">
+        <button
+          type="button"
+          aria-label="Cerrar menú lateral"
+          tabIndex={-1}
+          onClick={closeSidebar}
+          className={`fixed inset-0 z-40 bg-black/65 backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none lg:hidden ${
+            showSidebar ? 'opacity-100' : 'pointer-events-none opacity-0'
+          }`}
+        />
 
-      {/* Navbar on mobile */}
-      <header className="flex items-center px-4 lg:hidden">
-        <div className="py-2.5">
-          <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation">
-            <OpenMenuIcon />
-          </NavbarItem>
-        </div>
-        <div className="min-w-0 flex-1">{navbar}</div>
-      </header>
+        <aside
+          ref={sidebarRef}
+          aria-label="Navegación principal"
+          role={!isDesktop && showSidebar ? 'dialog' : undefined}
+          aria-modal={!isDesktop && showSidebar ? true : undefined}
+          aria-hidden={!isDesktop && !showSidebar}
+          inert={!isDesktop && !showSidebar ? true : undefined}
+          className={`fixed inset-y-0 left-0 z-50 w-full max-w-80 p-2 transition-transform duration-300 ease-out motion-reduce:transition-none lg:z-auto lg:w-64 ${
+            showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
+        >
+          <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-zinc-950/88 shadow-[0_24px_80px_rgba(0,0,0,0.48)] ring-1 ring-black/20 backdrop-blur-2xl">
+            <div className="-mb-3 px-4 pt-3 lg:hidden">
+              <NavbarItem ref={closeButtonRef} onClick={closeSidebar} aria-label="Cerrar navegación">
+                <XMarkIcon />
+              </NavbarItem>
+            </div>
+            {sidebar}
+          </div>
+        </aside>
 
-      {/* Content */}
-      <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-64">
-        <div className="grow p-6 lg:rounded-lg lg:bg-white lg:p-10 lg:shadow-xs lg:ring-1 lg:ring-zinc-950/5 dark:lg:bg-zinc-900 dark:lg:ring-white/10">
-          <div className="mx-auto max-w-6xl">{children}</div>
-        </div>
-      </main>
-    </div>
+        <header
+          aria-hidden={!isDesktop && showSidebar ? true : undefined}
+          inert={!isDesktop && showSidebar ? true : undefined}
+          className="sticky top-0 z-30 flex min-w-0 items-center border-b border-white/[0.06] bg-zinc-950/78 px-4 shadow-lg shadow-black/10 backdrop-blur-2xl lg:hidden"
+        >
+          <div className="py-2.5">
+            <NavbarItem ref={openButtonRef} onClick={() => setShowSidebar(true)} aria-label="Abrir navegación">
+              <Bars3Icon />
+            </NavbarItem>
+          </div>
+          <div className="min-w-0 flex-1">{navbar}</div>
+        </header>
+
+        <main
+          id="dashboard-main"
+          tabIndex={-1}
+          aria-hidden={!isDesktop && showSidebar ? true : undefined}
+          inert={!isDesktop && showSidebar ? true : undefined}
+          className="flex min-w-0 flex-1 flex-col pb-24 outline-none lg:pt-2 lg:pr-2 lg:pb-2 lg:pl-64"
+        >
+          <div className="grow px-4 py-6 sm:px-6 lg:rounded-2xl lg:border lg:border-white/[0.07] lg:bg-zinc-900/70 lg:p-10 lg:shadow-[0_24px_80px_rgba(0,0,0,0.18)] lg:backdrop-blur-xl">
+            <div className="mx-auto max-w-6xl">{children}</div>
+          </div>
+        </main>
+      </div>
+    </>
   )
 }
