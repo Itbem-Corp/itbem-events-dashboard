@@ -132,9 +132,7 @@ jobs:
           SMOKE_HEADERS="$(mktemp)"
           trap 'rm -f "${SMOKE_HEADERS}"' EXIT
 
-          npx --yes vercel@${VERCEL_CLI_VERSION} \
-            --token="${VERCEL_TOKEN}" \
-            curl \
+          npx --yes vercel@${VERCEL_CLI_VERSION} curl \
             "/api/og?title=Release%20Smoke&language=es-MX" \
             --deployment "${DEPLOYMENT_URL}" \
             --yes \
