@@ -125,15 +125,67 @@ jobs:
         env:
           DEPLOYMENT_URL: ${{ steps.candidate.outputs.deployment_url }}
         run: |
-          curl --fail --silent --show-error --location \
+          # Preview deployments use Vercel Authentication. `vercel curl`
+          # obtains a short-lived protection bypass using the existing CLI
+          # token, so this probes our application instead of following the SSO
+          # redirect and accidentally accepting Vercel's login page as healthy.
+          SMOKE_HEADERS="$(mktemp)"
+          trap 'rm -f "${SMOKE_HEADERS}"' EXIT
+
+          npx --yes vercel@${VERCEL_CLI_VERSION} curl \
+            "/api/og?title=Release%20Smoke&language=es-MX" \
+            --deployment "${DEPLOYMENT_URL}" \
+            --yes \
+            --token="${VERCEL_TOKEN}" \
+            -- \
+            --fail --silent --show-error \
             --retry 6 --retry-all-errors --retry-delay 5 --max-time 20 \
-            "${DEPLOYMENT_URL%/}/" > /dev/null
+            --dump-header "${SMOKE_HEADERS}" --output /dev/null
+
+          grep --quiet --extended-regexp '^HTTP/[0-9.]+ 200([[:space:]]|$)' "${SMOKE_HEADERS}"
+          grep --quiet --ignore-case --extended-regexp \
+            '^content-type:[[:space:]]*image/png([[:space:]]|;)' \
+            "${SMOKE_HEADERS}"
 
       - name: Promote, smoke production alias, and roll back on failure
         env:
           DEPLOYMENT_ID: ${{ steps.candidate.outputs.deployment_id }}
           PREVIOUS_DEPLOYMENT_ID: ${{ steps.previous.outputs.deployment_id }}
         run: |
+          smoke_production() {
+            local smoke_headers
+            local auth_status
+            local auth_curl_status
+            local og_curl_status
+            smoke_headers="$(mktemp)"
+
+            curl --fail --silent --show-error \
+              --retry 6 --retry-all-errors --retry-delay 5 --max-time 20 \
+              --dump-header "${smoke_headers}" --output /dev/null \
+              "${PRODUCTION_SMOKE_URL%/}/api/og?title=Release%20Smoke&language=es-MX"
+            og_curl_status=$?
+
+            if [[ ${og_curl_status} -ne 0 ]] || \
+              ! grep --quiet --extended-regexp '^HTTP/[0-9.]+ 200([[:space:]]|$)' "${smoke_headers}" || \
+              ! grep --quiet --ignore-case --extended-regexp \
+                '^content-type:[[:space:]]*image/png([[:space:]]|;)' \
+                "${smoke_headers}"; then
+              rm -f "${smoke_headers}"
+              return 1
+            fi
+            rm -f "${smoke_headers}"
+
+            # A missing browser session must remain a deliberate, non-cacheable
+            # 401. This catches accidental auth-route rewrites after promotion.
+            auth_status="$(curl --silent --show-error \
+              --retry 6 --retry-all-errors --retry-delay 5 --max-time 20 \
+              --output /dev/null --write-out '%{http_code}' \
+              "${PRODUCTION_SMOKE_URL%/}/api/auth/token")"
+            auth_curl_status=$?
+
+            [[ ${auth_curl_status} -eq 0 && "${auth_status}" == "401" ]]
+          }
+
           set +e
           npx --yes vercel@${VERCEL_CLI_VERSION} promote "${DEPLOYMENT_ID}" \
             --yes --timeout=3m --token="${VERCEL_TOKEN}"
@@ -141,9 +193,7 @@ jobs:
 
           SMOKE_STATUS=1
           if [[ ${PROMOTE_STATUS} -eq 0 ]]; then
-            curl --fail --silent --show-error --location \
-              --retry 6 --retry-all-errors --retry-delay 5 --max-time 20 \
-              "${PRODUCTION_SMOKE_URL%/}/" > /dev/null
+            smoke_production
             SMOKE_STATUS=$?
           fi
           set -e
