@@ -13,13 +13,14 @@ describe('tenant configuration', () => {
     expect(tenantForHostname('dashboard.cafettonhouse.com', env).clientId).toBe('cafetton-client')
   })
 
-  it('keeps the multitenant modules on the ITBEM entry point', () => {
+  it('keeps ITBEM focused on the platform control plane', () => {
     expect(tenantCodeForHostname('DASHBOARD.ITBEM.COM:443')).toBe('itbem')
-    expect(tenantPresentationForHostname('dashboard.itbem.com').modules).toEqual(['home', 'events', 'users', 'organizations'])
+    expect(tenantPresentationForHostname('dashboard.itbem.com').modules).toEqual(['home', 'users', 'organizations'])
   })
 
-  it('limits organization switching in the Cafetton House app', () => {
-    expect(tenantPresentationForHostname('dashboard.cafettonhouse.com').modules).not.toContain('organizations')
+  it('keeps Cafetton House focused on clients and users without event surfaces', () => {
+    expect(tenantPresentationForHostname('dashboard.cafettonhouse.com').modules).toEqual(['home', 'users', 'organizations'])
+    expect(tenantPresentationForHostname('dashboard.cafettonhouse.com').modules).not.toContain('events')
   })
 
   it('supports all local apps without editing the hosts file', () => {
@@ -39,6 +40,13 @@ describe('tenant configuration', () => {
   })
 
   it('fails closed when no app client is configured', () => {
-    expect(() => tenantForHostname('dashboard.itbem.com', {})).toThrow(/Missing Cognito app client/)
+    expect(() => tenantForHostname('dashboard.itbem.com', {})).toThrow(/Missing dedicated Cognito app client/)
+  })
+
+  it('does not reuse the legacy generic audience in production', () => {
+    expect(() => tenantForHostname('dashboard.itbem.com', {
+      NODE_ENV: 'production',
+      COGNITO_CLIENT_ID: 'legacy-shared-client',
+    })).toThrow(/Missing dedicated Cognito app client/)
   })
 })

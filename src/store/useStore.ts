@@ -1,5 +1,6 @@
 ﻿import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { ApplicationSession } from '@/models/ApplicationSession'
 
 /* =========================
  * MODELOS
@@ -43,6 +44,7 @@ interface AppState {
     // Auth
     token: string | null
     user: User | null
+    applicationSession: ApplicationSession | null
 
     // Contexto
     currentClient: Client | null
@@ -53,6 +55,7 @@ interface AppState {
     // Actions
     setToken: (token: string | null) => void
     setProfile: (user: User) => void
+    setApplicationSession: (session: ApplicationSession) => void
     invalidateProfile: () => void
 
     setCurrentClient: (client: Client | null) => void
@@ -69,6 +72,7 @@ export const useStore = create<AppState>()(
             // --- STATE ---
             token: null,
             user: null,
+            applicationSession: null,
             currentClient: null,
             profileLoaded: false,
 
@@ -90,6 +94,13 @@ export const useStore = create<AppState>()(
             setProfile: (user) =>
                 set({
                     user,
+                    profileLoaded: true,
+                }),
+
+            setApplicationSession: (session) =>
+                set({
+                    applicationSession: session,
+                    user: session.user,
                     profileLoaded: true,
                 }),
 
@@ -117,6 +128,7 @@ export const useStore = create<AppState>()(
                 set({
                     token: null,
                     user: null,
+                    applicationSession: null,
                     currentClient: null,
                     profileLoaded: false,
                 }),

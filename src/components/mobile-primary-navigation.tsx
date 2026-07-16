@@ -3,30 +3,44 @@
 import { Link } from '@/components/link'
 import { BuildingOfficeIcon, HomeIcon, Square2StackIcon, UsersIcon } from '@heroicons/react/20/solid'
 import clsx from 'clsx'
-import type { TenantModule } from '@/lib/tenant-config'
 
-type PrimaryHref = '/' | '/events' | '/users' | '/clients'
+type PrimaryHref = '/' | '/events' | '/team' | '/users' | '/clients'
 
 interface MobilePrimaryNavigationProps {
   pathname: string
-  isRoot: boolean
-  modules: readonly TenantModule[]
+  showEvents: boolean
+  showTeam: boolean
+  showUsers: boolean
+  showOrganizations: boolean
   onIntent: (href: PrimaryHref) => void
 }
 
 const PRIMARY_ITEMS = [
   { href: '/', label: 'Inicio', icon: HomeIcon, rootOnly: false },
   { href: '/events', label: 'Eventos', icon: Square2StackIcon, rootOnly: false },
+  { href: '/team', label: 'Equipo', icon: UsersIcon, rootOnly: false },
   { href: '/users', label: 'Usuarios', icon: UsersIcon, rootOnly: true },
   { href: '/clients', label: 'Clientes', icon: BuildingOfficeIcon, rootOnly: true },
 ] as const
 
-export function MobilePrimaryNavigation({ pathname, isRoot, modules, onIntent }: MobilePrimaryNavigationProps) {
+export function MobilePrimaryNavigation({
+  pathname,
+  showEvents,
+  showTeam,
+  showUsers,
+  showOrganizations,
+  onIntent,
+}: MobilePrimaryNavigationProps) {
   const items = PRIMARY_ITEMS.filter((item) =>
-    (isRoot || !item.rootOnly) &&
-    (item.href === '/' ? modules.includes('home') :
-      item.href === '/events' ? modules.includes('events') :
-        item.href === '/users' ? modules.includes('users') : modules.includes('organizations'))
+    item.href === '/'
+      ? true
+      : item.href === '/events'
+        ? showEvents
+        : item.href === '/team'
+          ? showTeam
+          : item.href === '/users'
+            ? showUsers
+            : showOrganizations
   )
 
   return (
@@ -47,7 +61,7 @@ export function MobilePrimaryNavigation({ pathname, isRoot, modules, onIntent }:
             onPointerDown={() => onIntent(href)}
             onFocus={() => onIntent(href)}
             className={clsx(
-              'group relative flex min-h-13 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-2xl px-1 text-[11px] font-medium transition-[color,background-color,box-shadow,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 active:scale-[0.98] motion-reduce:transition-none',
+              'group relative flex min-h-13 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-2xl px-1 text-[11px] font-medium transition-[color,background-color,box-shadow,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) active:scale-[0.98] motion-reduce:transition-none',
               current
                 ? 'bg-gradient-to-b from-white/[0.13] to-white/[0.06] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_22px_rgba(0,0,0,0.2)] ring-1 ring-white/[0.09]'
                 : 'text-zinc-400 hover:bg-white/[0.055] hover:text-zinc-100'
@@ -56,13 +70,13 @@ export function MobilePrimaryNavigation({ pathname, isRoot, modules, onIntent }:
             {current && (
               <span
                 aria-hidden="true"
-                className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-indigo-300/90 to-transparent"
+                className="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-(--tenant-accent) to-transparent"
               />
             )}
             <span
               className={clsx(
                 'flex size-6 items-center justify-center rounded-lg transition-colors',
-                current ? 'bg-indigo-400/10 text-indigo-300' : 'text-zinc-500 group-hover:text-zinc-300'
+                current ? 'bg-white/[0.06] text-(--tenant-accent)' : 'text-zinc-500 group-hover:text-zinc-300'
               )}
             >
               <Icon aria-hidden="true" className="size-[1.15rem]" />

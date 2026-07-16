@@ -1,6 +1,7 @@
 import { InitiateAuthCommand } from '@aws-sdk/client-cognito-identity-provider'
 import { AUTH_COOKIE_NAMES, PRIVATE_NO_STORE_HEADERS, authCookieOptions, sessionMaxAge } from '@/lib/auth-session'
 import { getCognitoClient } from '@/lib/cognito-direct'
+import { verifyApplicationAccess } from '@/lib/application-access'
 import { tenantForRequest } from '@/lib/tenant-config'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -32,6 +33,8 @@ export async function GET(request: NextRequest) {
     }))
     const idToken = result.AuthenticationResult?.IdToken
     if (!idToken) return clearSession(privateJson({ error: 'Session expired' }, 401))
+    const access = await verifyApplicationAccess(request, idToken)
+    if (!access.ok) return clearSession(privateJson({ error: access.error }, access.status))
     const response = privateJson({ token: idToken })
     response.cookies.set(AUTH_COOKIE_NAMES.session, idToken, {
       ...authCookieOptions(), maxAge: sessionMaxAge(result.AuthenticationResult?.ExpiresIn),

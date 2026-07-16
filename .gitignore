@@ -62,3 +62,5 @@ public/workbox-*.js.map
 
 # IDE
 .idea/
+
+.vercel

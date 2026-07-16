@@ -41,6 +41,9 @@ function backendRemotePattern() {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Allows CI/validation builds to coexist with a local `next dev` process on
+  // Windows, where the development trace keeps the default .next directory locked.
+  distDir: process.env.NEXT_DIST_DIR?.trim() || '.next',
   // The development indicator portal overlaps the fixed mobile navigation and
   // can intercept taps. Compilation state is already visible in the terminal.
   devIndicators: false,
@@ -74,9 +77,12 @@ const nextConfig = {
       'https://*.eventiapp.com.mx',
     ].join(' ')
 
+    const scriptSources = process.env.NODE_ENV === 'production'
+      ? "script-src 'self' 'unsafe-inline'"
+      : "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      scriptSources,
       "style-src 'self' 'unsafe-inline'",
       `img-src 'self' data: blob: ${backendUrl} ${awsSources}`,
       `media-src 'self' blob: ${backendUrl} ${awsSources}`,
@@ -84,6 +90,10 @@ const nextConfig = {
       `connect-src 'self' ${backendUrl} ${awsSources}`,
       `frame-src 'self' ${astroUrl}`,
       "frame-ancestors 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      ...(process.env.NODE_ENV === 'production' ? ['upgrade-insecure-requests'] : []),
     ].join('; ')
 
     return [

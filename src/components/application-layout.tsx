@@ -13,6 +13,7 @@ import {
 } from '@/components/dropdown'
 import { MobilePrimaryNavigation } from '@/components/mobile-primary-navigation'
 import { Navbar, NavbarItem, NavbarSection } from '@/components/navbar'
+import { BrandMark } from '@/components/product/brand-mark'
 import {
   Sidebar,
   SidebarBody,
@@ -40,6 +41,7 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { useStoreHydration } from '@/hooks/useStoreHydration'
 import { readApiData } from '@/lib/api-envelope'
 import {
+  clientMembersPagePath,
   clientsPagePath,
   eventsPagePath,
   scopedEventsDashboardPath,
@@ -49,12 +51,12 @@ import {
 } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import { sessionCan } from '@/lib/session-capabilities'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import { tenantPresentationForHostname } from '@/lib/tenant-config'
 import type { ClientsPageResponse } from '@/models/Client'
 import { useStore } from '@/store/useStore'
 import dynamic from 'next/dynamic'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import useSWR, { preload, useSWRConfig } from 'swr'
@@ -209,9 +211,27 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   const setCurrentClient = useStore((s) => s.setCurrentClient)
   const clearSession = useStore((s) => s.clearSession)
   const user = useStore((s) => s.user)
+  const applicationSession = useStore((s) => s.applicationSession)
 
   const isRoot = Boolean(user?.is_root)
-  const preloadCommandPaletteIntent = () => preloadCommandPaletteResources(currentClient?.id, isRoot)
+  const modules = useMemo(
+    () => applicationSession?.application.modules ?? tenant.modules,
+    [applicationSession?.application.modules, tenant.modules]
+  )
+  const hasEvents = applicationSession ? sessionCan(applicationSession, 'events:view') : modules.includes('events')
+  const canViewUsers = applicationSession
+    ? sessionCan(applicationSession, 'platform:users:view')
+    : isRoot && modules.includes('users')
+  const canViewOrganizations = applicationSession
+    ? sessionCan(applicationSession, 'organizations:view')
+    : isRoot && modules.includes('organizations')
+  const canManageMembers = sessionCan(applicationSession, 'members:manage')
+  const canSwitchOrganizations = applicationSession
+    ? canViewOrganizations || sessionCan(applicationSession, 'events:manage')
+    : isRoot
+  const preloadCommandPaletteIntent = () => {
+    if (hasEvents) preloadCommandPaletteResources(currentClient?.id, isRoot)
+  }
   // On a cold login, resolve the first organization in parallel with the profile.
   // The paginated endpoint scopes itself from the authenticated identity, so this
   // does not need to wait until the profile reveals whether the user is root.
@@ -227,7 +247,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   )
 
   const preloadRoute = useCallback(
-    (href: '/' | '/events' | '/users' | '/clients') => {
+    (href: '/' | '/events' | '/team' | '/users' | '/clients') => {
       router.prefetch(href)
 
       const dataPath =
@@ -239,7 +259,11 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
               : null
             : href === '/users'
               ? usersAllPath({ page: 1, page_size: 10 })
-              : clientsPagePath({ page: 1, page_size: 12 })
+              : href === '/team'
+                ? currentClient?.id
+                  ? clientMembersPagePath(currentClient.id, 1, 20)
+                  : null
+                : clientsPagePath({ page: 1, page_size: 12 })
 
       if (dataPath) preloadDataIfMissing(dataPath)
     },
@@ -262,7 +286,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   // ⌘K / Ctrl+K global shortcut
   useEffect(() => {
     function handle(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if (hasEvents && (e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
         preloadCommandPaletteResources(currentClient?.id, isRoot)
         setCmdOpen((v) => !v)
@@ -270,7 +294,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     }
     window.addEventListener('keydown', handle)
     return () => window.removeEventListener('keydown', handle)
-  }, [currentClient?.id, isRoot])
+  }, [currentClient?.id, hasEvents, isRoot])
 
   useEffect(() => {
     const isApplePlatform = /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
@@ -306,7 +330,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
 
     // Organization-scoped apps cannot retain a workspace selected on another
     // branded origin. EventiApp and ITBEM keep their portfolio switcher.
-    if (!tenant.modules.includes('organizations') && preferred && currentClient?.id !== preferred.id) {
+    if (!canSwitchOrganizations && preferred && currentClient?.id !== preferred.id) {
       setCurrentClient(normalizeClient(preferred))
       return
     }
@@ -322,21 +346,23 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     }
 
     // ✅ ROOT con 0 clientes → NO REDIRECT
-  }, [clients, currentClient, isRoot, rawClients, router, setCurrentClient, tenant, user])
+  }, [canSwitchOrganizations, clients, currentClient, isRoot, rawClients, router, setCurrentClient, tenant, user])
 
   return (
-    <>
+    <div
+      className="app-product-shell"
+      data-product={tenant.code}
+      style={{ '--tenant-accent': tenant.accent } as React.CSSProperties}
+    >
       <SidebarLayout
         navbar={
           <Navbar>
             <Link
               href="/"
-              aria-label="EventiApp — ir al inicio"
-              className="group flex min-w-0 items-center gap-2.5 rounded-xl py-1 pr-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+              aria-label={`${tenant.name} — ir al inicio`}
+              className="group flex min-w-0 items-center gap-2.5 rounded-xl py-1 pr-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)"
             >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] shadow-lg shadow-black/20">
-                <Image src="/eventiapp-icon.svg" alt="" width={24} height={26} priority />
-              </span>
+              <BrandMark code={tenant.code} name={tenant.name} accent={tenant.accent} size="sm" priority />
               <span className="hidden min-[420px]:block">
                 <span className="block text-sm font-semibold tracking-tight text-white">{tenant.name}</span>
                 <span className="block text-[9px] font-medium tracking-[0.16em] text-zinc-500 uppercase">
@@ -363,23 +389,24 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                 </kbd>
               </button>
 
-              {notificationsRequested ? (
-                <NotificationBell initialOpen={notificationsOpenRequested} />
-              ) : (
-                <button
-                  type="button"
-                  aria-label="Notificaciones"
-                  onPointerEnter={() => setNotificationsRequested(true)}
-                  onFocus={() => void loadNotificationBell()}
-                  onClick={() => {
-                    setNotificationsOpenRequested(true)
-                    setNotificationsRequested(true)
-                  }}
-                  className="flex size-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                >
-                  <BellIcon className="size-5" />
-                </button>
-              )}
+              {hasEvents &&
+                (notificationsRequested ? (
+                  <NotificationBell initialOpen={notificationsOpenRequested} />
+                ) : (
+                  <button
+                    type="button"
+                    aria-label="Notificaciones"
+                    onPointerEnter={() => setNotificationsRequested(true)}
+                    onFocus={() => void loadNotificationBell()}
+                    onClick={() => {
+                      setNotificationsOpenRequested(true)
+                      setNotificationsRequested(true)
+                    }}
+                    className="flex size-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)"
+                  >
+                    <BellIcon className="size-5" />
+                  </button>
+                ))}
               <Dropdown>
                 <DropdownButton
                   as={NavbarItem}
@@ -402,12 +429,17 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
             <SidebarHeader className="gap-3 border-white/[0.07] bg-gradient-to-b from-white/[0.025] to-transparent pb-3">
               <Link
                 href="/"
-                aria-label="EventiApp — ir al inicio"
-                className="group flex items-center gap-3 rounded-xl px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                aria-label={`${tenant.name} — ir al inicio`}
+                className="group flex items-center gap-3 rounded-xl px-2 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)"
               >
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] shadow-xl shadow-black/20 transition-transform group-hover:scale-[1.03] motion-reduce:transition-none">
-                  <Image src="/eventiapp-icon.svg" alt="" width={29} height={31} priority />
-                </span>
+                <BrandMark
+                  code={tenant.code}
+                  name={tenant.name}
+                  accent={tenant.accent}
+                  size="md"
+                  priority
+                  className="transition-transform group-hover:scale-[1.03] motion-reduce:transition-none"
+                />
                 <span className="min-w-0">
                   <span className="block text-base font-semibold tracking-[-0.02em] text-white">{tenant.name}</span>
                   <span className="block text-[10px] font-medium tracking-[0.16em] text-zinc-500 uppercase">
@@ -419,105 +451,111 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
               <p className="px-2 text-[10px] font-semibold tracking-[0.16em] text-zinc-500 uppercase">
                 Espacio de trabajo
               </p>
-              {tenant.modules.includes('organizations') ? <Dropdown>
-                <DropdownButton
-                  as={SidebarItem}
-                  onFocus={() => setClientsRequested(true)}
-                  onMouseEnter={() => setClientsRequested(true)}
-                  onPointerDown={() => setClientsRequested(true)}
-                >
+              {canSwitchOrganizations ? (
+                <Dropdown>
+                  <DropdownButton
+                    as={SidebarItem}
+                    onFocus={() => setClientsRequested(true)}
+                    onMouseEnter={() => setClientsRequested(true)}
+                    onPointerDown={() => setClientsRequested(true)}
+                  >
+                    <Avatar
+                      src={currentClient?.logo}
+                      initials={currentClient?.name?.substring(0, 2).toUpperCase() || (isRoot ? 'TO' : '??')}
+                      className="bg-(--tenant-accent) text-white"
+                    />
+                    <SidebarLabel className="font-semibold">
+                      {currentClient?.name || (isRoot ? 'Todas las organizaciones' : 'Seleccionar organización')}
+                    </SidebarLabel>
+                    <ChevronDownIcon />
+                  </DropdownButton>
+
+                  <DropdownMenu className="max-w-[90vw] min-w-80 lg:min-w-64" anchor="bottom start">
+                    <DropdownHeader>Mis organizaciones</DropdownHeader>
+
+                    {isRoot && (
+                      <div className="px-2 pb-2" onClick={(event) => event.stopPropagation()}>
+                        <div className="relative">
+                          <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-600" />
+                          <input
+                            type="search"
+                            aria-label="Buscar organización"
+                            placeholder="Buscar organización…"
+                            value={organizationSearch}
+                            onChange={(event) => setOrganizationSearch(event.target.value)}
+                            onKeyDown={(event) => event.stopPropagation()}
+                            className="w-full rounded-xl border border-white/10 bg-zinc-900 py-2.5 pr-3 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-(--tenant-accent) focus:ring-2 focus:ring-(--tenant-accent)/10 focus:outline-none"
+                          />
+                        </div>
+                        <p className="mt-1.5 px-1 text-[10px] text-zinc-600" aria-live="polite">
+                          {clients.length} de {clientsTotal} organizaciones
+                        </p>
+                      </div>
+                    )}
+
+                    {clientsLoading && (
+                      <div className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">Cargando organizaciones…</div>
+                    )}
+
+                    {clientsErrorState && (
+                      <div className="mx-2 my-1 rounded-lg border border-amber-500/15 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+                        <p>
+                          {clientsErrorState === 'stale'
+                            ? 'Mostrando organizaciones guardadas.'
+                            : 'No se pudieron cargar las organizaciones.'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void retryClients()}
+                          disabled={clientsValidating}
+                          aria-busy={clientsValidating}
+                          className="mt-1 font-semibold hover:text-white disabled:cursor-wait disabled:opacity-60"
+                        >
+                          {clientsValidating ? 'Reintentando…' : 'Reintentar'}
+                        </button>
+                      </div>
+                    )}
+
+                    {(['PLATFORM', 'AGENCY', 'CUSTOMER'] as const).map((typeCode) => {
+                      const group = clients.filter((c) => (c.client_type?.code ?? '').toUpperCase() === typeCode)
+                      if (group.length === 0) return null
+                      const typeLabel =
+                        typeCode === 'PLATFORM' ? 'Plataformas' : typeCode === 'AGENCY' ? 'Agencias' : 'Clientes'
+                      return (
+                        <div key={typeCode}>
+                          <div className="px-3 pt-2 pb-1">
+                            <span className="text-[10px] font-semibold tracking-wider text-zinc-500 uppercase">
+                              {typeLabel}
+                            </span>
+                          </div>
+                          {group.map((client) => (
+                            <DropdownItem
+                              key={client.id}
+                              onClick={() => setCurrentClient(normalizeClient(client))}
+                              onFocus={() => preloadClientPortfolio(client.id)}
+                              onPointerDown={() => preloadClientPortfolio(client.id)}
+                              onPointerEnter={() => preloadClientPortfolio(client.id)}
+                            >
+                              <Avatar
+                                slot="icon"
+                                src={client.logo}
+                                initials={(client.name ?? '??').substring(0, 2).toUpperCase()}
+                              />
+                              <DropdownLabel>{client.name}</DropdownLabel>
+                            </DropdownItem>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </DropdownMenu>
+                </Dropdown>
+              ) : (
+                <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
                   <Avatar
                     src={currentClient?.logo}
-                    initials={currentClient?.name?.substring(0, 2).toUpperCase() || (isRoot ? 'TO' : '??')}
-                    className="bg-indigo-600 text-white"
+                    initials={currentClient?.name?.substring(0, 2).toUpperCase() || tenant.name.substring(0, 2)}
+                    className="bg-(--tenant-accent) text-white"
                   />
-                  <SidebarLabel className="font-semibold">
-                    {currentClient?.name || (isRoot ? 'Todas las organizaciones' : 'Seleccionar organización')}
-                  </SidebarLabel>
-                  <ChevronDownIcon />
-                </DropdownButton>
-
-                <DropdownMenu className="max-w-[90vw] min-w-80 lg:min-w-64" anchor="bottom start">
-                  <DropdownHeader>Mis organizaciones</DropdownHeader>
-
-                  {isRoot && (
-                    <div className="px-2 pb-2" onClick={(event) => event.stopPropagation()}>
-                      <div className="relative">
-                        <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-600" />
-                        <input
-                          type="search"
-                          aria-label="Buscar organización"
-                          placeholder="Buscar organización…"
-                          value={organizationSearch}
-                          onChange={(event) => setOrganizationSearch(event.target.value)}
-                          onKeyDown={(event) => event.stopPropagation()}
-                          className="w-full rounded-lg border border-white/10 bg-zinc-900 py-2 pr-3 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
-                        />
-                      </div>
-                      <p className="mt-1.5 px-1 text-[10px] text-zinc-600" aria-live="polite">
-                        {clients.length} de {clientsTotal} organizaciones
-                      </p>
-                    </div>
-                  )}
-
-                  {clientsLoading && (
-                    <div className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">Cargando organizaciones…</div>
-                  )}
-
-                  {clientsErrorState && (
-                    <div className="mx-2 my-1 rounded-lg border border-amber-500/15 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
-                      <p>
-                        {clientsErrorState === 'stale'
-                          ? 'Mostrando organizaciones guardadas.'
-                          : 'No se pudieron cargar las organizaciones.'}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => void retryClients()}
-                        disabled={clientsValidating}
-                        aria-busy={clientsValidating}
-                        className="mt-1 font-semibold hover:text-white disabled:cursor-wait disabled:opacity-60"
-                      >
-                        {clientsValidating ? 'Reintentando…' : 'Reintentar'}
-                      </button>
-                    </div>
-                  )}
-
-                  {(['PLATFORM', 'AGENCY', 'CUSTOMER'] as const).map((typeCode) => {
-                    const group = clients.filter((c) => (c.client_type?.code ?? '').toUpperCase() === typeCode)
-                    if (group.length === 0) return null
-                    const typeLabel =
-                      typeCode === 'PLATFORM' ? 'Plataformas' : typeCode === 'AGENCY' ? 'Agencias' : 'Clientes'
-                    return (
-                      <div key={typeCode}>
-                        <div className="px-3 pt-2 pb-1">
-                          <span className="text-[10px] font-semibold tracking-wider text-zinc-500 uppercase">
-                            {typeLabel}
-                          </span>
-                        </div>
-                        {group.map((client) => (
-                          <DropdownItem
-                            key={client.id}
-                            onClick={() => setCurrentClient(normalizeClient(client))}
-                            onFocus={() => preloadClientPortfolio(client.id)}
-                            onPointerDown={() => preloadClientPortfolio(client.id)}
-                            onPointerEnter={() => preloadClientPortfolio(client.id)}
-                          >
-                            <Avatar
-                              slot="icon"
-                              src={client.logo}
-                              initials={(client.name ?? '??').substring(0, 2).toUpperCase()}
-                            />
-                            <DropdownLabel>{client.name}</DropdownLabel>
-                          </DropdownItem>
-                        ))}
-                      </div>
-                    )
-                  })}
-                </DropdownMenu>
-              </Dropdown> : (
-                <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
-                  <Avatar src={currentClient?.logo} initials={currentClient?.name?.substring(0, 2).toUpperCase() || tenant.name.substring(0, 2)} className="bg-cyan-600 text-white" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-white">{currentClient?.name || tenant.name}</p>
                     <p className="text-[10px] tracking-[0.14em] text-zinc-500 uppercase">Organización asignada</p>
@@ -540,18 +578,20 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                   <SidebarLabel>Inicio</SidebarLabel>
                 </SidebarItem>
 
-                <SidebarItem
-                  href="/events"
-                  current={pathname.startsWith('/events')}
-                  onPointerEnter={() => preloadRoute('/events')}
-                  onPointerDown={() => preloadRoute('/events')}
-                  onFocus={() => preloadRoute('/events')}
-                >
-                  <Square2StackIcon />
-                  <SidebarLabel>Eventos</SidebarLabel>
-                </SidebarItem>
+                {hasEvents && (
+                  <SidebarItem
+                    href="/events"
+                    current={pathname.startsWith('/events')}
+                    onPointerEnter={() => preloadRoute('/events')}
+                    onPointerDown={() => preloadRoute('/events')}
+                    onFocus={() => preloadRoute('/events')}
+                  >
+                    <Square2StackIcon />
+                    <SidebarLabel>Eventos</SidebarLabel>
+                  </SidebarItem>
+                )}
 
-                {isRoot && tenant.modules.includes('users') && (
+                {canViewUsers && (
                   <SidebarItem
                     href="/users"
                     current={pathname.startsWith('/users')}
@@ -563,11 +603,23 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                     <SidebarLabel>Usuarios</SidebarLabel>
                   </SidebarItem>
                 )}
+                {canManageMembers && !canViewUsers && (
+                  <SidebarItem
+                    href="/team"
+                    current={pathname.startsWith('/team')}
+                    onPointerEnter={() => preloadRoute('/team')}
+                    onPointerDown={() => preloadRoute('/team')}
+                    onFocus={() => preloadRoute('/team')}
+                  >
+                    <UsersIcon />
+                    <SidebarLabel>Equipo</SidebarLabel>
+                  </SidebarItem>
+                )}
               </SidebarSection>
 
               <SidebarSpacer />
 
-              {isRoot && tenant.modules.includes('organizations') && (
+              {canViewOrganizations && (
                 <SidebarSection>
                   <SidebarItem
                     href="/clients"
@@ -592,7 +644,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                   onPointerEnter={preloadCommandPaletteIntent}
                   onPointerDown={preloadCommandPaletteIntent}
                   onFocus={preloadCommandPaletteIntent}
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)"
                 >
                   <MagnifyingGlassIcon className="size-4 shrink-0" />
                   <span>Buscar</span>
@@ -612,7 +664,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                       setNotificationsOpenRequested(true)
                       setNotificationsRequested(true)
                     }}
-                    className="flex size-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    className="flex size-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)"
                   >
                     <BellIcon className="size-5" />
                   </button>
@@ -646,12 +698,19 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
         }
       >
         {children}
-        <MobilePrimaryNavigation pathname={pathname} isRoot={isRoot} modules={tenant.modules} onIntent={preloadRoute} />
+        <MobilePrimaryNavigation
+          pathname={pathname}
+          showEvents={hasEvents}
+          showTeam={canManageMembers && !canViewUsers}
+          showUsers={canViewUsers}
+          showOrganizations={canViewOrganizations}
+          onIntent={preloadRoute}
+        />
       </SidebarLayout>
 
       {cmdOpen && (
         <CommandPalette open onClose={() => setCmdOpen(false)} isRoot={isRoot} clientId={currentClient?.id} />
       )}
-    </>
+    </div>
   )
 }

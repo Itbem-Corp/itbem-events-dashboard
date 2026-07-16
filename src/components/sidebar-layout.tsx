@@ -73,7 +73,7 @@ export function SidebarLayout({
     <>
       <a
         href="#dashboard-main"
-        className="fixed top-3 left-3 z-[100] -translate-y-20 rounded-xl border border-indigo-300/25 bg-zinc-950/95 px-4 py-2.5 text-sm font-semibold text-white shadow-2xl shadow-black/40 backdrop-blur-xl transition-transform focus:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 motion-reduce:transition-none"
+        className="fixed top-3 left-3 z-[100] -translate-y-20 rounded-xl border border-white/15 bg-zinc-950/95 px-4 py-2.5 text-sm font-semibold text-white shadow-2xl shadow-black/40 backdrop-blur-xl transition-transform focus:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) motion-reduce:transition-none"
       >
         Saltar al contenido principal
       </a>
@@ -96,11 +96,11 @@ export function SidebarLayout({
           aria-modal={!isDesktop && showSidebar ? true : undefined}
           aria-hidden={!isDesktop && !showSidebar}
           inert={!isDesktop && !showSidebar ? true : undefined}
-          className={`fixed inset-y-0 left-0 z-50 w-full max-w-80 p-2 transition-transform duration-300 ease-out motion-reduce:transition-none lg:z-auto lg:w-64 ${
+          className={`fixed inset-y-0 left-0 z-50 w-full max-w-80 p-2 transition-transform duration-300 ease-out motion-reduce:transition-none lg:z-auto lg:w-68 ${
             showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
         >
-          <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-zinc-950/88 shadow-[0_24px_80px_rgba(0,0,0,0.48)] ring-1 ring-black/20 backdrop-blur-2xl">
+          <div className="flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-white/[0.09] bg-zinc-950/86 shadow-[0_24px_90px_rgba(0,0,0,0.52)] ring-1 ring-white/[0.025] backdrop-blur-2xl ring-inset">
             <div className="-mb-3 px-4 pt-3 lg:hidden">
               <NavbarItem ref={closeButtonRef} onClick={closeSidebar} aria-label="Cerrar navegación">
                 <XMarkIcon />
@@ -128,10 +128,10 @@ export function SidebarLayout({
           tabIndex={-1}
           aria-hidden={!isDesktop && showSidebar ? true : undefined}
           inert={!isDesktop && showSidebar ? true : undefined}
-          className="flex min-w-0 flex-1 flex-col pb-24 outline-none lg:pt-2 lg:pr-2 lg:pb-2 lg:pl-64"
+          className="flex min-w-0 flex-1 flex-col pb-24 outline-none lg:pt-2 lg:pr-2 lg:pb-2 lg:pl-68"
         >
-          <div className="grow px-4 py-6 sm:px-6 lg:rounded-2xl lg:border lg:border-white/[0.07] lg:bg-zinc-900/70 lg:p-10 lg:shadow-[0_24px_80px_rgba(0,0,0,0.18)] lg:backdrop-blur-xl">
-            <div className="mx-auto max-w-6xl">{children}</div>
+          <div className="grow px-4 py-6 sm:px-6 lg:rounded-[1.35rem] lg:border lg:border-white/[0.075] lg:bg-zinc-950/48 lg:p-10 lg:shadow-[0_24px_90px_rgba(0,0,0,0.2)] lg:ring-1 lg:ring-white/[0.02] lg:backdrop-blur-2xl lg:ring-inset xl:p-12">
+            <div className="mx-auto max-w-7xl">{children}</div>
           </div>
         </main>
       </div>

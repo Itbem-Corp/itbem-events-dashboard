@@ -1,6 +1,9 @@
 const cognitoMocks = vi.hoisted(() => ({ send: vi.fn() }))
 
 vi.mock('@/lib/cognito-direct', () => ({ getCognitoClient: () => ({ send: cognitoMocks.send }) }))
+vi.mock('@/lib/application-access', () => ({
+  verifyApplicationAccess: vi.fn().mockResolvedValue({ ok: true }),
+}))
 
 import { GET, dynamic, revalidate } from '@/app/api/auth/token/route'
 import { AUTH_COOKIE_NAMES } from '@/lib/auth-session'

@@ -1,100 +1,92 @@
-# Authentication & Authorization
+# Authentication and authorization
 
-Provider: AWS Cognito — OAuth 2.0 Authorization Code Flow.
+The dashboards use a custom first-party login UI backed by Amazon Cognito.
+Cognito owns passwords, recovery and MFA. The dashboard BFF submits credentials
+to Cognito over TLS and stores tokens only in HttpOnly cookies.
 
-## Environment Variables (`.env.local`)
+## Product audiences
 
-```
-NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
-COGNITO_CLIENT_ID=
-# Opcional; omitir por completo para un App Client público sin secret
-COGNITO_CLIENT_SECRET=
-COGNITO_DOMAIN=
-COGNITO_REDIRECT_URI=http://localhost:3000/auth/callback
-COGNITO_LOGOUT_REDIRECT_URI=     ← used in /auth/logout route
-```
+Each production origin requires its own public Cognito app client:
 
-## Auth Flow
-
-```
-/login route
-  → generate short-lived HttpOnly `oauth_state` + `pkce_verifier` cookies
-  → redirect to Cognito with state + PKCE S256 (scopes: openid profile email phone)
-  → Cognito authenticates → GET /auth/callback?code=...&state=...
-  → validate state, then exchange code + PKCE verifier (POST Cognito /oauth2/token)
-      → client_secret sólo se incluye para App Clients confidenciales
-  → set cookies: session=id_token (1h httpOnly) · refresh_token (30d httpOnly)
-  → redirect /
-  → SessionBootstrap mounts:
-      GET /api/auth/token   → raw JWT from session cookie
-      decodeJWT(token)      → extract sub, email, given_name, family_name
-      GET /api/users        → full user profile
-      store.setProfile(user)
+```dotenv
+COGNITO_EVENTIAPP_CLIENT_ID=
+COGNITO_ITBEM_CLIENT_ID=
+COGNITO_CAFETTONHOUSE_CLIENT_ID=
+COGNITO_AWS_REGION=us-east-1
 ```
 
-## Middleware (`src/middleware.ts`)
+Production fails closed if the dedicated client for the current hostname is
+missing. `COGNITO_CLIENT_ID` remains a local-development compatibility fallback
+only. No Cognito client secret is used by the browser login flow.
 
-Excludes: `/_next/*` `/api/*` static files
-Public paths: `/login` `/auth` `/logout`
+## Login flow
 
+1. The hostname selects EventiApp, ITBEM or Cafetton House.
+2. `POST /api/auth/sign-in` validates same-origin requests, rate limits the
+   identity/IP pair and starts `USER_PASSWORD_AUTH`.
+3. Cognito may return:
+   - an authenticated token set;
+   - `NEW_PASSWORD_REQUIRED`;
+   - SMS, email or authenticator-app MFA/OTP.
+4. Before setting the session cookie, the BFF calls the branded backend
+   `/api/session`. A valid Cognito identity without an application entitlement
+   is rejected.
+5. The ID and refresh tokens are stored in Secure, HttpOnly cookies.
+
+The password is never stored or logged by the application.
+
+## Session renewal
+
+`GET /api/auth/token` returns the current ID token to the in-memory API client.
+When refreshing, it obtains a new Cognito ID token and repeats the application
+access check. Revoked product access therefore cannot survive indefinitely in a
+refresh token.
+
+Authenticated API requests include:
+
+```http
+Authorization: Bearer <cognito-id-token>
 ```
-no session cookie + private route → redirect /login
-session cookie    + public route  → redirect /
-```
 
-## Token Flow
+The backend verifies signature, issuer, audience and the audience-to-product
+mapping before resolving database authorization.
 
-```
-getAuthToken()               (in src/lib/api.ts)
-  → fetch /api/auth/token   (dynamic, private/no-store, reads session cookie)
-  → returns JWT string
-  → Axios injects: Authorization: Bearer <token>
-```
+## Authorization layers
 
-HTTP 401 → `store.clearSession()` + `window.location = '/logout'`
+Authorization is capability-based, not `is_root`-based:
 
-## Session Cookies
+1. application entitlement;
+2. organization membership and role;
+3. optional event assignment.
 
-| Cookie          | Value                  | TTL     |
-| --------------- | ---------------------- | ------- |
-| `session`       | Cognito id_token (JWT) | 1 hour  |
-| `refresh_token` | Cognito refresh token  | 30 days |
-| `oauth_state`   | OAuth CSRF nonce       | 10 min  |
-| `pkce_verifier` | OAuth PKCE verifier    | 10 min  |
+The session returns effective capabilities such as `events:view`,
+`events:manage`, `members:manage`, `platform:users:view` and
+`platform:users:root-manage`. Navigation and route guards consume them, while
+the API independently enforces the same product and resource boundaries.
 
-## Route Authorization
+Root level 1 owns governance. Root level 2 is operational/read-support and
+cannot change organization structure, teams, event structure or root levels.
+Customer portals never inherit platform-root authority.
 
-Enforced in `(app)/layout.tsx` after `profileLoaded = true`:
+## Cookies
 
-| Role            | Allowed             | Blocked             |
-| --------------- | ------------------- | ------------------- |
-| `is_root=true`  | `/clients` `/users` | `/events` `/team`   |
-| `is_root=false` | `/events` `/team`   | `/clients` `/users` |
-| AGENCY client   | `/sub-clients`      | —                   |
-| non-AGENCY      | —                   | `/sub-clients`      |
+| Cookie | Purpose | Typical TTL |
+| --- | --- | --- |
+| `session` | Cognito ID token | 1 hour |
+| `refresh_token` | Session renewal | configured Cognito client lifetime |
+| `auth_challenge_*` | Temporary password or MFA transaction | 10 minutes |
 
-## SessionBootstrap (`src/components/session/SessionBootstrap.tsx`)
+All authentication responses are private/no-store. Challenge cookies use
+SameSite Strict. Logout revokes the Cognito refresh token and clears every
+authentication cookie.
 
-Invisible client component inside `(app)/layout.tsx`.
+## Local domains
 
-- Runs when: `token !== null && profileLoaded === false`
-- Decodes JWT locally (via `decodeJWT`) to extract user data before API call completes
-- On error: `store.clearSession()` → logout redirect
-- On success: `store.setProfile(user)` → `profileLoaded = true`
+Use the same server with product-specific hostnames:
 
-## JWT Decoder (`src/utils/jwt.ts`)
+- `dashboard.eventiapp.localhost:3000`
+- `dashboard.itbem.localhost:3000`
+- `dashboard.cafettonhouse.localhost:3000`
 
-`decodeJWT(token)` — base64url decode of payload, no signature verification.
-Claims extracted: `sub` `email` `given_name` `family_name`
-
-## Logout (`src/app/(auth)/logout/route.ts`)
-
-Clears cookies: `session` `access_token` `refresh_token` `oauth_state` `pkce_verifier`
-Redirects to Cognito logout URL using `COGNITO_LOGOUT_REDIRECT_URI`.
-
-## Auth UI Pages
-
-- `/register` — invitation-only access notice; user creation is handled by dashboard administrators.
-- `/forgot-password` — redirect server-side al Hosted UI de Cognito usando las
-  mismas variables privadas y el callback canónico `/auth/callback`; si Cognito
-  no está configurado, muestra el contacto de soporte.
+The backend remains `http://localhost:8080`; the hostname still selects the
+product configuration and entitlement boundary.

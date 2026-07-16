@@ -20,7 +20,7 @@ import useSWR, { preload } from 'swr'
 // UI
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
-import { Heading } from '@/components/heading'
+import { PageHeader } from '@/components/product/page-header'
 import UserAvatar from '@/components/ui/UserAvatar'
 import { ConfirmAlert } from '@/components/ui/confirm-alert'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -279,30 +279,28 @@ export default function UsersPage() {
   return (
     <PageTransition>
       <div className="space-y-8">
-        {/* HEADER */}
-        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="mb-2 text-[11px] font-semibold tracking-[0.18em] text-indigo-400 uppercase">
-              Equipo y accesos
-            </p>
-            <Heading className="text-3xl/9 tracking-tight sm:text-3xl/9">Usuarios</Heading>
-            <p className="mt-2 max-w-xl text-sm text-zinc-500">
-              {isPrimaryRoot
-                ? 'Gestiona identidades, permisos y acceso a organizaciones.'
-                : 'Modo operativo: asiste usuarios estándar sin exponer cuentas Root ni su estructura de acceso.'}
-            </p>
-          </div>
-          <Button
-            color="indigo"
-            onClick={openNewUserModal}
-            onPointerEnter={preloadUserForm}
-            onPointerDown={preloadUserForm}
-            onFocus={preloadUserForm}
-          >
-            <PlusIcon className="size-4" />
-            Nuevo Usuario
-          </Button>
-        </header>
+        <PageHeader
+          eyebrow="Equipo y accesos"
+          title="Usuarios"
+          description={
+            isPrimaryRoot
+              ? 'Gestiona identidades, permisos y acceso a organizaciones.'
+              : 'Modo operativo: asiste usuarios estándar sin exponer cuentas Root ni su estructura de acceso.'
+          }
+          icon={UsersIcon}
+          actions={
+            <Button
+              color="indigo"
+              onClick={openNewUserModal}
+              onPointerEnter={preloadUserForm}
+              onPointerDown={preloadUserForm}
+              onFocus={preloadUserForm}
+            >
+              <PlusIcon className="size-4" />
+              Nuevo Usuario
+            </Button>
+          }
+        />
 
         {dataErrorState === 'stale' && (
           <StaleDataNotice label="usuarios" onRetry={() => void mutate()} retrying={isValidating} />
@@ -313,7 +311,7 @@ export default function UsersPage() {
           <div
             role="group"
             aria-label="Filtrar usuarios por estado"
-            className="flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-white/7 bg-white/[0.02] p-1.5"
+            className="premium-surface flex max-w-full gap-1 overflow-x-auto rounded-2xl p-1.5"
           >
             {(
               [

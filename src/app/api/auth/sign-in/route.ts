@@ -7,7 +7,9 @@ import {
   authCookieOptions,
   sessionMaxAge,
 } from '@/lib/auth-session'
+import { clearAuthAttempts, consumeAuthAttempt } from '@/lib/auth-rate-limit'
 import { authRequestIsSameOrigin, getCognitoClient } from '@/lib/cognito-direct'
+import { verifyApplicationAccess } from '@/lib/application-access'
 import { tenantForRequest } from '@/lib/tenant-config'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -27,6 +29,15 @@ export async function POST(request: NextRequest) {
   if (!email || !password || email.length > 254 || password.length > 256) {
     return privateJson({ error: 'Ingresa un correo y contraseña válidos.' }, 400)
   }
+  const retryAfter = consumeAuthAttempt(request, email)
+  if (retryAfter) {
+    const response = privateJson(
+      { error: 'Demasiados intentos. Espera un momento y vuelve a intentar.' },
+      429
+    )
+    response.headers.set('Retry-After', String(retryAfter))
+    return response
+  }
 
   try {
     const tenant = tenantForRequest(request)
@@ -36,16 +47,32 @@ export async function POST(request: NextRequest) {
       AuthParameters: { USERNAME: email, PASSWORD: password },
     }))
 
-    if (result.ChallengeName === 'NEW_PASSWORD_REQUIRED' && result.Session) {
-      const response = privateJson({ challenge: 'NEW_PASSWORD_REQUIRED' })
+    const supportedChallenges = new Set([
+      'NEW_PASSWORD_REQUIRED',
+      'SMS_MFA',
+      'SOFTWARE_TOKEN_MFA',
+      'SMS_OTP',
+      'EMAIL_OTP',
+    ])
+    if (result.ChallengeName && supportedChallenges.has(result.ChallengeName) && result.Session) {
+      const response = privateJson({ challenge: result.ChallengeName })
       const options = { ...authCookieOptions(), sameSite: 'strict' as const, maxAge: AUTH_CHALLENGE_MAX_AGE_SECONDS }
       response.cookies.set(AUTH_COOKIE_NAMES.challengeSession, result.Session, options)
       response.cookies.set(AUTH_COOKIE_NAMES.challengeUsername, email, options)
+      response.cookies.set(AUTH_COOKIE_NAMES.challengeName, result.ChallengeName, options)
       return response
     }
 
     const auth = result.AuthenticationResult
-    if (!auth?.IdToken) return privateJson({ error: 'Cognito requiere un paso de acceso no soportado.' }, 409)
+    if (!auth?.IdToken) {
+      return privateJson(
+        { error: 'Tu cuenta requiere un método de verificación que aún no está habilitado en este portal.' },
+        409
+      )
+    }
+    const access = await verifyApplicationAccess(request, auth.IdToken)
+    if (!access.ok) return privateJson({ error: access.error }, access.status)
+    clearAuthAttempts(request, email)
     const response = privateJson({ ok: true, tenant: tenant.code })
     response.cookies.set(AUTH_COOKIE_NAMES.session, auth.IdToken, {
       ...authCookieOptions(), maxAge: sessionMaxAge(auth.ExpiresIn),

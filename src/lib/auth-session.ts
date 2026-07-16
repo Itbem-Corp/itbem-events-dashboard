@@ -5,6 +5,7 @@ export const AUTH_COOKIE_NAMES = {
   pkceVerifier: 'pkce_verifier',
   challengeSession: 'auth_challenge_session',
   challengeUsername: 'auth_challenge_username',
+  challengeName: 'auth_challenge_name',
 } as const
 
 export const OAUTH_TRANSACTION_MAX_AGE_SECONDS = 10 * 60
