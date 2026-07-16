@@ -18,7 +18,12 @@ describe('persisted dashboard state', () => {
             last_name: 'User',
             is_root: true,
           },
-          currentClient: null,
+          currentClient: {
+            id: 'legacy-client',
+            name: 'Legacy client',
+            code: 'legacy',
+            client_type: { code: 'CUSTOMER' },
+          },
         },
         version: 0,
       })
@@ -33,6 +38,8 @@ describe('persisted dashboard state', () => {
 
     expect(useStore.persist.hasHydrated()).toBe(true)
     expect(useStore.getState().user?.email).toBe('root@example.com')
+    expect(useStore.getState().currentClient).toBeNull()
+    expect(useStore.getState().workspaceContexts).toEqual({})
   })
 
   it('deduplicates concurrent hydration requests from the app shell', async () => {

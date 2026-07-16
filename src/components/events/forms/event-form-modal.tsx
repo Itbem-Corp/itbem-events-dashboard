@@ -18,11 +18,11 @@ import { Textarea } from '@/components/textarea'
 import { useDebounce } from '@/hooks/useDebounce'
 import { eventTypeLabel } from '@/lib/event-type-label'
 
+import { createAccessProfile } from '@/lib/access-profile'
 import { api } from '@/lib/api'
 import { readApiData } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { clientsPagePath, eventPath, eventsPath, eventTypesPath } from '@/lib/api-paths'
-import { trackProductEvent } from '@/lib/product-analytics'
 import { toRFC3339 } from '@/lib/date-time'
 import {
   isEventCacheKey,
@@ -34,6 +34,7 @@ import { emptyEventFormValues, eventFormValuesFromEvent, type EventFormValues } 
 import { normalizeEventMutationPayload } from '@/lib/event-payload'
 import { fetcher } from '@/lib/fetcher'
 import { beginNavigationProgress } from '@/lib/navigation-progress'
+import { trackProductEvent } from '@/lib/product-analytics'
 import { getEventPublicUrlPrefix } from '@/lib/public-urls'
 import { normalizeOptionalUuid } from '@/lib/uuid'
 import type { Client, ClientsPageResponse } from '@/models/Client'
@@ -107,12 +108,16 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
 
   const currentClient = useStore((s) => s.currentClient)
   const user = useStore((s) => s.user)
+  const applicationSession = useStore((s) => s.applicationSession)
+  const workspaceMode = useStore((s) => s.workspaceMode)
   const eventPublicUrlPrefix = getEventPublicUrlPrefix()
   const isRoot = Boolean(user?.is_root)
+  const accessProfile = createAccessProfile(applicationSession, workspaceMode, currentClient?.id)
+  const canChooseOrganization = isRoot && accessProfile.isPlatformContext
 
   // Root users search a bounded organization page instead of downloading the full catalog.
   const { data: clientsResponse } = useSWR<ClientsPageResponse>(
-    isOpen && isRoot ? clientsPagePath({ page: 1, page_size: 25, search: debouncedClientSearch }) : null,
+    isOpen && canChooseOrganization ? clientsPagePath({ page: 1, page_size: 25, search: debouncedClientSearch }) : null,
     fetcher,
     { shouldRetryOnError: false, keepPreviousData: true }
   )
@@ -246,11 +251,11 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
             />
           </Field>
 
-          {/* Cliente (visible para root o cuando no hay currentClient) */}
-          {(isRoot || !currentClient) && (
+          {/* Platform roots can target any organization; organization mode is locked. */}
+          {(canChooseOrganization || !currentClient) && (
             <Field>
               <Label>Organización</Label>
-              {isRoot ? (
+              {canChooseOrganization ? (
                 <Controller
                   control={control}
                   name="client_id"
