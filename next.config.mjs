@@ -62,6 +62,11 @@ const nextConfig = {
     // In production this is set to https://api.eventiapp.com.mx via Vercel env vars.
     const backendUrl = normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, 'http://localhost:8080')
     const astroUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_ASTRO_URL, 'https://www.eventiapp.com.mx')
+    const brandedApiSources = [
+      'https://api.eventiapp.com.mx',
+      'https://api.itbem.com.mx',
+      'https://api.cafettonhouse.com',
+    ].join(' ')
 
     // Cover all S3 URL patterns: single-level (s3.amazonaws.com), virtual-hosted
     // (bucket.s3.amazonaws.com), and regional (bucket.s3.us-east-1.amazonaws.com).
@@ -84,10 +89,10 @@ const nextConfig = {
       "default-src 'self'",
       scriptSources,
       "style-src 'self' 'unsafe-inline'",
-      `img-src 'self' data: blob: ${backendUrl} ${awsSources}`,
-      `media-src 'self' blob: ${backendUrl} ${awsSources}`,
+      `img-src 'self' data: blob: ${backendUrl} ${brandedApiSources} ${awsSources}`,
+      `media-src 'self' blob: ${backendUrl} ${brandedApiSources} ${awsSources}`,
       "font-src 'self'",
-      `connect-src 'self' ${backendUrl} ${awsSources}`,
+      `connect-src 'self' ${backendUrl} ${brandedApiSources} ${awsSources}`,
       `frame-src 'self' ${astroUrl}`,
       "frame-ancestors 'none'",
       "object-src 'none'",
