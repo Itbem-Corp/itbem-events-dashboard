@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 const capabilities = (overrides: Partial<EventCapabilities> = {}): EventCapabilities => ({
   'event:manage': false,
+  'event:delete': false,
   'guest:manage': false,
   'checkin:run': false,
   'analytics:view': false,

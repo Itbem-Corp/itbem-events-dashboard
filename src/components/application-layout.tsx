@@ -231,7 +231,9 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     () => applicationSession?.application.modules ?? tenant.modules,
     [applicationSession?.application.modules, tenant.modules]
   )
-  const hasEvents = applicationSession ? accessCan(accessProfile, 'events:view') : modules.includes('events')
+  const hasEvents = applicationSession
+    ? accessProfile.isOrganizationContext && accessCan(accessProfile, 'events:view')
+    : modules.includes('events')
   const canViewUsers = applicationSession
     ? accessProfile.isPlatformContext && accessCan(accessProfile, 'platform:users:view')
     : isRoot && modules.includes('users')

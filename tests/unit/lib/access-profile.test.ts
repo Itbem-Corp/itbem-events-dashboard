@@ -68,6 +68,8 @@ describe('access profile', () => {
 
     expect(profile.platformLevel).toBe('root_2')
     expect(accessCan(profile, 'metrics:view')).toBe(true)
+    expect(accessCan(profile, 'events:create')).toBe(false)
+    expect(accessCan(profile, 'events:delete')).toBe(false)
     expect(accessCan(profile, 'organizations:manage')).toBe(false)
   })
 

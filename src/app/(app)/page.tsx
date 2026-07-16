@@ -113,6 +113,74 @@ function DashboardSkeleton() {
   )
 }
 
+function organizationWorkspaceCopy(accessProfile: AccessProfile, organizationName?: string) {
+  const role = (accessProfile.organizationRole ?? '').replace('INHERITED_', '').toUpperCase()
+  if (accessProfile.platformLevel === 'root_1') {
+    return {
+      eyebrow: 'Supervisión de organización',
+      title: organizationName || 'Organización',
+      description: 'Gobierno, operación y resultados del espacio seleccionado.',
+    }
+  }
+  if (accessProfile.platformLevel === 'root_2') {
+    return {
+      eyebrow: 'Soporte operativo',
+      title: organizationName || 'Organización',
+      description: 'Asistencia a invitados, check-in y analítica sin cambios estructurales.',
+    }
+  }
+  switch (role) {
+    case 'OWNER':
+      return {
+        eyebrow: 'Dirección de organización',
+        title: organizationName || 'Tu organización',
+        description: 'Equipo, eventos y resultados bajo una sola operación.',
+      }
+    case 'ADMIN':
+      return {
+        eyebrow: 'Administración',
+        title: organizationName || 'Tu organización',
+        description: 'Coordina el equipo y mantiene la operación lista para crecer.',
+      }
+    case 'EVENT_MANAGER':
+      return {
+        eyebrow: 'Centro de eventos',
+        title: 'Operación y producción',
+        description: 'Planea eventos, coordina invitados y sigue cada resultado.',
+      }
+    case 'EDITOR':
+      return {
+        eyebrow: 'Contenido y experiencia',
+        title: 'Eventos listos para publicar',
+        description: 'Edita estructura, contenido e invitados sin acciones destructivas.',
+      }
+    case 'CHECKIN':
+      return {
+        eyebrow: 'Operación de acceso',
+        title: 'Check-in sin fricción',
+        description: 'Consulta próximos eventos y mantén ágil la llegada de invitados.',
+      }
+    case 'ANALYST':
+      return {
+        eyebrow: 'Resultados',
+        title: 'Lectura de operación',
+        description: 'Analiza actividad, capacidad y desempeño sin modificar la experiencia.',
+      }
+    case 'MEMBER':
+      return {
+        eyebrow: 'Colaboración',
+        title: 'Tus eventos asignados',
+        description: 'Apoya la gestión de invitados dentro de un espacio controlado.',
+      }
+    default:
+      return {
+        eyebrow: 'Vista de consulta',
+        title: organizationName || 'Eventos',
+        description: 'Consulta agenda y estado sin permisos de modificación.',
+      }
+  }
+}
+
 function ControlPlaneHome({
   accessProfile,
   organizationName,
@@ -130,14 +198,16 @@ function ControlPlaneHome({
   const peopleDescription = canViewPlatformUsers
     ? 'Usuarios, roles y acceso por aplicación.'
     : 'Miembros, roles y acceso por producto.'
+  const isOperationalRoot = accessProfile.platformLevel === 'root_2'
+  const organizationCopy = organizationWorkspaceCopy(accessProfile, organizationName)
 
   if (accessProfile.isOrganizationContext) {
     return (
       <PageTransition>
         <PageHeader
-          eyebrow="Espacio de organización"
-          title={organizationName || 'Organización'}
-          description="Operación, equipo y métricas dentro de un contexto aislado."
+          eyebrow={organizationCopy.eyebrow}
+          title={organizationCopy.title}
+          description={organizationCopy.description}
           icon={BuildingOfficeIcon}
         />
 
@@ -171,6 +241,20 @@ function ControlPlaneHome({
               </div>
             </Link>
           )}
+
+          {!canViewMetrics && !canManageTeam && (
+            <div className="premium-surface rounded-3xl p-6">
+              <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-zinc-400">
+                <ShieldCheckIcon className="size-5" />
+              </span>
+              <div className="mt-8">
+                <p className="text-lg font-semibold text-white">Espacio de colaboración</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-500">
+                  Tu acceso está limitado a las herramientas que te asignó el propietario de la organización.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </PageTransition>
     )
@@ -179,13 +263,17 @@ function ControlPlaneHome({
   return (
     <PageTransition>
       <PageHeader
-        eyebrow="Control plane"
-        title="Operación de plataforma"
-        description="Administra organizaciones, accesos y usuarios desde un espacio separado de la operación de eventos."
+        eyebrow={isOperationalRoot ? 'Administración operativa' : 'Control plane'}
+        title={isOperationalRoot ? 'Centro de soporte' : 'Operación de plataforma'}
+        description={
+          isOperationalRoot
+            ? 'Resuelve accesos, acompaña organizaciones y revisa señales operativas sin alterar gobierno ni estructura crítica.'
+            : 'Administra organizaciones, accesos y usuarios desde un espacio separado de la operación de eventos.'
+        }
         icon={ShieldCheckIcon}
       />
 
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
+      <div className="mt-8 grid gap-4 lg:grid-cols-3">
         <Link
           href="/clients"
           className="premium-surface premium-surface-interactive group relative overflow-hidden rounded-3xl p-6"
@@ -198,7 +286,9 @@ function ControlPlaneHome({
             <div>
               <p className="text-3xl font-semibold text-white tabular-nums">{organizationCount}</p>
               <p className="mt-1 text-sm font-medium text-zinc-300">Organizaciones con acceso directo</p>
-              <p className="mt-1 text-xs text-zinc-600">Gestiona estructura, clientes y configuración.</p>
+              <p className="mt-1 text-xs text-zinc-600">
+                {isOperationalRoot ? 'Abre un contexto para brindar soporte.' : 'Gestiona estructura, clientes y configuración.'}
+              </p>
             </div>
             <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-(--tenant-accent)" />
           </div>
@@ -218,7 +308,35 @@ function ControlPlaneHome({
             </div>
           </Link>
         )}
+
+        {canViewMetrics && (
+          <Link href="/metrics" className="premium-surface premium-surface-interactive group rounded-3xl p-6">
+            <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-emerald-300">
+              <BoltIcon className="size-5" />
+            </span>
+            <div className="mt-8 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-lg font-semibold text-white">Señales operativas</p>
+                <p className="mt-1 text-sm text-zinc-500">Actividad y salud del producto por organización.</p>
+              </div>
+              <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-emerald-300" />
+            </div>
+          </Link>
+        )}
       </div>
+
+      {isOperationalRoot && (
+        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-400/12 bg-amber-400/[0.035] p-4">
+          <ShieldCheckIcon className="mt-0.5 size-5 shrink-0 text-amber-300" />
+          <div>
+            <p className="text-sm font-medium text-zinc-200">Límite de soporte activo</p>
+            <p className="mt-1 text-xs leading-5 text-zinc-500">
+              Este nivel puede asistir usuarios, invitados y check-in. La creación o eliminación de eventos, los usuarios
+              root y la configuración estructural permanecen reservados a Root 1.
+            </p>
+          </div>
+        </div>
+      )}
     </PageTransition>
   )
 }
@@ -236,7 +354,11 @@ export default function Home() {
     [applicationSession, currentClient?.id, workspaceMode]
   )
   const hasEvents = applicationSession ? accessCan(accessProfile, 'events:view') : true
-  const eventsKey = hasEvents ? scopedEventsDashboardPath(currentClient?.id, isRoot) : null
+  const canCreateEvents = accessCan(accessProfile, 'events:create')
+  const canEditEvents = accessCan(accessProfile, 'events:manage')
+  const workspaceCopy = organizationWorkspaceCopy(accessProfile, currentClient?.name)
+  const eventsKey =
+    hasEvents && !accessProfile.isPlatformContext ? scopedEventsDashboardPath(currentClient?.id, isRoot) : null
   const {
     data: rawEvents,
     isLoading: eventsLoading,
@@ -277,28 +399,30 @@ export default function Home() {
     void import('@/components/events/forms/event-form-modal').catch(() => undefined)
   }, [router])
 
-  if (applicationSession && !hasEvents) {
+  if (applicationSession && (accessProfile.isPlatformContext || !hasEvents)) {
     return <ControlPlaneHome accessProfile={accessProfile} organizationName={currentClient?.name} />
   }
 
   return (
     <PageTransition>
       <PageHeader
-        eyebrow="Centro de operaciones"
-        title="Dashboard"
-        description="Lo importante de tus eventos, priorizado para que sepas qué sigue."
+        eyebrow={workspaceCopy.eyebrow}
+        title={workspaceCopy.title}
+        description={workspaceCopy.description}
         icon={SparklesIcon}
         actions={
-          <Button
-            href="/events?create=1"
-            color="indigo"
-            onFocus={preloadEventCreation}
-            onPointerDown={preloadEventCreation}
-            onPointerEnter={preloadEventCreation}
-          >
-            <PlusIcon />
-            Crear evento
-          </Button>
+          canCreateEvents ? (
+            <Button
+              href="/events?create=1"
+              color="indigo"
+              onFocus={preloadEventCreation}
+              onPointerDown={preloadEventCreation}
+              onPointerEnter={preloadEventCreation}
+            >
+              <PlusIcon />
+              Crear evento
+            </Button>
+          ) : undefined
         }
       />
 
@@ -380,16 +504,18 @@ export default function Home() {
                       </>
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        href={`/events/${nextEvent.id}/studio`}
-                        outline
-                        onFocus={() => preloadEventStudio(nextEvent.id)}
-                        onPointerDown={() => preloadEventStudio(nextEvent.id)}
-                        onPointerEnter={() => preloadEventStudio(nextEvent.id)}
-                      >
-                        <PaintBrushIcon />
-                        Studio
-                      </Button>
+                      {canEditEvents && (
+                        <Button
+                          href={`/events/${nextEvent.id}/studio`}
+                          outline
+                          onFocus={() => preloadEventStudio(nextEvent.id)}
+                          onPointerDown={() => preloadEventStudio(nextEvent.id)}
+                          onPointerEnter={() => preloadEventStudio(nextEvent.id)}
+                        >
+                          <PaintBrushIcon />
+                          Studio
+                        </Button>
+                      )}
                       <Button
                         href={`/events/${nextEvent.id}`}
                         color="indigo"
@@ -416,12 +542,14 @@ export default function Home() {
                       Tu próximo gran evento empieza aquí.
                     </h2>
                     <p className="mt-3 max-w-md text-sm leading-6 text-zinc-500">
-                      No hay eventos próximos. Crea uno nuevo o revisa los eventos que ya concluyeron.
+                      {canCreateEvents
+                        ? 'No hay eventos próximos. Crea uno nuevo o revisa los eventos que ya concluyeron.'
+                        : 'No hay eventos próximos. Puedes consultar el portafolio y los eventos que ya concluyeron.'}
                     </p>
                   </div>
                   <div>
-                    <Button href="/events" color="indigo">
-                      Planear nuevo evento
+                    <Button href={canCreateEvents ? '/events?create=1' : '/events'} color="indigo">
+                      {canCreateEvents ? 'Planear nuevo evento' : 'Consultar eventos'}
                       <ArrowRightIcon />
                     </Button>
                   </div>

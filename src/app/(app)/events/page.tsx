@@ -14,6 +14,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useListViewState } from '@/hooks/useListViewState'
+import { accessCan, createAccessProfile } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { scopedEventsPagePath } from '@/lib/api-paths'
 import { getCalendarDaysUntil } from '@/lib/date-time'
@@ -120,11 +121,17 @@ export default function EventsPage() {
   const router = useRouter()
   const currentClient = useStore((s) => s.currentClient)
   const user = useStore((s) => s.user)
+  const applicationSession = useStore((s) => s.applicationSession)
+  const workspaceMode = useStore((s) => s.workspaceMode)
   const isRoot = Boolean(user?.is_root)
-  const isOperationalRoot = user?.root_level === 2
-  const organizationRole = (currentClient?.access_role ?? '').replace('INHERITED_', '').toUpperCase()
-  const organizationCanManageEvents = ['OWNER', 'ADMIN', 'EVENT_MANAGER', 'EDITOR', 'MEMBER'].includes(organizationRole)
-  const canManageEventPortfolio = !isOperationalRoot && (isRoot || organizationCanManageEvents)
+  const accessProfile = useMemo(
+    () => createAccessProfile(applicationSession, workspaceMode, currentClient?.id),
+    [applicationSession, currentClient?.id, workspaceMode]
+  )
+  const canCreateEvents = accessCan(accessProfile, 'events:create')
+  const canEditEvents = accessCan(accessProfile, 'events:manage')
+  const canDeleteEvents = accessCan(accessProfile, 'events:delete')
+  const hasEventActions = canEditEvents || canCreateEvents || canDeleteEvents
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
@@ -169,7 +176,7 @@ export default function EventsPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('create') !== '1' || !canManageEventPortfolio) return
+    if (params.get('create') !== '1' || !canCreateEvents) return
 
     preloadEventForm()
     setSelectedEvent(null)
@@ -177,7 +184,7 @@ export default function EventsPage() {
     params.delete('create')
     const query = params.toString()
     window.history.replaceState(window.history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}`)
-  }, [canManageEventPortfolio])
+  }, [canCreateEvents])
 
   const openEditEventModal = useCallback((event: Event) => {
     setSelectedEvent(event)
@@ -323,13 +330,13 @@ export default function EventsPage() {
         eyebrow="Portafolio de eventos"
         title="Eventos"
         description={
-          isOperationalRoot
+          accessProfile.platformLevel === 'root_2'
             ? 'Vista operativa: consulta y opera asistentes, check-in y analítica sin cambiar la estructura del evento.'
             : 'Planea, publica y opera cada experiencia desde un solo lugar.'
         }
         icon={Square2StackIcon}
         actions={
-          canManageEventPortfolio ? (
+          canCreateEvents ? (
             <Button
               color="indigo"
               onClick={openNewEventModal}
@@ -438,12 +445,12 @@ export default function EventsPage() {
               icon={Square2StackIcon}
               title="Sin eventos"
               description={
-                isOperationalRoot
+                accessProfile.platformLevel === 'root_2'
                   ? 'No hay eventos para operar en este alcance.'
                   : 'Esta organización aún no tiene eventos registrados.'
               }
               action={
-                canManageEventPortfolio ? { label: 'Crear primer evento', onClick: openNewEventModal } : undefined
+                canCreateEvents ? { label: 'Crear primer evento', onClick: openNewEventModal } : undefined
               }
             />
           )}
@@ -558,7 +565,7 @@ export default function EventsPage() {
                       <ArrowRightIcon className="size-4" />
                     </span>
 
-                    {canManageEventPortfolio && (
+                    {hasEventActions && (
                       <details
                         name="event-actions"
                         className="group/actions relative"
@@ -579,6 +586,9 @@ export default function EventsPage() {
                         {openActionEventId === event.id && (
                           <EventListActionsMenu
                             event={event}
+                            canEdit={canEditEvents}
+                            canDuplicate={canCreateEvents && canEditEvents}
+                            canDelete={canDeleteEvents}
                             onEdit={openEditEventModal}
                             onEditIntent={preloadEventForm}
                             onDuplicateIntent={preloadEventDuplicate}

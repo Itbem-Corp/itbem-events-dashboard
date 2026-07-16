@@ -5,6 +5,7 @@ import { getApiErrorMessage } from '@/lib/api-error'
 import { fetcher } from '@/lib/fetcher'
 import type { Event } from '@/models/Event'
 import type { EventConfig } from '@/models/EventConfig'
+import type { EventCapabilities } from '@/models/EventMember'
 import type { EventSection } from '@/models/EventSection'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
@@ -18,6 +19,7 @@ import {
   ChevronLeftIcon,
   EyeIcon,
   GlobeAltIcon,
+  LockClosedIcon,
   PaintBrushIcon,
 } from '@heroicons/react/20/solid'
 
@@ -30,7 +32,7 @@ import { useStudioSections } from '@/components/studio/use-studio-sections'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { usePreviewToken } from '@/hooks/usePreviewToken'
 import { readApiData } from '@/lib/api-envelope'
-import { eventConfigPath, studioWorkspacePath } from '@/lib/api-paths'
+import { eventCapabilitiesPath, eventConfigPath, studioWorkspacePath } from '@/lib/api-paths'
 import {
   hasEventConfigCacheIdentity,
   isEventConfigBackedEventCacheKey,
@@ -112,6 +114,12 @@ export default function StudioPage() {
   const [showPreview, setShowPreview] = useState(false)
   const desktopPreviewVisible = useMediaQuery('(min-width: 1024px)')
   const previewVisible = desktopPreviewVisible || showPreview
+  const {
+    data: capabilities,
+    error: capabilitiesError,
+    isLoading: capabilitiesLoading,
+  } = useSWR<EventCapabilities>(id ? eventCapabilitiesPath(id) : null, fetcher, responsiveListSwrOptions)
+  const canManageEvent = capabilities?.['event:manage'] === true
 
   const {
     data: workspace,
@@ -119,7 +127,7 @@ export default function StudioPage() {
     isLoading: workspaceBootstrapLoading,
     isValidating: workspaceBootstrapValidating,
     mutate: mutateWorkspace,
-  } = useSWR<StudioWorkspace>(id ? studioWorkspacePath(id) : null, fetcher, responsiveListSwrOptions)
+  } = useSWR<StudioWorkspace>(id && canManageEvent ? studioWorkspacePath(id) : null, fetcher, responsiveListSwrOptions)
 
   const handlePanelIntent = useCallback((panel: PanelId) => {
     void preloadStudioPanel(panel).catch(() => undefined)
@@ -264,6 +272,39 @@ export default function StudioPage() {
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  if (capabilitiesLoading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950">
+        <div className="text-center">
+          <div className="mx-auto size-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent motion-reduce:animate-none" />
+          <p className="mt-4 text-sm text-zinc-500">Validando acceso a Studio…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (capabilitiesError || !canManageEvent) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950 px-6">
+        <div className="premium-surface max-w-md rounded-3xl p-8 text-center">
+          <span className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-amber-400/15 bg-amber-400/[0.06] text-amber-300">
+            <LockClosedIcon className="size-5" />
+          </span>
+          <h1 className="mt-6 text-xl font-semibold tracking-tight text-white">Studio no disponible</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-500">
+            Tu rol puede consultar este evento, pero no modificar su contenido, diseño o publicación.
+          </p>
+          <Link
+            href={`/events/${id}`}
+            className="mt-6 inline-flex min-h-10 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-indigo-500"
+          >
+            Volver al evento
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-zinc-950 lg:flex-row">

@@ -6,9 +6,10 @@ const page = readFileSync(resolve(process.cwd(), 'src/app/(app)/events/[id]/stud
 const sectionsHook = readFileSync(resolve(process.cwd(), 'src/components/studio/use-studio-sections.ts'), 'utf8')
 
 describe('Studio stale-data policy', () => {
-  it('reuses all workspace data warmed by navigation intent', () => {
-    expect(page.match(/responsiveListSwrOptions/g)).toHaveLength(2)
-    expect(page).toContain('studioWorkspacePath(id)')
+  it('validates access before reusing all workspace data warmed by navigation intent', () => {
+    expect(page.match(/responsiveListSwrOptions/g)).toHaveLength(3)
+    expect(page).toContain('eventCapabilitiesPath(id)')
+    expect(page).toContain('id && canManageEvent ? studioWorkspacePath(id) : null')
     expect(page).toContain('const event = workspace?.event')
     expect(page).toContain('const config = workspace?.config')
     expect(page).toContain('initialConfig={config}')
