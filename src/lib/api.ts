@@ -3,12 +3,16 @@ import { useStore } from "@/store/useStore";
 import { readApiData } from "@/lib/api-envelope";
 import { normalizeBackendBaseUrl } from "@/lib/base-url";
 import { getApiErrorMessage } from "@/lib/api-error";
+import { backendBaseUrlForHostname } from "@/lib/tenant-config";
 import { normalizeKeys } from "@/lib/normalizer";
 import { toast } from "sonner";
 
 // 1. Leemos la URL base pública y le pegamos "/api" al final.
 // Si no existe la variable, usamos localhost como fallback.
-const BASE_URL = normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, "http://localhost:8080");
+const configuredBaseUrl = normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, "http://localhost:8080");
+const BASE_URL = typeof window === "undefined"
+    ? configuredBaseUrl
+    : backendBaseUrlForHostname(window.location.hostname, configuredBaseUrl);
 const API_URL = `${BASE_URL}/api`;
 
 export const api = axios.create({
