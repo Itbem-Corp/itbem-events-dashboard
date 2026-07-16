@@ -2,6 +2,7 @@ import { pathToFileURL } from 'node:url'
 
 const DEFAULT_TENANTS = [
   { hostname: 'dashboard.eventiapp.com.mx', brand: 'EventiApp' },
+  { hostname: 'dashboard.itbem.com', brand: 'ITBEM' },
   { hostname: 'dashboard.itbem.com.mx', brand: 'ITBEM' },
   { hostname: 'dashboard.cafettonhouse.com', brand: 'Cafetton House' },
 ]
