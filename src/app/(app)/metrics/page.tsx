@@ -5,11 +5,11 @@ import { Button } from '@/components/button'
 import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
+import { accessCan, createAccessProfile } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { metricsPortfolioPath } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
-import { sessionCan } from '@/lib/session-capabilities'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import type { ProductMetricSummary, ProductMetricsPortfolio } from '@/models/ProductMetrics'
 import { useStore } from '@/store/useStore'
@@ -130,16 +130,22 @@ export default function MetricsPage() {
   const session = useStore((state) => state.applicationSession)
   const user = useStore((state) => state.user)
   const currentClient = useStore((state) => state.currentClient)
-  const canView = sessionCan(session, 'metrics:view')
-  const isRoot = Boolean(user?.is_root)
-  const isPrimaryRoot = isRoot && (user?.root_level === 1 || !user?.root_level)
-  const clientId = isPrimaryRoot || (isRoot && !currentClient) ? undefined : currentClient?.id
-  const key = canView && (isRoot || clientId) ? metricsPortfolioPath(clientId, days) : null
-  const { data: raw, error, isLoading, isValidating, mutate } = useSWR<ProductMetricsPortfolio>(
-    key,
-    fetcher,
-    responsiveListSwrOptions
+  const workspaceMode = useStore((state) => state.workspaceMode)
+  const accessProfile = useMemo(
+    () => createAccessProfile(session, workspaceMode, currentClient?.id),
+    [currentClient?.id, session, workspaceMode]
   )
+  const canView = accessCan(accessProfile, 'metrics:view')
+  const isRoot = Boolean(user?.is_root)
+  const clientId = accessProfile.isOrganizationContext ? currentClient?.id : undefined
+  const key = canView && (isRoot || clientId) ? metricsPortfolioPath(clientId, days) : null
+  const {
+    data: raw,
+    error,
+    isLoading,
+    isValidating,
+    mutate,
+  } = useSWR<ProductMetricsPortfolio>(key, fetcher, responsiveListSwrOptions)
   const portfolio = useMemo(() => readApiData<ProductMetricsPortfolio | undefined>(raw), [raw])
   const errorState = getDataErrorState(error, raw)
   const totals = useMemo(() => aggregate(portfolio?.summaries ?? []), [portfolio?.summaries])
@@ -176,7 +182,7 @@ export default function MetricsPage() {
         icon={ChartBarSquareIcon}
         actions={
           <div className="flex items-center gap-2">
-            {[7, 30, 90].map((value) => (
+            {[7, 30, 90].map((value) =>
               days === value ? (
                 <Button key={value} color="indigo" onClick={() => setDays(value)}>
                   {value}d
@@ -186,7 +192,7 @@ export default function MetricsPage() {
                   {value}d
                 </Button>
               )
-            ))}
+            )}
           </div>
         }
       />
@@ -217,10 +223,30 @@ export default function MetricsPage() {
         <>
           <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: 'Solicitudes', value: compact(totals.requests), detail: `${days} días`, icon: CursorArrowRaysIcon },
-              { label: 'Acciones de valor', value: compact(totals.mutations), detail: 'cambios completados', icon: BoltIcon },
-              { label: 'Disponibilidad lógica', value: `${successRate.toFixed(2)}%`, detail: `${totals.errors} errores`, icon: CheckCircleIcon },
-              { label: 'Latencia media', value: `${averageLatency} ms`, detail: formatBytes(totals.request_bytes), icon: CircleStackIcon },
+              {
+                label: 'Solicitudes',
+                value: compact(totals.requests),
+                detail: `${days} días`,
+                icon: CursorArrowRaysIcon,
+              },
+              {
+                label: 'Acciones de valor',
+                value: compact(totals.mutations),
+                detail: 'cambios completados',
+                icon: BoltIcon,
+              },
+              {
+                label: 'Disponibilidad lógica',
+                value: `${successRate.toFixed(2)}%`,
+                detail: `${totals.errors} errores`,
+                icon: CheckCircleIcon,
+              },
+              {
+                label: 'Latencia media',
+                value: `${averageLatency} ms`,
+                detail: formatBytes(totals.request_bytes),
+                icon: CircleStackIcon,
+              },
             ].map(({ label, value, detail, icon: Icon }) => (
               <article key={label} className="rounded-3xl border border-white/[0.07] bg-white/[0.025] p-5">
                 <div className="flex items-center justify-between">
@@ -242,7 +268,9 @@ export default function MetricsPage() {
               <div className="premium-surface col-span-full rounded-3xl px-6 py-14 text-center">
                 <ChartBarSquareIcon className="mx-auto size-8 text-zinc-700" />
                 <p className="mt-4 text-sm font-medium text-zinc-300">La medición está activa</p>
-                <p className="mt-1 text-sm text-zinc-600">Los primeros datos aparecerán conforme se use cada producto.</p>
+                <p className="mt-1 text-sm text-zinc-600">
+                  Los primeros datos aparecerán conforme se use cada producto.
+                </p>
               </div>
             )}
           </section>
@@ -272,7 +300,9 @@ export default function MetricsPage() {
               </div>
               <div className="mt-2 flex justify-between text-[10px] text-zinc-700">
                 <span>{new Date(activity[0][0]).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>
-                <span>{new Date(activity.at(-1)![0]).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>
+                <span>
+                  {new Date(activity.at(-1)![0]).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                </span>
               </div>
             </section>
           )}
@@ -288,10 +318,15 @@ export default function MetricsPage() {
                   .filter((row) => row.client_name)
                   .slice(0, 8)
                   .map((row) => (
-                    <div key={`${row.tenant_code}:${row.client_id}`} className="grid grid-cols-[1fr_auto_auto] items-center gap-5 px-5 py-4">
+                    <div
+                      key={`${row.tenant_code}:${row.client_id}`}
+                      className="grid grid-cols-[1fr_auto_auto] items-center gap-5 px-5 py-4"
+                    >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-zinc-200">{row.client_name}</p>
-                        <p className="mt-0.5 text-xs text-zinc-600">{PRODUCT_NAMES[row.tenant_code] ?? row.tenant_code}</p>
+                        <p className="mt-0.5 text-xs text-zinc-600">
+                          {PRODUCT_NAMES[row.tenant_code] ?? row.tenant_code}
+                        </p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-white tabular-nums">{compact(row.mutations)}</p>

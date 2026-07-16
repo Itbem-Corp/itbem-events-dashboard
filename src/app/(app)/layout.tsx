@@ -5,8 +5,8 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import SessionBootstrap from '@/components/session/SessionBootstrap'
 import { StoreHydrationBoundary } from '@/components/session/StoreHydrationBoundary'
 import { NavigationProgress } from '@/components/ui/navigation-progress'
+import { accessCan, createAccessProfile } from '@/lib/access-profile'
 import { useStore } from '@/store/useStore'
-import { sessionCan } from '@/lib/session-capabilities'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { SWRConfig } from 'swr'
@@ -17,14 +17,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const currentClient = useStore((s) => s.currentClient)
   const profileLoaded = useStore((s) => s.profileLoaded)
-  const user = useStore((s) => s.user)
   const applicationSession = useStore((s) => s.applicationSession)
+  const workspaceMode = useStore((s) => s.workspaceMode)
 
-  const isRoot = Boolean(user?.is_root)
-  const canViewEvents = sessionCan(applicationSession, 'events:view')
-  const canViewUsers = sessionCan(applicationSession, 'platform:users:view')
-  const canViewOrganizations = sessionCan(applicationSession, 'organizations:view')
-  const canManageMembers = sessionCan(applicationSession, 'members:manage')
+  const accessProfile = createAccessProfile(applicationSession, workspaceMode, currentClient?.id)
+  const canViewEvents = accessCan(accessProfile, 'events:view')
+  const canViewUsers = accessProfile.isPlatformContext && accessCan(accessProfile, 'platform:users:view')
+  const canViewOrganizations = accessProfile.isPlatformContext && accessCan(accessProfile, 'organizations:view')
+  const canManageMembers = accessProfile.isOrganizationContext && accessCan(accessProfile, 'members:manage')
+  const canViewMetrics = accessCan(accessProfile, 'metrics:view')
 
   useEffect(() => {
     // ⛔ NO VALIDAR NADA hasta que el perfil esté listo
@@ -46,6 +47,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       return
     }
 
+    if (pathname.startsWith('/metrics') && !canViewMetrics) {
+      router.replace('/')
+      return
+    }
+
     // 🔒 RUTAS SOLO CLIENT
     if (pathname.startsWith('/team') && !canManageMembers) {
       router.replace('/')
@@ -62,8 +68,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     canViewOrganizations,
     canViewUsers,
     canManageMembers,
+    canViewMetrics,
     currentClient,
-    isRoot,
     pathname,
     profileLoaded,
     router,

@@ -8,13 +8,13 @@ import { Link } from '@/components/link'
 import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
+import { accessCan, createAccessProfile, type AccessProfile } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { scopedEventsDashboardPath } from '@/lib/api-paths'
 import { getCalendarDaysUntil } from '@/lib/date-time'
 import { eventTypeLabel } from '@/lib/event-type-label'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
-import { sessionCan } from '@/lib/session-capabilities'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import type { Event, EventDashboardOverview } from '@/models/Event'
 import { useStore } from '@/store/useStore'
@@ -113,16 +113,68 @@ function DashboardSkeleton() {
   )
 }
 
-function ControlPlaneHome() {
+function ControlPlaneHome({
+  accessProfile,
+  organizationName,
+}: {
+  accessProfile: AccessProfile
+  organizationName?: string
+}) {
   const session = useStore((state) => state.applicationSession)
   const organizationCount = session?.organizations.length ?? 0
-  const canViewPlatformUsers = sessionCan(session, 'platform:users:view')
-  const canManageTeam = sessionCan(session, 'members:manage')
+  const canViewPlatformUsers = accessProfile.isPlatformContext && accessCan(accessProfile, 'platform:users:view')
+  const canManageTeam = accessCan(accessProfile, 'members:manage')
+  const canViewMetrics = accessCan(accessProfile, 'metrics:view')
   const peopleHref = canViewPlatformUsers ? '/users' : '/team'
   const peopleTitle = canViewPlatformUsers ? 'Identidad y permisos' : 'Equipo y accesos'
   const peopleDescription = canViewPlatformUsers
     ? 'Usuarios, roles y acceso por aplicación.'
     : 'Miembros, roles y acceso por producto.'
+
+  if (accessProfile.isOrganizationContext) {
+    return (
+      <PageTransition>
+        <PageHeader
+          eyebrow="Espacio de organización"
+          title={organizationName || 'Organización'}
+          description="Operación, equipo y métricas dentro de un contexto aislado."
+          icon={BuildingOfficeIcon}
+        />
+
+        <div className="mt-8 grid gap-4 lg:grid-cols-2">
+          {canViewMetrics && (
+            <Link href="/metrics" className="premium-surface premium-surface-interactive group rounded-3xl p-6">
+              <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-(--tenant-accent)">
+                <BoltIcon className="size-5" />
+              </span>
+              <div className="mt-8 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-lg font-semibold text-white">Actividad y métricas</p>
+                  <p className="mt-1 text-sm text-zinc-500">Uso, personas activas y salud de esta organización.</p>
+                </div>
+                <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-(--tenant-accent)" />
+              </div>
+            </Link>
+          )}
+
+          {canManageTeam && (
+            <Link href="/team" className="premium-surface premium-surface-interactive group rounded-3xl p-6">
+              <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-zinc-300">
+                <UsersIcon className="size-5" />
+              </span>
+              <div className="mt-8 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-lg font-semibold text-white">Equipo y accesos</p>
+                  <p className="mt-1 text-sm text-zinc-500">Miembros y roles limitados a este espacio.</p>
+                </div>
+                <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-white" />
+              </div>
+            </Link>
+          )}
+        </div>
+      </PageTransition>
+    )
+  }
 
   return (
     <PageTransition>
@@ -177,8 +229,13 @@ export default function Home() {
   const currentClient = useStore((state) => state.currentClient)
   const user = useStore((state) => state.user)
   const applicationSession = useStore((state) => state.applicationSession)
+  const workspaceMode = useStore((state) => state.workspaceMode)
   const isRoot = Boolean(user?.is_root)
-  const hasEvents = applicationSession ? sessionCan(applicationSession, 'events:view') : true
+  const accessProfile = useMemo(
+    () => createAccessProfile(applicationSession, workspaceMode, currentClient?.id),
+    [applicationSession, currentClient?.id, workspaceMode]
+  )
+  const hasEvents = applicationSession ? accessCan(accessProfile, 'events:view') : true
   const eventsKey = hasEvents ? scopedEventsDashboardPath(currentClient?.id, isRoot) : null
   const {
     data: rawEvents,
@@ -220,7 +277,9 @@ export default function Home() {
     void import('@/components/events/forms/event-form-modal').catch(() => undefined)
   }, [router])
 
-  if (applicationSession && !hasEvents) return <ControlPlaneHome />
+  if (applicationSession && !hasEvents) {
+    return <ControlPlaneHome accessProfile={accessProfile} organizationName={currentClient?.name} />
+  }
 
   return (
     <PageTransition>

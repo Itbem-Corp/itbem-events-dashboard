@@ -33,12 +33,19 @@ import {
   UserCircleIcon,
   UsersIcon,
 } from '@heroicons/react/16/solid'
-import { BellIcon, ChartBarSquareIcon, HomeIcon, MagnifyingGlassIcon, Square2StackIcon } from '@heroicons/react/20/solid'
+import {
+  BellIcon,
+  ChartBarSquareIcon,
+  HomeIcon,
+  MagnifyingGlassIcon,
+  Square2StackIcon,
+} from '@heroicons/react/20/solid'
 
 import { Avatar } from '@/components/avatar'
 import { Link } from '@/components/link'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useStoreHydration } from '@/hooks/useStoreHydration'
+import { accessCan, createAccessProfile } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import {
   clientMembersPagePath,
@@ -51,7 +58,6 @@ import {
 } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
-import { sessionCan } from '@/lib/session-capabilities'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import { tenantPresentationForHostname } from '@/lib/tenant-config'
 import type { ClientsPageResponse } from '@/models/Client'
@@ -208,30 +214,33 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   }, [])
 
   const currentClient = useStore((s) => s.currentClient)
-  const setCurrentClient = useStore((s) => s.setCurrentClient)
+  const workspaceMode = useStore((s) => s.workspaceMode)
+  const activateTenantWorkspace = useStore((s) => s.activateTenantWorkspace)
+  const selectPlatformWorkspace = useStore((s) => s.selectPlatformWorkspace)
+  const selectOrganizationWorkspace = useStore((s) => s.selectOrganizationWorkspace)
   const clearSession = useStore((s) => s.clearSession)
   const user = useStore((s) => s.user)
   const applicationSession = useStore((s) => s.applicationSession)
 
   const isRoot = Boolean(user?.is_root)
+  const accessProfile = useMemo(
+    () => createAccessProfile(applicationSession, workspaceMode, currentClient?.id),
+    [applicationSession, currentClient?.id, workspaceMode]
+  )
   const modules = useMemo(
     () => applicationSession?.application.modules ?? tenant.modules,
     [applicationSession?.application.modules, tenant.modules]
   )
-  const hasEvents = applicationSession ? sessionCan(applicationSession, 'events:view') : modules.includes('events')
+  const hasEvents = applicationSession ? accessCan(accessProfile, 'events:view') : modules.includes('events')
   const canViewUsers = applicationSession
-    ? sessionCan(applicationSession, 'platform:users:view')
+    ? accessProfile.isPlatformContext && accessCan(accessProfile, 'platform:users:view')
     : isRoot && modules.includes('users')
   const canViewOrganizations = applicationSession
-    ? sessionCan(applicationSession, 'organizations:view')
+    ? accessProfile.isPlatformContext && accessCan(accessProfile, 'organizations:view')
     : isRoot && modules.includes('organizations')
-  const canManageMembers = sessionCan(applicationSession, 'members:manage')
-  const canViewMetrics = applicationSession
-    ? sessionCan(applicationSession, 'metrics:view')
-    : modules.includes('metrics')
-  const canSwitchOrganizations = applicationSession
-    ? canViewOrganizations || sessionCan(applicationSession, 'events:manage')
-    : isRoot
+  const canManageMembers = accessProfile.isOrganizationContext && accessCan(accessProfile, 'members:manage')
+  const canViewMetrics = applicationSession ? accessCan(accessProfile, 'metrics:view') : modules.includes('metrics')
+  const canSwitchOrganizations = applicationSession ? accessProfile.canSwitchOrganizations : isRoot
   const preloadCommandPaletteIntent = () => {
     if (hasEvents) preloadCommandPaletteResources(currentClient?.id, isRoot)
   }
@@ -240,6 +249,11 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   // does not need to wait until the profile reveals whether the user is root.
   const shouldBootstrapClient = storeHydrated && !currentClient
   const shouldLoadClients = clientsRequested || shouldBootstrapClient
+
+  useEffect(() => {
+    if (!storeHydrated || !applicationSession) return
+    activateTenantWorkspace(tenant.code, accessProfile.canUsePlatformMode)
+  }, [accessProfile.canUsePlatformMode, activateTenantWorkspace, applicationSession, storeHydrated, tenant.code])
 
   const preloadDataIfMissing = useCallback(
     (path: string) => {
@@ -264,11 +278,11 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
               ? usersAllPath({ page: 1, page_size: 10 })
               : href === '/metrics'
                 ? null
-              : href === '/team'
-                ? currentClient?.id
-                  ? clientMembersPagePath(currentClient.id, 1, 20)
-                  : null
-                : clientsPagePath({ page: 1, page_size: 12 })
+                : href === '/team'
+                  ? currentClient?.id
+                    ? clientMembersPagePath(currentClient.id, 1, 20)
+                    : null
+                  : clientsPagePath({ page: 1, page_size: 12 })
 
       if (dataPath) preloadDataIfMissing(dataPath)
     },
@@ -336,12 +350,14 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     // Organization-scoped apps cannot retain a workspace selected on another
     // branded origin. EventiApp and ITBEM keep their portfolio switcher.
     if (!canSwitchOrganizations && preferred && currentClient?.id !== preferred.id) {
-      setCurrentClient(normalizeClient(preferred))
+      selectOrganizationWorkspace(tenant.code, normalizeClient(preferred))
       return
     }
 
+    if (accessProfile.isPlatformContext) return
+
     if (list.length > 0 && !currentIsAllowed) {
-      setCurrentClient(normalizeClient(preferred ?? list[0]))
+      selectOrganizationWorkspace(tenant.code, normalizeClient(preferred ?? list[0]))
       return
     }
 
@@ -351,7 +367,18 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     }
 
     // ✅ ROOT con 0 clientes → NO REDIRECT
-  }, [canSwitchOrganizations, clients, currentClient, isRoot, rawClients, router, setCurrentClient, tenant, user])
+  }, [
+    accessProfile.isPlatformContext,
+    canSwitchOrganizations,
+    clients,
+    currentClient,
+    isRoot,
+    rawClients,
+    router,
+    selectOrganizationWorkspace,
+    tenant,
+    user,
+  ])
 
   return (
     <div
@@ -470,13 +497,38 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                       className="bg-(--tenant-accent) text-white"
                     />
                     <SidebarLabel className="font-semibold">
-                      {currentClient?.name || (isRoot ? 'Todas las organizaciones' : 'Seleccionar organización')}
+                      {accessProfile.isPlatformContext
+                        ? accessProfile.platformLevel === 'root_2'
+                          ? 'Centro de soporte'
+                          : 'Vista de plataforma'
+                        : currentClient?.name || 'Seleccionar organización'}
                     </SidebarLabel>
                     <ChevronDownIcon />
                   </DropdownButton>
 
                   <DropdownMenu className="max-w-[90vw] min-w-80 lg:min-w-64" anchor="bottom start">
-                    <DropdownHeader>Mis organizaciones</DropdownHeader>
+                    <DropdownHeader>Cambiar contexto</DropdownHeader>
+
+                    {accessProfile.canUsePlatformMode && (
+                      <>
+                        <DropdownItem
+                          onClick={() => selectPlatformWorkspace(tenant.code)}
+                          className={accessProfile.isPlatformContext ? 'bg-white/[0.06]' : undefined}
+                        >
+                          <span
+                            slot="icon"
+                            className="flex size-8 items-center justify-center rounded-lg bg-(--tenant-accent)/12 text-(--tenant-accent)"
+                          >
+                            <Square2StackIcon className="size-4" />
+                          </span>
+                          <DropdownLabel>
+                            {accessProfile.platformLevel === 'root_2' ? 'Centro de soporte' : 'Vista de plataforma'}
+                          </DropdownLabel>
+                        </DropdownItem>
+                        <DropdownDivider />
+                        <DropdownHeader>Organizaciones</DropdownHeader>
+                      </>
+                    )}
 
                     {isRoot && (
                       <div className="px-2 pb-2" onClick={(event) => event.stopPropagation()}>
@@ -536,10 +588,15 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                           {group.map((client) => (
                             <DropdownItem
                               key={client.id}
-                              onClick={() => setCurrentClient(normalizeClient(client))}
+                              onClick={() => selectOrganizationWorkspace(tenant.code, normalizeClient(client))}
                               onFocus={() => preloadClientPortfolio(client.id)}
                               onPointerDown={() => preloadClientPortfolio(client.id)}
                               onPointerEnter={() => preloadClientPortfolio(client.id)}
+                              className={
+                                accessProfile.isOrganizationContext && currentClient?.id === client.id
+                                  ? 'bg-white/[0.06]'
+                                  : undefined
+                              }
                             >
                               <Avatar
                                 slot="icon"
@@ -709,6 +766,28 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
           </Sidebar>
         }
       >
+        {accessProfile.isOrganizationContext && currentClient && accessProfile.platformLevel !== 'none' && (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-(--tenant-accent)/15 bg-(--tenant-accent)/[0.045] px-4 py-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="size-2 shrink-0 rounded-full bg-(--tenant-accent) shadow-[0_0_14px_var(--tenant-accent)]" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-zinc-200">
+                  Administrando <span className="font-semibold text-white">{currentClient.name}</span>
+                </p>
+                <p className="text-[11px] text-zinc-600">
+                  {accessProfile.platformLevel === 'root_1' ? 'Acceso Root 1' : 'Modo soporte Root 2'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => selectPlatformWorkspace(tenant.code)}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold text-(--tenant-accent) transition-colors hover:bg-white/[0.05]"
+            >
+              Volver a plataforma
+            </button>
+          </div>
+        )}
         {children}
         <MobilePrimaryNavigation
           pathname={pathname}
@@ -722,7 +801,12 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
       </SidebarLayout>
 
       {cmdOpen && (
-        <CommandPalette open onClose={() => setCmdOpen(false)} isRoot={isRoot} clientId={currentClient?.id} />
+        <CommandPalette
+          open
+          onClose={() => setCmdOpen(false)}
+          isRoot={accessProfile.isPlatformContext && accessProfile.platformLevel !== 'none'}
+          clientId={currentClient?.id}
+        />
       )}
     </div>
   )
