@@ -70,6 +70,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       PRODUCTION_SMOKE_URL: ${{ vars.PRODUCTION_SMOKE_URL || 'https://dashboard.eventiapp.com.mx' }}
+      PRODUCTION_SMOKE_DOMAINS: dashboard.eventiapp.com.mx|EventiApp,dashboard.itbem.com.mx|ITBEM,dashboard.cafettonhouse.com|Cafetton House
 
     steps:
       - uses: actions/checkout@v4
@@ -203,7 +204,13 @@ jobs:
               "${PRODUCTION_SMOKE_URL%/}/api/auth/token")"
             auth_curl_status=$?
 
-            [[ ${auth_curl_status} -eq 0 && "${auth_status}" == "401" ]]
+            [[ ${auth_curl_status} -eq 0 && "${auth_status}" == "401" ]] || return 1
+
+            # All custom domains share one deployment but are separate product
+            # boundaries. Validate branding, private caching, CSP API access,
+            # clickjacking protection, and the unauthenticated token boundary
+            # before accepting the promotion.
+            node scripts/smoke-production-tenants.mjs
           }
 
           set +e
