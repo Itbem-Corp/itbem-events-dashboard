@@ -301,8 +301,18 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     const list: ClientRaw[] = clients
 
     // ✅ Si hay clientes y no hay currentClient → seleccionar
-    if (list.length > 0 && !currentClient) {
-      setCurrentClient(normalizeClient(list[0]))
+    const preferred = list.find((client) => client.code?.toLowerCase() === tenant.organizationCode)
+    const currentIsAllowed = currentClient && list.some((client) => client.id === currentClient.id)
+
+    // Organization-scoped apps cannot retain a workspace selected on another
+    // branded origin. EventiApp and ITBEM keep their portfolio switcher.
+    if (!tenant.modules.includes('organizations') && preferred && currentClient?.id !== preferred.id) {
+      setCurrentClient(normalizeClient(preferred))
+      return
+    }
+
+    if (list.length > 0 && !currentIsAllowed) {
+      setCurrentClient(normalizeClient(preferred ?? list[0]))
       return
     }
 

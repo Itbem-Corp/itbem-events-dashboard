@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-export type TenantCode = 'eventiapp' | 'itbem'
+export type TenantCode = 'eventiapp' | 'itbem' | 'cafettonhouse'
 export type TenantModule = 'home' | 'events' | 'users' | 'organizations'
 
 export type TenantConfig = {
@@ -9,18 +9,27 @@ export type TenantConfig = {
   name: string
   productLabel: string
   hostname: string
+  hostnames: readonly string[]
+  localHostnames: readonly string[]
+  apiHostname: string
   clientId: string
   modules: readonly TenantModule[]
   accent: string
 }
 
-const TENANTS: Record<TenantCode, Omit<TenantConfig, 'clientId'>> = {
+type TenantDefinition = Omit<TenantConfig, 'clientId'> & { clientIdEnv: string }
+
+const TENANTS: Record<TenantCode, TenantDefinition> = {
   eventiapp: {
     code: 'eventiapp',
     organizationCode: 'eventiapp',
     name: 'EventiApp',
     productLabel: 'Event operations',
     hostname: 'dashboard.eventiapp.com.mx',
+    hostnames: ['dashboard.eventiapp.com.mx'],
+    localHostnames: ['localhost', '127.0.0.1', 'dashboard.eventiapp.localhost'],
+    apiHostname: 'api.eventiapp.com.mx',
+    clientIdEnv: 'COGNITO_EVENTIAPP_CLIENT_ID',
     modules: ['home', 'events', 'users', 'organizations'],
     accent: '#818cf8',
   },
@@ -28,10 +37,27 @@ const TENANTS: Record<TenantCode, Omit<TenantConfig, 'clientId'>> = {
     code: 'itbem',
     organizationCode: 'itbem',
     name: 'ITBEM',
-    productLabel: 'Event operations',
-    hostname: 'dashboard.itbem.com',
+    productLabel: 'Business operations',
+    hostname: 'dashboard.itbem.com.mx',
+    hostnames: ['dashboard.itbem.com.mx', 'dashboard.itbem.com'],
+    localHostnames: ['dashboard.itbem.localhost'],
+    apiHostname: 'api.itbem.com.mx',
+    clientIdEnv: 'COGNITO_ITBEM_CLIENT_ID',
     modules: ['home', 'events', 'users', 'organizations'],
     accent: '#22d3ee',
+  },
+  cafettonhouse: {
+    code: 'cafettonhouse',
+    organizationCode: 'cafettonhouse',
+    name: 'Cafetton House',
+    productLabel: 'Event experiences',
+    hostname: 'dashboard.cafettonhouse.com',
+    hostnames: ['dashboard.cafettonhouse.com'],
+    localHostnames: ['dashboard.cafettonhouse.localhost'],
+    apiHostname: 'api.cafettonhouse.com',
+    clientIdEnv: 'COGNITO_CAFETTONHOUSE_CLIENT_ID',
+    modules: ['home', 'events', 'users'],
+    accent: '#d97706',
   },
 }
 
@@ -41,8 +67,14 @@ function normalizedHostname(value: string): string {
 
 export function tenantCodeForHostname(hostname: string): TenantCode {
   const host = normalizedHostname(hostname)
-  if (host === TENANTS.itbem.hostname || host.endsWith('.itbem.local')) return 'itbem'
-  return 'eventiapp'
+  for (const tenant of Object.values(TENANTS)) {
+    if (tenant.hostnames.includes(host) || tenant.localHostnames.includes(host)) return tenant.code
+  }
+
+  // Vercel preview deployments are not customer entry points and intentionally
+  // use the platform presentation. Production/custom hosts remain fail-closed.
+  if (host.endsWith('.vercel.app')) return 'eventiapp'
+  throw new Error(`Unknown dashboard hostname: ${host || '(empty)'}`)
 }
 
 export function tenantForHostname(
@@ -50,18 +82,23 @@ export function tenantForHostname(
   env: Readonly<Record<string, string | undefined>> = process.env
 ): TenantConfig {
   const code = tenantCodeForHostname(hostname)
-  const base = TENANTS[code]
-  const clientId =
-    (code === 'itbem' ? env.COGNITO_ITBEM_CLIENT_ID : env.COGNITO_EVENTIAPP_CLIENT_ID)?.trim() ||
-    env.COGNITO_CLIENT_ID?.trim() ||
-    ''
+  const { clientIdEnv, ...base } = TENANTS[code]
+  const clientId = env[clientIdEnv]?.trim() || env.COGNITO_CLIENT_ID?.trim() || ''
 
   if (!clientId) throw new Error(`Missing Cognito app client for tenant ${code}`)
   return { ...base, clientId }
 }
 
 export function tenantPresentationForHostname(hostname: string): Omit<TenantConfig, 'clientId'> {
-  return TENANTS[tenantCodeForHostname(hostname)]
+  const { clientIdEnv: _, ...tenant } = TENANTS[tenantCodeForHostname(hostname)]
+  return tenant
+}
+
+export function backendBaseUrlForHostname(hostname: string, localFallback: string): string {
+  const tenant = tenantPresentationForHostname(hostname)
+  const host = normalizedHostname(hostname)
+  if (tenant.localHostnames.includes(host)) return localFallback.replace(/\/+$/, '')
+  return `https://${tenant.apiHostname}`
 }
 
 export function tenantForRequest(request: NextRequest): TenantConfig {
