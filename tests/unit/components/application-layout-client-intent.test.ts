@@ -21,7 +21,7 @@ describe('application layout client intent', () => {
 
   it('bounds organization loading and forwards debounced root search', () => {
     expect(source).toContain('useDebounce(organizationSearch, 200)')
-    expect(source).toContain('clientsPagePath({ page: 1, page_size: 50, search: isRoot ? debouncedOrganizationSearch : undefined })')
+    expect(source).toContain("tenant.code === 'itbem' ? tenant.organizationCode : isRoot ? debouncedOrganizationSearch : undefined")
     expect(source).toContain('keepPreviousData: true')
     expect(source).not.toContain('clientsPath()')
   })
