@@ -21,6 +21,7 @@ describe('production tenant smoke', () => {
   it('covers every branded production entry point by default', () => {
     expect(configuredTenants(undefined)).toEqual([
       { hostname: 'dashboard.eventiapp.com.mx', brand: 'EventiApp' },
+      { hostname: 'dashboard.itbem.com', brand: 'ITBEM' },
       { hostname: 'dashboard.itbem.com.mx', brand: 'ITBEM' },
       { hostname: 'dashboard.cafettonhouse.com', brand: 'Cafetton House' },
     ])

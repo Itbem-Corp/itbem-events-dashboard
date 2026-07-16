@@ -70,7 +70,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       PRODUCTION_SMOKE_URL: ${{ vars.PRODUCTION_SMOKE_URL || 'https://dashboard.eventiapp.com.mx' }}
-      PRODUCTION_SMOKE_DOMAINS: dashboard.eventiapp.com.mx|EventiApp,dashboard.itbem.com.mx|ITBEM,dashboard.cafettonhouse.com|Cafetton House
+      PRODUCTION_SMOKE_DOMAINS: dashboard.eventiapp.com.mx|EventiApp,dashboard.itbem.com|ITBEM,dashboard.itbem.com.mx|ITBEM,dashboard.cafettonhouse.com|Cafetton House
 
     steps:
       - uses: actions/checkout@v4
@@ -109,9 +109,7 @@ jobs:
           COGNITO_CAFETTONHOUSE_CLIENT_ID: ${{ secrets.COGNITO_CAFETTONHOUSE_CLIENT_ID }}
         run: |
           set -euo pipefail
-          test -n "${COGNITO_EVENTIAPP_CLIENT_ID}"
-          test -n "${COGNITO_ITBEM_CLIENT_ID}"
-          test -n "${COGNITO_CAFETTONHOUSE_CLIENT_ID}"
+          node scripts/validate-cognito-tenant-clients.mjs
           printf '%s' "${COGNITO_EVENTIAPP_CLIENT_ID}" | npx --yes vercel@${VERCEL_CLI_VERSION} env add COGNITO_EVENTIAPP_CLIENT_ID production --force --token="${VERCEL_TOKEN}"
           printf '%s' "${COGNITO_ITBEM_CLIENT_ID}" | npx --yes vercel@${VERCEL_CLI_VERSION} env add COGNITO_ITBEM_CLIENT_ID production --force --token="${VERCEL_TOKEN}"
           printf '%s' "${COGNITO_CAFETTONHOUSE_CLIENT_ID}" | npx --yes vercel@${VERCEL_CLI_VERSION} env add COGNITO_CAFETTONHOUSE_CLIENT_ID production --force --token="${VERCEL_TOKEN}"
