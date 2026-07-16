@@ -15,7 +15,11 @@ export function authRequestIsSameOrigin(request: Request): boolean {
   if (fetchSite && fetchSite !== 'same-origin') return false
   if (!origin) return process.env.NODE_ENV !== 'production'
   try {
-    return new URL(origin).host === new URL(request.url).host
+    const originHost = new URL(origin).host.toLowerCase()
+    const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim().toLowerCase()
+    const host = request.headers.get('host')?.trim().toLowerCase()
+    const urlHost = new URL(request.url).host.toLowerCase()
+    return [forwardedHost, host, urlHost].some((candidate) => candidate === originHost)
   } catch {
     return false
   }

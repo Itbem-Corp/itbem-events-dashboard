@@ -22,10 +22,10 @@ describe('MobilePrimaryNavigation', () => {
     expect(onIntent).toHaveBeenCalledWith('/clients')
   })
 
-  it('does not expose global administration for an operational tenant', () => {
-    render(<MobilePrimaryNavigation pathname="/" isRoot modules={['home', 'events']} onIntent={vi.fn()} />)
+  it('keeps multitenant administration available for the ITBEM workspace', () => {
+    render(<MobilePrimaryNavigation pathname="/" isRoot modules={['home', 'events', 'users', 'organizations']} onIntent={vi.fn()} />)
 
-    expect(screen.getAllByRole('link')).toHaveLength(2)
-    expect(screen.queryByRole('link', { name: 'Clientes' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('link')).toHaveLength(4)
+    expect(screen.getByRole('link', { name: 'Clientes' })).toBeInTheDocument()
   })
 })
