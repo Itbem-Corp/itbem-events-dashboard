@@ -12,6 +12,7 @@ export interface EventMember {
 
 export interface EventCapabilities {
 	'event:manage': boolean
+	'event:delete': boolean
 	'guest:manage': boolean
 	'checkin:run': boolean
 	'analytics:view': boolean
