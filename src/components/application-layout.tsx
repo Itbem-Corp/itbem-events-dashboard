@@ -278,7 +278,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   }, [])
 
   const clientsKey = shouldLoadClients
-    ? clientsPagePath({ page: 1, page_size: 50, search: tenant.code === 'itbem' ? tenant.organizationCode : isRoot ? debouncedOrganizationSearch : undefined })
+    ? clientsPagePath({ page: 1, page_size: 50, search: isRoot ? debouncedOrganizationSearch : undefined })
     : null
   const {
     data: rawClients,
@@ -301,17 +301,8 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     const list: ClientRaw[] = clients
 
     // ✅ Si hay clientes y no hay currentClient → seleccionar
-    const tenantClient = tenant.code === 'itbem'
-      ? list.find((client) => client.code?.toLowerCase() === tenant.organizationCode)
-      : undefined
-
-    if (tenant.code === 'itbem' && tenantClient && currentClient?.id !== tenantClient.id) {
-      setCurrentClient(normalizeClient(tenantClient))
-      return
-    }
-
     if (list.length > 0 && !currentClient) {
-      setCurrentClient(normalizeClient(tenantClient ?? list[0]))
+      setCurrentClient(normalizeClient(list[0]))
       return
     }
 

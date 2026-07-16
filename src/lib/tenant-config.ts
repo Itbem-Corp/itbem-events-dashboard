@@ -30,7 +30,7 @@ const TENANTS: Record<TenantCode, Omit<TenantConfig, 'clientId'>> = {
     name: 'ITBEM',
     productLabel: 'Event operations',
     hostname: 'dashboard.itbem.com',
-    modules: ['home', 'events'],
+    modules: ['home', 'events', 'users', 'organizations'],
     accent: '#22d3ee',
   },
 }

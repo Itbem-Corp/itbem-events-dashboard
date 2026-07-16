@@ -11,9 +11,9 @@ describe('tenant configuration', () => {
     expect(tenantForHostname('dashboard.itbem.com', env).clientId).toBe('itbem-client')
   })
 
-  it('exposes only operational modules on the ITBEM entry point', () => {
+  it('keeps the multitenant modules on the ITBEM entry point', () => {
     expect(tenantCodeForHostname('DASHBOARD.ITBEM.COM:443')).toBe('itbem')
-    expect(tenantPresentationForHostname('dashboard.itbem.com').modules).toEqual(['home', 'events'])
+    expect(tenantPresentationForHostname('dashboard.itbem.com').modules).toEqual(['home', 'events', 'users', 'organizations'])
   })
 
   it('fails closed when no app client is configured', () => {
