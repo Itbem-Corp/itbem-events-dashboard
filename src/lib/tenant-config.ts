@@ -30,7 +30,7 @@ const TENANTS: Record<TenantCode, TenantDefinition> = {
     localHostnames: ['localhost', '127.0.0.1', 'dashboard.eventiapp.localhost'],
     apiHostname: 'api.eventiapp.com.mx',
     clientIdEnv: 'COGNITO_EVENTIAPP_CLIENT_ID',
-    modules: ['home', 'events', 'users', 'organizations'],
+    modules: ['home', 'events'],
     accent: '#818cf8',
   },
   itbem: {
@@ -43,20 +43,20 @@ const TENANTS: Record<TenantCode, TenantDefinition> = {
     localHostnames: ['dashboard.itbem.localhost'],
     apiHostname: 'api.itbem.com.mx',
     clientIdEnv: 'COGNITO_ITBEM_CLIENT_ID',
-    modules: ['home', 'events', 'users', 'organizations'],
+    modules: ['home', 'users', 'organizations'],
     accent: '#22d3ee',
   },
   cafettonhouse: {
     code: 'cafettonhouse',
     organizationCode: 'cafettonhouse',
     name: 'Cafetton House',
-    productLabel: 'Event experiences',
+    productLabel: 'Client operations',
     hostname: 'dashboard.cafettonhouse.com',
     hostnames: ['dashboard.cafettonhouse.com'],
     localHostnames: ['dashboard.cafettonhouse.localhost'],
     apiHostname: 'api.cafettonhouse.com',
     clientIdEnv: 'COGNITO_CAFETTONHOUSE_CLIENT_ID',
-    modules: ['home', 'events', 'users'],
+    modules: ['home', 'users', 'organizations'],
     accent: '#d97706',
   },
 }
@@ -83,9 +83,11 @@ export function tenantForHostname(
 ): TenantConfig {
   const code = tenantCodeForHostname(hostname)
   const { clientIdEnv, ...base } = TENANTS[code]
-  const clientId = env[clientIdEnv]?.trim() || env.COGNITO_CLIENT_ID?.trim() || ''
+  const dedicatedClientId = env[clientIdEnv]?.trim() || ''
+  const isProduction = (env.NODE_ENV ?? process.env.NODE_ENV) === 'production'
+  const clientId = dedicatedClientId || (!isProduction ? env.COGNITO_CLIENT_ID?.trim() || '' : '')
 
-  if (!clientId) throw new Error(`Missing Cognito app client for tenant ${code}`)
+  if (!clientId) throw new Error(`Missing dedicated Cognito app client for tenant ${code}`)
   return { ...base, clientId }
 }
 

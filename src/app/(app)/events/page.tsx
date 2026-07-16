@@ -4,8 +4,8 @@ import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { loadEventFormModal, preloadEventFormIntent } from '@/components/events/preload-event-form'
 import { preloadEventWorkspace } from '@/components/events/preload-event-workspace'
-import { Heading } from '@/components/heading'
 import { Link } from '@/components/link'
+import { PageHeader } from '@/components/product/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { IntentModalSkeleton } from '@/components/ui/intent-modal-skeleton'
 import { PageDataError } from '@/components/ui/page-data-error'
@@ -319,31 +319,30 @@ export default function EventsPage() {
 
   return (
     <PageTransition>
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="mb-2 text-[11px] font-semibold tracking-[0.18em] text-indigo-400 uppercase">
-            Portafolio de eventos
-          </p>
-          <Heading className="text-3xl/9 tracking-tight sm:text-3xl/9">Eventos</Heading>
-          <p className="mt-2 max-w-xl text-sm text-zinc-500">
-            {isOperationalRoot
-              ? 'Vista operativa: consulta y opera asistentes, check-in y analítica sin cambiar la estructura del evento.'
-              : 'Planea, publica y opera cada experiencia desde un solo lugar.'}
-          </p>
-        </div>
-        {canManageEventPortfolio && (
-          <Button
-            color="indigo"
-            onClick={openNewEventModal}
-            onPointerEnter={preloadEventForm}
-            onPointerDown={preloadEventForm}
-            onFocus={preloadEventForm}
-          >
-            <PlusIcon />
-            Crear evento
-          </Button>
-        )}
-      </header>
+      <PageHeader
+        eyebrow="Portafolio de eventos"
+        title="Eventos"
+        description={
+          isOperationalRoot
+            ? 'Vista operativa: consulta y opera asistentes, check-in y analítica sin cambiar la estructura del evento.'
+            : 'Planea, publica y opera cada experiencia desde un solo lugar.'
+        }
+        icon={Square2StackIcon}
+        actions={
+          canManageEventPortfolio ? (
+            <Button
+              color="indigo"
+              onClick={openNewEventModal}
+              onPointerEnter={preloadEventForm}
+              onPointerDown={preloadEventForm}
+              onFocus={preloadEventForm}
+            >
+              <PlusIcon />
+              Crear evento
+            </Button>
+          ) : undefined
+        }
+      />
 
       {dataErrorState === 'stale' && (
         <div className="mt-6">
@@ -353,7 +352,7 @@ export default function EventsPage() {
 
       {/* Filters + Search */}
       {!isLoading && (counts.all > 0 || search || filter !== 'all') && (
-        <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-white/7 bg-white/[0.02] p-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="premium-surface mt-8 flex flex-col gap-3 rounded-2xl p-2 sm:flex-row sm:items-center sm:justify-between">
           {/* Date filter tabs */}
           <div className="flex max-w-full self-start overflow-x-auto rounded-xl p-0.5">
             {FILTER_TABS.map((tab) => (

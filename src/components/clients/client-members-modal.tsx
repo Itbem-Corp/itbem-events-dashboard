@@ -8,7 +8,15 @@ import useSWR, { mutate as globalMutate } from 'swr'
 
 import { api } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { clientInvitePath, clientMemberPath, clientMembersPagePath, clientMembersPath, clientRolesPath } from '@/lib/api-paths'
+import {
+  clientInvitePath,
+  clientMemberApplicationPath,
+  clientMemberApplicationsPath,
+  clientMemberPath,
+  clientMembersPagePath,
+  clientMembersPath,
+  clientRolesPath,
+} from '@/lib/api-paths'
 import { toast } from 'sonner'
 
 import { Alert, AlertActions, AlertDescription, AlertTitle } from '@/components/alert'
@@ -24,13 +32,17 @@ import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { Pagination } from '@/components/ui/pagination'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
-import type { ClientMember, ClientMemberLinkResponse, ClientMembersPage } from '@/models/ClientMember'
+import type {
+  ClientMember,
+  ClientMemberApplicationAccess,
+  ClientMemberLinkResponse,
+  ClientMembersPage,
+} from '@/models/ClientMember'
 import type { ClientRole } from '@/models/ClientRole'
 import {
-  CheckIcon,
-  ClipboardDocumentIcon,
   PencilIcon,
   ShieldCheckIcon,
+  Squares2X2Icon,
   TrashIcon,
   UserPlusIcon,
   UsersIcon,
@@ -55,28 +67,6 @@ function roleGuidance(roles: ClientRole[], roleId: string) {
   return role ? ORGANIZATION_ROLE_GUIDANCE[role.code.toLowerCase()] ?? 'Acceso definido por la organización.' : ''
 }
 
-function generatePassword(): string {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-  const lower = 'abcdefghijkmnpqrstuvwxyz'
-  const digits = '23456789'
-  const symbols = '@#$!%'
-  const all = upper + lower + digits + symbols
-  const rand = (s: string) => {
-    const value = new Uint32Array(1)
-    globalThis.crypto.getRandomValues(value)
-    return s[value[0] % s.length]
-  }
-  const base = [rand(upper), rand(lower), rand(digits), rand(symbols)]
-  for (let i = 0; i < 8; i++) base.push(rand(all))
-  for (let i = base.length - 1; i > 0; i -= 1) {
-    const value = new Uint32Array(1)
-    globalThis.crypto.getRandomValues(value)
-    const j = value[0] % (i + 1)
-    ;[base[i], base[j]] = [base[j], base[i]]
-  }
-  return base.join('')
-}
-
 function getDefaultRoleId(roles: ClientRole[]) {
   return roles.find((r) => r.code.toLowerCase() === 'member')?.id ?? roles[0]?.id ?? ''
 }
@@ -97,7 +87,7 @@ function isOwnerRole(roleCode?: string, roleName?: string) {
 interface CreateUserFormProps {
   clientId: string
   roles: ClientRole[]
-  onDone: (password: string, email: string) => void
+  onDone: () => void
 }
 
 function CreateUserForm({ clientId, roles, onDone }: CreateUserFormProps) {
@@ -126,20 +116,18 @@ function CreateUserForm({ clientId, roles, onDone }: CreateUserFormProps) {
 
   const handleCreate = async () => {
     if (!validate()) return
-    const password = generatePassword()
     setLoading(true)
     try {
       await api.post<ClientMemberLinkResponse>(clientMembersPath(), {
         email: email.trim(),
-        password,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         client_id: clientId,
         role_id: roleId,
       })
       await globalMutate(clientMembersPath(clientId))
-      toast.success('Usuario creado y vinculado')
-      onDone(password, email.trim())
+      toast.success('Usuario invitado y vinculado')
+      onDone()
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, 'Error al crear el usuario'))
     } finally {
@@ -209,66 +197,118 @@ function CreateUserForm({ clientId, roles, onDone }: CreateUserFormProps) {
           {errors.roleId && <ErrorMessage>{errors.roleId}</ErrorMessage>}
         </Field>
         <Button onClick={handleCreate} disabled={loading || !roleId} color="emerald">
-          {loading ? 'Creando…' : 'Crear'}
+          {loading ? 'Enviando invitación…' : 'Invitar y asignar'}
         </Button>
       </div>
       <p className="text-xs text-zinc-500">
-        Se generará una contraseña temporal que podrás copiar después de crear el usuario.
+        Cognito enviará la invitación y gestionará la contraseña temporal. El dashboard nunca verá la contraseña.
       </p>
     </motion.div>
   )
 }
 
-/* ── Password reveal dialog ─────────────────────────────────────── */
-
-interface PasswordDialogProps {
-  password: string
-  email: string
+function MemberApplicationsDialog({
+  member,
+  clientId,
+  onClose,
+}: {
+  member: ClientMember
+  clientId: string
   onClose: () => void
-}
+}) {
+  const path = clientMemberApplicationsPath(clientId, member.user_id)
+  const { data, error, isLoading, mutate } = useSWR<ClientMemberApplicationAccess[]>(
+    path,
+    fetcher,
+    responsiveListSwrOptions
+  )
+  const [savingCode, setSavingCode] = useState<string | null>(null)
+  const displayName = `${member.user?.first_name ?? member.first_name ?? ''} ${member.user?.last_name ?? member.last_name ?? ''}`.trim()
+    || member.user?.email
+    || member.email
+    || 'este miembro'
 
-function PasswordDialog({ password, email, onClose }: PasswordDialogProps) {
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    if (!copied) return
-    const timer = window.setTimeout(() => setCopied(false), 2000)
-    return () => window.clearTimeout(timer)
-  }, [copied])
-
-  const handleCopy = async () => {
+  async function toggle(application: ClientMemberApplicationAccess) {
+    const nextValue = !application.is_active
+    const previous = data
+    setSavingCode(application.code)
+    await mutate(
+      data?.map((candidate) =>
+        candidate.code === application.code ? { ...candidate, is_active: nextValue } : candidate
+      ),
+      { revalidate: false }
+    )
     try {
-      await navigator.clipboard.writeText(password)
-      setCopied(true)
-    } catch {
-      toast.error('No se pudo copiar la contraseña')
+      await api.put(clientMemberApplicationPath(clientId, member.user_id, application.code), {
+        is_active: nextValue,
+      })
+      await mutate()
+      toast.success(nextValue ? `Acceso a ${application.name} activado` : `Acceso a ${application.name} retirado`)
+    } catch (reason) {
+      await mutate(previous, { revalidate: false })
+      toast.error(getApiErrorMessage(reason, 'No pudimos actualizar el acceso a la aplicación'))
+    } finally {
+      setSavingCode(null)
     }
   }
 
   return (
-    <Alert open onClose={onClose}>
-      <AlertTitle>Contraseña temporal generada</AlertTitle>
-      <AlertDescription>
-        <p className="mb-3">
-          El usuario <strong className="text-zinc-200">{email}</strong> fue creado exitosamente. Comparte esta
-          contraseña temporal de forma segura — solo se muestra una vez.
+    <Dialog open onClose={onClose} size="lg">
+      <DialogTitle>Acceso a aplicaciones</DialogTitle>
+      <DialogBody className="space-y-4 py-4">
+        <p className="text-sm leading-6 text-zinc-400">
+          Define en qué portales puede iniciar sesión <strong className="text-zinc-200">{displayName}</strong>.
+          Su rol dentro de la organización se conserva, pero sólo aplica en las aplicaciones activadas.
         </p>
-        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2">
-          <code className="flex-1 font-mono text-sm text-emerald-300 select-all">{password}</code>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="rounded p-1 text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
-            title="Copiar contraseña"
-          >
-            {copied ? <CheckIcon className="size-4 text-emerald-400" /> : <ClipboardDocumentIcon className="size-4" />}
-          </button>
-        </div>
-      </AlertDescription>
-      <AlertActions>
-        <Button onClick={onClose}>Entendido</Button>
-      </AlertActions>
-    </Alert>
+        {isLoading ? (
+          <div className="space-y-2">
+            {[0, 1].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl bg-zinc-800/50" />)}
+          </div>
+        ) : error ? (
+          <div role="alert" className="rounded-xl border border-red-400/15 bg-red-400/[0.06] p-3 text-sm text-red-200">
+            No pudimos cargar los accesos. Intenta nuevamente.
+          </div>
+        ) : data?.length ? (
+          <div className="space-y-2">
+            {data.map((application) => (
+              <div key={application.code} className="flex items-center gap-4 rounded-xl border border-white/10 bg-zinc-900/60 px-4 py-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-zinc-300">
+                  <Squares2X2Icon className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-zinc-200">{application.name}</p>
+                  <p className="text-xs text-zinc-500">
+                    {application.is_active ? 'Puede iniciar sesión en este producto' : 'Sin acceso a este producto'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={application.is_active}
+                  aria-label={`${application.is_active ? 'Desactivar' : 'Activar'} acceso a ${application.name}`}
+                  disabled={!application.is_enabled || savingCode === application.code}
+                  onClick={() => void toggle(application)}
+                  className={`relative h-6 w-11 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    application.is_active ? 'bg-indigo-500' : 'bg-zinc-700'
+                  }`}
+                >
+                  <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform ${
+                    application.is_active ? 'translate-x-5' : 'translate-x-0.5'
+                  }`} />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={Squares2X2Icon}
+            title="Sin aplicaciones habilitadas"
+            description="Primero habilita una aplicación para esta organización."
+          />
+        )}
+      </DialogBody>
+      <DialogActions><Button onClick={onClose}>Listo</Button></DialogActions>
+    </Dialog>
   )
 }
 
@@ -382,7 +422,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [editingRole, setEditingRole] = useState('')
   const [saving, setSaving] = useState(false)
-  const [pendingPassword, setPendingPassword] = useState<{ password: string; email: string } | null>(null)
+  const [applicationsMember, setApplicationsMember] = useState<ClientMember | null>(null)
 
   const {
     data: rawMembers,
@@ -571,9 +611,8 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
               <CreateUserForm
                 clientId={clientId}
                 roles={roles}
-                onDone={(password, email) => {
+                onDone={() => {
                   setAddMode(null)
-                  setPendingPassword({ password, email })
                   void mutateMembers()
                   void onMembershipsChanged?.()
                 }}
@@ -651,6 +690,16 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
                             {isOwnerRole(roleCode, member.role_name) && <ShieldCheckIcon className="size-3" />}
                             {roleLabel}
                           </Badge>
+                          {canManageMember && (
+                            <button
+                              onClick={() => setApplicationsMember(member)}
+                              className="rounded-lg p-1.5 text-zinc-600 transition-colors hover:bg-indigo-500/10 hover:text-indigo-300"
+                              aria-label={`Administrar aplicaciones de ${displayName}`}
+                              title="Acceso a aplicaciones"
+                            >
+                              <Squares2X2Icon className="size-3.5" />
+                            </button>
+                          )}
                           {!isOwnerRole(roleCode, member.role_name) && canManageMember && (
                             <>
                               <button
@@ -710,12 +759,11 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
         </AlertActions>
       </Alert>
 
-      {/* One-time password reveal */}
-      {pendingPassword && (
-        <PasswordDialog
-          password={pendingPassword.password}
-          email={pendingPassword.email}
-          onClose={() => setPendingPassword(null)}
+      {applicationsMember && (
+        <MemberApplicationsDialog
+          member={applicationsMember}
+          clientId={clientId}
+          onClose={() => setApplicationsMember(null)}
         />
       )}
     </>

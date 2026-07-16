@@ -14,6 +14,7 @@ import { removeClientsCacheValue, upsertClientCacheValue } from '@/lib/client-ca
 import { fetcher } from '@/lib/fetcher'
 import { beginNavigationProgress } from '@/lib/navigation-progress'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import { sessionCan } from '@/lib/session-capabilities'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import { useStore } from '@/store/useStore'
 import { motion, useReducedMotion } from 'motion/react'
@@ -27,7 +28,7 @@ import useSWR, { preload } from 'swr'
 import { Avatar } from '@/components/avatar'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
-import { Heading } from '@/components/heading'
+import { PageHeader } from '@/components/product/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { IntentModalSkeleton } from '@/components/ui/intent-modal-skeleton'
 import { PageDataError } from '@/components/ui/page-data-error'
@@ -118,7 +119,10 @@ export default function ClientsPage() {
   const reducedMotion = useReducedMotion()
   const setCurrentClient = useStore((s) => s.setCurrentClient)
   const user = useStore((s) => s.user)
+  const applicationSession = useStore((s) => s.applicationSession)
   const canCreatePlatform = Boolean(user?.is_root && user.root_level !== 2)
+  const canAssignMembers = sessionCan(applicationSession, 'members:manage')
+  const hasEvents = sessionCan(applicationSession, 'events:view')
 
   const { search, setSearch, page, setPage } = useListViewState({
     defaultFilter: 'all',
@@ -188,18 +192,20 @@ export default function ClientsPage() {
         client_type: client.client_type ?? { code: '' },
       })
       beginNavigationProgress()
-      router.push('/events')
+      router.push(hasEvents ? '/events' : '/clients')
     },
-    [setCurrentClient, router]
+    [hasEvents, setCurrentClient, router]
   )
 
   const preloadClientEvents = useCallback(
     (client: Client) => {
-      router.prefetch('/events')
-      const path = scopedEventsPath(client.id, true)
-      if (path) void preload(path, fetcher)
+      if (hasEvents) {
+        router.prefetch('/events')
+        const path = scopedEventsPath(client.id, true)
+        if (path) void preload(path, fetcher)
+      }
     },
-    [router]
+    [hasEvents, router]
   )
 
   const preloadClientMembers = useCallback((client: Client) => {
@@ -264,27 +270,26 @@ export default function ClientsPage() {
   return (
     <PageTransition>
       <div className="space-y-8">
-        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="mb-2 text-[11px] font-semibold tracking-[0.18em] text-indigo-400 uppercase">Organizaciones</p>
-            <Heading className="text-3xl/9 tracking-tight sm:text-3xl/9">Clientes</Heading>
-            <p className="mt-2 max-w-xl text-sm text-zinc-500">
-              Administra la estructura, los equipos y el acceso a cada organización.
-            </p>
-          </div>
-          {canCreatePlatform && (
-            <Button
-              color="indigo"
-              onClick={openNewClientModal}
-              onPointerEnter={preloadClientForm}
-              onPointerDown={preloadClientForm}
-              onFocus={preloadClientForm}
-              className="w-full sm:w-auto"
-            >
-              <PlusIcon className="size-4" /> Nueva plataforma
-            </Button>
-          )}
-        </header>
+        <PageHeader
+          eyebrow="Organizaciones"
+          title="Clientes"
+          description="Administra la estructura, los equipos y el acceso a cada organización."
+          icon={BuildingOffice2Icon}
+          actions={
+            canCreatePlatform ? (
+              <Button
+                color="indigo"
+                onClick={openNewClientModal}
+                onPointerEnter={preloadClientForm}
+                onPointerDown={preloadClientForm}
+                onFocus={preloadClientForm}
+                className="w-full sm:w-auto"
+              >
+                <PlusIcon className="size-4" /> Nueva plataforma
+              </Button>
+            ) : undefined
+          }
+        />
 
         {dataErrorState === 'stale' && (
           <StaleDataNotice label="clientes" onRetry={() => void mutate()} retrying={isValidating} />
@@ -294,7 +299,7 @@ export default function ClientsPage() {
         {!isLoading && (clients.length > 0 || Boolean(search)) && (
           <div
             aria-busy={isValidating}
-            className="relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02] p-2"
+            className="premium-surface relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl p-2"
           >
             {isValidating && <div className="absolute inset-x-0 top-0 h-px animate-pulse bg-indigo-400" />}
             <div className="relative w-full sm:max-w-xs">
@@ -378,7 +383,7 @@ export default function ClientsPage() {
                 <div className="hidden h-px flex-1 bg-white/5 sm:block" />
               </div>
 
-              <ul className="divide-y divide-white/6 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02] shadow-xl shadow-black/5">
+              <ul className="premium-surface divide-y divide-white/6 overflow-hidden rounded-2xl">
                 {clients.map((client, index) => {
                   const parentTypeCode = (client.client_type?.code ?? '').toUpperCase()
                   const canHaveSubClients = parentTypeCode in SUB_TYPE
@@ -389,7 +394,8 @@ export default function ClientsPage() {
                   const isInheritedRole = client.access_role?.startsWith('INHERITED_') ?? false
                   const roleCode = client.access_role?.replace('INHERITED_', '').toUpperCase()
                   const isPrimaryRoot = Boolean(user?.is_root && user.root_level !== 2)
-                  const canManageMembers = isPrimaryRoot || roleCode === 'OWNER' || roleCode === 'ADMIN'
+                  const canManageMembers =
+                    canAssignMembers || isPrimaryRoot || roleCode === 'OWNER' || roleCode === 'ADMIN'
                   const canEditOrganization = isPrimaryRoot || roleCode === 'OWNER'
                   const role = user?.is_root
                     ? {
@@ -485,11 +491,11 @@ export default function ClientsPage() {
                           onFocus={() => preloadClientEvents(client)}
                           onPointerDown={() => preloadClientEvents(client)}
                           onPointerEnter={() => preloadClientEvents(client)}
-                          title="Cambiar a este cliente"
-                          aria-label={`Cambiar a ${client.name}`}
+                          title={hasEvents ? 'Operar eventos de este cliente' : 'Seleccionar este cliente'}
+                          aria-label={`${hasEvents ? 'Operar' : 'Seleccionar'} ${client.name}`}
                         >
                           <ArrowRightIcon data-slot="icon" aria-hidden="true" />
-                          <span>Cambiar</span>
+                          <span>{hasEvents ? 'Operar' : 'Seleccionar'}</span>
                         </Button>
 
                         {(canManageMembers || canEditOrganization) && (

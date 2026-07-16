@@ -7,9 +7,9 @@ function readSource(path: string) {
 }
 
 describe('imperative navigation progress', () => {
-  it('covers organization switching before routing to events', () => {
+  it('covers organization switching before routing to the active product workspace', () => {
     const source = readSource('src/app/(app)/clients/page.tsx')
-    expect(source).toMatch(/beginNavigationProgress\(\)\s+router\.push\('\/events'\)/)
+    expect(source).toMatch(/beginNavigationProgress\(\)\s+router\.push\(hasEvents \? '\/events' : '\/clients'\)/)
   })
 
   it('covers navigation into a newly created event', () => {

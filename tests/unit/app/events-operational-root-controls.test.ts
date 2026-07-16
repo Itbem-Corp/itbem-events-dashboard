@@ -9,7 +9,7 @@ describe('Events operational-root controls', () => {
     expect(source).toContain('const isOperationalRoot = user?.root_level === 2')
     expect(source).toContain("const organizationCanManageEvents = ['OWNER', 'ADMIN', 'EVENT_MANAGER', 'EDITOR', 'MEMBER'].includes(organizationRole)")
     expect(source).toContain('const canManageEventPortfolio = !isOperationalRoot && (isRoot || organizationCanManageEvents)')
-    expect(source).toMatch(/\{canManageEventPortfolio\s*&&\s*\(\s*<Button/)
+    expect(source).toMatch(/actions=\{\s*canManageEventPortfolio\s*\?\s*\(\s*<Button/)
     expect(source).toMatch(/\{canManageEventPortfolio\s*&&\s*\(\s*<details/)
   })
 

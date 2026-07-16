@@ -141,12 +141,9 @@ describe('ApplicationLayout client loading', () => {
       expect.any(Function)
     )
 
-    const clientLinks = screen.getAllByRole('link', { name: 'Clientes' })
-    fireEvent.pointerEnter(clientLinks[0])
-
-    expect(routerPrefetchMock).toHaveBeenCalledWith('/clients')
-    expect(preloadMock).toHaveBeenCalledWith('/clients?page=1&page_size=12', expect.any(Function))
-    expect(preloadMock).not.toHaveBeenCalledWith('/clients', expect.any(Function))
+    // EventiApp deliberately does not expose the ITBEM organization-management
+    // route. Organization switching is warmed from its dedicated switcher.
+    expect(screen.queryByRole('link', { name: 'Clientes' })).not.toBeInTheDocument()
   })
 
   it('does not mount global search until the user requests it', async () => {

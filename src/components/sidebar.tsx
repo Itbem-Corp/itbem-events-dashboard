@@ -81,7 +81,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
 ) {
   let classes = clsx(
     // Base
-    'flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-base/6 font-medium text-zinc-950 sm:py-2 sm:text-sm/5',
+    'flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-base/6 font-medium text-zinc-950 transition-[background-color,color,transform,box-shadow] duration-200 ease-out motion-reduce:transition-none sm:py-2.5 sm:text-sm/5',
     // Leading icon/icon-only
     '*:data-[slot=icon]:size-6 *:data-[slot=icon]:shrink-0 *:data-[slot=icon]:fill-zinc-500 sm:*:data-[slot=icon]:size-5',
     // Trailing icon (down chevron or similar)
@@ -96,17 +96,15 @@ export const SidebarItem = forwardRef(function SidebarItem(
     'data-current:*:data-[slot=icon]:fill-zinc-950',
     // Dark mode
     'dark:text-white dark:*:data-[slot=icon]:fill-zinc-400',
-    'dark:data-hover:bg-white/5 dark:data-hover:*:data-[slot=icon]:fill-white',
-    'dark:data-active:bg-white/5 dark:data-active:*:data-[slot=icon]:fill-white',
-    'dark:data-current:*:data-[slot=icon]:fill-white'
+    'dark:data-hover:translate-x-0.5 dark:data-hover:bg-white/[0.055] dark:data-hover:*:data-[slot=icon]:fill-white',
+    'dark:data-active:bg-white/[0.07] dark:data-active:*:data-[slot=icon]:fill-white',
+    'dark:data-current:bg-white/[0.07] dark:data-current:shadow-[inset_0_1px_rgba(255,255,255,0.035)] dark:data-current:*:data-[slot=icon]:fill-white'
   )
 
   return (
     <span className={clsx(className, 'relative')}>
       {current && (
-        <span
-          className="absolute inset-y-2 -left-4 w-0.5 rounded-full bg-zinc-950 dark:bg-white"
-        />
+        <span className="absolute inset-y-2 -left-4 w-0.5 rounded-full bg-zinc-950 shadow-[0_0_16px_var(--tenant-accent)] dark:bg-(--tenant-accent)" />
       )}
       {typeof props.href === 'string' ? (
         <Headless.CloseButton
@@ -121,7 +119,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
       ) : (
         <Headless.Button
           {...props}
-          className={clsx('cursor-default', classes)}
+          className={clsx('cursor-pointer', classes)}
           data-current={current ? 'true' : undefined}
           ref={ref}
         >

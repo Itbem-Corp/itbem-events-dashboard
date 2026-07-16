@@ -3,8 +3,9 @@
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { preloadEventWorkspace } from '@/components/events/preload-event-workspace'
-import { Heading, Subheading } from '@/components/heading'
+import { Subheading } from '@/components/heading'
 import { Link } from '@/components/link'
+import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { readApiData } from '@/lib/api-envelope'
@@ -13,23 +14,26 @@ import { getCalendarDaysUntil } from '@/lib/date-time'
 import { eventTypeLabel } from '@/lib/event-type-label'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import { sessionCan } from '@/lib/session-capabilities'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import type { Event, EventDashboardOverview } from '@/models/Event'
 import { useStore } from '@/store/useStore'
 import {
   ArrowRightIcon,
   BoltIcon,
+  BuildingOfficeIcon,
   CalendarDaysIcon,
   CheckCircleIcon,
   ClockIcon,
   ExclamationTriangleIcon,
   PaintBrushIcon,
   PlusIcon,
+  ShieldCheckIcon,
   SparklesIcon,
   UsersIcon,
 } from '@heroicons/react/20/solid'
-import { useRouter } from 'next/navigation'
 import { motion, useReducedMotion } from 'motion/react'
+import { useRouter } from 'next/navigation'
 import type { ComponentType, SVGProps } from 'react'
 import { useCallback, useMemo } from 'react'
 import useSWR from 'swr'
@@ -109,13 +113,73 @@ function DashboardSkeleton() {
   )
 }
 
+function ControlPlaneHome() {
+  const session = useStore((state) => state.applicationSession)
+  const organizationCount = session?.organizations.length ?? 0
+  const canViewPlatformUsers = sessionCan(session, 'platform:users:view')
+  const canManageTeam = sessionCan(session, 'members:manage')
+  const peopleHref = canViewPlatformUsers ? '/users' : '/team'
+  const peopleTitle = canViewPlatformUsers ? 'Identidad y permisos' : 'Equipo y accesos'
+  const peopleDescription = canViewPlatformUsers
+    ? 'Usuarios, roles y acceso por aplicación.'
+    : 'Miembros, roles y acceso por producto.'
+
+  return (
+    <PageTransition>
+      <PageHeader
+        eyebrow="Control plane"
+        title="Operación de plataforma"
+        description="Administra organizaciones, accesos y usuarios desde un espacio separado de la operación de eventos."
+        icon={ShieldCheckIcon}
+      />
+
+      <div className="mt-8 grid gap-4 lg:grid-cols-2">
+        <Link
+          href="/clients"
+          className="premium-surface premium-surface-interactive group relative overflow-hidden rounded-3xl p-6"
+        >
+          <span className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-(--tenant-accent) to-transparent opacity-60" />
+          <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-(--tenant-accent)">
+            <BuildingOfficeIcon className="size-5" />
+          </span>
+          <div className="mt-8 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-3xl font-semibold text-white tabular-nums">{organizationCount}</p>
+              <p className="mt-1 text-sm font-medium text-zinc-300">Organizaciones con acceso directo</p>
+              <p className="mt-1 text-xs text-zinc-600">Gestiona estructura, clientes y configuración.</p>
+            </div>
+            <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-(--tenant-accent)" />
+          </div>
+        </Link>
+
+        {(canViewPlatformUsers || canManageTeam) && (
+          <Link href={peopleHref} className="premium-surface premium-surface-interactive group rounded-3xl p-6">
+            <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-zinc-300">
+              <UsersIcon className="size-5" />
+            </span>
+            <div className="mt-8 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-lg font-semibold text-white">{peopleTitle}</p>
+                <p className="mt-1 text-sm text-zinc-500">{peopleDescription}</p>
+              </div>
+              <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-white" />
+            </div>
+          </Link>
+        )}
+      </div>
+    </PageTransition>
+  )
+}
+
 export default function Home() {
   const router = useRouter()
   const reducedMotion = useReducedMotion()
   const currentClient = useStore((state) => state.currentClient)
   const user = useStore((state) => state.user)
+  const applicationSession = useStore((state) => state.applicationSession)
   const isRoot = Boolean(user?.is_root)
-  const eventsKey = scopedEventsDashboardPath(currentClient?.id, isRoot)
+  const hasEvents = applicationSession ? sessionCan(applicationSession, 'events:view') : true
+  const eventsKey = hasEvents ? scopedEventsDashboardPath(currentClient?.id, isRoot) : null
   const {
     data: rawEvents,
     isLoading: eventsLoading,
@@ -156,30 +220,28 @@ export default function Home() {
     void import('@/components/events/forms/event-form-modal').catch(() => undefined)
   }, [router])
 
+  if (applicationSession && !hasEvents) return <ControlPlaneHome />
+
   return (
     <PageTransition>
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold tracking-[0.18em] text-indigo-400 uppercase">
-            <SparklesIcon className="size-3.5" />
-            Centro de operaciones
-          </p>
-          <Heading className="text-3xl/9 tracking-tight sm:text-3xl/9">Dashboard</Heading>
-          <p className="mt-2 max-w-xl text-sm text-zinc-500">
-            Lo importante de tus eventos, priorizado para que sepas qué sigue.
-          </p>
-        </div>
-        <Button
-          href="/events?create=1"
-          color="indigo"
-          onFocus={preloadEventCreation}
-          onPointerDown={preloadEventCreation}
-          onPointerEnter={preloadEventCreation}
-        >
-          <PlusIcon />
-          Crear evento
-        </Button>
-      </header>
+      <PageHeader
+        eyebrow="Centro de operaciones"
+        title="Dashboard"
+        description="Lo importante de tus eventos, priorizado para que sepas qué sigue."
+        icon={SparklesIcon}
+        actions={
+          <Button
+            href="/events?create=1"
+            color="indigo"
+            onFocus={preloadEventCreation}
+            onPointerDown={preloadEventCreation}
+            onPointerEnter={preloadEventCreation}
+          >
+            <PlusIcon />
+            Crear evento
+          </Button>
+        }
+      />
 
       {eventsErrorState === 'stale' && (
         <div className="mt-6">
@@ -309,10 +371,38 @@ export default function Home() {
             </motion.section>
 
             <section aria-label="Resumen" className="grid grid-cols-2 gap-4 lg:col-span-4">
-              <Metric icon={CalendarDaysIcon} label="Total" value={metrics.total} detail="eventos registrados" delay={0.08} reducedMotion={reducedMotion} />
-              <Metric icon={BoltIcon} label="Activos" value={metrics.active} detail="publicados o en trabajo" delay={0.13} reducedMotion={reducedMotion} />
-              <Metric icon={ClockIcon} label="Próximos" value={metrics.upcoming} detail="en tu agenda" delay={0.18} reducedMotion={reducedMotion} />
-              <Metric icon={UsersIcon} label="Capacidad" value={metrics.total_capacity} detail="invitados en total" delay={0.23} reducedMotion={reducedMotion} />
+              <Metric
+                icon={CalendarDaysIcon}
+                label="Total"
+                value={metrics.total}
+                detail="eventos registrados"
+                delay={0.08}
+                reducedMotion={reducedMotion}
+              />
+              <Metric
+                icon={BoltIcon}
+                label="Activos"
+                value={metrics.active}
+                detail="publicados o en trabajo"
+                delay={0.13}
+                reducedMotion={reducedMotion}
+              />
+              <Metric
+                icon={ClockIcon}
+                label="Próximos"
+                value={metrics.upcoming}
+                detail="en tu agenda"
+                delay={0.18}
+                reducedMotion={reducedMotion}
+              />
+              <Metric
+                icon={UsersIcon}
+                label="Capacidad"
+                value={metrics.total_capacity}
+                detail="invitados en total"
+                delay={0.23}
+                reducedMotion={reducedMotion}
+              />
             </section>
           </div>
 
@@ -347,7 +437,9 @@ export default function Home() {
                           key={event.id}
                           initial={reducedMotion ? false : { opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
-                          transition={reducedMotion ? { duration: 0 } : { duration: 0.28, delay: 0.28, ease: 'easeOut' }}
+                          transition={
+                            reducedMotion ? { duration: 0 } : { duration: 0.28, delay: 0.28, ease: 'easeOut' }
+                          }
                         >
                           <Link
                             href={`/events/${event.id}`}

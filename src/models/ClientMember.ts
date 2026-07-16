@@ -37,3 +37,10 @@ export interface ClientMembersPage {
   page_size: number
   total_pages: number
 }
+
+export interface ClientMemberApplicationAccess {
+  code: string
+  name: string
+  is_active: boolean
+  is_enabled: boolean
+}

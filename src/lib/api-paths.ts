@@ -89,6 +89,10 @@ export function eventsPath(clientId?: string | number | null): string {
   return clientId ? apiPath('/events', { client_id: clientId }) : '/events'
 }
 
+export function applicationSessionPath(): string {
+  return '/session'
+}
+
 export function scopedEventsPath(clientId: string | number | null | undefined, isRoot: boolean): string | null {
   if (clientId) return eventsPath(clientId)
   return isRoot ? eventsPath() : null
@@ -242,6 +246,18 @@ export function clientMembersPagePath(
 
 export function clientMemberPath(userId: string | number, clientId: string | number): string {
   return apiPath(`/clients/members/${encodePathSegment(userId)}`, { client_id: clientId })
+}
+
+export function clientMemberApplicationsPath(clientId: string | number, userId: string | number): string {
+  return `/clients/${encodePathSegment(clientId)}/member-applications/${encodePathSegment(userId)}`
+}
+
+export function clientMemberApplicationPath(
+  clientId: string | number,
+  userId: string | number,
+  applicationCode: string
+): string {
+  return `${clientMemberApplicationsPath(clientId, userId)}/${encodePathSegment(applicationCode)}`
 }
 
 export function clientRolesPath(clientId: string | number): string {

@@ -39,7 +39,7 @@ describe('SessionBootstrap hydration ordering', () => {
 
     mocks.hydrated = true
     rerender(<SessionBootstrap />)
-    expect(mocks.swrKeys.at(-1)).toBe('/users')
+    expect(mocks.swrKeys.at(-1)).toBe('/session')
   })
 
   it('does not request the profile again once it is loaded', () => {
