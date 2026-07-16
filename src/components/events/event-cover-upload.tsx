@@ -43,6 +43,12 @@ export function EventCoverUpload({ event, onChanged }: Props) {
     setCoverOverride(undefined)
   }, [event.cover_image_url, event.cover_view_url, event.view_url])
 
+  useEffect(() => {
+    if (!onChanged || !['pending', 'processing'].includes(event.cover_processing_status || '')) return
+    const timer = window.setInterval(onChanged, 2500)
+    return () => window.clearInterval(timer)
+  }, [event.cover_processing_status, onChanged])
+
   const handleFile = async (file: File) => {
     if (upload.isUploading) return
     const validationError = sectionImageUploadValidationError(file)
@@ -72,7 +78,9 @@ export function EventCoverUpload({ event, onChanged }: Props) {
         const coverImageUrl = eventCoverRawSource(data)
         const viewUrl = eventCoverDisplaySource(data)
         const viewUrlExpiresAt = eventCoverDisplayExpiresAt(data)
-        if (!coverImageUrl && !viewUrl) {
+        const pendingViewUrl = data.pending_view_url || ''
+        const isAsync = ['pending', 'processing'].includes(data.processing_status || '')
+        if (!coverImageUrl && !viewUrl && !pendingViewUrl) {
           throw new Error('El servidor no confirmó la portada. Reintenta la carga.')
         }
         await mutate(
@@ -84,18 +92,31 @@ export function EventCoverUpload({ event, onChanged }: Props) {
               cover_view_url_expires_at: viewUrlExpiresAt,
               view_url: viewUrl,
               view_url_expires_at: viewUrlExpiresAt,
+              cover_pending_url: data.pending_url,
+              cover_pending_view_url: pendingViewUrl,
+              cover_pending_view_url_expires_at: data.pending_view_url_expires_at,
+              cover_processing_status: data.processing_status,
+              cover_processing_job_id: data.processing_job_id,
+              cover_processing_generation: data.processing_generation,
+              cover_processing_error: data.processing_error,
             }),
           { revalidate: false }
         )
 
         setCoverOverride(
-          resolveEventCoverUrl(
+          pendingViewUrl || resolveEventCoverUrl(
             { cover_image_url: coverImageUrl, cover_view_url: viewUrl },
             process.env.NEXT_PUBLIC_BACKEND_URL
           ) || undefined
         )
         onChanged?.()
-        toast.success(prepared.optimized ? 'Portada optimizada y actualizada' : 'Portada actualizada')
+        toast.success(
+          isAsync
+            ? 'Portada recibida. La estamos preparando sin interrumpir la actual.'
+            : prepared.optimized
+              ? 'Portada optimizada y actualizada'
+              : 'Portada actualizada'
+        )
         return data
       } catch (error) {
         setCoverOverride(undefined)
@@ -159,6 +180,7 @@ export function EventCoverUpload({ event, onChanged }: Props) {
 
   const coverImageUrl = coverOverride ?? resolveEventCoverUrl(event, process.env.NEXT_PUBLIC_BACKEND_URL)
   const hasCover = Boolean(coverImageUrl)
+  const isProcessing = ['pending', 'processing'].includes(event.cover_processing_status || '')
 
   return (
     <div className="space-y-3">
@@ -199,6 +221,11 @@ export function EventCoverUpload({ event, onChanged }: Props) {
           {upload.isUploading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50">
               <div className="text-sm text-white">Preparando portada…</div>
+            </div>
+          )}
+          {isProcessing && !upload.isUploading && (
+            <div className="absolute inset-x-3 bottom-3 rounded-lg bg-black/70 px-3 py-2 text-center text-xs font-medium text-white backdrop-blur">
+              Preparando la versión final y sus tamaños responsivos…
             </div>
           )}
         </div>
@@ -251,6 +278,9 @@ export function EventCoverUpload({ event, onChanged }: Props) {
         label="Subiendo portada"
         preparingLabel="Optimizando portada…"
       />
+      {event.cover_processing_status === 'failed' && event.cover_processing_error && (
+        <p className="text-xs text-amber-300">La portada anterior sigue activa. {event.cover_processing_error}</p>
+      )}
     </div>
   )
 }

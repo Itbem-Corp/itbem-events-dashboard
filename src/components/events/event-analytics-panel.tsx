@@ -7,7 +7,7 @@ import { EVENT_LIVE_REFRESH_INTERVAL_MS } from '@/lib/event-live-refresh'
 import { fetcher } from '@/lib/fetcher'
 import { buildEventGuestAnalytics } from '@/lib/event-guest-analytics'
 import { normalizeKeys } from '@/lib/normalizer'
-import type { EventAnalytics, EventGuestAnalyticsSummary } from '@/models/EventAnalytics'
+import type { EventAnalytics, EventGuestAnalyticsSummary, PerformanceMetricSummary } from '@/models/EventAnalytics'
 import type { Guest } from '@/models/Guest'
 import { ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/20/solid'
 import { useMemo } from 'react'
@@ -85,7 +85,34 @@ function nonNegativeInt(value: unknown): number {
   return 0
 }
 
-function normalizeEventAnalyticsPayload(value: unknown): EventAnalytics | undefined {
+function nonNegativeNumber(value: unknown): number {
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : 0
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+}
+
+function normalizePerformance(value: unknown): PerformanceMetricSummary[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+    const row = item as Record<string, unknown>
+    const route = typeof row.route === 'string' ? row.route.trim() : ''
+    const metric = typeof row.metric === 'string' ? row.metric.trim() : ''
+    if (!route || !metric) return []
+    return [{
+      route,
+      metric,
+      sample_count: nonNegativeInt(row.sample_count),
+      average: nonNegativeNumber(row.average),
+      minimum: nonNegativeNumber(row.minimum),
+      maximum: nonNegativeNumber(row.maximum),
+      p75: nonNegativeNumber(row.p75),
+      p95: nonNegativeNumber(row.p95),
+      rating: typeof row.rating === 'string' ? row.rating : undefined,
+    }]
+  })
+}
+
+export function normalizeEventAnalyticsPayload(value: unknown): EventAnalytics | undefined {
   const data = readApiData<unknown>(normalizeKeys(value))
   if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
 
@@ -102,6 +129,7 @@ function normalizeEventAnalyticsPayload(value: unknown): EventAnalytics | undefi
     moment_approved: nonNegativeInt(record.moment_approved),
     moment_pending: nonNegativeInt(record.moment_pending),
     guests: normalizeGuestAnalytics(record.guests),
+    performance: normalizePerformance(record.performance),
   }
 
   if (typeof record.created_at === 'string') analytics.created_at = record.created_at
@@ -159,6 +187,35 @@ function KPICard({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h3 className="mb-4 text-sm font-medium text-zinc-400">{children}</h3>
+}
+
+const PERFORMANCE_LABELS: Record<string, string> = {
+  lcp: 'LCP', inp: 'INP', cls: 'CLS', page_spec_ms: 'PageSpec',
+  photo_visible_ms: 'Primera foto', rsvp_submit_ms: 'Envío RSVP',
+}
+
+const PERFORMANCE_ROUTE_LABELS: Record<string, string> = {
+  event: 'Invitación', moments: 'Momentos', rsvp: 'RSVP', upload: 'Subida', tv: 'TV',
+}
+
+function formatPerformanceValue(metric: string, value: number): string {
+  if (metric === 'cls') return value.toFixed(value < 1 ? 2 : 1)
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} s`
+  return `${Math.round(value)} ms`
+}
+
+function performanceRatingClasses(rating?: string): string {
+  if (rating === 'good') return 'border-lime-400/20 bg-lime-400/10 text-lime-300'
+  if (rating === 'needs_improvement') return 'border-amber-400/20 bg-amber-400/10 text-amber-300'
+  if (rating === 'poor') return 'border-rose-400/20 bg-rose-400/10 text-rose-300'
+  return 'border-zinc-700 bg-zinc-800 text-zinc-400'
+}
+
+function performanceRatingLabel(rating?: string): string {
+  if (rating === 'good') return 'Bueno'
+  if (rating === 'needs_improvement') return 'Mejorable'
+  if (rating === 'poor') return 'Deficiente'
+  return 'Observación'
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
@@ -279,6 +336,7 @@ export function EventAnalyticsPanel({
   const roleEntries = guestAnalytics && 'roles' in guestAnalytics ? guestAnalytics.roles : Object.entries(guestAnalytics?.roleCounts ?? {}).map(([name, value]) => ({ name, value }))
   const roleData = roleEntries.map(({ name, value }) => ({ name: name || 'sin rol', value, color: ROLE_COLORS[name] ?? '#71717a' }))
     .sort((a, b) => b.value - a.value)
+  const performance = analytics?.performance ?? []
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -314,6 +372,44 @@ export function EventAnalyticsPanel({
         <KPICard label="Declinaron" value={declined} sub="no asistirán" accent="text-pink-400" />
         <KPICard label="Tasa respuesta" value={`${responseRate}%`} sub={`${responded} respondieron`} />
       </div>
+
+      {performance.length > 0 && (
+        <section className={cardCls} aria-labelledby="performance-heading">
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 id="performance-heading" className="text-sm font-medium text-zinc-300">Experiencia real</h3>
+              <p className="mt-1 text-xs text-zinc-500">Percentiles de los últimos 7 días medidos en dispositivos de invitados.</p>
+            </div>
+            <p className="text-[11px] text-zinc-600">p75 determina el estado · p95 muestra la cola lenta</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {performance.map((metric) => (
+              <article key={`${metric.route}:${metric.metric}`} className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-medium text-zinc-200">{PERFORMANCE_LABELS[metric.metric] ?? metric.metric}</p>
+                    <p className="mt-0.5 text-[11px] text-zinc-600">{PERFORMANCE_ROUTE_LABELS[metric.route] ?? metric.route}</p>
+                  </div>
+                  <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${performanceRatingClasses(metric.rating)}`}>
+                    {performanceRatingLabel(metric.rating)}
+                  </span>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] tracking-wide text-zinc-600 uppercase">p75</p>
+                    <p className="mt-0.5 text-xl font-semibold text-white">{formatPerformanceValue(metric.metric, metric.p75)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] tracking-wide text-zinc-600 uppercase">p95</p>
+                    <p className="mt-0.5 text-xl font-semibold text-zinc-300">{formatPerformanceValue(metric.metric, metric.p95)}</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-[11px] text-zinc-600">{metric.sample_count.toLocaleString('es-MX')} muestras · promedio {formatPerformanceValue(metric.metric, metric.average)}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── KPI Row 2 ──────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

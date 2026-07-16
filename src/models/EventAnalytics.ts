@@ -12,6 +12,19 @@ export interface EventAnalytics {
   created_at?: string
   updated_at?: string
   guests: EventGuestAnalyticsSummary
+  performance: PerformanceMetricSummary[]
+}
+
+export interface PerformanceMetricSummary {
+  route: string
+  metric: string
+  sample_count: number
+  average: number
+  minimum: number
+  maximum: number
+  p75: number
+  p95: number
+  rating?: 'good' | 'needs_improvement' | 'poor' | string
 }
 
 export interface AnalyticsCount { name: string; value: number }
