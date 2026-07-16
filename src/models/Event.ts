@@ -36,6 +36,13 @@ export interface Event extends BaseEntity {
   cover_view_url2_expires_at?: string
   view_url?: string
   view_url_expires_at?: string
+  cover_pending_url?: string
+  cover_pending_view_url?: string
+  cover_pending_view_url_expires_at?: string
+  cover_processing_status?: 'pending' | 'processing' | 'done' | 'failed' | ''
+  cover_processing_job_id?: string
+  cover_processing_generation?: number
+  cover_processing_error?: string
   music_url?: string
   custom_domain?: string
 
@@ -99,6 +106,13 @@ export interface EventCoverResponse {
   cover_view_url?: string
   cover_view_url_expires_at?: string
   view_url_expires_at?: string
+  pending_url?: string
+  pending_view_url?: string
+  pending_view_url_expires_at?: string
+  processing_status?: 'pending' | 'processing' | 'done' | 'failed' | ''
+  processing_job_id?: string
+  processing_generation?: number
+  processing_error?: string
 }
 
 export interface EventRepairResponse {
