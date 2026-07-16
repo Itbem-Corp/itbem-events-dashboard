@@ -33,7 +33,7 @@ import {
   UserCircleIcon,
   UsersIcon,
 } from '@heroicons/react/16/solid'
-import { BellIcon, HomeIcon, MagnifyingGlassIcon, Square2StackIcon } from '@heroicons/react/20/solid'
+import { BellIcon, ChartBarSquareIcon, HomeIcon, MagnifyingGlassIcon, Square2StackIcon } from '@heroicons/react/20/solid'
 
 import { Avatar } from '@/components/avatar'
 import { Link } from '@/components/link'
@@ -226,6 +226,9 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     ? sessionCan(applicationSession, 'organizations:view')
     : isRoot && modules.includes('organizations')
   const canManageMembers = sessionCan(applicationSession, 'members:manage')
+  const canViewMetrics = applicationSession
+    ? sessionCan(applicationSession, 'metrics:view')
+    : modules.includes('metrics')
   const canSwitchOrganizations = applicationSession
     ? canViewOrganizations || sessionCan(applicationSession, 'events:manage')
     : isRoot
@@ -247,7 +250,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   )
 
   const preloadRoute = useCallback(
-    (href: '/' | '/events' | '/team' | '/users' | '/clients') => {
+    (href: '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients') => {
       router.prefetch(href)
 
       const dataPath =
@@ -259,6 +262,8 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
               : null
             : href === '/users'
               ? usersAllPath({ page: 1, page_size: 10 })
+              : href === '/metrics'
+                ? null
               : href === '/team'
                 ? currentClient?.id
                   ? clientMembersPagePath(currentClient.id, 1, 20)
@@ -591,6 +596,13 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                   </SidebarItem>
                 )}
 
+                {canViewMetrics && (
+                  <SidebarItem href="/metrics" current={pathname.startsWith('/metrics')}>
+                    <ChartBarSquareIcon />
+                    <SidebarLabel>Métricas</SidebarLabel>
+                  </SidebarItem>
+                )}
+
                 {canViewUsers && (
                   <SidebarItem
                     href="/users"
@@ -701,6 +713,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
         <MobilePrimaryNavigation
           pathname={pathname}
           showEvents={hasEvents}
+          showMetrics={canViewMetrics}
           showTeam={canManageMembers && !canViewUsers}
           showUsers={canViewUsers}
           showOrganizations={canViewOrganizations}

@@ -15,11 +15,21 @@ describe('tenant configuration', () => {
 
   it('keeps ITBEM focused on the platform control plane', () => {
     expect(tenantCodeForHostname('DASHBOARD.ITBEM.COM:443')).toBe('itbem')
-    expect(tenantPresentationForHostname('dashboard.itbem.com').modules).toEqual(['home', 'users', 'organizations'])
+    expect(tenantPresentationForHostname('dashboard.itbem.com').modules).toEqual([
+      'home',
+      'users',
+      'organizations',
+      'metrics',
+    ])
   })
 
   it('keeps Cafetton House focused on clients and users without event surfaces', () => {
-    expect(tenantPresentationForHostname('dashboard.cafettonhouse.com').modules).toEqual(['home', 'users', 'organizations'])
+    expect(tenantPresentationForHostname('dashboard.cafettonhouse.com').modules).toEqual([
+      'home',
+      'users',
+      'organizations',
+      'metrics',
+    ])
     expect(tenantPresentationForHostname('dashboard.cafettonhouse.com').modules).not.toContain('events')
   })
 

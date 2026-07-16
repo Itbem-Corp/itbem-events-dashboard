@@ -1,14 +1,15 @@
 'use client'
 
 import { Link } from '@/components/link'
-import { BuildingOfficeIcon, HomeIcon, Square2StackIcon, UsersIcon } from '@heroicons/react/20/solid'
+import { BuildingOfficeIcon, ChartBarSquareIcon, HomeIcon, Square2StackIcon, UsersIcon } from '@heroicons/react/20/solid'
 import clsx from 'clsx'
 
-type PrimaryHref = '/' | '/events' | '/team' | '/users' | '/clients'
+type PrimaryHref = '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients'
 
 interface MobilePrimaryNavigationProps {
   pathname: string
   showEvents: boolean
+  showMetrics: boolean
   showTeam: boolean
   showUsers: boolean
   showOrganizations: boolean
@@ -18,6 +19,7 @@ interface MobilePrimaryNavigationProps {
 const PRIMARY_ITEMS = [
   { href: '/', label: 'Inicio', icon: HomeIcon, rootOnly: false },
   { href: '/events', label: 'Eventos', icon: Square2StackIcon, rootOnly: false },
+  { href: '/metrics', label: 'Métricas', icon: ChartBarSquareIcon, rootOnly: false },
   { href: '/team', label: 'Equipo', icon: UsersIcon, rootOnly: false },
   { href: '/users', label: 'Usuarios', icon: UsersIcon, rootOnly: true },
   { href: '/clients', label: 'Clientes', icon: BuildingOfficeIcon, rootOnly: true },
@@ -26,6 +28,7 @@ const PRIMARY_ITEMS = [
 export function MobilePrimaryNavigation({
   pathname,
   showEvents,
+  showMetrics,
   showTeam,
   showUsers,
   showOrganizations,
@@ -36,11 +39,13 @@ export function MobilePrimaryNavigation({
       ? true
       : item.href === '/events'
         ? showEvents
-        : item.href === '/team'
-          ? showTeam
-          : item.href === '/users'
-            ? showUsers
-            : showOrganizations
+        : item.href === '/metrics'
+          ? showMetrics
+          : item.href === '/team'
+            ? showTeam
+            : item.href === '/users'
+              ? showUsers
+              : showOrganizations
   )
 
   return (

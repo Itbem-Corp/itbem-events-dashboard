@@ -93,6 +93,17 @@ export function applicationSessionPath(): string {
   return '/session'
 }
 
+export function metricsPortfolioPath(clientId?: string | number | null, days = 30): string {
+  const today = new Date()
+  const from = new Date(today)
+  from.setUTCDate(from.getUTCDate() - Math.max(1, days - 1))
+  return apiPath('/metrics/portfolio', {
+    client_id: clientId,
+    from: from.toISOString().slice(0, 10),
+    to: today.toISOString().slice(0, 10),
+  })
+}
+
 export function scopedEventsPath(clientId: string | number | null | undefined, isRoot: boolean): string | null {
   if (clientId) return eventsPath(clientId)
   return isRoot ? eventsPath() : null
