@@ -50,6 +50,7 @@ import {
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
+import { tenantPresentationForHostname } from '@/lib/tenant-config'
 import type { ClientsPageResponse } from '@/models/Client'
 import { useStore } from '@/store/useStore'
 import dynamic from 'next/dynamic'
@@ -197,7 +198,12 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   const [clientsRequested, setClientsRequested] = useState(false)
   const [organizationSearch, setOrganizationSearch] = useState('')
   const [commandShortcutLabel, setCommandShortcutLabel] = useState('Ctrl K')
+  const [tenant, setTenant] = useState(() => tenantPresentationForHostname('dashboard.eventiapp.com.mx'))
   const debouncedOrganizationSearch = useDebounce(organizationSearch, 200)
+
+  useEffect(() => {
+    setTenant(tenantPresentationForHostname(window.location.hostname))
+  }, [])
 
   const currentClient = useStore((s) => s.currentClient)
   const setCurrentClient = useStore((s) => s.setCurrentClient)
@@ -272,7 +278,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   }, [])
 
   const clientsKey = shouldLoadClients
-    ? clientsPagePath({ page: 1, page_size: 50, search: isRoot ? debouncedOrganizationSearch : undefined })
+    ? clientsPagePath({ page: 1, page_size: 50, search: tenant.code === 'itbem' ? tenant.organizationCode : isRoot ? debouncedOrganizationSearch : undefined })
     : null
   const {
     data: rawClients,
@@ -295,8 +301,17 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     const list: ClientRaw[] = clients
 
     // ✅ Si hay clientes y no hay currentClient → seleccionar
+    const tenantClient = tenant.code === 'itbem'
+      ? list.find((client) => client.code?.toLowerCase() === tenant.organizationCode)
+      : undefined
+
+    if (tenant.code === 'itbem' && tenantClient && currentClient?.id !== tenantClient.id) {
+      setCurrentClient(normalizeClient(tenantClient))
+      return
+    }
+
     if (list.length > 0 && !currentClient) {
-      setCurrentClient(normalizeClient(list[0]))
+      setCurrentClient(normalizeClient(tenantClient ?? list[0]))
       return
     }
 
@@ -306,7 +321,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     }
 
     // ✅ ROOT con 0 clientes → NO REDIRECT
-  }, [clients, currentClient, isRoot, rawClients, router, setCurrentClient, user])
+  }, [clients, currentClient, isRoot, rawClients, router, setCurrentClient, tenant, user])
 
   return (
     <>
@@ -322,7 +337,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                 <Image src="/eventiapp-icon.svg" alt="" width={24} height={26} priority />
               </span>
               <span className="hidden min-[420px]:block">
-                <span className="block text-sm font-semibold tracking-tight text-white">EventiApp</span>
+                <span className="block text-sm font-semibold tracking-tight text-white">{tenant.name}</span>
                 <span className="block text-[9px] font-medium tracking-[0.16em] text-zinc-500 uppercase">
                   Dashboard
                 </span>
@@ -393,9 +408,9 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                   <Image src="/eventiapp-icon.svg" alt="" width={29} height={31} priority />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-base font-semibold tracking-[-0.02em] text-white">EventiApp</span>
+                  <span className="block text-base font-semibold tracking-[-0.02em] text-white">{tenant.name}</span>
                   <span className="block text-[10px] font-medium tracking-[0.16em] text-zinc-500 uppercase">
-                    Event operations
+                    {tenant.productLabel}
                   </span>
                 </span>
               </Link>
@@ -403,7 +418,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
               <p className="px-2 text-[10px] font-semibold tracking-[0.16em] text-zinc-500 uppercase">
                 Espacio de trabajo
               </p>
-              <Dropdown>
+              {tenant.modules.includes('organizations') ? <Dropdown>
                 <DropdownButton
                   as={SidebarItem}
                   onFocus={() => setClientsRequested(true)}
@@ -499,7 +514,15 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                     )
                   })}
                 </DropdownMenu>
-              </Dropdown>
+              </Dropdown> : (
+                <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
+                  <Avatar src={currentClient?.logo} initials={currentClient?.name?.substring(0, 2).toUpperCase() || tenant.name.substring(0, 2)} className="bg-cyan-600 text-white" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{currentClient?.name || tenant.name}</p>
+                    <p className="text-[10px] tracking-[0.14em] text-zinc-500 uppercase">Organización asignada</p>
+                  </div>
+                </div>
+              )}
             </SidebarHeader>
 
             {/* NAV */}
@@ -527,7 +550,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                   <SidebarLabel>Eventos</SidebarLabel>
                 </SidebarItem>
 
-                {isRoot && (
+                {isRoot && tenant.modules.includes('users') && (
                   <SidebarItem
                     href="/users"
                     current={pathname.startsWith('/users')}
@@ -543,7 +566,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
 
               <SidebarSpacer />
 
-              {isRoot && (
+              {isRoot && tenant.modules.includes('organizations') && (
                 <SidebarSection>
                   <SidebarItem
                     href="/clients"
@@ -622,7 +645,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
         }
       >
         {children}
-        <MobilePrimaryNavigation pathname={pathname} isRoot={isRoot} onIntent={preloadRoute} />
+        <MobilePrimaryNavigation pathname={pathname} isRoot={isRoot} modules={tenant.modules} onIntent={preloadRoute} />
       </SidebarLayout>
 
       {cmdOpen && (

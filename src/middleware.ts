@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { tenantCodeForHostname } from '@/lib/tenant-config'
 
 const publicRoutes = ['/login', '/auth', '/logout']
 const LOCAL_WARMUP_HEADER = 'x-eventi-local-warmup'
@@ -19,6 +20,7 @@ export function middleware(req: NextRequest) {
   if (isLocalWarmup(req)) return NextResponse.next()
 
   const session = req.cookies.get('session')
+  const tenantCode = tenantCodeForHostname(req.nextUrl.hostname)
   const isPublicRoute = publicRoutes.some(
     (route) =>
       req.nextUrl.pathname === route ||
@@ -27,6 +29,10 @@ export function middleware(req: NextRequest) {
 
   if (!session && !isPublicRoute) {
     return NextResponse.redirect(new URL('/login', req.url))
+  }
+
+  if (session && tenantCode === 'itbem' && (req.nextUrl.pathname.startsWith('/users') || req.nextUrl.pathname.startsWith('/clients'))) {
+    return NextResponse.redirect(new URL('/', req.url))
   }
 
   if (session && isPublicRoute && req.nextUrl.pathname !== '/' && req.nextUrl.pathname !== '/logout') {
