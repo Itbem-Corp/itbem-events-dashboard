@@ -4,6 +4,7 @@ import { readApiData } from "@/lib/api-envelope";
 import { normalizeBackendBaseUrl } from "@/lib/base-url";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { backendBaseUrlForHostname } from "@/lib/tenant-config";
+import { releaseMutationKey, reserveMutationKey } from "@/lib/idempotency-key";
 import { normalizeKeys } from "@/lib/normalizer";
 import { toast } from "sonner";
 
@@ -18,6 +19,19 @@ const API_URL = `${BASE_URL}/api`;
 export const api = axios.create({
     baseURL: API_URL
 });
+
+const MUTATION_METHODS = new Set(["post", "put", "patch", "delete"])
+
+type IdempotentRequestConfig = {
+    _eventiIdempotencySignature?: string
+    _eventiAuthRetried?: boolean
+}
+
+function releaseRequestMutationKey(config: IdempotentRequestConfig | undefined) {
+    if (config?._eventiIdempotencySignature) {
+        releaseMutationKey(config._eventiIdempotencySignature)
+    }
+}
 
 export function normalizeApiResponseData(data: unknown, responseType?: string): unknown {
     if (responseType === 'blob') return data
@@ -55,10 +69,20 @@ const getAuthToken = async (forceRefresh = false) => {
 
 // --- INTERCEPTOR DE REQUEST ---
 api.interceptors.request.use(async (config) => {
+    const idempotentConfig = config as typeof config & IdempotentRequestConfig
     const token = await getAuthToken();
 
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Axios reuses this config after an auth refresh, so an ambiguous retry
+    // keeps the same key and the API can replay the original mutation safely.
+    const method = (config.method || "").toLowerCase()
+    if (MUTATION_METHODS.has(method) && !config.headers["Idempotency-Key"]) {
+        const reservation = reserveMutationKey(method, config.url || "", config.data)
+        idempotentConfig._eventiIdempotencySignature = reservation.signature || undefined
+        config.headers["Idempotency-Key"] = reservation.key
     }
 
     // Lógica opcional para Client-ID (La dejaste comentada, está bien)
@@ -71,6 +95,7 @@ api.interceptors.request.use(async (config) => {
 });
 
 api.interceptors.response.use((response) => {
+    releaseRequestMutationKey(response.config as typeof response.config & IdempotentRequestConfig)
     // Skip binary responses: normalizeKeys() would convert a Blob to {}, corrupting downloads.
     response.data = normalizeApiResponseData(response.data, response.config.responseType)
     return response
@@ -81,7 +106,7 @@ api.interceptors.response.use(
     (response) => response,
     async (error) => {
         const status = error?.response?.status
-        const requestConfig = error?.config as (typeof error.config & { _eventiAuthRetried?: boolean }) | undefined
+        const requestConfig = error?.config as (typeof error.config & IdempotentRequestConfig) | undefined
 
         if (status === 401 && requestConfig && !requestConfig._eventiAuthRetried) {
             requestConfig._eventiAuthRetried = true
@@ -105,6 +130,13 @@ api.interceptors.response.use(
         } else if (!error?.response) {
             // Network error (no response from server at all)
             toast.error('Sin conexión. Verifica tu red e intenta de nuevo')
+        }
+
+        // A network failure is ambiguous: retain the key so a manual retry can
+        // replay a server-side success. Known HTTP responses release it, except
+        // auth refreshes and in-flight conflicts which reuse the same request.
+        if (error?.response && status !== 401 && status !== 409) {
+            releaseRequestMutationKey(requestConfig)
         }
 
         return Promise.reject(error);
