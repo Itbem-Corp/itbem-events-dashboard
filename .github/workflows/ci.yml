@@ -96,6 +96,19 @@ jobs:
       - name: Pull Vercel project config
         run: npx --yes vercel@${VERCEL_CLI_VERSION} pull --yes --environment=production --token="${VERCEL_TOKEN}"
 
+      - name: Synchronize tenant Cognito clients
+        env:
+          COGNITO_EVENTIAPP_CLIENT_ID: ${{ secrets.COGNITO_EVENTIAPP_CLIENT_ID }}
+          COGNITO_ITBEM_CLIENT_ID: ${{ secrets.COGNITO_ITBEM_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "${COGNITO_EVENTIAPP_CLIENT_ID}"
+          test -n "${COGNITO_ITBEM_CLIENT_ID}"
+          printf '%s' "${COGNITO_EVENTIAPP_CLIENT_ID}" | npx --yes vercel@${VERCEL_CLI_VERSION} env add COGNITO_EVENTIAPP_CLIENT_ID production --force --token="${VERCEL_TOKEN}"
+          printf '%s' "${COGNITO_ITBEM_CLIENT_ID}" | npx --yes vercel@${VERCEL_CLI_VERSION} env add COGNITO_ITBEM_CLIENT_ID production --force --token="${VERCEL_TOKEN}"
+          printf '%s' 'us-east-1' | npx --yes vercel@${VERCEL_CLI_VERSION} env add COGNITO_AWS_REGION production --force --token="${VERCEL_TOKEN}"
+          npx --yes vercel@${VERCEL_CLI_VERSION} pull --yes --environment=production --token="${VERCEL_TOKEN}"
+
       - name: Build for Vercel
         run: npx --yes vercel@${VERCEL_CLI_VERSION} build --prod --token="${VERCEL_TOKEN}"
         env:

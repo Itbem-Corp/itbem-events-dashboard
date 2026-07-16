@@ -1,32 +1,9 @@
-import { AUTH_COOKIE_NAMES } from '@/lib/auth-session'
-import { NextResponse } from "next/server";
+import { AUTH_COOKIE_NAMES, PRIVATE_NO_STORE_HEADERS } from '@/lib/auth-session'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
-  const logoutUri = process.env.COGNITO_LOGOUT_REDIRECT_URI;
-  const clientId = process.env.COGNITO_CLIENT_ID;
-  const domain = process.env.COGNITO_DOMAIN;
-
-  if (!logoutUri || !clientId || !domain) {
-    throw new Error("Faltan variables de entorno para el Logout");
-  }
-
-  // 1. Construimos la URL de Cognito
-  const cognitoLogoutUrl = `${domain}/logout?client_id=${clientId}&logout_uri=${encodeURIComponent(logoutUri)}`;
-
-  const response = NextResponse.redirect(cognitoLogoutUrl);
-
-  // 2. Borrado de cookies con atributos explícitos
-  const cookieOptions = {
-    path: "/",         // 👈 FUNDAMENTAL: Debe coincidir con el path donde se creó
-    maxAge: 0,         // Expira inmediatamente
-    expires: new Date(0), // Refuerzo para navegadores antiguos
-  };
-
-  response.cookies.set(AUTH_COOKIE_NAMES.session, "", cookieOptions);
-  response.cookies.set("access_token", "", cookieOptions);
-  response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, "", cookieOptions);
-  response.cookies.set(AUTH_COOKIE_NAMES.oauthState, "", cookieOptions);
-  response.cookies.set(AUTH_COOKIE_NAMES.pkceVerifier, "", cookieOptions);
-
-  return response;
+export async function GET(request: NextRequest) {
+  const response = NextResponse.redirect(new URL('/login', request.url), { headers: PRIVATE_NO_STORE_HEADERS })
+  for (const name of Object.values(AUTH_COOKIE_NAMES)) response.cookies.set(name, '', { path: '/', maxAge: 0 })
+  response.cookies.set('access_token', '', { path: '/', maxAge: 0 })
+  return response
 }

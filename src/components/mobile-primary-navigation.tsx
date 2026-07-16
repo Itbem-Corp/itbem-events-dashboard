@@ -3,12 +3,14 @@
 import { Link } from '@/components/link'
 import { BuildingOfficeIcon, HomeIcon, Square2StackIcon, UsersIcon } from '@heroicons/react/20/solid'
 import clsx from 'clsx'
+import type { TenantModule } from '@/lib/tenant-config'
 
 type PrimaryHref = '/' | '/events' | '/users' | '/clients'
 
 interface MobilePrimaryNavigationProps {
   pathname: string
   isRoot: boolean
+  modules: readonly TenantModule[]
   onIntent: (href: PrimaryHref) => void
 }
 
@@ -19,8 +21,13 @@ const PRIMARY_ITEMS = [
   { href: '/clients', label: 'Clientes', icon: BuildingOfficeIcon, rootOnly: true },
 ] as const
 
-export function MobilePrimaryNavigation({ pathname, isRoot, onIntent }: MobilePrimaryNavigationProps) {
-  const items = PRIMARY_ITEMS.filter((item) => isRoot || !item.rootOnly)
+export function MobilePrimaryNavigation({ pathname, isRoot, modules, onIntent }: MobilePrimaryNavigationProps) {
+  const items = PRIMARY_ITEMS.filter((item) =>
+    (isRoot || !item.rootOnly) &&
+    (item.href === '/' ? modules.includes('home') :
+      item.href === '/events' ? modules.includes('events') :
+        item.href === '/users' ? modules.includes('users') : modules.includes('organizations'))
+  )
 
   return (
     <nav

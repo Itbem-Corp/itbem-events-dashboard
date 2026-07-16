@@ -3,9 +3,12 @@ export const AUTH_COOKIE_NAMES = {
   refreshToken: 'refresh_token',
   oauthState: 'oauth_state',
   pkceVerifier: 'pkce_verifier',
+  challengeSession: 'auth_challenge_session',
+  challengeUsername: 'auth_challenge_username',
 } as const
 
 export const OAUTH_TRANSACTION_MAX_AGE_SECONDS = 10 * 60
+export const AUTH_CHALLENGE_MAX_AGE_SECONDS = 10 * 60
 export const REFRESH_TOKEN_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 export const DEFAULT_SESSION_MAX_AGE_SECONDS = 60 * 60
 
