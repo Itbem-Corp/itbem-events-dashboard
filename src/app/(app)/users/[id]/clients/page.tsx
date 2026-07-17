@@ -112,7 +112,7 @@ export default function UserClientsPage() {
   return (
     <PageTransition>
       <div className="space-y-8">
-        <Link href="/users" className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-200">
+        <Link href="/users" className="inline-flex items-center gap-2 text-sm text-ink-muted hover:text-ink">
           <ChevronLeftIcon className="size-4" />
           Usuarios
         </Link>
@@ -131,7 +131,7 @@ export default function UserClientsPage() {
                 {user?.is_root && <Badge color="indigo">ROOT</Badge>}
                 {user && !user.is_active && <Badge color="zinc">INACTIVO</Badge>}
               </div>
-              {user?.email && <p className="mt-1 truncate text-sm text-zinc-500">{user.email}</p>}
+              {user?.email && <p className="mt-1 truncate text-sm text-ink-muted">{user.email}</p>}
             </div>
           </div>
           <Button href="/clients" outline>
@@ -147,12 +147,12 @@ export default function UserClientsPage() {
         {Boolean(clientsPage) && (
           <section aria-label="Resumen de membresías" className="grid grid-cols-3 gap-3">
             {[
-              { label: 'Asignadas', value: summary.total, color: 'text-zinc-100' },
+              { label: 'Asignadas', value: summary.total, color: 'text-ink' },
               { label: 'Activas', value: summary.active, color: 'text-lime-400' },
-              { label: 'Inactivas', value: summary.inactive, color: 'text-zinc-500' },
+              { label: 'Inactivas', value: summary.inactive, color: 'text-ink-muted' },
             ].map((item) => (
               <div key={item.label} className="rounded-2xl border border-white/7 bg-white/[0.025] p-4 sm:p-5">
-                <p className="truncate text-xs font-medium text-zinc-500">{item.label}</p>
+                <p className="truncate text-xs font-medium text-ink-muted">{item.label}</p>
                 <p className={`mt-3 text-2xl font-semibold tracking-tight tabular-nums ${item.color}`}>{item.value}</p>
               </div>
             ))}
@@ -162,17 +162,17 @@ export default function UserClientsPage() {
         {clientsPage && totalClients > 0 && (
           <div className="flex flex-col gap-3 rounded-2xl border border-white/7 bg-white/[0.02] p-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:max-w-sm">
-              <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-500" />
+              <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
               <input
                 type="search"
                 aria-label="Buscar organización"
                 placeholder="Nombre, código o tipo…"
                 value={search}
                 onChange={(event) => { setSearch(event.target.value); setPage(1) }}
-                className="w-full rounded-xl border border-transparent bg-black/15 py-2 pr-4 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
+                className="w-full rounded-xl border border-transparent bg-black/15 py-2 pr-4 pl-9 text-sm text-ink placeholder:text-ink-muted focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
               />
             </div>
-            <span className="px-2 text-xs text-zinc-600" aria-live="polite">
+            <span className="px-2 text-xs text-ink-muted" aria-live="polite">
               {clients.length} de {totalClients}
             </span>
           </div>
@@ -189,8 +189,8 @@ export default function UserClientsPage() {
           />
         ) : clients.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-white/10 py-14 text-center">
-            <p className="text-sm font-medium text-zinc-300">Sin coincidencias</p>
-            <p className="mt-1 text-sm text-zinc-600">Prueba con otro nombre, código o tipo de cliente.</p>
+            <p className="text-sm font-medium text-ink-secondary">Sin coincidencias</p>
+            <p className="mt-1 text-sm text-ink-muted">Prueba con otro nombre, código o tipo de cliente.</p>
             <button
               type="button"
               onClick={() => { setSearch(''); setPage(1) }}
@@ -209,16 +209,16 @@ export default function UserClientsPage() {
                 <Avatar
                   src={client.logo}
                   initials={(client.name || 'OR').slice(0, 2).toUpperCase()}
-                  className="size-11 shrink-0 rounded-xl bg-zinc-800 sm:size-12"
+                  className="size-11 shrink-0 rounded-xl bg-surface-raised sm:size-12"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <h2 className="truncate text-sm font-semibold text-zinc-100 sm:text-base">{client.name}</h2>
+                    <h2 className="truncate text-sm font-semibold text-ink sm:text-base">{client.name}</h2>
                     <Badge color={client.is_active !== false ? 'lime' : 'zinc'}>
                       {client.is_active !== false ? 'ACTIVA' : 'INACTIVA'}
                     </Badge>
                   </div>
-                  <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-zinc-500">
+                  <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-ink-muted">
                     <span>{membershipType(client)}</span>
                     {client.code && (
                       <>

@@ -100,11 +100,11 @@ const BACKEND_MEDIA_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL
 
 const BrandedQR = dynamic(() => import('@/components/ui/branded-qr').then((module) => module.BrandedQR), {
   ssr: false,
-  loading: () => <div className="h-72 w-full max-w-[280px] animate-pulse rounded-2xl bg-zinc-800/70" />,
+  loading: () => <div className="h-72 w-full max-w-[280px] animate-pulse rounded-2xl bg-surface-raised/70" />,
 })
 const MomentDragGrid = dynamic(
   () => import('@/components/events/moment-drag-grid').then((module) => module.MomentDragGrid),
-  { ssr: false, loading: () => <div className="h-72 animate-pulse rounded-2xl bg-zinc-800/40" /> }
+  { ssr: false, loading: () => <div className="h-72 animate-pulse rounded-2xl bg-surface-raised/40" /> }
 )
 
 function formatBytes(bytes: number): string {
@@ -593,7 +593,7 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        className="relative mx-4 flex w-full max-w-sm flex-col items-center gap-4 rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl"
+        className="relative mx-4 flex w-full max-w-sm flex-col items-center gap-4 rounded-2xl border border-white/10 bg-surface p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="qr-modal-title" className="sr-only">
@@ -603,7 +603,7 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
           type="button"
           onClick={onClose}
           aria-label="Cerrar"
-          className="absolute top-3 right-3 rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300"
+          className="absolute top-3 right-3 rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-white/5 hover:text-ink-secondary"
         >
           <XMarkIcon className="size-4" />
         </button>
@@ -618,12 +618,12 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
         />
 
         <div className="w-full space-y-2 pt-1">
-          <p className="px-2 text-center text-xs break-all text-zinc-500">{url}</p>
+          <p className="px-2 text-center text-xs break-all text-ink-muted">{url}</p>
           <a
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-600"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-surface-soft py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-600"
           >
             <ArrowTopRightOnSquareIcon className="size-4" />
             Abrir enlace
@@ -695,7 +695,7 @@ function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uplo
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-        className="relative mx-4 flex w-full max-w-sm flex-col items-center gap-4 rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl"
+        className="relative mx-4 flex w-full max-w-sm flex-col items-center gap-4 rounded-2xl border border-white/10 bg-surface p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="wall-share-title" className="sr-only">
@@ -705,7 +705,7 @@ function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uplo
           type="button"
           onClick={onClose}
           aria-label="Cerrar"
-          className="absolute top-3 right-3 rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300"
+          className="absolute top-3 right-3 rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-white/5 hover:text-ink-secondary"
         >
           <XMarkIcon className="size-4" />
         </button>
@@ -728,7 +728,7 @@ function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uplo
                   'flex-1 py-2 text-xs font-medium transition-colors',
                   activeTab === tab.key
                     ? 'bg-indigo-600 text-white'
-                    : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                    : 'text-ink-secondary hover:bg-white/5 hover:text-ink'
                 )}
               >
                 {tab.label}
@@ -751,12 +751,12 @@ function WallShareModal({ wallUrl, uploadUrl, onClose }: { wallUrl: string; uplo
 
         {/* URL + actions */}
         <div className="w-full space-y-2 pt-1">
-          <p className="px-2 text-center text-xs break-all text-zinc-500">{activeUrl}</p>
+          <p className="px-2 text-center text-xs break-all text-ink-muted">{activeUrl}</p>
           <a
             href={activeUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-700 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-600"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-surface-soft py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-600"
           >
             <ArrowTopRightOnSquareIcon className="size-4" />
             Abrir enlace
@@ -827,10 +827,10 @@ function ReoptimizingSection({ moments, resolveUrl }: ReoptimizingSectionProps) 
                 const video = isBackendVideoMedia(url, m.content_type)
                 const thumb = video ? resolveMomentThumbnailUrl(m) : url
                 return (
-                  <div key={m.id} className="relative aspect-square overflow-hidden rounded-lg bg-zinc-800">
+                  <div key={m.id} className="relative aspect-square overflow-hidden rounded-lg bg-surface-raised">
                     {thumb && <Image src={thumb} alt="" fill className="object-cover" sizes="96px" unoptimized />}
                     {/* Spinner overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/60">
+                    <div className="absolute inset-0 flex items-center justify-center bg-surface/60">
                       <ArrowPathIcon className="size-5 animate-spin text-indigo-400" />
                     </div>
                   </div>
@@ -902,22 +902,22 @@ function InFlightSection({ moments }: InFlightSectionProps) {
               {visibleMoments.map((m) => {
                 const isVid = m.content_type?.startsWith('video/')
                 return (
-                  <div key={m.id} className="relative aspect-square overflow-hidden rounded-lg bg-zinc-800">
+                  <div key={m.id} className="relative aspect-square overflow-hidden rounded-lg bg-surface-raised">
                     {/* File type indicator */}
                     <div className="absolute inset-0 flex items-center justify-center">
                       {isVid ? (
-                        <VideoCameraIcon className="size-6 text-zinc-600" />
+                        <VideoCameraIcon className="size-6 text-ink-muted" />
                       ) : (
-                        <PhotoIcon className="size-6 text-zinc-600" />
+                        <PhotoIcon className="size-6 text-ink-muted" />
                       )}
                     </div>
                     {/* Spinner overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/40">
+                    <div className="absolute inset-0 flex items-center justify-center bg-surface/40">
                       <ArrowPathIcon className="size-5 animate-spin text-sky-400" />
                     </div>
                     {/* Status badge */}
                     <div className="absolute inset-x-1 bottom-1">
-                      <span className="block w-full truncate rounded bg-zinc-900/70 px-1 py-0.5 text-center text-[9px] text-sky-300/80">
+                      <span className="block w-full truncate rounded bg-surface/70 px-1 py-0.5 text-center text-[9px] text-sky-300/80">
                         {m.processing_status === 'processing' ? 'Procesando…' : 'En cola'}
                       </span>
                     </div>
@@ -1077,11 +1077,11 @@ function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
                 const spinning = retrying.has(m.id)
                 const processingDuration = formatDurationMs(m.processing_duration_ms)
                 return (
-                  <div key={m.id} className="group relative aspect-square overflow-hidden rounded-lg bg-zinc-900">
+                  <div key={m.id} className="group relative aspect-square overflow-hidden rounded-lg bg-surface">
                     {thumb ? (
                       <Image src={thumb} alt="" fill className="object-cover opacity-40" sizes="96px" unoptimized />
                     ) : (
-                      <div className="absolute inset-0 bg-zinc-800" />
+                      <div className="absolute inset-0 bg-surface-raised" />
                     )}
 
                     {/* Error message — shown on hover */}
@@ -1208,7 +1208,7 @@ const MomentCard = memo(function MomentCard({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ duration: 0.2 }}
-      className="group relative aspect-square overflow-hidden rounded-xl bg-zinc-900"
+      className="group relative aspect-square overflow-hidden rounded-xl bg-surface"
     >
       {/* ── Select mode overlay ─────────────────────────── */}
       {selectMode && (
@@ -1236,9 +1236,9 @@ const MomentCard = memo(function MomentCard({
       {/* ── Media area ─────────────────────────────────────── */}
       {visible ? (
         isProcessing ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-zinc-800 to-zinc-900">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-surface-raised to-surface">
             <ArrowPathIcon className="size-8 animate-spin text-indigo-400 opacity-60" />
-            <p className="px-4 text-center text-xs text-zinc-500">{processingLabel(moment.processing_status)}</p>
+            <p className="px-4 text-center text-xs text-ink-muted">{processingLabel(moment.processing_status)}</p>
           </div>
         ) : isFailed ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-rose-950/40 p-4">
@@ -1277,7 +1277,7 @@ const MomentCard = memo(function MomentCard({
             ) : extractedThumb ? (
               <img src={extractedThumb} alt="Video momento" className="h-full w-full object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-800 to-zinc-900">
+              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-surface-raised to-surface">
                 <div className="flex size-14 items-center justify-center rounded-full bg-black/50 ring-1 ring-white/20">
                   <svg className="ml-1 size-6 text-white" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M8 5.14v14l11-7-11-7z" />
@@ -1312,18 +1312,18 @@ const MomentCard = memo(function MomentCard({
             <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20" />
           </button>
         ) : moment.description ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-zinc-800/80 to-zinc-900 p-5">
-            <p className="line-clamp-6 text-center text-sm leading-relaxed text-zinc-300 italic">
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-surface-raised/80 to-surface p-5">
+            <p className="line-clamp-6 text-center text-sm leading-relaxed text-ink-secondary italic">
               &ldquo;{moment.description}&rdquo;
             </p>
           </div>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-800/50">
-            <PhotoIcon className="size-10 text-zinc-600" />
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-raised/50">
+            <PhotoIcon className="size-10 text-ink-muted" />
           </div>
         )
       ) : (
-        <div className="absolute inset-0 animate-pulse rounded-xl bg-zinc-800/40" />
+        <div className="absolute inset-0 animate-pulse rounded-xl bg-surface-raised/40" />
       )}
 
       {/* ── Status badge (top-left) ─────────────────────────── */}
@@ -1458,14 +1458,14 @@ function NoteCard({ moment, canManage = true, onApprove, onDelete, resolveUrl }:
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -4 }}
       transition={{ duration: 0.18 }}
-      className="flex items-start gap-4 rounded-xl border border-white/8 bg-zinc-900/70 p-4 transition-colors hover:bg-zinc-900"
+      className="flex items-start gap-4 rounded-xl border border-white/8 bg-surface/70 p-4 transition-colors hover:bg-surface"
     >
       {/* Thumbnail — media preview */}
       {url && (
-        <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-zinc-800 ring-1 ring-white/8">
+        <div className="size-14 shrink-0 overflow-hidden rounded-lg bg-surface-raised ring-1 ring-white/8">
           {video ? (
-            <div className="flex size-full items-center justify-center bg-zinc-800">
-              <svg className="ml-0.5 size-5 text-zinc-400" viewBox="0 0 24 24" fill="currentColor">
+            <div className="flex size-full items-center justify-center bg-surface-raised">
+              <svg className="ml-0.5 size-5 text-ink-secondary" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8 5.14v14l11-7-11-7z" />
               </svg>
             </div>
@@ -1487,10 +1487,10 @@ function NoteCard({ moment, canManage = true, onApprove, onDelete, resolveUrl }:
               Pendiente
             </span>
           )}
-          <span className="text-[10px] text-zinc-600 tabular-nums">{timeLabel}</span>
+          <span className="text-[10px] text-ink-muted tabular-nums">{timeLabel}</span>
         </div>
 
-        <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-zinc-200 italic">
+        <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-ink italic">
           &ldquo;{moment.description}&rdquo;
         </p>
       </div>
@@ -2560,7 +2560,7 @@ export function MomentsWall({
         {/* ── Mobile compact toolbar (hidden on md+) ─────────────────── */}
         <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2 md:hidden">
           {/* Count */}
-          <span className="min-w-0 flex-1 truncate text-xs text-zinc-400">{filteredTotal} momentos</span>
+          <span className="min-w-0 flex-1 truncate text-xs text-ink-secondary">{filteredTotal} momentos</span>
 
           {canManage && (
             <>
@@ -2573,7 +2573,7 @@ export function MomentsWall({
                 }}
                 className={clsx(
                   'flex size-11 items-center justify-center rounded-xl text-xs font-medium transition-colors',
-                  selectMode ? 'bg-indigo-600 text-white' : 'bg-white/10 text-zinc-300 hover:bg-white/15'
+                  selectMode ? 'bg-indigo-600 text-white' : 'bg-white/10 text-ink-secondary hover:bg-white/15'
                 )}
                 aria-label={selectMode ? 'Cancelar selección' : 'Seleccionar'}
                 aria-pressed={selectMode}
@@ -2586,7 +2586,7 @@ export function MomentsWall({
                 type="button"
                 onClick={() => setShowZipMenu((v) => !v)}
                 disabled={downloadingZip || moments.length === 0}
-                className="flex size-11 items-center justify-center rounded-xl bg-white/10 text-zinc-300 transition-colors hover:bg-white/15 disabled:opacity-40"
+                className="flex size-11 items-center justify-center rounded-xl bg-white/10 text-ink-secondary transition-colors hover:bg-white/15 disabled:opacity-40"
                 aria-label="Descargar ZIP"
               >
                 {downloadingZip ? (
@@ -2641,7 +2641,7 @@ export function MomentsWall({
               <button
                 type="button"
                 onClick={() => setShowMoreSheet(true)}
-                className="flex size-11 items-center justify-center rounded-xl bg-white/10 text-zinc-300 transition-colors hover:bg-white/15"
+                className="flex size-11 items-center justify-center rounded-xl bg-white/10 text-ink-secondary transition-colors hover:bg-white/15"
                 aria-label="Más acciones"
                 aria-expanded={showMoreSheet}
               >
@@ -2654,7 +2654,7 @@ export function MomentsWall({
         {/* Row 1 — Content actions */}
         <div className="hidden flex-wrap items-center gap-3 border-b border-white/5 px-4 py-3 md:flex">
           {/* Counts + badges */}
-          <p className="min-w-0 flex-1 text-sm text-zinc-400">
+          <p className="min-w-0 flex-1 text-sm text-ink-secondary">
             {totalMoments} momento{totalMoments !== 1 ? 's' : ''} en total
             {pendingCount > 0 && (
               <span className="ml-2 inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400 ring-1 ring-amber-500/20">
@@ -2675,13 +2675,13 @@ export function MomentsWall({
               </span>
             )}
             {(photoCount > 0 || videoCount > 0) && (
-              <span className="ml-2 inline-flex items-center gap-1.5 text-xs text-zinc-500">
+              <span className="ml-2 inline-flex items-center gap-1.5 text-xs text-ink-muted">
                 {photoCount > 0 && (
                   <span>
                     {photoCount} foto{photoCount !== 1 ? 's' : ''}
                   </span>
                 )}
-                {photoCount > 0 && videoCount > 0 && <span className="text-zinc-700">·</span>}
+                {photoCount > 0 && videoCount > 0 && <span className="text-ink-muted">·</span>}
                 {videoCount > 0 && (
                   <span>
                     {videoCount} video{videoCount !== 1 ? 's' : ''}
@@ -2701,7 +2701,7 @@ export function MomentsWall({
                   'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                   dragMode
                     ? 'border-cyan-500/30 bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
-                    : 'border-white/10 bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                    : 'border-white/10 bg-surface-raised text-ink-secondary hover:bg-surface-soft'
                 )}
                 title={dragMode ? 'Salir del modo reordenamiento' : 'Reordenar momentos arrastrando'}
               >
@@ -2732,7 +2732,7 @@ export function MomentsWall({
                   }
                   exitDragMode()
                 }}
-                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-700"
+                className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-soft"
                 title="Restablecer al orden cronológico original"
               >
                 Restablecer orden
@@ -2746,7 +2746,7 @@ export function MomentsWall({
                 'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                 selectMode
                   ? 'border-indigo-500 bg-indigo-600 text-white'
-                  : 'border-white/10 bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                  : 'border-white/10 bg-surface-raised text-ink-secondary hover:bg-surface-soft'
               )}
             >
               <svg className="size-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -2760,10 +2760,10 @@ export function MomentsWall({
             </button>
             {/* Seleccionar todo checkbox */}
             {selectMode && (
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-zinc-400 select-none">
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-ink-secondary select-none">
                 <input
                   type="checkbox"
-                  className="rounded border-zinc-600 bg-zinc-800 text-indigo-500 focus:ring-indigo-500"
+                  className="rounded border-border-subtle bg-surface-raised text-indigo-500 focus:ring-indigo-500"
                   checked={filteredMoments.length > 0 && selectedIds.size === filteredMoments.length}
                   onChange={(e) => {
                     if (e.target.checked) setSelectedIds(new Set(filteredMoments.map((m) => m.id)))
@@ -2779,7 +2779,7 @@ export function MomentsWall({
                   <button
                     onClick={() => handleDownloadZip('all')}
                     disabled={downloadingZip}
-                    className="flex items-center gap-1.5 bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 disabled:opacity-50"
+                    className="flex items-center gap-1.5 bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-soft disabled:opacity-50"
                     title="Descargar todos los momentos aprobados en un ZIP"
                   >
                     {downloadingZip ? (
@@ -2795,7 +2795,7 @@ export function MomentsWall({
                     title="Opciones de descarga"
                     aria-label="Opciones de descarga"
                     disabled={downloadingZip}
-                    className="flex items-center border-l border-white/10 bg-zinc-800 px-2 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-700 disabled:opacity-50"
+                    className="flex items-center border-l border-white/10 bg-surface-raised px-2 py-1.5 text-xs text-ink-secondary transition-colors hover:bg-surface-soft disabled:opacity-50"
                   >
                     <svg className="size-3" viewBox="0 0 20 20" fill="currentColor">
                       <path
@@ -2808,22 +2808,22 @@ export function MomentsWall({
                 </div>
 
                 {showZipMenu && (
-                  <div className="absolute top-full left-0 z-50 mt-1 min-w-[140px] rounded-lg border border-white/10 bg-zinc-900 py-1 shadow-xl shadow-black/40">
+                  <div className="absolute top-full left-0 z-50 mt-1 min-w-[140px] rounded-lg border border-white/10 bg-surface py-1 shadow-xl shadow-black/40">
                     <button
                       onClick={() => handleDownloadZip('all')}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 transition-colors hover:bg-white/5"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-ink-secondary transition-colors hover:bg-white/5"
                     >
                       <ArrowDownTrayIcon className="size-3.5" /> Todos
                     </button>
                     <button
                       onClick={() => handleDownloadZip('photos')}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 transition-colors hover:bg-white/5"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-ink-secondary transition-colors hover:bg-white/5"
                     >
                       <ArrowDownTrayIcon className="size-3.5" /> Solo fotos
                     </button>
                     <button
                       onClick={() => handleDownloadZip('videos')}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-zinc-300 transition-colors hover:bg-white/5"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-ink-secondary transition-colors hover:bg-white/5"
                     >
                       <ArrowDownTrayIcon className="size-3.5" /> Solo vídeos
                     </button>
@@ -2908,15 +2908,15 @@ export function MomentsWall({
             )}
 
             {/* Auto-refresh indicator */}
-            <div className="flex items-center gap-1.5 text-xs text-zinc-500">
-              {isValidating && <ArrowPathIcon className="size-3 animate-spin text-zinc-400" />}
+            <div className="flex items-center gap-1.5 text-xs text-ink-muted">
+              {isValidating && <ArrowPathIcon className="size-3 animate-spin text-ink-secondary" />}
               <span className="sm:hidden">{isValidating ? '…' : '15s'}</span>
               <span className="hidden sm:inline">{isValidating ? 'Actualizando…' : 'Auto-actualiza cada 15s'}</span>
             </div>
             <button
               type="button"
               onClick={() => setShowMoreSheet(true)}
-              className="flex min-h-10 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.08] hover:text-white"
+              className="flex min-h-10 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-xs font-medium text-ink-secondary transition-colors hover:bg-white/[0.08] hover:text-white"
               aria-label="Abrir herramientas del muro"
               aria-expanded={showMoreSheet}
             >
@@ -2936,7 +2936,7 @@ export function MomentsWall({
                 ? 'border-indigo-500/20 bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30'
                 : sharedUploadClosedByPublishedWall
                   ? 'border-amber-500/20 bg-amber-500/10 text-amber-300'
-                  : 'border-white/10 bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  : 'border-white/10 bg-surface-raised text-ink-secondary hover:bg-surface-soft'
             }`}
             title={
               sharedUploadClosedByPublishedWall
@@ -2964,7 +2964,7 @@ export function MomentsWall({
             className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
               wallPublished
                 ? 'border-lime-500/20 bg-lime-500/20 text-lime-400 hover:bg-lime-500/30'
-                : 'border-white/10 bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                : 'border-white/10 bg-surface-raised text-ink-secondary hover:bg-surface-soft'
             }`}
           >
             <GlobeAltIcon className="size-3.5" />
@@ -2978,7 +2978,7 @@ export function MomentsWall({
               type="button"
               onClick={handleOpenTvPreview}
               disabled={generatingTvPreview}
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-soft hover:text-ink"
               title="Abrir modo TV en nueva pestaña"
               aria-label="Abrir modo TV en nueva pestaña"
             >
@@ -3009,7 +3009,7 @@ export function MomentsWall({
             }
             className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
               wallPublished
-                ? 'border-white/10 bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                ? 'border-white/10 bg-surface-raised text-ink-secondary hover:bg-surface-soft'
                 : 'border-violet-500/20 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20'
             }`}
           >
@@ -3023,7 +3023,7 @@ export function MomentsWall({
               href={wallUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-white"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-raised px-2.5 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-soft hover:text-white"
               title="Ver el muro de momentos en eventiapp"
             >
               <ArrowTopRightOnSquareIcon className="size-3.5" />
@@ -3039,7 +3039,7 @@ export function MomentsWall({
               'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
               groupByTime
                 ? 'border-indigo-500/20 bg-indigo-500/20 text-indigo-400'
-                : 'border-white/10 bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                : 'border-white/10 bg-surface-raised text-ink-secondary hover:bg-surface-soft'
             )}
           >
             <svg className="size-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -3118,7 +3118,7 @@ export function MomentsWall({
                 'min-h-10 flex-shrink-0 rounded-lg px-3 py-2 text-center text-xs font-medium whitespace-nowrap transition-colors sm:flex-1',
                 filter === f.value
                   ? 'bg-indigo-400/15 text-indigo-100 ring-1 ring-indigo-300/20'
-                  : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+                  : 'text-ink-secondary hover:bg-white/5 hover:text-ink'
               )}
             >
               {f.label}
@@ -3126,7 +3126,7 @@ export function MomentsWall({
                 <span
                   className={clsx(
                     'ml-1 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums',
-                    filter === f.value ? 'bg-white/20' : 'bg-zinc-800 text-zinc-500'
+                    filter === f.value ? 'bg-white/20' : 'bg-surface-raised text-ink-muted'
                   )}
                 >
                   {f.count}
@@ -3138,7 +3138,7 @@ export function MomentsWall({
 
         {/* Row 4 — Time range filter */}
         <div className="flex items-center gap-2 border-t border-white/5 px-1 py-2">
-          <span className="shrink-0 text-[11px] text-zinc-500">Hora:</span>
+          <span className="shrink-0 text-[11px] text-ink-muted">Hora:</span>
           <input
             type="time"
             value={timeRange?.from ?? ''}
@@ -3151,10 +3151,10 @@ export function MomentsWall({
               }
               setTimeRange((prev) => ({ from, to: prev?.to ?? '23:59' }))
             }}
-            className="rounded border border-white/10 bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300 [color-scheme:dark]"
+            className="rounded border border-white/10 bg-surface-raised px-2 py-0.5 text-xs text-ink-secondary"
             aria-label="Desde hora"
           />
-          <span className="text-[11px] text-zinc-500">–</span>
+          <span className="text-[11px] text-ink-muted">–</span>
           <input
             type="time"
             value={timeRange?.to ?? ''}
@@ -3167,14 +3167,14 @@ export function MomentsWall({
               }
               setTimeRange((prev) => ({ from: prev?.from ?? '00:00', to }))
             }}
-            className="rounded border border-white/10 bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300 [color-scheme:dark]"
+            className="rounded border border-white/10 bg-surface-raised px-2 py-0.5 text-xs text-ink-secondary"
             aria-label="Hasta hora"
           />
           {timeRange && (
             <button
               type="button"
               onClick={() => setTimeRange(null)}
-              className="ml-1 inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-[11px] text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300"
+              className="ml-1 inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-[11px] text-ink-muted transition-colors hover:bg-white/5 hover:text-ink-secondary"
               aria-label="Limpiar filtro de hora"
             >
               <XMarkIcon className="size-3.5" aria-hidden="true" />
@@ -3209,7 +3209,7 @@ export function MomentsWall({
                     ? 'text-lime-400'
                     : sharedUploadClosedByPublishedWall
                       ? 'text-amber-300'
-                      : 'text-zinc-500'
+                      : 'text-ink-muted'
                 )}
               >
                 {sharedUploadActive ? 'Activo' : sharedUploadClosedByPublishedWall ? 'Cerrado' : 'Inactivo'}
@@ -3229,7 +3229,7 @@ export function MomentsWall({
             icon={<GlobeAltIcon className="h-4 w-4" />}
             label="Publicar muro"
             trailing={
-              <span className={clsx('text-xs font-medium', wallPublished ? 'text-lime-400' : 'text-zinc-500')}>
+              <span className={clsx('text-xs font-medium', wallPublished ? 'text-lime-400' : 'text-ink-muted')}>
                 {wallPublished ? 'Publicado' : 'Oculto'}
               </span>
             }
@@ -3272,7 +3272,7 @@ export function MomentsWall({
             icon={<ClockIcon className="size-4" />}
             label="Agrupar por hora"
             trailing={
-              <span className={clsx('text-xs font-medium', groupByTime ? 'text-indigo-400' : 'text-zinc-500')}>
+              <span className={clsx('text-xs font-medium', groupByTime ? 'text-indigo-400' : 'text-ink-muted')}>
                 {groupByTime ? 'Activo' : 'Inactivo'}
               </span>
             }
@@ -3330,13 +3330,13 @@ export function MomentsWall({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
-            className="rounded-2xl border border-white/10 bg-gradient-to-br from-zinc-900 via-zinc-900/95 to-zinc-800/80 p-8 text-center sm:p-12"
+            className="rounded-2xl border border-white/10 bg-gradient-to-br from-surface via-surface/95 to-surface-raised/80 p-8 text-center sm:p-12"
           >
             <div className="mx-auto mb-6 flex size-16 items-center justify-center rounded-2xl border border-pink-500/20 bg-pink-500/10">
               <SparklesIcon className="size-8 text-pink-400" />
             </div>
-            <h3 className="mb-2 text-lg font-bold text-zinc-100 sm:text-xl">El muro de momentos está listo</h3>
-            <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-zinc-400">
+            <h3 className="mb-2 text-lg font-bold text-ink sm:text-xl">El muro de momentos está listo</h3>
+            <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-ink-secondary">
               Cuando los invitados compartan fotos y videos, aparecerán aquí para que los apruebes y se muestren en el
               muro público del evento.
             </p>
@@ -3377,22 +3377,22 @@ export function MomentsWall({
 
             <div className="mt-8 grid grid-cols-3 gap-2 opacity-30 sm:grid-cols-6">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="aspect-square rounded-xl border border-white/5 bg-zinc-800/60" />
+                <div key={i} className="aspect-square rounded-xl border border-white/5 bg-surface-raised/60" />
               ))}
             </div>
-            <p className="mt-3 text-[10px] tracking-wide text-zinc-700 uppercase">
+            <p className="mt-3 text-[10px] tracking-wide text-ink-muted uppercase">
               Pronto se llenará de momentos increíbles
             </p>
           </motion.div>
         ) : isDiscoveringFilteredMoments ? (
           <div
-            className="rounded-2xl border border-white/10 bg-zinc-900/70 px-6 py-10 text-center"
+            className="rounded-2xl border border-white/10 bg-surface/70 px-6 py-10 text-center"
             role="status"
             aria-live="polite"
           >
             <ArrowPathIcon className="mx-auto mb-3 size-6 animate-spin text-indigo-400" />
-            <p className="text-sm font-medium text-zinc-200">Buscando resultados en el resto de la colección...</p>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="text-sm font-medium text-ink">Buscando resultados en el resto de la colección...</p>
+            <p className="mt-1 text-xs text-ink-muted">
               Cargamos la siguiente página porque este filtro tiene {filteredTotal} resultado
               {filteredTotal !== 1 ? 's' : ''}.
             </p>
@@ -3436,7 +3436,7 @@ export function MomentsWall({
               <div key={label}>
                 <div className="mb-3 flex items-center gap-3">
                   <div className="h-px flex-1 bg-white/10" />
-                  <span className="text-xs font-medium text-zinc-500 tabular-nums">{label}</span>
+                  <span className="text-xs font-medium text-ink-muted tabular-nums">{label}</span>
                   <div className="h-px flex-1 bg-white/10" />
                 </div>
                 <motion.div
@@ -3510,7 +3510,7 @@ export function MomentsWall({
       {/* ── Load more ───────────────────────────────────────────────────── */}
       {(visibleCount < filteredMoments.length || hasMoreMomentPages) && (
         <div className="mt-6 flex flex-col items-center gap-2">
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-ink-muted">
             Mostrando {Math.min(visibleCount, filteredMoments.length)} de {filteredTotal} momentos
           </p>
           <button
@@ -3520,7 +3520,7 @@ export function MomentsWall({
               }
               setVisibleCount((count) => count + VISIBLE_PAGE)
             }}
-            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-700"
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-raised px-4 py-2 text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-soft"
           >
             {isValidating
               ? 'Cargando...'

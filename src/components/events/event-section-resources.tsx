@@ -222,18 +222,18 @@ function ImageSlot({ slot, resource, sectionId, resourceTypeId, onCreated, onRep
           <span
             className={[
               'flex size-5 items-center justify-center rounded-full text-[10px] font-bold',
-              isFilled ? 'bg-lime-500/20 text-lime-400' : 'bg-zinc-800 text-zinc-600',
+              isFilled ? 'bg-lime-500/20 text-lime-400' : 'bg-surface-raised text-ink-muted',
             ].join(' ')}
           >
             {slot.position + 1}
           </span>
-          <p className="text-xs font-medium text-zinc-300">{slot.label}</p>
-          <span className="text-[10px] text-zinc-700">{slot.ratio}</span>
+          <p className="text-xs font-medium text-ink-secondary">{slot.label}</p>
+          <span className="text-[10px] text-ink-muted">{slot.ratio}</span>
         </div>
         {isFilled ? (
           <CheckCircleIcon className="size-4 shrink-0 text-lime-400" />
         ) : (
-          <ExclamationCircleIcon className="size-4 shrink-0 text-zinc-700" />
+          <ExclamationCircleIcon className="size-4 shrink-0 text-ink-muted" />
         )}
       </div>
 
@@ -279,13 +279,13 @@ function ImageSlot({ slot, resource, sectionId, resourceTypeId, onCreated, onRep
             {upload.isUploading ? (
               <div className="flex flex-col items-center gap-2">
                 <div className="size-5 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
-                <span className="text-xs text-zinc-500">Subiendo…</span>
+                <span className="text-xs text-ink-muted">Subiendo…</span>
               </div>
             ) : (
               <>
-                <ArrowUpTrayIcon className="size-5 text-zinc-600" />
-                <span className="text-xs text-zinc-500">Subir imagen</span>
-                <span className="text-[10px] text-zinc-700">{SECTION_IMAGE_UPLOAD_LIMIT_HELP_TEXT}</span>
+                <ArrowUpTrayIcon className="size-5 text-ink-muted" />
+                <span className="text-xs text-ink-muted">Subir imagen</span>
+                <span className="text-[10px] text-ink-muted">{SECTION_IMAGE_UPLOAD_LIMIT_HELP_TEXT}</span>
               </>
             )}
           </button>
@@ -409,8 +409,8 @@ export function EventSectionResources({ section, onClose, onResourcesChanged }: 
 
   if (resourcesLoading) {
     return (
-      <div className="rounded-xl border border-white/10 bg-zinc-900 p-5" role="status" aria-live="polite">
-        <div className="flex items-center gap-3 text-sm text-zinc-400">
+      <div className="rounded-xl border border-white/10 bg-surface p-5" role="status" aria-live="polite">
+        <div className="flex items-center gap-3 text-sm text-ink-secondary">
           <ArrowPathIcon className="size-4 animate-spin" />
           Cargando imágenes de la sección…
         </div>
@@ -435,7 +435,7 @@ export function EventSectionResources({ section, onClose, onResourcesChanged }: 
           <button
             type="button"
             onClick={onClose}
-            className="min-h-11 px-3 text-xs font-semibold text-zinc-400 hover:text-white"
+            className="min-h-11 px-3 text-xs font-semibold text-ink-secondary hover:text-white"
           >
             Cerrar
           </button>
@@ -449,24 +449,24 @@ export function EventSectionResources({ section, onClose, onResourcesChanged }: 
       <motion.div
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-white/10 bg-zinc-900 p-5"
+        className="rounded-xl border border-white/10 bg-surface p-5"
       >
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-zinc-100">Recursos — {section.name}</p>
-            <p className="mt-0.5 text-xs text-zinc-500">Este tipo de sección no requiere imágenes predefinidas.</p>
+            <p className="text-sm font-semibold text-ink">Recursos — {section.name}</p>
+            <p className="mt-0.5 text-xs text-ink-muted">Este tipo de sección no requiere imágenes predefinidas.</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="min-h-11 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+            className="min-h-11 text-xs text-ink-muted transition-colors hover:text-ink-secondary"
           >
             Cerrar
           </button>
         </div>
         <div className="py-6 text-center">
-          <PhotoIcon className="mx-auto mb-2 size-8 text-zinc-700" />
-          <p className="text-sm text-zinc-600">
+          <PhotoIcon className="mx-auto mb-2 size-8 text-ink-muted" />
+          <p className="text-sm text-ink-muted">
             Las imágenes para esta sección se gestionan directamente desde el backend.
           </p>
         </div>
@@ -482,13 +482,13 @@ export function EventSectionResources({ section, onClose, onResourcesChanged }: 
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 8, scale: 0.98 }}
       transition={{ duration: 0.18 }}
-      className="rounded-xl border border-white/10 bg-zinc-900 p-5 shadow-xl"
+      className="rounded-xl border border-white/10 bg-surface p-5 shadow-xl"
     >
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-zinc-100">Imágenes — {section.name}</p>
+            <p className="text-sm font-semibold text-ink">Imágenes — {section.name}</p>
             <span
               className={[
                 'rounded-full px-2 py-0.5 text-[10px] font-semibold',
@@ -500,12 +500,12 @@ export function EventSectionResources({ section, onClose, onResourcesChanged }: 
               {filledSlots}/{slots.length}
             </span>
           </div>
-          <p className="mt-0.5 text-xs text-zinc-500">Sube las imágenes requeridas para esta sección SDUI.</p>
+          <p className="mt-0.5 text-xs text-ink-muted">Sube las imágenes requeridas para esta sección SDUI.</p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="min-h-11 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+          className="min-h-11 text-xs text-ink-muted transition-colors hover:text-ink-secondary"
         >
           Cerrar
         </button>
@@ -568,13 +568,13 @@ export function EventSectionResources({ section, onClose, onResourcesChanged }: 
 
       {/* Progress footer */}
       <div className="mt-5 border-t border-white/5 pt-4">
-        <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-600">
+        <div className="mb-1.5 flex items-center justify-between text-xs text-ink-muted">
           <span>Imágenes completas</span>
           <span className={filledSlots === slots.length ? 'text-lime-400' : 'text-amber-400'}>
             {filledSlots} / {slots.length}
           </span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+        <div className="h-1.5 overflow-hidden rounded-full bg-surface-raised">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${Math.round((filledSlots / slots.length) * 100)}%` }}
@@ -583,7 +583,7 @@ export function EventSectionResources({ section, onClose, onResourcesChanged }: 
           />
         </div>
         {filledSlots < slots.length && (
-          <p className="mt-1.5 text-xs text-zinc-700">
+          <p className="mt-1.5 text-xs text-ink-muted">
             Faltan {slots.length - filledSlots} imagen{slots.length - filledSlots !== 1 ? 'es' : ''} para completar esta
             sección.
           </p>

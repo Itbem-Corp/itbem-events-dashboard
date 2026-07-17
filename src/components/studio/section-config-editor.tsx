@@ -214,19 +214,19 @@ export default function SectionConfigEditor({ section, onSave, onClose }: Sectio
 
       case 'RSVPConfirmation':
         return (
-          <p className="py-4 text-center text-xs text-zinc-500">
+          <p className="py-4 text-center text-xs text-ink-muted">
             Esta seccion no requiere configuracion de texto.
             <br />
-            <span className="text-zinc-600">Gestiona su contenido desde la pestana del evento.</span>
+            <span className="text-ink-muted">Gestiona su contenido desde la pestana del evento.</span>
           </p>
         )
 
       case 'PhotoGrid':
         return (
-          <p className="py-4 text-center text-xs text-zinc-500">
+          <p className="py-4 text-center text-xs text-ink-muted">
             Esta seccion no requiere configuracion de texto.
             <br />
-            <span className="text-zinc-600">Gestiona sus imagenes desde recursos.</span>
+            <span className="text-ink-muted">Gestiona sus imagenes desde recursos.</span>
           </p>
         )
 
@@ -252,7 +252,7 @@ export default function SectionConfigEditor({ section, onSave, onClose }: Sectio
             <div className="space-y-2">
               <label className={labelCls}>Actividades</label>
               {agendaItems.map((item, i) => (
-                <div key={i} className="space-y-2 rounded-lg border border-zinc-700 p-3">
+                <div key={i} className="space-y-2 rounded-lg border border-border-subtle p-3">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className={labelCls}>Hora</label>
@@ -318,7 +318,7 @@ export default function SectionConfigEditor({ section, onSave, onClose }: Sectio
               <button
                 type="button"
                 onClick={addAgendaItem}
-                className="w-full rounded-lg border border-dashed border-zinc-700 py-2 text-xs text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-200"
+                className="w-full rounded-lg border border-dashed border-border-subtle py-2 text-xs text-ink-secondary transition-colors hover:border-border-subtle hover:text-ink"
               >
                 + Agregar actividad
               </button>
@@ -371,7 +371,7 @@ export default function SectionConfigEditor({ section, onSave, onClose }: Sectio
       transition={{ duration: 0.2 }}
       className="overflow-hidden"
     >
-      <div className="mt-1 space-y-3 rounded-b-xl border border-t-0 border-white/10 bg-zinc-900/80 p-3">
+      <div className="mt-1 space-y-3 rounded-b-xl border border-t-0 border-white/10 bg-surface/80 p-3">
         {renderFields()}
 
         {/* Footer: auto-save status + close button */}
@@ -383,7 +383,7 @@ export default function SectionConfigEditor({ section, onSave, onClose }: Sectio
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex items-center gap-1 text-[10px] text-zinc-500"
+                className="flex items-center gap-1 text-[10px] text-ink-muted"
               >
                 <ArrowPathIcon className="size-3 animate-spin" /> Guardando...
               </motion.span>
@@ -416,7 +416,7 @@ export default function SectionConfigEditor({ section, onSave, onClose }: Sectio
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="text-[10px] text-zinc-700"
+                className="text-[10px] text-ink-muted"
               >
                 Auto-guardado activo
               </motion.span>
@@ -425,7 +425,7 @@ export default function SectionConfigEditor({ section, onSave, onClose }: Sectio
 
           <button
             onClick={onClose}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-ink-muted transition-colors hover:text-ink-secondary"
           >
             Cerrar
           </button>

@@ -126,26 +126,26 @@ function formatEventDate(dateString: string | undefined | null, timezone: string
 function EventDetailSkeleton() {
   return (
     <div className="mt-4 animate-pulse space-y-6">
-      <div className="h-4 w-24 rounded bg-zinc-800" />
-      <div className="h-8 w-72 rounded bg-zinc-800" />
-      <div className="h-4 w-56 rounded bg-zinc-800" />
+      <div className="h-4 w-24 rounded bg-surface-raised" />
+      <div className="h-8 w-72 rounded bg-surface-raised" />
+      <div className="h-4 w-56 rounded bg-surface-raised" />
       {/* Tab bar */}
       <div className="scrollbar-none mt-8 flex gap-0.5 overflow-x-auto border-b border-white/10 pb-px">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-9 w-16 shrink-0 rounded-t-lg bg-zinc-800/60 sm:w-24" />
+          <div key={i} className="h-9 w-16 shrink-0 rounded-t-lg bg-surface-raised/60 sm:w-24" />
         ))}
       </div>
       {/* KPI grid */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-24 rounded-xl bg-zinc-800" />
+          <div key={i} className="h-24 rounded-xl bg-surface-raised" />
         ))}
       </div>
       {/* Description block */}
       <div className="space-y-2">
-        <div className="h-4 w-28 rounded bg-zinc-800" />
-        <div className="h-3 w-full rounded bg-zinc-800" />
-        <div className="h-3 w-3/4 rounded bg-zinc-800" />
+        <div className="h-4 w-28 rounded bg-surface-raised" />
+        <div className="h-3 w-full rounded bg-surface-raised" />
+        <div className="h-3 w-3/4 rounded bg-surface-raised" />
       </div>
     </div>
   )
@@ -318,7 +318,7 @@ export default function EventDetailPage() {
         )}
 
         {/* Banner header with cover image */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/15 sm:rounded-3xl">
+        <div className="app-shell-panel relative overflow-hidden rounded-2xl border sm:rounded-3xl">
           {/* Cover image background */}
           {coverImageUrl && <Image src={coverImageUrl} alt="" fill priority sizes="100vw" className="object-cover" />}
 
@@ -326,8 +326,8 @@ export default function EventDetailPage() {
           <div
             className={
               coverImageUrl
-                ? 'absolute inset-0 bg-gradient-to-r from-zinc-950/98 via-zinc-950/88 to-zinc-950/65'
-                : 'absolute inset-0 bg-gradient-to-br from-zinc-950 via-zinc-900 to-indigo-950/70'
+                ? 'absolute inset-0 bg-gradient-to-r from-canvas/98 via-canvas/88 to-canvas/65'
+                : 'absolute inset-0 bg-gradient-to-br from-[var(--app-surface-raised)] via-[var(--app-surface)] to-[var(--app-surface-soft)]'
             }
           />
 
@@ -338,9 +338,9 @@ export default function EventDetailPage() {
               <Link
                 href="/events"
                 aria-label="Volver a eventos"
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-white/8 bg-black/15 px-2.5 text-xs font-medium text-zinc-300 transition-colors hover:border-white/15 hover:bg-white/8 hover:text-white sm:border-transparent sm:bg-transparent sm:px-0 sm:text-sm"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border-subtle bg-surface-soft px-2.5 text-xs font-medium text-ink-secondary transition-colors hover:border-(--tenant-accent)/25 hover:bg-surface-raised hover:text-ink sm:border-transparent sm:bg-transparent sm:px-0 sm:text-sm"
               >
-                <ChevronLeftIcon className="size-4 fill-zinc-400" />
+                <ChevronLeftIcon className="size-4 fill-ink-secondary" />
                 <span className="hidden sm:inline">Eventos</span>
               </Link>
             </div>
@@ -355,7 +355,7 @@ export default function EventDetailPage() {
               {(() => {
                 const typeLabel = eventTypeLabel(event.event_type?.name)
                 return typeLabel ? (
-                  <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-zinc-300">
+                  <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-ink-secondary">
                     {typeLabel}
                   </span>
                 ) : null
@@ -363,7 +363,7 @@ export default function EventDetailPage() {
             </div>
 
             {/* Meta line */}
-            <p className="mt-2 max-w-3xl text-sm/6 break-words text-zinc-400">
+            <p className="mt-2 max-w-3xl text-sm/6 break-words text-ink-secondary">
               {formatEventDate(event.event_date_time, event.timezone)}
               {event.address && (
                 <>
@@ -377,11 +377,11 @@ export default function EventDetailPage() {
               )}
               <span aria-hidden="true"> · </span>
               {daysUntil === null ? (
-                <span className="text-zinc-500">Sin fecha</span>
+                <span className="text-ink-muted">Sin fecha</span>
               ) : daysUntil === 0 ? (
                 <span className="font-medium text-amber-400">¡Hoy!</span>
               ) : isPast ? (
-                <span className="text-zinc-500">Hace {Math.abs(daysUntil)} días</span>
+                <span className="text-ink-muted">Hace {Math.abs(daysUntil)} días</span>
               ) : daysUntil <= 7 ? (
                 <span className="font-medium text-amber-400">
                   En {daysUntil} día{daysUntil !== 1 ? 's' : ''}
@@ -397,8 +397,8 @@ export default function EventDetailPage() {
                 eventCapabilitiesError
                   ? 'border-amber-400/25 bg-amber-400/10 text-amber-100'
                   : eventCapabilitiesLoading
-                    ? 'border-white/10 bg-white/5 text-zinc-300'
-                    : 'border-indigo-400/20 bg-indigo-400/8 text-indigo-100'
+                    ? 'border-white/10 bg-white/5 text-ink-secondary'
+                    : 'border-indigo-500/20 bg-indigo-500/8 text-indigo-700 dark:text-indigo-200'
               }`}
             >
               {eventCapabilitiesLoading ? (
@@ -458,9 +458,9 @@ export default function EventDetailPage() {
                     onPointerEnter={() => void loadEventDetailActionsMenu().catch(() => undefined)}
                     onPointerDown={() => void loadEventDetailActionsMenu().catch(() => undefined)}
                     onFocus={() => void loadEventDetailActionsMenu().catch(() => undefined)}
-                    className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-white/20 hover:bg-white/8 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+                    className="flex min-h-9 cursor-pointer list-none items-center gap-1.5 rounded-lg border border-border-subtle bg-surface-soft px-3 py-2 text-sm font-medium text-ink-secondary transition-colors hover:border-(--tenant-accent)/25 hover:bg-surface-raised hover:text-ink focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
                   >
-                    <EllipsisHorizontalIcon aria-hidden="true" className="size-4 text-zinc-400" />
+                    <EllipsisHorizontalIcon aria-hidden="true" className="size-4 text-ink-secondary" />
                     Más acciones
                   </summary>
                   {actionsOpen && (
@@ -497,7 +497,7 @@ export default function EventDetailPage() {
               </span>
               <div>
                 <p className="text-sm font-semibold text-amber-100">No pudimos cargar tus permisos</p>
-                <p className="mt-1 text-xs leading-5 text-zinc-400">
+                <p className="mt-1 text-xs leading-5 text-ink-secondary">
                   Por seguridad, solo mostramos el resumen hasta verificar tu alcance en este evento.
                 </p>
               </div>
@@ -518,7 +518,7 @@ export default function EventDetailPage() {
         )}
 
         <div className="mt-6">
-          <p className="mb-2 px-1 text-[11px] font-semibold tracking-[0.14em] text-zinc-600 uppercase">
+          <p className="mb-2 px-1 text-[11px] font-semibold tracking-[0.14em] text-ink-muted uppercase">
             Espacios de trabajo
           </p>
           <EventDetailTabs
@@ -570,7 +570,7 @@ export default function EventDetailPage() {
                     key={stat.label}
                     className="min-w-0 rounded-2xl border border-white/7 bg-white/[0.025] p-4 transition-colors hover:border-white/12 hover:bg-white/[0.04] sm:p-5"
                   >
-                    <p className="text-[11px] leading-4 font-medium text-zinc-500 sm:text-xs">{stat.label}</p>
+                    <p className="text-[11px] leading-4 font-medium text-ink-muted sm:text-xs">{stat.label}</p>
                     <p className="mt-3 text-lg font-semibold tracking-tight break-words text-white tabular-nums sm:mt-5 sm:text-2xl">
                       {stat.value}
                     </p>
@@ -582,7 +582,7 @@ export default function EventDetailPage() {
               {event.description && (
                 <div>
                   <Subheading>Descripción</Subheading>
-                  <p className="mt-3 text-sm leading-relaxed text-zinc-400">{event.description}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-ink-secondary">{event.description}</p>
                 </div>
               )}
 
@@ -590,18 +590,18 @@ export default function EventDetailPage() {
               {(event.organizer_name || event.organizer_email || event.organizer_phone) && (
                 <div>
                   <Subheading>Organizador</Subheading>
-                  <div className="mt-3 space-y-1.5 rounded-xl border border-white/10 bg-zinc-900/50 p-5">
+                  <div className="mt-3 space-y-1.5 rounded-xl border border-white/10 bg-surface/50 p-5">
                     {event.organizer_name && (
-                      <p className="text-sm font-medium text-zinc-200">{event.organizer_name}</p>
+                      <p className="text-sm font-medium text-ink">{event.organizer_name}</p>
                     )}
                     {event.organizer_email && (
-                      <p className="text-sm text-zinc-400">
-                        <a href={`mailto:${event.organizer_email}`} className="transition-colors hover:text-zinc-200">
+                      <p className="text-sm text-ink-secondary">
+                        <a href={`mailto:${event.organizer_email}`} className="transition-colors hover:text-ink">
                           {event.organizer_email}
                         </a>
                       </p>
                     )}
-                    {event.organizer_phone && <p className="text-sm text-zinc-500">{event.organizer_phone}</p>}
+                    {event.organizer_phone && <p className="text-sm text-ink-muted">{event.organizer_phone}</p>}
                   </div>
                 </div>
               )}
@@ -617,11 +617,11 @@ export default function EventDetailPage() {
               {/* Cover image */}
               <div>
                 <Subheading>Imagen de portada</Subheading>
-                <p className="mt-1 mb-3 text-sm text-zinc-500">
+                <p className="mt-1 mb-3 text-sm text-ink-muted">
                   La imagen aparece como fondo en el encabezado del evento.
                 </p>
                 <div className="overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02] sm:flex sm:items-center">
-                  <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-zinc-950 sm:w-56">
+                  <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-canvas sm:w-56">
                     {coverImageUrl ? (
                       <Image
                         src={coverImageUrl}
@@ -631,17 +631,17 @@ export default function EventDetailPage() {
                         className="object-cover"
                       />
                     ) : (
-                      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-zinc-900 to-indigo-950/50 text-zinc-600">
+                      <div className="flex h-full flex-col items-center justify-center bg-gradient-to-br from-surface to-indigo-950/50 text-ink-muted">
                         <PhotoIcon className="size-9" />
                         <span className="mt-2 text-xs font-medium">Sin portada</span>
                       </div>
                     )}
                   </div>
                   <div className="flex min-w-0 flex-1 flex-col items-start p-4 sm:p-5">
-                    <p className="text-sm font-medium text-zinc-200">
+                    <p className="text-sm font-medium text-ink">
                       {coverImageUrl ? 'Portada configurada' : 'Añade una identidad visual al evento'}
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-zinc-500">
+                    <p className="mt-1 text-xs leading-5 text-ink-muted">
                       Formato recomendado: 1920 × 1080 px, relación 16:9.
                     </p>
                     {eventCapabilities?.['event:manage'] && (

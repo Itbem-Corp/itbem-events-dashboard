@@ -37,7 +37,7 @@ export function CapacityRing({ current, capacity, size = 44 }: CapacityRingProps
         <circle
           cx={size / 2} cy={size / 2} r={radius}
           fill="none" stroke="currentColor" strokeWidth={strokeWidth}
-          className="text-zinc-800"
+          className="text-ink"
         />
         <motion.circle
           cx={size / 2} cy={size / 2} r={radius}
@@ -47,7 +47,7 @@ export function CapacityRing({ current, capacity, size = 44 }: CapacityRingProps
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-[10px] font-bold text-zinc-300 tabular-nums">
+        <span className="text-[10px] font-bold text-ink-secondary tabular-nums">
           {current}/{capacity}
         </span>
       </div>

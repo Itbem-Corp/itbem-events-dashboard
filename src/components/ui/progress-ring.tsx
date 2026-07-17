@@ -67,7 +67,7 @@ export function ProgressRing({
             fill="none"
             stroke="currentColor"
             strokeWidth={strokeWidth}
-            className="text-zinc-800"
+            className="text-ink"
           />
           {/* Progress circle */}
           <motion.circle
@@ -87,7 +87,7 @@ export function ProgressRing({
 
         {/* Center label */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <motion.span className="text-base font-bold text-zinc-100 tabular-nums">
+          <motion.span className="text-base font-bold text-ink tabular-nums">
             {displayText}
           </motion.span>
         </div>
@@ -95,8 +95,8 @@ export function ProgressRing({
 
       {label && (
         <div className="text-center">
-          <p className="text-xs font-medium text-zinc-300">{label}</p>
-          {sublabel && <p className="text-xs text-zinc-600 mt-0.5">{sublabel}</p>}
+          <p className="text-xs font-medium text-ink-secondary">{label}</p>
+          {sublabel && <p className="text-xs text-ink-muted mt-0.5">{sublabel}</p>}
         </div>
       )}
     </div>

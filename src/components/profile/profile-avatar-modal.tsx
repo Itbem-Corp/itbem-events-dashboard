@@ -87,7 +87,7 @@ export function ProfileAvatarModal({ open, value, onClose, onAvatarChange }: Pro
             />
 
             {upload.isUploading && (
-              <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded-2xl bg-zinc-950/60 backdrop-blur-sm">
+              <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center rounded-2xl bg-canvas/60 backdrop-blur-sm">
                 <div className="flex items-center gap-3 text-sm font-medium text-white">
                   <span className="size-4 animate-spin rounded-full border-2 border-white/25 border-t-white" />
                   Preparando foto…

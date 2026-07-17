@@ -67,10 +67,10 @@ function SectionCard({
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+    <section className="rounded-2xl border border-white/10 bg-surface/40 p-6">
       <div className="mb-5 flex items-center gap-2.5">
-        <div className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-zinc-800">
-          <Icon className="size-4 text-zinc-400" />
+        <div className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-surface-raised">
+          <Icon className="size-4 text-ink-secondary" />
         </div>
         <Subheading>{title}</Subheading>
       </div>
@@ -183,7 +183,7 @@ export default function ProfilePage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Heading>Mi perfil</Heading>
-          <p className="mt-1 text-sm text-zinc-400">Administra tu información personal y preferencias de cuenta.</p>
+          <p className="mt-1 text-sm text-ink-secondary">Administra tu información personal y preferencias de cuenta.</p>
         </div>
         {user.is_root && (
           <Badge color="indigo">
@@ -209,19 +209,19 @@ export default function ProfilePage() {
                 initials={initials || 'U'}
                 alt={`Foto de ${user.first_name} ${user.last_name}`.trim()}
                 sizes="160px"
-                className="size-32 rounded-3xl bg-gradient-to-br from-indigo-500/25 to-violet-500/10 text-indigo-100 shadow-2xl ring-1 shadow-black/25 ring-white/10 sm:size-36"
+                className="size-32 rounded-3xl bg-gradient-to-br from-(--tenant-accent) to-indigo-700 text-[#fff] shadow-[0_18px_42px_var(--app-shadow)] ring-1 ring-(--tenant-accent)/25 sm:size-36"
               />
               <span
-                className="absolute -right-1 -bottom-1 flex size-9 items-center justify-center rounded-xl border border-white/10 bg-zinc-800 text-zinc-300 shadow-lg"
+                className="absolute -right-1 -bottom-1 flex size-9 items-center justify-center rounded-xl border border-white/10 bg-surface-raised text-ink-secondary shadow-lg"
                 aria-hidden="true"
               >
                 <CameraIcon className="size-4" />
               </span>
             </div>
-            <p className="mt-5 text-sm font-medium text-zinc-200">
+            <p className="mt-5 text-sm font-medium text-ink">
               {user.first_name} {user.last_name}
             </p>
-            <p className="mt-0.5 text-xs text-zinc-500">{user.email}</p>
+            <p className="mt-0.5 text-xs text-ink-muted">{user.email}</p>
             <Button
               outline
               className="mt-5 w-full"
@@ -233,7 +233,7 @@ export default function ProfilePage() {
               <CameraIcon />
               Cambiar foto
             </Button>
-            <p className="mt-3 text-[11px] leading-5 text-zinc-600">JPG, PNG, WebP, HEIC, AVIF o SVG · Hasta 10 MB</p>
+            <p className="mt-3 text-[11px] leading-5 text-ink-muted">JPG, PNG, WebP, HEIC, AVIF o SVG · Hasta 10 MB</p>
           </div>
         </SectionCard>
 
@@ -314,14 +314,14 @@ export default function ProfilePage() {
                   key={row.label}
                   className="flex items-center justify-between border-b border-white/5 py-2.5 last:border-0"
                 >
-                  <span className="text-sm text-zinc-500">{row.label}</span>
+                  <span className="text-sm text-ink-muted">{row.label}</span>
                   {row.badge ? (
                     <Badge color={row.badge}>{row.value}</Badge>
                   ) : (
                     <span
                       className={[
-                        'text-sm text-zinc-300',
-                        'mono' in row && row.mono ? 'max-w-[200px] truncate font-mono text-xs text-zinc-500' : '',
+                        'text-sm text-ink-secondary',
+                        'mono' in row && row.mono ? 'max-w-[200px] truncate font-mono text-xs text-ink-muted' : '',
                       ].join(' ')}
                     >
                       {row.value}

@@ -57,7 +57,7 @@ export function GuestDeleteModal({
       <AlertTitle>¿Eliminar invitado?</AlertTitle>
       <AlertDescription>
         Se eliminará a{' '}
-        <strong className="text-zinc-200">
+        <strong className="text-ink">
           {guest?.first_name} {guest?.last_name}
         </strong>{' '}
         y todos sus datos de forma permanente. Esta acción no se puede deshacer.

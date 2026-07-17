@@ -233,7 +233,7 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
                 Cambiar esto romperá los códigos QR y enlaces ya distribuidos.
               </Description>
               <div className="mt-1 flex items-center gap-2">
-                <span className="shrink-0 text-sm text-zinc-400 select-none">{eventPublicUrlPrefix}</span>
+                <span className="shrink-0 text-sm text-ink-secondary select-none">{eventPublicUrlPrefix}</span>
                 <Input {...register('identifier')} placeholder="mi-evento" className="font-mono text-sm" />
               </div>
               {errors.identifier && <ErrorMessage>{errors.identifier.message}</ErrorMessage>}
@@ -332,7 +332,7 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
             onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
             className="group overflow-hidden rounded-2xl border border-white/8 bg-white/[0.02]"
           >
-            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/[0.035] focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:outline-none focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-ink transition-colors hover:bg-white/[0.035] focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:outline-none focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
               <span>
                 <span className="flex items-center gap-2">
                   Detalles adicionales
@@ -342,11 +342,11 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
                     </span>
                   )}
                 </span>
-                <span className="mt-0.5 block text-xs font-normal text-zinc-500">
+                <span className="mt-0.5 block text-xs font-normal text-ink-muted">
                   Ubicaciones, contacto, música, capacidad y publicación
                 </span>
               </span>
-              <ChevronDownIcon className="size-4 shrink-0 text-zinc-500 transition-transform group-open:rotate-180" />
+              <ChevronDownIcon className="size-4 shrink-0 text-ink-muted transition-transform group-open:rotate-180" />
             </summary>
 
             <div className="space-y-5 border-t border-white/7 px-4 py-5">

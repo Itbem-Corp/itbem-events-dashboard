@@ -211,8 +211,8 @@ export function BrandedQR({
         className={[
           'rounded-2xl border p-6 flex flex-col items-center gap-4 w-full max-w-[280px]',
           dark
-            ? 'bg-zinc-900/80 border-white/10'
-            : 'bg-white border-zinc-200 shadow-sm',
+            ? 'bg-surface/80 border-white/10'
+            : 'bg-white border-border-subtle shadow-sm',
         ].join(' ')}
       >
         {/* Logo + brand */}
@@ -232,14 +232,14 @@ export function BrandedQR({
 
         {/* Title */}
         {title && (
-          <p className={`text-sm font-semibold text-center leading-snug ${dark ? 'text-zinc-100' : 'text-zinc-900'}`}>
+          <p className={`text-sm font-semibold text-center leading-snug ${dark ? 'text-ink' : 'text-ink'}`}>
             {title}
           </p>
         )}
 
         {/* Subtitle */}
         {subtitle && (
-          <p className={`text-xs text-center -mt-2 ${dark ? 'text-zinc-500' : 'text-zinc-500'}`}>
+          <p className={`text-xs text-center -mt-2 ${dark ? 'text-ink-muted' : 'text-ink-muted'}`}>
             {subtitle}
           </p>
         )}
@@ -248,7 +248,7 @@ export function BrandedQR({
         <motion.div
           className={[
             'rounded-xl p-4',
-            dark ? 'bg-white' : 'bg-zinc-50 border border-zinc-100',
+            dark ? 'bg-white' : 'bg-surface-raised border border-border-subtle',
           ].join(' ')}
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -271,13 +271,13 @@ export function BrandedQR({
 
         {/* Caption */}
         {caption && (
-          <p className={`text-xs font-medium text-center ${dark ? 'text-zinc-300' : 'text-zinc-700'}`}>
+          <p className={`text-xs font-medium text-center ${dark ? 'text-ink-secondary' : 'text-ink-muted'}`}>
             {caption}
           </p>
         )}
 
         {/* Scan hint */}
-        <p className={`text-[10px] tracking-wide uppercase ${dark ? 'text-zinc-600' : 'text-zinc-400'}`}>
+        <p className={`text-[10px] tracking-wide uppercase ${dark ? 'text-ink-muted' : 'text-ink-secondary'}`}>
           Escanea con tu camara
         </p>
       </div>

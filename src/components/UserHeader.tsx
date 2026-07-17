@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Image from 'next/image'
 import { useStore } from "@/store/useStore";
@@ -22,15 +22,15 @@ export function UserHeader() {
     return (
         <div className="flex items-center gap-4">
             <div className="flex flex-col items-end hidden md:flex">
-        <span className="text-sm font-semibold text-zinc-900">
+        <span className="text-sm font-semibold text-ink">
           {user.first_name} {user.last_name}
         </span>
-                <span className="text-xs text-zinc-500">{user.email}</span>
+                <span className="text-xs text-ink-muted">{user.email}</span>
             </div>
 
             <DropdownMenu>
                 <DropdownMenuTrigger className="outline-none">
-                    <div className="relative h-10 w-10 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-zinc-300 transition-all">
+                    <div className="relative h-10 w-10 rounded-full bg-surface-raised border border-border-subtle flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-border-subtle transition-all">
                         {user.profile_image ? (
                             <Image
                                 src={user.profile_image}
@@ -40,7 +40,7 @@ export function UserHeader() {
                                 sizes="40px"
                             />
                         ) : (
-                            <span className="text-sm font-medium text-zinc-600">{initials}</span>
+                            <span className="text-sm font-medium text-ink-muted">{initials}</span>
                         )}
                     </div>
                 </DropdownMenuTrigger>

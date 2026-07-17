@@ -1,3 +1,4 @@
+import { PRODUCT_MANIFESTS } from '@/products/registry'
 import type { NextRequest } from 'next/server'
 
 export type TenantCode = 'eventiapp' | 'itbem' | 'cafettonhouse'
@@ -30,7 +31,7 @@ const TENANTS: Record<TenantCode, TenantDefinition> = {
     localHostnames: ['localhost', '127.0.0.1', 'dashboard.eventiapp.localhost'],
     apiHostname: 'api.eventiapp.com.mx',
     clientIdEnv: 'COGNITO_EVENTIAPP_CLIENT_ID',
-    modules: ['home', 'events', 'metrics'],
+    modules: PRODUCT_MANIFESTS.eventiapp.backendModules,
     accent: '#818cf8',
   },
   itbem: {
@@ -43,7 +44,7 @@ const TENANTS: Record<TenantCode, TenantDefinition> = {
     localHostnames: ['dashboard.itbem.localhost'],
     apiHostname: 'api.itbem.com.mx',
     clientIdEnv: 'COGNITO_ITBEM_CLIENT_ID',
-    modules: ['home', 'users', 'organizations', 'metrics'],
+    modules: PRODUCT_MANIFESTS.itbem.backendModules,
     accent: '#22d3ee',
   },
   cafettonhouse: {
@@ -56,7 +57,7 @@ const TENANTS: Record<TenantCode, TenantDefinition> = {
     localHostnames: ['dashboard.cafettonhouse.localhost'],
     apiHostname: 'api.cafettonhouse.com',
     clientIdEnv: 'COGNITO_CAFETTONHOUSE_CLIENT_ID',
-    modules: ['home', 'users', 'organizations', 'metrics'],
+    modules: PRODUCT_MANIFESTS.cafettonhouse.backendModules,
     accent: '#d97706',
   },
 }

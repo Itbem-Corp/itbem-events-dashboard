@@ -131,7 +131,7 @@ export function QuickConfigPanel({ config, eventId, onSaved }: QuickConfigPanelP
     return (
       <div className="animate-pulse space-y-3">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-8 rounded bg-zinc-800" />
+          <div key={i} className="h-8 rounded bg-surface-raised" />
         ))}
       </div>
     )
@@ -188,9 +188,9 @@ export function QuickConfigPanel({ config, eventId, onSaved }: QuickConfigPanelP
       <div className="space-y-0.5">
         {toggleRows.map(({ field, label, value, disabled }) => (
           <div key={field} className="flex items-center justify-between px-1 py-1.5">
-            <span className="text-xs text-zinc-400">{label}</span>
+            <span className="text-xs text-ink-secondary">{label}</span>
             <div className="flex items-center gap-1.5">
-              {saving === field && <ArrowPathIcon className="size-3 animate-spin text-zinc-600" />}
+              {saving === field && <ArrowPathIcon className="size-3 animate-spin text-ink-muted" />}
               <Switch
                 checked={value ?? false}
                 onChange={() => toggle(field, value ?? false)}
@@ -204,7 +204,7 @@ export function QuickConfigPanel({ config, eventId, onSaved }: QuickConfigPanelP
 
       {/* Text messages */}
       <div className="space-y-3 border-t border-white/10 pt-3">
-        <p className="px-1 text-[10px] font-medium tracking-wide text-zinc-600 uppercase">Mensajes personalizados</p>
+        <p className="px-1 text-[10px] font-medium tracking-wide text-ink-muted uppercase">Mensajes personalizados</p>
         <div>
           <label className={labelCls}>Mensaje de bienvenida</label>
           <textarea
@@ -228,7 +228,7 @@ export function QuickConfigPanel({ config, eventId, onSaved }: QuickConfigPanelP
         <button
           onClick={saveMessages}
           disabled={savingMsg}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-soft disabled:opacity-50"
         >
           {savingMsg ? <ArrowPathIcon className="size-3 animate-spin" /> : <CheckIcon className="size-3" />}
           Guardar mensajes

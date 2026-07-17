@@ -74,7 +74,7 @@ const StudioPreview = dynamic(() => loadStudioPreview().then((module) => module.
   loading: () => (
     <div
       aria-label="Cargando vista previa"
-      className="flex min-w-0 flex-1 items-center justify-center bg-zinc-900"
+      className="flex min-w-0 flex-1 items-center justify-center bg-surface"
     >
       <div className="size-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
     </div>
@@ -86,11 +86,11 @@ function StudioPreviewPending({ showPreview }: { showPreview: boolean }) {
     <div
       role="status"
       aria-label="Preparando vista previa"
-      className={`${showPreview ? 'flex' : 'hidden'} min-w-0 flex-1 items-center justify-center border-l border-white/10 bg-zinc-900 lg:flex`}
+      className={`${showPreview ? 'flex' : 'hidden'} min-w-0 flex-1 items-center justify-center border-l border-white/10 bg-surface lg:flex`}
     >
       <div className="space-y-3 text-center">
         <div className="mx-auto size-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent motion-reduce:animate-none" />
-        <p className="text-xs font-medium text-zinc-500">Preparando editor antes del preview…</p>
+        <p className="text-xs font-medium text-ink-muted">Preparando editor antes del preview…</p>
       </div>
     </div>
   )
@@ -275,10 +275,10 @@ export default function StudioPage() {
 
   if (capabilitiesLoading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas">
         <div className="text-center">
           <div className="mx-auto size-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent motion-reduce:animate-none" />
-          <p className="mt-4 text-sm text-zinc-500">Validando acceso a Studio…</p>
+          <p className="mt-4 text-sm text-ink-muted">Validando acceso a Studio…</p>
         </div>
       </div>
     )
@@ -286,13 +286,13 @@ export default function StudioPage() {
 
   if (capabilitiesError || !canManageEvent) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950 px-6">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas px-6">
         <div className="premium-surface max-w-md rounded-3xl p-8 text-center">
           <span className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-amber-400/15 bg-amber-400/[0.06] text-amber-300">
             <LockClosedIcon className="size-5" />
           </span>
           <h1 className="mt-6 text-xl font-semibold tracking-tight text-white">Studio no disponible</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-500">
+          <p className="mt-2 text-sm leading-6 text-ink-muted">
             Tu rol puede consultar este evento, pero no modificar su contenido, diseño o publicación.
           </p>
           <Link
@@ -307,11 +307,11 @@ export default function StudioPage() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-zinc-950 lg:flex-row">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-canvas lg:flex-row">
       {/* ── Left Sidebar ───────────────────────────────────────────────────── */}
       <div
         className={[
-          'flex w-full shrink-0 flex-col border-b border-white/10 bg-zinc-950 lg:w-72 lg:border-r lg:border-b-0',
+          'flex w-full shrink-0 flex-col border-b border-white/10 bg-canvas lg:w-72 lg:border-r lg:border-b-0',
           showPreview ? 'hidden lg:flex' : 'flex',
         ].join(' ')}
       >
@@ -319,19 +319,19 @@ export default function StudioPage() {
         <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
           <Link
             href={`/events/${id}`}
-            className="flex shrink-0 items-center gap-1 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+            className="flex shrink-0 items-center gap-1 text-xs text-ink-muted transition-colors hover:text-ink-secondary"
           >
             <ChevronLeftIcon className="size-3.5" />
             Volver
           </Link>
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-200">{event?.name ?? '...'}</p>
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{event?.name ?? '...'}</p>
           <button
             type="button"
             onClick={() => setShowPreview(true)}
             onFocus={handlePreviewIntent}
             onPointerDown={handlePreviewIntent}
             onPointerEnter={handlePreviewIntent}
-            className="flex shrink-0 items-center gap-1 rounded-lg border border-white/10 px-2 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 lg:hidden"
+            className="flex shrink-0 items-center gap-1 rounded-lg border border-white/10 px-2 py-1.5 text-xs text-ink-secondary transition-colors hover:bg-white/5 hover:text-ink lg:hidden"
           >
             <EyeIcon className="size-3.5" />
             <span className="sr-only">Ver preview</span>
@@ -373,7 +373,7 @@ export default function StudioPage() {
                 aria-labelledby="studio-tab-config"
                 tabIndex={0}
               >
-                <p className="mb-3 px-1 text-[10px] text-zinc-600">Cambios se aplican en la vista previa al guardar.</p>
+                <p className="mb-3 px-1 text-[10px] text-ink-muted">Cambios se aplican en la vista previa al guardar.</p>
                 <QuickConfigPanel config={config} eventId={event?.id ?? ''} onSaved={handleConfigSaved} />
               </div>
             )}
@@ -388,7 +388,7 @@ export default function StudioPage() {
                 tabIndex={0}
                 className="space-y-4"
               >
-                <p className="px-1 text-[10px] text-zinc-600">
+                <p className="px-1 text-[10px] text-ink-muted">
                   Guarda el diseno para refrescar la vista previa publica.
                 </p>
                 {event?.id && (
@@ -401,7 +401,7 @@ export default function StudioPage() {
                 )}
                 <Link
                   href={`/events/${id}?tab=configuracion`}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-surface px-3 py-2.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink"
                 >
                   <PaintBrushIcon className="size-4" />
                   Abrir editor de diseno completo
@@ -461,7 +461,7 @@ export default function StudioPage() {
             className={[
               'flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-all',
               workspaceLoading || workspaceFatalError
-                ? 'cursor-wait border border-white/10 bg-zinc-900 text-zinc-500'
+                ? 'cursor-wait border border-white/10 bg-surface text-ink-muted'
                 : isPublic
                 ? 'cursor-default border border-lime-500/30 bg-lime-500/20 text-lime-400'
                 : 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 active:bg-indigo-700',

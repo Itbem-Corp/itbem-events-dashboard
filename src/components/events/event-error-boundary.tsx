@@ -37,7 +37,7 @@ export class EventErrorBoundary extends Component<Props, State> {
               this.props.onRetry()
               this.setState({ hasError: false })
             }}
-            className="min-h-11 rounded-xl bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
+            className="min-h-11 rounded-xl bg-surface-raised px-4 py-2 text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
           >
             Reintentar
           </button>

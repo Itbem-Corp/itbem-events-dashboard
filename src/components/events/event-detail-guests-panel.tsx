@@ -108,7 +108,7 @@ interface EventDetailGuestsPanelProps {
 
 function GuestStats({ summary }: { summary: GuestSummary }) {
   const stats = [
-    { label: 'Total', value: summary.total, color: 'text-zinc-100' },
+    { label: 'Total', value: summary.total, color: 'text-ink' },
     { label: 'Confirmados', value: summary.confirmed, color: 'text-lime-400' },
     { label: 'Pendientes', value: summary.pending, color: 'text-amber-400' },
     { label: 'Declinados', value: summary.declined, color: 'text-pink-400' },
@@ -119,10 +119,10 @@ function GuestStats({ summary }: { summary: GuestSummary }) {
       {stats.map((stat) => (
         <div
           key={stat.label}
-          className="flex flex-col items-center rounded-xl border border-white/10 bg-zinc-900/50 py-4"
+          className="flex flex-col items-center rounded-xl border border-white/10 bg-surface/50 py-4"
         >
           <span className={`text-2xl font-bold ${stat.color}`}>{stat.value}</span>
-          <span className="mt-1 text-xs text-zinc-500">{stat.label}</span>
+          <span className="mt-1 text-xs text-ink-muted">{stat.label}</span>
         </div>
       ))}
     </div>
@@ -450,7 +450,7 @@ export function EventDetailGuestsPanel({
           </label>
           <MagnifyingGlassIcon
             aria-hidden="true"
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-500"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted"
           />
           <input
             id="event-guests-search"
@@ -459,7 +459,7 @@ export function EventDetailGuestsPanel({
             value={viewState.search}
             onChange={(event) => updateViewState({ search: event.target.value, page: 1 })}
             aria-busy={isSearchPending}
-            className="min-h-10 w-full rounded-lg border border-white/10 bg-zinc-900 py-2 pr-3 pl-9 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+            className="min-h-10 w-full rounded-lg border border-white/10 bg-surface py-2 pr-3 pl-9 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
           />
         </div>
 
@@ -479,7 +479,7 @@ export function EventDetailGuestsPanel({
                   'min-h-10 px-3 py-1.5 text-xs font-medium transition-colors',
                   viewState.status === filter.code
                     ? 'bg-indigo-600 text-white'
-                    : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200',
+                    : 'text-ink-secondary hover:bg-white/5 hover:text-ink',
                 ].join(' ')}
               >
                 {filter.label}
@@ -517,10 +517,10 @@ export function EventDetailGuestsPanel({
         </div>
       </div>
 
-      <div aria-hidden="true" className="mb-2 hidden items-center gap-3 text-zinc-700 sm:flex">
+      <div aria-hidden="true" className="mb-2 hidden items-center gap-3 text-ink-muted sm:flex">
         {GUEST_KEYBOARD_HINTS.map(({ key, label }) => (
           <span key={key} className="flex items-center gap-1 text-[11px]">
-            <kbd className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-600">
+            <kbd className="rounded border border-border-subtle bg-surface px-1.5 py-0.5 font-mono text-[10px] text-ink-muted">
               {key}
             </kbd>
             {label}
@@ -593,7 +593,7 @@ export function EventDetailGuestsPanel({
                   <button
                     type="button"
                     onClick={() => setSelectedIds(new Set())}
-                    className="ml-auto grid size-9 place-items-center rounded-lg text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 sm:ml-1"
+                    className="ml-auto grid size-9 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-white/5 hover:text-ink-secondary sm:ml-1"
                     aria-label="Limpiar selección"
                   >
                     <XMarkIcon aria-hidden="true" className="size-4" />
@@ -606,21 +606,21 @@ export function EventDetailGuestsPanel({
           {!isDesktop ? (
             <div data-guest-layout="mobile" className="mb-2 space-y-2">
               {paginatedGuests.map((guest) => (
-                <div key={guest.id} className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
+                <div key={guest.id} className="rounded-xl border border-white/10 bg-surface/50 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-zinc-100">
+                      <p className="truncate text-sm font-medium text-ink">
                         {guest.first_name} {guest.last_name}
                       </p>
-                      {guest.email && <p className="mt-0.5 truncate text-xs text-zinc-500">{guest.email}</p>}
-                      {guest.phone && <p className="mt-0.5 text-xs text-zinc-500">{guest.phone}</p>}
+                      {guest.email && <p className="mt-0.5 truncate text-xs text-ink-muted">{guest.email}</p>}
+                      {guest.phone && <p className="mt-0.5 text-xs text-ink-muted">{guest.phone}</p>}
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         type="button"
                         onClick={() => void copyRsvpLink(guest)}
                         disabled={!hasGuestRsvpToken(guest)}
-                        className="grid size-10 place-items-center rounded-lg text-zinc-600 transition-colors hover:bg-indigo-500/10 hover:text-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="grid size-10 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-indigo-500/10 hover:text-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
                         aria-label="Copiar link RSVP"
                         title={hasGuestRsvpToken(guest) ? 'Copiar link RSVP' : 'Sin token RSVP'}
                       >
@@ -631,7 +631,7 @@ export function EventDetailGuestsPanel({
                         onFocus={() => void preloadGuestFormModal().catch(() => undefined)}
                         onPointerEnter={() => void preloadGuestFormModal().catch(() => undefined)}
                         onClick={() => openEditGuest(guest)}
-                        className="grid size-10 place-items-center rounded-lg text-zinc-600 transition-colors hover:bg-white/5 hover:text-zinc-300"
+                        className="grid size-10 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-white/5 hover:text-ink-secondary"
                         aria-label={`Editar a ${guest.first_name}`}
                       >
                         <PencilIcon aria-hidden="true" className="size-3.5" />
@@ -641,7 +641,7 @@ export function EventDetailGuestsPanel({
                         onFocus={() => void preloadGuestDeleteModal().catch(() => undefined)}
                         onPointerEnter={() => void preloadGuestDeleteModal().catch(() => undefined)}
                         onClick={() => setGuestToDelete(guest)}
-                        className="grid size-10 place-items-center rounded-lg text-zinc-600 transition-colors hover:bg-pink-500/10 hover:text-pink-400"
+                        className="grid size-10 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-pink-500/10 hover:text-pink-400"
                         aria-label={`Eliminar a ${guest.first_name}`}
                       >
                         <TrashIcon aria-hidden="true" className="size-3.5" />
@@ -651,10 +651,10 @@ export function EventDetailGuestsPanel({
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <GuestStatusBadge code={getEffectiveStatus(guest)} />
                     {getGuestTableLabel(guest) && (
-                      <span className="text-xs text-zinc-500">{getGuestTableLabel(guest)}</span>
+                      <span className="text-xs text-ink-muted">{getGuestTableLabel(guest)}</span>
                     )}
                     {getGuestCompanionCount(guest) > 0 && (
-                      <span className="text-xs text-zinc-500">+{getGuestCompanionCount(guest)}</span>
+                      <span className="text-xs text-ink-muted">+{getGuestCompanionCount(guest)}</span>
                     )}
                   </div>
                 </div>
@@ -677,7 +677,7 @@ export function EventDetailGuestsPanel({
                             event.target.checked ? new Set(paginatedGuests.map((guest) => guest.id)) : new Set()
                           )
                         }
-                        className="rounded border-zinc-700 bg-zinc-900 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-950"
+                        className="rounded border-border-subtle bg-surface text-indigo-500 focus:ring-indigo-500 focus:ring-offset-canvas"
                       />
                     </TableHeader>
                     {GUEST_SORT_HEADERS.map(({ column, label }) => (
@@ -686,7 +686,7 @@ export function EventDetailGuestsPanel({
                           <button
                             type="button"
                             onClick={() => changeSort(column)}
-                            className="flex items-center gap-1 text-left text-xs font-semibold tracking-wide text-zinc-500 uppercase transition-colors hover:text-zinc-300"
+                            className="flex items-center gap-1 text-left text-xs font-semibold tracking-wide text-ink-muted uppercase transition-colors hover:text-ink-secondary"
                             aria-label={`Ordenar por ${label}`}
                           >
                             {label}
@@ -730,29 +730,29 @@ export function EventDetailGuestsPanel({
                                 else next.delete(guest.id)
                                 setSelectedIds(next)
                               }}
-                              className="rounded border-zinc-700 bg-zinc-900 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-zinc-950"
+                              className="rounded border-border-subtle bg-surface text-indigo-500 focus:ring-indigo-500 focus:ring-offset-canvas"
                             />
                           </TableCell>
                           <TableCell className="font-medium">
-                            <span className="text-zinc-100">
+                            <span className="text-ink">
                               {guest.first_name} {guest.last_name}
                             </span>
                             {dietaryRestrictions && (
-                              <p className="mt-0.5 max-w-full truncate text-xs text-zinc-500">{dietaryRestrictions}</p>
+                              <p className="mt-0.5 max-w-full truncate text-xs text-ink-muted">{dietaryRestrictions}</p>
                             )}
                             {rsvpNotes && (
-                              <p className="mt-0.5 max-w-full truncate text-xs text-zinc-500">RSVP: {rsvpNotes}</p>
+                              <p className="mt-0.5 max-w-full truncate text-xs text-ink-muted">RSVP: {rsvpNotes}</p>
                             )}
                           </TableCell>
-                          <TableCell className="text-zinc-400">
+                          <TableCell className="text-ink-secondary">
                             {guest.email ? <p className="text-xs">{guest.email}</p> : null}
-                            {guest.phone ? <p className="text-xs text-zinc-600">{guest.phone}</p> : null}
-                            {!guest.email && !guest.phone && <span className="text-zinc-700">—</span>}
+                            {guest.phone ? <p className="text-xs text-ink-muted">{guest.phone}</p> : null}
+                            {!guest.email && !guest.phone && <span className="text-ink-muted">—</span>}
                           </TableCell>
-                          <TableCell className="text-zinc-400">
-                            {getGuestTableLabel(guest) || <span className="text-zinc-700">—</span>}
+                          <TableCell className="text-ink-secondary">
+                            {getGuestTableLabel(guest) || <span className="text-ink-muted">—</span>}
                           </TableCell>
-                          <TableCell className="text-zinc-400 tabular-nums">{getGuestPartySize(guest)}</TableCell>
+                          <TableCell className="text-ink-secondary tabular-nums">{getGuestPartySize(guest)}</TableCell>
                           <TableCell>
                             <GuestStatusSelect
                               guest={guest}
@@ -767,7 +767,7 @@ export function EventDetailGuestsPanel({
                                 type="button"
                                 onClick={() => void copyRsvpLink(guest)}
                                 disabled={!hasGuestRsvpToken(guest)}
-                                className="grid size-9 place-items-center rounded-lg text-zinc-600 transition-colors hover:bg-indigo-500/10 hover:text-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="grid size-9 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-indigo-500/10 hover:text-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
                                 aria-label="Copiar link RSVP"
                                 title={hasGuestRsvpToken(guest) ? 'Copiar link RSVP' : 'Sin token RSVP'}
                               >
@@ -786,7 +786,7 @@ export function EventDetailGuestsPanel({
                                       '_blank'
                                     )
                                   }}
-                                  className="grid size-9 place-items-center rounded-lg text-zinc-600 transition-colors hover:bg-lime-500/10 hover:text-lime-400"
+                                  className="grid size-9 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-lime-500/10 hover:text-lime-400"
                                   aria-label="Enviar por WhatsApp"
                                   title="Enviar invitación por WhatsApp"
                                 >
@@ -800,7 +800,7 @@ export function EventDetailGuestsPanel({
                                 onFocus={() => void preloadGuestFormModal().catch(() => undefined)}
                                 onPointerEnter={() => void preloadGuestFormModal().catch(() => undefined)}
                                 onClick={() => openEditGuest(guest)}
-                                className="grid size-9 place-items-center rounded-lg text-zinc-600 transition-colors hover:bg-white/5 hover:text-zinc-300"
+                                className="grid size-9 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-white/5 hover:text-ink-secondary"
                                 aria-label={`Editar a ${guest.first_name}`}
                               >
                                 <PencilIcon aria-hidden="true" className="size-3.5" />
@@ -810,7 +810,7 @@ export function EventDetailGuestsPanel({
                                 onFocus={() => void preloadGuestDeleteModal().catch(() => undefined)}
                                 onPointerEnter={() => void preloadGuestDeleteModal().catch(() => undefined)}
                                 onClick={() => setGuestToDelete(guest)}
-                                className="grid size-9 place-items-center rounded-lg text-zinc-600 transition-colors hover:bg-pink-500/10 hover:text-pink-400"
+                                className="grid size-9 place-items-center rounded-lg text-ink-muted transition-colors hover:bg-pink-500/10 hover:text-pink-400"
                                 aria-label={`Eliminar a ${guest.first_name}`}
                               >
                                 <TrashIcon aria-hidden="true" className="size-3.5" />

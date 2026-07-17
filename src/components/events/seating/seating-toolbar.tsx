@@ -79,13 +79,13 @@ export function SeatingToolbar({
         {/* Stats row */}
         {tableCount > 0 && (
           <div className="flex flex-wrap gap-2 text-xs">
-            <div className="rounded-lg border border-white/10 bg-zinc-900/50 px-3 py-1.5">
-              <span className="text-zinc-500">Mesas </span>
-              <span className="font-bold text-zinc-200">{tableCount}</span>
+            <div className="rounded-lg border border-white/10 bg-surface/50 px-3 py-1.5">
+              <span className="text-ink-muted">Mesas </span>
+              <span className="font-bold text-ink">{tableCount}</span>
             </div>
-            <div className="rounded-lg border border-white/10 bg-zinc-900/50 px-3 py-1.5">
-              <span className="text-zinc-500">Capacidad </span>
-              <span className="font-bold text-zinc-200">{totalCapacity}</span>
+            <div className="rounded-lg border border-white/10 bg-surface/50 px-3 py-1.5">
+              <span className="text-ink-muted">Capacidad </span>
+              <span className="font-bold text-ink">{totalCapacity}</span>
             </div>
             <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5">
               <span className="text-emerald-400">Sentados </span>
@@ -108,9 +108,9 @@ export function SeatingToolbar({
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-0 inset-x-0 z-30 border-t border-white/10 bg-zinc-900/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between md:hidden print:hidden"
+            className="fixed bottom-0 inset-x-0 z-30 border-t border-white/10 bg-surface/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between md:hidden print:hidden"
           >
-            <span className="text-xs text-zinc-400">
+            <span className="text-xs text-ink-secondary">
               {pendingCount} cambio{pendingCount !== 1 ? 's' : ''} sin guardar
             </span>
             <div className="flex items-center gap-2">

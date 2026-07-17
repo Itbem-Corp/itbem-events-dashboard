@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     const access = await verifyApplicationAccess(request, auth.IdToken)
     if (!access.ok) return clearChallenge(privateJson({ error: access.error }, access.status))
 
-    const response = clearChallenge(privateJson({ ok: true }))
+    const response = clearChallenge(privateJson({ ok: true, session: access.session }))
     response.cookies.set(AUTH_COOKIE_NAMES.session, auth.IdToken, {
       ...authCookieOptions(),
       maxAge: sessionMaxAge(auth.ExpiresIn),

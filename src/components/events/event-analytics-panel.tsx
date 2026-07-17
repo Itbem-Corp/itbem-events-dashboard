@@ -64,7 +64,7 @@ const tooltipStyle = {
   color: '#f4f4f5',
 }
 
-const cardCls = 'rounded-xl bg-zinc-900 border border-zinc-800 p-4'
+const cardCls = 'rounded-xl bg-surface border border-border-subtle p-4'
 const liveEventSwrOptions = {
   revalidateOnFocus: true,
 } as const
@@ -157,10 +157,10 @@ function Skeleton() {
   return (
     <div className="grid animate-pulse grid-cols-1 gap-4 sm:grid-cols-2">
       {[...Array(8)].map((_, i) => (
-        <div key={i} className="h-24 rounded-xl bg-zinc-800" />
+        <div key={i} className="h-24 rounded-xl bg-surface-raised" />
       ))}
-      <div className="col-span-1 h-48 rounded-xl bg-zinc-800 sm:col-span-2" />
-      <div className="col-span-1 h-48 rounded-xl bg-zinc-800 sm:col-span-2" />
+      <div className="col-span-1 h-48 rounded-xl bg-surface-raised sm:col-span-2" />
+      <div className="col-span-1 h-48 rounded-xl bg-surface-raised sm:col-span-2" />
     </div>
   )
 }
@@ -178,15 +178,15 @@ function KPICard({
 }) {
   return (
     <div className={cardCls + ' flex flex-col gap-1'}>
-      <p className="text-xs tracking-wide text-zinc-500 uppercase">{label}</p>
+      <p className="text-xs tracking-wide text-ink-muted uppercase">{label}</p>
       <p className={`truncate text-2xl font-bold sm:text-3xl ${accent ?? 'text-white'}`}>{value}</p>
-      {sub && <p className="text-xs text-zinc-500">{sub}</p>}
+      {sub && <p className="text-xs text-ink-muted">{sub}</p>}
     </div>
   )
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h3 className="mb-4 text-sm font-medium text-zinc-400">{children}</h3>
+  return <h3 className="mb-4 text-sm font-medium text-ink-secondary">{children}</h3>
 }
 
 const PERFORMANCE_LABELS: Record<string, string> = {
@@ -208,7 +208,7 @@ function performanceRatingClasses(rating?: string): string {
   if (rating === 'good') return 'border-lime-400/20 bg-lime-400/10 text-lime-300'
   if (rating === 'needs_improvement') return 'border-amber-400/20 bg-amber-400/10 text-amber-300'
   if (rating === 'poor') return 'border-rose-400/20 bg-rose-400/10 text-rose-300'
-  return 'border-zinc-700 bg-zinc-800 text-zinc-400'
+  return 'border-border-subtle bg-surface-raised text-ink-secondary'
 }
 
 function performanceRatingLabel(rating?: string): string {
@@ -283,8 +283,8 @@ export function EventAnalyticsPanel({
     return (
       <div className={cardCls + ' p-7 text-center'} role="alert" aria-live="polite">
         <ExclamationTriangleIcon className="mx-auto size-7 text-amber-400" />
-        <p className="mt-4 font-medium text-zinc-200">No pudimos cargar las analíticas</p>
-        <p className="mt-1 text-xs text-zinc-500">Tus datos permanecen intactos. Reintenta sin salir del evento.</p>
+        <p className="mt-4 font-medium text-ink">No pudimos cargar las analíticas</p>
+        <p className="mt-1 text-xs text-ink-muted">Tus datos permanecen intactos. Reintenta sin salir del evento.</p>
         <button
           type="button"
           onClick={retryData}
@@ -377,18 +377,18 @@ export function EventAnalyticsPanel({
         <section className={cardCls} aria-labelledby="performance-heading">
           <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h3 id="performance-heading" className="text-sm font-medium text-zinc-300">Experiencia real</h3>
-              <p className="mt-1 text-xs text-zinc-500">Percentiles de los últimos 7 días medidos en dispositivos de invitados.</p>
+              <h3 id="performance-heading" className="text-sm font-medium text-ink-secondary">Experiencia real</h3>
+              <p className="mt-1 text-xs text-ink-muted">Percentiles de los últimos 7 días medidos en dispositivos de invitados.</p>
             </div>
-            <p className="text-[11px] text-zinc-600">p75 determina el estado · p95 muestra la cola lenta</p>
+            <p className="text-[11px] text-ink-muted">p75 determina el estado · p95 muestra la cola lenta</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {performance.map((metric) => (
-              <article key={`${metric.route}:${metric.metric}`} className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-4">
+              <article key={`${metric.route}:${metric.metric}`} className="rounded-xl border border-border-subtle bg-canvas/50 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-medium text-zinc-200">{PERFORMANCE_LABELS[metric.metric] ?? metric.metric}</p>
-                    <p className="mt-0.5 text-[11px] text-zinc-600">{PERFORMANCE_ROUTE_LABELS[metric.route] ?? metric.route}</p>
+                    <p className="text-xs font-medium text-ink">{PERFORMANCE_LABELS[metric.metric] ?? metric.metric}</p>
+                    <p className="mt-0.5 text-[11px] text-ink-muted">{PERFORMANCE_ROUTE_LABELS[metric.route] ?? metric.route}</p>
                   </div>
                   <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${performanceRatingClasses(metric.rating)}`}>
                     {performanceRatingLabel(metric.rating)}
@@ -396,15 +396,15 @@ export function EventAnalyticsPanel({
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[10px] tracking-wide text-zinc-600 uppercase">p75</p>
+                    <p className="text-[10px] tracking-wide text-ink-muted uppercase">p75</p>
                     <p className="mt-0.5 text-xl font-semibold text-white">{formatPerformanceValue(metric.metric, metric.p75)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] tracking-wide text-zinc-600 uppercase">p95</p>
-                    <p className="mt-0.5 text-xl font-semibold text-zinc-300">{formatPerformanceValue(metric.metric, metric.p95)}</p>
+                    <p className="text-[10px] tracking-wide text-ink-muted uppercase">p95</p>
+                    <p className="mt-0.5 text-xl font-semibold text-ink-secondary">{formatPerformanceValue(metric.metric, metric.p95)}</p>
                   </div>
                 </div>
-                <p className="mt-3 text-[11px] text-zinc-600">{metric.sample_count.toLocaleString('es-MX')} muestras · promedio {formatPerformanceValue(metric.metric, metric.average)}</p>
+                <p className="mt-3 text-[11px] text-ink-muted">{metric.sample_count.toLocaleString('es-MX')} muestras · promedio {formatPerformanceValue(metric.metric, metric.average)}</p>
               </article>
             ))}
           </div>
@@ -425,7 +425,7 @@ export function EventAnalyticsPanel({
           label="Pendientes RSVP"
           value={pendingRsvp}
           sub="sin responder"
-          accent={pendingRsvp > 0 ? 'text-amber-400' : 'text-zinc-400'}
+          accent={pendingRsvp > 0 ? 'text-amber-400' : 'text-ink-secondary'}
         />
       </div>
 
@@ -433,11 +433,11 @@ export function EventAnalyticsPanel({
       <div className={cardCls}>
         <SectionTitle>Capacidad del evento</SectionTitle>
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-zinc-500">
+          <div className="flex items-center justify-between text-xs text-ink-muted">
             <span>{estimatedAttendees} asistentes estimados</span>
             <span>{capacityTotal} capacidad</span>
           </div>
-          <div className="flex h-4 overflow-hidden rounded-full bg-zinc-800">
+          <div className="flex h-4 overflow-hidden rounded-full bg-surface-raised">
             {confirmedPrimary > 0 && (
               <div
                 className="h-full bg-lime-500 transition-all duration-500"
@@ -473,7 +473,7 @@ export function EventAnalyticsPanel({
               />
             )}
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-600">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
             <span>
               <span className="mr-1 inline-block size-2 rounded-full bg-lime-500" />
               Confirmados
@@ -497,7 +497,7 @@ export function EventAnalyticsPanel({
       {/* ── RSVP Funnel ────────────────────────────────────────────────────── */}
       <div className={cardCls}>
         <SectionTitle>Embudo RSVP</SectionTitle>
-        <p className="mb-3 text-xs text-zinc-600">Muestra cuántos invitados avanzan en cada etapa del proceso.</p>
+        <p className="mb-3 text-xs text-ink-muted">Muestra cuántos invitados avanzan en cada etapa del proceso.</p>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={funnelData} layout="vertical" margin={{ left: 0, right: 16 }}>
             <XAxis type="number" tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -665,25 +665,25 @@ export function EventAnalyticsPanel({
         <div className={cardCls}>
           <SectionTitle>Engagement de momentos</SectionTitle>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-lg bg-zinc-800/50 p-3 text-center">
+            <div className="rounded-lg bg-surface-raised/50 p-3 text-center">
               <p className="text-2xl font-bold text-white">{momentUploads}</p>
-              <p className="mt-0.5 text-xs text-zinc-500">Total subidos</p>
+              <p className="mt-0.5 text-xs text-ink-muted">Total subidos</p>
             </div>
-            <div className="rounded-lg bg-zinc-800/50 p-3 text-center">
+            <div className="rounded-lg bg-surface-raised/50 p-3 text-center">
               <p className="text-2xl font-bold text-lime-400">{approvedMoments}</p>
-              <p className="mt-0.5 text-xs text-zinc-500">Aprobados</p>
+              <p className="mt-0.5 text-xs text-ink-muted">Aprobados</p>
             </div>
-            <div className="rounded-lg bg-zinc-800/50 p-3 text-center">
+            <div className="rounded-lg bg-surface-raised/50 p-3 text-center">
               <p className="text-2xl font-bold text-amber-400">{pendingMoments}</p>
-              <p className="mt-0.5 text-xs text-zinc-500">Pendientes</p>
+              <p className="mt-0.5 text-xs text-ink-muted">Pendientes</p>
             </div>
-            <div className="rounded-lg bg-zinc-800/50 p-3 text-center">
+            <div className="rounded-lg bg-surface-raised/50 p-3 text-center">
               <p className="text-2xl font-bold text-indigo-400">{approvalRate}%</p>
-              <p className="mt-0.5 text-xs text-zinc-500">Tasa aprobación</p>
+              <p className="mt-0.5 text-xs text-ink-muted">Tasa aprobación</p>
             </div>
           </div>
           {momentComments > 0 && (
-            <p className="mt-3 text-xs text-zinc-600">
+            <p className="mt-3 text-xs text-ink-muted">
               {momentComments} momento{momentComments !== 1 ? 's' : ''} con mensaje de invitado
             </p>
           )}
@@ -696,13 +696,13 @@ export function EventAnalyticsPanel({
           <SectionTitle>Top invitados por acompañantes</SectionTitle>
           <div className="space-y-2">
             {topPlusOnes.map((g, i) => (
-              <div key={g.id} className="flex items-center gap-3 rounded-lg bg-zinc-800/50 px-3 py-2">
-                <span className="w-5 text-center text-xs font-bold text-zinc-500">{i + 1}</span>
+              <div key={g.id} className="flex items-center gap-3 rounded-lg bg-surface-raised/50 px-3 py-2">
+                <span className="w-5 text-center text-xs font-bold text-ink-muted">{i + 1}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-zinc-200">
+                  <p className="truncate text-sm text-ink">
                     {g.first_name} {g.last_name}
                   </p>
-                  {g.role && <p className="text-xs text-zinc-600">{g.role}</p>}
+                  {g.role && <p className="text-xs text-ink-muted">{g.role}</p>}
                 </div>
                 <span className="text-sm font-bold text-indigo-400">+{'companion_count' in g ? g.companion_count : Math.max((g.rsvp_guest_count || g.guests_count || 1) - 1, 0)}</span>
               </div>

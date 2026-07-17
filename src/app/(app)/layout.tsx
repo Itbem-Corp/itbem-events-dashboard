@@ -6,14 +6,24 @@ import SessionBootstrap from '@/components/session/SessionBootstrap'
 import { StoreHydrationBoundary } from '@/components/session/StoreHydrationBoundary'
 import { NavigationProgress } from '@/components/ui/navigation-progress'
 import { accessCan, createAccessProfile } from '@/lib/access-profile'
+import { tenantPresentationForHostname } from '@/lib/tenant-config'
+import { productSupportsFeature, productSupportsPath } from '@/products/core/product-manifest'
+import { getProductManifest } from '@/products/registry'
 import { useStore } from '@/store/useStore'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { SWRConfig } from 'swr'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const [product, setProduct] = useState(() => getProductManifest('eventiapp'))
+  const [productReady, setProductReady] = useState(false)
+
+  useEffect(() => {
+    setProduct(getProductManifest(tenantPresentationForHostname(window.location.hostname).code))
+    setProductReady(true)
+  }, [])
 
   const currentClient = useStore((s) => s.currentClient)
   const profileLoaded = useStore((s) => s.profileLoaded)
@@ -28,16 +38,38 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       applicationSession.organizations.length > 0 &&
       !currentClient
   )
-  const canViewEvents = accessProfile.isOrganizationContext && accessCan(accessProfile, 'events:view')
-  const canViewUsers = accessProfile.isPlatformContext && accessCan(accessProfile, 'platform:users:view')
-  const canViewOrganizations = accessProfile.isPlatformContext && accessCan(accessProfile, 'organizations:view')
-  const canManageMembers = accessProfile.isOrganizationContext && accessCan(accessProfile, 'members:manage')
-  const canViewMetrics = accessCan(accessProfile, 'metrics:view')
-  const canViewAudit = accessProfile.isPlatformContext && accessCan(accessProfile, 'audit:view')
+  const canViewEvents =
+    productSupportsFeature(product, 'events') &&
+    accessProfile.isOrganizationContext &&
+    accessCan(accessProfile, 'events:view')
+  const canViewUsers =
+    productSupportsFeature(product, 'users') &&
+    accessProfile.isPlatformContext &&
+    accessCan(accessProfile, 'platform:users:view')
+  const canViewOrganizations =
+    productSupportsFeature(product, 'organizations') &&
+    accessProfile.isPlatformContext &&
+    accessCan(accessProfile, 'organizations:view')
+  const canManageMembers =
+    productSupportsFeature(product, 'team') &&
+    accessProfile.isOrganizationContext &&
+    accessCan(accessProfile, 'members:manage')
+  const canViewMetrics = productSupportsFeature(product, 'metrics') && accessCan(accessProfile, 'metrics:view')
+  const canViewAudit =
+    productSupportsFeature(product, 'audit') &&
+    accessProfile.isPlatformContext &&
+    accessCan(accessProfile, 'audit:view')
 
   useEffect(() => {
     // ⛔ NO VALIDAR NADA hasta que el perfil esté listo
-    if (!profileLoaded) return
+    if (!profileLoaded || !productReady) return
+
+    // Product manifests are a client-side ceiling. Even if a future backend
+    // configuration grants an unrelated capability, its route stays invisible.
+    if (!productSupportsPath(product, pathname)) {
+      router.replace('/')
+      return
+    }
 
     if (pathname.startsWith('/events') && !organizationContextPending && !canViewEvents) {
       router.replace('/')
@@ -87,6 +119,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     currentClient,
     pathname,
     profileLoaded,
+    product,
+    productReady,
     router,
   ])
 

@@ -20,7 +20,7 @@ export function Pagination({ total, page, pageSize, onPageChange, onPageIntent }
 
   return (
     <div className="mt-6 flex flex-col items-center justify-between gap-3 border-t border-white/5 pt-4 sm:flex-row">
-      <span role="status" aria-live="polite" className="text-xs text-zinc-500">
+      <span role="status" aria-live="polite" className="text-xs text-ink-muted">
         Mostrando {from}–{to} de {total}
       </span>
 
@@ -39,7 +39,7 @@ export function Pagination({ total, page, pageSize, onPageChange, onPageIntent }
           Anterior
         </Button>
 
-        <span className="px-2 text-xs text-zinc-500">
+        <span className="px-2 text-xs text-ink-muted">
           {page} / {totalPages}
         </span>
 

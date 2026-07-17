@@ -98,7 +98,7 @@ function InvitationStats({ summary, shareSummary }: { summary: GuestSummary; sha
   const responseRate = summary.total > 0 ? Math.round((responded / summary.total) * 100) : 0
 
   const stats = [
-    { label: 'Total invitaciones', value: summary.total, color: 'text-zinc-100' },
+    { label: 'Total invitaciones', value: summary.total, color: 'text-ink' },
     { label: 'Confirmaron', value: summary.confirmed, color: 'text-lime-400' },
     { label: 'Declinaron', value: summary.declined, color: 'text-pink-400' },
     { label: 'Sin respuesta', value: summary.pending, color: 'text-amber-400' },
@@ -109,12 +109,12 @@ function InvitationStats({ summary, shareSummary }: { summary: GuestSummary; sha
   return (
     <div className="space-y-4">
       {/* Response rate bar */}
-      <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-5">
+      <div className="rounded-xl border border-white/10 bg-surface/50 p-5">
         <div className="mb-3 flex items-center justify-between">
-          <p className="text-sm font-medium text-zinc-300">Tasa de respuesta</p>
+          <p className="text-sm font-medium text-ink-secondary">Tasa de respuesta</p>
           <span className="text-2xl font-bold text-indigo-400 tabular-nums">{responseRate}%</span>
         </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800">
+        <div className="h-2.5 overflow-hidden rounded-full bg-surface-raised">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${responseRate}%` }}
@@ -122,7 +122,7 @@ function InvitationStats({ summary, shareSummary }: { summary: GuestSummary; sha
             className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-400"
           />
         </div>
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-600">
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
           <span>
             <span className="font-medium text-lime-400">{summary.confirmed}</span> confirmados
           </span>
@@ -142,9 +142,9 @@ function InvitationStats({ summary, shareSummary }: { summary: GuestSummary; sha
             key={s.label}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-white/10 bg-zinc-900/50 p-4"
+            className="rounded-xl border border-white/10 bg-surface/50 p-4"
           >
-            <p className="text-xs font-semibold tracking-wide text-zinc-600 uppercase">{s.label}</p>
+            <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">{s.label}</p>
             <p className={`mt-1.5 text-2xl font-bold tabular-nums ${s.color}`}>{s.value}</p>
           </motion.div>
         ))}
@@ -222,7 +222,7 @@ function QRDialog({ guestName, rsvpUrl, onClose }: { guestName: string; rsvpUrl:
         exit={{ opacity: 0, scale: 0.96, y: 8 }}
         transition={{ duration: 0.16 }}
         onClick={(event) => event.stopPropagation()}
-        className="relative w-full max-w-sm space-y-4 rounded-3xl border border-white/10 bg-zinc-900 p-6 shadow-2xl shadow-black/45"
+        className="relative w-full max-w-sm space-y-4 rounded-3xl border border-white/10 bg-surface p-6 shadow-2xl shadow-black/45"
       >
         <h2 id="qr-dialog-title" className="sr-only">
           Código QR de invitación para {guestName}
@@ -231,7 +231,7 @@ function QRDialog({ guestName, rsvpUrl, onClose }: { guestName: string; rsvpUrl:
           ref={closeButtonRef}
           type="button"
           onClick={onClose}
-          className="absolute top-3 right-3 flex min-h-11 min-w-11 items-center justify-center rounded-xl text-zinc-400 transition-colors hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:outline-none"
+          className="absolute top-3 right-3 flex min-h-11 min-w-11 items-center justify-center rounded-xl text-ink-secondary transition-colors hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:outline-none"
           aria-label="Cerrar"
         >
           <XMarkIcon className="size-4" />
@@ -248,11 +248,11 @@ function QRDialog({ guestName, rsvpUrl, onClose }: { guestName: string; rsvpUrl:
         />
 
         <div className="space-y-2 pt-2">
-          <p className="px-2 text-center text-xs break-all text-zinc-600">{rsvpUrl}</p>
+          <p className="px-2 text-center text-xs break-all text-ink-muted">{rsvpUrl}</p>
           <button
             type="button"
             onClick={copyLink}
-            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-zinc-800 px-3 py-2.5 text-xs font-medium text-zinc-200 transition-colors hover:bg-zinc-700 focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:outline-none"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-raised px-3 py-2.5 text-xs font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-pink-400 focus-visible:outline-none"
           >
             <ClipboardDocumentIcon className="size-3.5" />
             Copiar link
@@ -362,12 +362,12 @@ function GuestInvitationRow({ guest, event, index, onGuestUpdated }: GuestInvita
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: Math.min(index, 6) * 0.015, duration: 0.15 }}
-        className="flex flex-col gap-3 rounded-xl border border-white/10 bg-zinc-900/50 px-4 py-3.5 transition-colors hover:border-white/20 sm:flex-row sm:items-center"
+        className="flex flex-col gap-3 rounded-xl border border-white/10 bg-surface/50 px-4 py-3.5 transition-colors hover:border-white/20 sm:flex-row sm:items-center"
       >
         {/* Guest info */}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-zinc-100">
+            <p className="text-sm font-medium text-ink">
               {guest.first_name} {guest.last_name}
             </p>
             <span
@@ -385,13 +385,13 @@ function GuestInvitationRow({ guest, event, index, onGuestUpdated }: GuestInvita
 
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
             {guest.email && (
-              <span className="flex items-center gap-1 text-xs text-zinc-500">
+              <span className="flex items-center gap-1 text-xs text-ink-muted">
                 <EnvelopeIcon className="size-3" />
                 {guest.email}
               </span>
             )}
             {guest.phone && (
-              <span className="flex items-center gap-1 text-xs text-zinc-600">
+              <span className="flex items-center gap-1 text-xs text-ink-muted">
                 <DevicePhoneMobileIcon className="size-3" />
                 {guest.phone}
               </span>
@@ -400,20 +400,20 @@ function GuestInvitationRow({ guest, event, index, onGuestUpdated }: GuestInvita
 
           {/* RSVP detail */}
           {rsvpAt && (
-            <div className="mt-1.5 flex items-center gap-3 text-xs text-zinc-600">
+            <div className="mt-1.5 flex items-center gap-3 text-xs text-ink-muted">
               <span>
-                Respondió: <span className="text-zinc-400">{formatDateTime(rsvpAt)}</span>
+                Respondió: <span className="text-ink-secondary">{formatDateTime(rsvpAt)}</span>
               </span>
               {getGuestCompanionCount(guest) > 0 && (
                 <span>
-                  +1s: <span className="text-zinc-400">{getGuestCompanionCount(guest)}</span>
+                  +1s: <span className="text-ink-secondary">{getGuestCompanionCount(guest)}</span>
                 </span>
               )}
             </div>
           )}
 
           {guest.max_guests != null && (
-            <p className="mt-0.5 text-xs text-zinc-700">
+            <p className="mt-0.5 text-xs text-ink-muted">
               Cupo máximo: {guest.max_guests} persona{guest.max_guests !== 1 ? 's' : ''}
             </p>
           )}
@@ -438,7 +438,7 @@ function GuestInvitationRow({ guest, event, index, onGuestUpdated }: GuestInvita
               hasPersonalLink ? setShowQR(true) : toast.error('Este invitado no tiene token RSVP generado')
             }
             disabled={!hasPersonalLink}
-            className="flex size-11 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-violet-500/10 hover:text-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex size-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-violet-500/10 hover:text-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Ver QR de invitación"
             title="Ver código QR"
           >
@@ -447,7 +447,7 @@ function GuestInvitationRow({ guest, event, index, onGuestUpdated }: GuestInvita
           <button
             onClick={copyLink}
             disabled={!hasPersonalLink}
-            className="flex size-11 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-indigo-500/10 hover:text-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex size-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-indigo-500/10 hover:text-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Copiar link"
             title="Copiar link de invitación"
           >
@@ -457,7 +457,7 @@ function GuestInvitationRow({ guest, event, index, onGuestUpdated }: GuestInvita
           {guest.phone && hasPersonalLink && (
             <button
               onClick={sendWhatsApp}
-              className="flex size-11 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-lime-500/10 hover:text-lime-400"
+              className="flex size-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-lime-500/10 hover:text-lime-400"
               aria-label="Enviar por WhatsApp"
               title="Enviar por WhatsApp"
             >
@@ -470,7 +470,7 @@ function GuestInvitationRow({ guest, event, index, onGuestUpdated }: GuestInvita
           {guest.email && hasPersonalLink && (
             <button
               onClick={sendEmail}
-              className="flex size-11 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-indigo-500/10 hover:text-indigo-400"
+              className="flex size-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-indigo-500/10 hover:text-indigo-400"
               aria-label="Enviar por correo"
               title="Enviar por correo"
             >
@@ -483,7 +483,7 @@ function GuestInvitationRow({ guest, event, index, onGuestUpdated }: GuestInvita
               type="button"
               onClick={resend}
               disabled={resending}
-              className="hidden size-11 items-center justify-center rounded-lg text-zinc-600 transition-colors hover:bg-amber-500/10 hover:text-amber-400 disabled:opacity-40 sm:flex"
+              className="hidden size-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-amber-500/10 hover:text-amber-400 disabled:opacity-40 sm:flex"
               aria-label="Registrar reenvío"
               title="Registrar reenvío de invitación"
             >
@@ -536,7 +536,7 @@ function BulkWhatsAppPanel({ guests, event, filter }: { guests: Guest[]; event: 
     <div className="flex flex-col justify-between gap-3 rounded-xl border border-lime-500/20 bg-lime-500/5 p-4 sm:flex-row sm:items-center">
       <div>
         <p className="text-sm font-medium text-lime-300">{remainingTargets.length} por preparar en esta página</p>
-        <p className="mt-0.5 text-xs text-zinc-500">
+        <p className="mt-0.5 text-xs text-ink-muted">
           Abre un mensaje personal a la vez para evitar bloqueos del navegador.
         </p>
       </div>
@@ -657,14 +657,14 @@ export function InvitationTracker({ event, summary }: Props) {
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-3">
-        <div className="h-24 rounded-xl bg-zinc-800/50" />
+        <div className="h-24 rounded-xl bg-surface-raised/50" />
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 md:gap-3">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-16 rounded-xl bg-zinc-800/50" />
+            <div key={i} className="h-16 rounded-xl bg-surface-raised/50" />
           ))}
         </div>
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-16 rounded-xl bg-zinc-800/50" />
+          <div key={i} className="h-16 rounded-xl bg-surface-raised/50" />
         ))}
       </div>
     )
@@ -738,7 +738,7 @@ export function InvitationTracker({ event, summary }: Props) {
                 }}
                 className={[
                   'flex flex-1 items-center justify-center gap-1 px-2 py-2 text-xs font-medium transition-colors sm:flex-initial sm:gap-1.5 sm:px-3 sm:py-1.5',
-                  filter === opt.id ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200',
+                  filter === opt.id ? 'bg-indigo-600 text-white' : 'text-ink-secondary hover:bg-white/5 hover:text-ink',
                 ].join(' ')}
               >
                 <FunnelIcon className="hidden size-3 sm:block" />
@@ -746,7 +746,7 @@ export function InvitationTracker({ event, summary }: Props) {
                 <span
                   className={[
                     'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                    filter === opt.id ? 'bg-white/20' : 'bg-zinc-800 text-zinc-500',
+                    filter === opt.id ? 'bg-white/20' : 'bg-surface-raised text-ink-muted',
                   ].join(' ')}
                 >
                   {count}
@@ -768,14 +768,14 @@ export function InvitationTracker({ event, summary }: Props) {
               setPage(1)
             }}
             aria-busy={isSearchPending}
-            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none sm:py-1.5"
+            className="min-w-0 flex-1 rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none sm:py-1.5"
           />
 
           <button
             onClick={() => void exportInvitationsCSV()}
             disabled={exportingCSV || filteredTotal === 0}
             aria-label="CSV completo"
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 sm:py-1.5"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-2 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 sm:py-1.5"
           >
             <ArrowDownTrayIcon className="size-3.5" />
             <span className="sr-only sm:not-sr-only">{exportingCSV ? 'Exportando…' : 'CSV completo'}</span>
@@ -784,13 +784,13 @@ export function InvitationTracker({ event, summary }: Props) {
       </div>
 
       {/* Result count */}
-      <p className="text-xs text-zinc-600">
+      <p className="text-xs text-ink-muted">
         Mostrando {visibleGuests.length} de {filteredTotal} resultados ({effectiveSummary.total} invitados)
       </p>
 
       {/* Guest list */}
       {filteredTotal === 0 ? (
-        <div className="py-8 text-center text-sm text-zinc-600">
+        <div className="py-8 text-center text-sm text-ink-muted">
           Ningún invitado coincide con los filtros aplicados.
         </div>
       ) : (

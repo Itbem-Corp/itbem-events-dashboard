@@ -62,7 +62,7 @@ const EventDeleteModal = dynamic(() => loadEventDeleteModal().then((module) => m
 const EventListActionsMenu = dynamic(() => loadEventListActionsMenu().then((module) => module.EventListActionsMenu), {
   ssr: false,
   loading: () => (
-    <div className="absolute top-full right-0 z-30 mt-2 h-36 w-52 animate-pulse rounded-xl border border-white/10 bg-zinc-900" />
+    <div className="absolute top-full right-0 z-30 mt-2 h-36 w-52 animate-pulse rounded-xl border border-white/10 bg-surface" />
   ),
 })
 
@@ -295,9 +295,9 @@ export default function EventsPage() {
     return (
       <PageTransition>
         <div className="flex flex-col items-center justify-center py-32 text-center">
-          <BuildingOfficeIcon className="mb-4 size-12 text-zinc-700" />
-          <h2 className="text-lg font-semibold text-zinc-300">Sin organización seleccionada</h2>
-          <p className="mt-2 max-w-sm text-sm text-zinc-500">
+          <BuildingOfficeIcon className="mb-4 size-12 text-ink-muted" />
+          <h2 className="text-lg font-semibold text-ink-secondary">Sin organización seleccionada</h2>
+          <p className="mt-2 max-w-sm text-sm text-ink-muted">
             Selecciona una organización en el menú superior para ver sus eventos.
           </p>
         </div>
@@ -371,8 +371,8 @@ export default function EventsPage() {
                 className={[
                   'flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors',
                   filter === tab.id
-                    ? 'bg-white/8 text-white shadow-sm ring-1 ring-white/8'
-                    : 'text-zinc-500 hover:bg-white/[0.035] hover:text-zinc-200',
+                    ? 'bg-(--tenant-accent)/10 text-ink shadow-sm ring-1 ring-(--tenant-accent)/18'
+                    : 'text-ink-muted hover:bg-white/[0.035] hover:text-ink',
                 ].join(' ')}
               >
                 {tab.label}
@@ -380,7 +380,7 @@ export default function EventsPage() {
                   <span
                     className={[
                       'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                      filter === tab.id ? 'bg-indigo-500/20 text-indigo-300' : 'bg-zinc-800/80 text-zinc-600',
+                      filter === tab.id ? 'bg-indigo-500/20 text-indigo-300' : 'bg-surface-raised/80 text-ink-muted',
                     ].join(' ')}
                   >
                     {tab.count}
@@ -392,14 +392,14 @@ export default function EventsPage() {
 
           {/* Search */}
           <div className="relative w-full sm:max-w-xs">
-            <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-500" />
+            <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
             <input
               type="search"
               aria-label="Buscar evento"
               placeholder="Buscar evento..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-transparent bg-black/15 py-2 pr-4 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
+              className="w-full rounded-xl border border-border-subtle bg-surface-soft py-2 pr-4 pl-9 text-sm text-ink placeholder:text-ink-muted transition-colors hover:bg-surface-raised focus:border-(--tenant-accent)/45 focus:ring-2 focus:ring-(--tenant-accent)/10 focus:outline-none"
             />
           </div>
         </div>
@@ -410,16 +410,16 @@ export default function EventsPage() {
         <div className="mt-8 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02]">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="flex animate-pulse items-center gap-4 border-b border-white/6 p-5 last:border-b-0">
-              <div className="size-14 shrink-0 rounded-xl bg-zinc-800" />
+              <div className="size-14 shrink-0 rounded-xl bg-surface-raised" />
               <div className="min-w-0 flex-1 space-y-2">
-                <div className="h-4 w-3/4 max-w-[12rem] rounded bg-zinc-800" />
-                <div className="h-3 w-full max-w-[16rem] rounded bg-zinc-800" />
-                <div className="h-3 w-1/2 max-w-[8rem] rounded bg-zinc-800" />
+                <div className="h-4 w-3/4 max-w-[12rem] rounded bg-surface-raised" />
+                <div className="h-3 w-full max-w-[16rem] rounded bg-surface-raised" />
+                <div className="h-3 w-1/2 max-w-[8rem] rounded bg-surface-raised" />
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <div className="h-5 w-16 rounded-full bg-zinc-800" />
-                <div className="hidden h-5 w-12 rounded-full bg-zinc-800 sm:block" />
-                <div className="size-7 rounded bg-zinc-800" />
+                <div className="h-5 w-16 rounded-full bg-surface-raised" />
+                <div className="hidden h-5 w-12 rounded-full bg-surface-raised sm:block" />
+                <div className="size-7 rounded bg-surface-raised" />
               </div>
             </div>
           ))}
@@ -428,8 +428,8 @@ export default function EventsPage() {
         <div className="mt-8 rounded-2xl border border-white/7 bg-white/[0.02]">
           {debouncedSearch || filter !== 'all' ? (
             <div className="py-16 text-center">
-              <MagnifyingGlassIcon className="mx-auto mb-3 size-8 text-zinc-700" />
-              <p className="text-sm text-zinc-500">Sin resultados</p>
+              <MagnifyingGlassIcon className="mx-auto mb-3 size-8 text-ink-muted" />
+              <p className="text-sm text-ink-muted">Sin resultados</p>
               <button
                 onClick={() => {
                   setSearch('')
@@ -495,11 +495,11 @@ export default function EventsPage() {
                       <div
                         className={[
                           'flex size-12 items-center justify-center rounded-xl sm:size-16',
-                          isPast ? 'bg-zinc-800/50' : 'bg-indigo-500/10',
+                          isPast ? 'bg-surface-raised/50' : 'bg-indigo-500/10',
                         ].join(' ')}
                       >
                         <CalendarDaysIcon
-                          className={['size-5 sm:size-6', isPast ? 'text-zinc-700' : 'text-indigo-400'].join(' ')}
+                          className={['size-5 sm:size-6', isPast ? 'text-ink-muted' : 'text-indigo-400'].join(' ')}
                         />
                       </div>
                     )}
@@ -511,13 +511,13 @@ export default function EventsPage() {
                       <span
                         className={[
                           'min-w-0 truncate text-sm font-semibold transition-colors group-hover:text-white sm:text-base',
-                          isPast ? 'text-zinc-400' : 'text-zinc-100',
+                          'text-ink',
                         ].join(' ')}
                       >
                         {event.name}
                       </span>
                       {event.event_type?.name && (
-                        <span className="hidden rounded border border-zinc-800 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-zinc-600 uppercase sm:inline-flex">
+                        <span className="hidden rounded border border-border-subtle px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-ink-muted uppercase sm:inline-flex">
                           {eventTypeLabel(event.event_type.name)}
                         </span>
                       )}
@@ -525,7 +525,7 @@ export default function EventsPage() {
                     </div>
 
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                      <span className="flex min-w-0 items-center gap-1 text-xs whitespace-nowrap text-zinc-500">
+                      <span className="flex min-w-0 items-center gap-1 text-xs whitespace-nowrap text-ink-muted">
                         <CalendarDaysIcon className="size-3 shrink-0" />
                         <span className="sm:hidden">
                           {new Date(event.event_date_time).toLocaleDateString('es-MX', {
@@ -543,14 +543,14 @@ export default function EventsPage() {
                         </span>
                       </span>
                       {event.address && (
-                        <span className="hidden max-w-[220px] items-center gap-1 truncate text-xs text-zinc-600 sm:flex">
+                        <span className="hidden max-w-[220px] items-center gap-1 truncate text-xs text-ink-muted sm:flex">
                           <MapPinIcon className="size-3 shrink-0" />
                           {event.address}
                         </span>
                       )}
                     </div>
 
-                    <p className="mt-1 hidden text-[11px] text-zinc-700 sm:block">
+                    <p className="mt-1 hidden text-[11px] text-ink-muted sm:block">
                       {event.max_guests != null
                         ? `Capacidad para ${event.max_guests} invitados`
                         : 'Capacidad sin definir'}
@@ -560,7 +560,7 @@ export default function EventsPage() {
                   {/* Actions */}
                   <div className="relative z-20 flex shrink-0 items-center gap-2">
                     <CountdownBadge dateString={event.event_date_time} timeZone={event.timezone} />
-                    <span className="pointer-events-none hidden min-h-9 items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-sm font-semibold text-zinc-300 transition-colors group-hover:border-white/15 group-hover:text-white sm:flex">
+                    <span className="pointer-events-none hidden min-h-9 items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-2 text-sm font-semibold text-ink-secondary transition-colors group-hover:border-(--tenant-accent)/25 group-hover:text-ink sm:flex">
                       Abrir
                       <ArrowRightIcon className="size-4" />
                     </span>
@@ -579,7 +579,7 @@ export default function EventsPage() {
                           onPointerEnter={preloadEventActions}
                           onPointerDown={preloadEventActions}
                           onFocus={preloadEventActions}
-                          className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+                          className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-white/5 hover:text-ink focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
                         >
                           <EllipsisVerticalIcon className="size-5" />
                         </summary>

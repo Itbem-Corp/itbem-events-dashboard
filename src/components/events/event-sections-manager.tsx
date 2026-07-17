@@ -58,7 +58,7 @@ import dynamic from 'next/dynamic'
 
 const EventSectionResources = dynamic(
   () => import('@/components/events/event-section-resources').then((module) => module.EventSectionResources),
-  { ssr: false, loading: () => <div className="h-44 animate-pulse rounded-xl bg-zinc-900/60" /> }
+  { ssr: false, loading: () => <div className="h-44 animate-pulse rounded-xl bg-surface/60" /> }
 )
 
 export function sectionTypeHasImages(componentType: string): boolean {
@@ -225,7 +225,7 @@ const COLOR_MAP: Record<string, string> = {
   sky: 'border-sky-500/30 bg-sky-500/5 text-sky-400',
   pink: 'border-pink-500/30 bg-pink-500/5 text-pink-400',
   lime: 'border-lime-500/30 bg-lime-500/5 text-lime-400',
-  zinc: 'border-white/10 bg-zinc-800/50 text-zinc-400',
+  zinc: 'border-white/10 bg-surface-raised/50 text-ink-secondary',
 }
 
 export { canonicalSectionType }
@@ -254,20 +254,20 @@ interface ConfigFormProps {
 function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
   const field = (key: string, label: string, type: 'text' | 'datetime-local' | 'url' | 'textarea' = 'text') => (
     <div key={key}>
-      <label className="mb-1 block text-xs font-medium text-zinc-400">{label}</label>
+      <label className="mb-1 block text-xs font-medium text-ink-secondary">{label}</label>
       {type === 'textarea' ? (
         <textarea
           value={String(value[key] ?? '')}
           onChange={(e) => onChange({ ...value, [key]: e.target.value })}
           rows={3}
-          className="w-full resize-none rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+          className="w-full resize-none rounded-lg border border-white/10 bg-canvas px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
         />
       ) : (
         <input
           type={type}
           value={String(value[key] ?? '')}
           onChange={(e) => onChange({ ...value, [key]: e.target.value })}
-          className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+          className="w-full rounded-lg border border-white/10 bg-canvas px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
         />
       )}
     </div>
@@ -322,7 +322,7 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
           </div>
           {field('text', 'Descripción general del evento', 'textarea')}
           {field('mapUrl', 'URL embed de Google Maps (iframe src)', 'url')}
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-ink-muted">
             Para obtener el embed: Google Maps → Compartir → Insertar un mapa → Copiar el src del iframe.
           </p>
         </div>
@@ -333,7 +333,7 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
         <div className="space-y-3">
           {field('venueText', 'Nombre y dirección del venue de recepción')}
           {field('mapUrl', 'URL embed de Google Maps (iframe src)', 'url')}
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-ink-muted">
             Para obtener el embed: Google Maps → Compartir → Insertar un mapa → Copiar el src del iframe.
           </p>
         </div>
@@ -345,8 +345,8 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
       return (
         <div>
           {field('closing', 'Texto de cierre (ej. "¡Celebremos juntos!")')}
-          <p className="mt-2 text-xs text-zinc-600">
-            La lista de nombres se gestiona en la pestaña <span className="text-zinc-400">Invitados</span>.
+          <p className="mt-2 text-xs text-ink-muted">
+            La lista de nombres se gestiona en la pestaña <span className="text-ink-secondary">Invitados</span>.
           </p>
         </div>
       )
@@ -378,7 +378,7 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
             {field('mapUrl', 'URL embed de Google Maps (iframe src)', 'url')}
           </div>
           {field('content', 'Texto de apoyo', 'textarea')}
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-ink-muted">
             Para obtener el embed: Google Maps - Compartir - Insertar un mapa - Copiar el src del iframe.
           </p>
         </div>
@@ -388,7 +388,7 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
       return (
         <div>
           {field('musicUrl', 'URL de audio o playlist', 'url')}
-          <p className="mt-2 text-xs text-zinc-600">
+          <p className="mt-2 text-xs text-ink-muted">
             Si el evento ya tiene música global configurada, esta sección puede quedar vacía.
           </p>
         </div>
@@ -403,36 +403,36 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
-              <label className="text-xs font-medium text-zinc-400">Actividades</label>
+              <label className="text-xs font-medium text-ink-secondary">Actividades</label>
               <button
                 type="button"
                 onClick={addAgendaItem}
-                className="rounded-md border border-white/10 px-2 py-1 text-xs text-zinc-300 hover:bg-white/5"
+                className="rounded-md border border-white/10 px-2 py-1 text-xs text-ink-secondary hover:bg-white/5"
               >
                 Agregar
               </button>
             </div>
             {agendaItems.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-white/10 p-3 text-xs text-zinc-600">
+              <p className="rounded-lg border border-dashed border-white/10 p-3 text-xs text-ink-muted">
                 Agrega al menos una actividad para que la agenda se renderice en la invitación pública.
               </p>
             ) : (
               agendaItems.map((item, index) => (
-                <div key={index} className="space-y-2 rounded-lg border border-white/10 bg-zinc-950 p-3">
+                <div key={index} className="space-y-2 rounded-lg border border-white/10 bg-canvas p-3">
                   <div className="grid gap-2 sm:grid-cols-[100px_1fr]">
                     <input
                       type="text"
                       value={String(item.time ?? '')}
                       onChange={(e) => updateAgendaItem(index, 'time', e.target.value)}
                       placeholder="14:00"
-                      className="rounded-md border border-white/10 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                      className="rounded-md border border-white/10 bg-surface px-2 py-1.5 text-xs text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                     />
                     <input
                       type="text"
                       value={String(item.title ?? '')}
                       onChange={(e) => updateAgendaItem(index, 'title', e.target.value)}
                       placeholder="Ceremonia"
-                      className="rounded-md border border-white/10 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                      className="rounded-md border border-white/10 bg-surface px-2 py-1.5 text-xs text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <input
@@ -440,13 +440,13 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
                     value={String(item.location ?? '')}
                     onChange={(e) => updateAgendaItem(index, 'location', e.target.value)}
                     placeholder="Ubicación"
-                    className="w-full rounded-md border border-white/10 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full rounded-md border border-white/10 bg-surface px-2 py-1.5 text-xs text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                   <div className="flex items-center justify-between gap-2">
                     <select
                       value={String(item.icon ?? 'default')}
                       onChange={(e) => updateAgendaItem(index, 'icon', e.target.value)}
-                      className="rounded-md border border-white/10 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                      className="rounded-md border border-white/10 bg-surface px-2 py-1.5 text-xs text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                     >
                       <option value="default">General</option>
                       <option value="ceremony">Ceremonia</option>
@@ -484,7 +484,7 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
 
     default:
       return (
-        <p className="py-2 text-xs text-zinc-600">
+        <p className="py-2 text-xs text-ink-muted">
           Esta sección no requiere configuración adicional. Las imágenes y recursos se gestionan directamente desde el
           panel de recursos.
         </p>
@@ -558,7 +558,7 @@ function AddSectionPanel({ eventId, nextOrder, onAdded, onCancel }: AddSectionPa
             onClick={() => setTab('sdui')}
             className={[
               'px-4 py-1.5 text-xs font-medium transition-colors',
-              tab === 'sdui' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200',
+              tab === 'sdui' ? 'bg-indigo-600 text-white' : 'text-ink-secondary hover:text-ink',
             ].join(' ')}
           >
             Componentes SDUI
@@ -567,7 +567,7 @@ function AddSectionPanel({ eventId, nextOrder, onAdded, onCancel }: AddSectionPa
             onClick={() => setTab('classic')}
             className={[
               'px-4 py-1.5 text-xs font-medium transition-colors',
-              tab === 'classic' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200',
+              tab === 'classic' ? 'bg-indigo-600 text-white' : 'text-ink-secondary hover:text-ink',
             ].join(' ')}
           >
             Clásicos
@@ -581,7 +581,7 @@ function AddSectionPanel({ eventId, nextOrder, onAdded, onCancel }: AddSectionPa
             const isSelected = selectedType === st.type
             const colorCls = isSelected
               ? (COLOR_MAP[st.color] ?? COLOR_MAP.zinc)
-              : 'border-white/10 bg-zinc-900/50 text-zinc-400 hover:border-white/20 hover:text-zinc-200'
+              : 'border-white/10 bg-surface/50 text-ink-secondary hover:border-white/20 hover:text-ink'
             return (
               <button
                 key={st.type}
@@ -599,7 +599,7 @@ function AddSectionPanel({ eventId, nextOrder, onAdded, onCancel }: AddSectionPa
               >
                 <Icon className="size-5" />
                 <span className="text-xs leading-tight font-medium">{st.label}</span>
-                <span className="text-[10px] leading-tight text-zinc-600">{st.description}</span>
+                <span className="text-[10px] leading-tight text-ink-muted">{st.description}</span>
               </button>
             )
           })}
@@ -617,21 +617,21 @@ function AddSectionPanel({ eventId, nextOrder, onAdded, onCancel }: AddSectionPa
             >
               {/* Section name */}
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-                  Nombre de la sección <span className="text-zinc-600">(para el admin)</span>
+                <label className="mb-1.5 block text-xs font-medium text-ink-secondary">
+                  Nombre de la sección <span className="text-ink-muted">(para el admin)</span>
                 </label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={selectedDef?.label ?? selectedType}
-                  className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                  className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 />
               </div>
 
               {/* Config form */}
               {selectedDef?.hasConfig && (
                 <div>
-                  <label className="mb-3 block text-xs font-semibold tracking-wider text-zinc-300 uppercase">
+                  <label className="mb-3 block text-xs font-semibold tracking-wider text-ink-secondary uppercase">
                     Configuración de contenido
                   </label>
                   <ConfigForm componentType={selectedType} value={config} onChange={setConfig} />
@@ -687,7 +687,7 @@ function ConfigEditDrawer({ section, onSave, onClose }: ConfigEditDrawerProps) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 8, scale: 0.98 }}
       transition={{ duration: 0.18 }}
-      className="space-y-5 rounded-xl border border-white/10 bg-zinc-900 p-5 shadow-xl"
+      className="space-y-5 rounded-xl border border-white/10 bg-surface p-5 shadow-xl"
     >
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -695,8 +695,8 @@ function ConfigEditDrawer({ section, onSave, onClose }: ConfigEditDrawerProps) {
           <Icon className="size-4.5" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-zinc-100">{section.name}</p>
-          <p className="text-xs text-zinc-500">{def.label} — Configuración</p>
+          <p className="text-sm font-semibold text-ink">{section.name}</p>
+          <p className="text-xs text-ink-muted">{def.label} — Configuración</p>
         </div>
       </div>
 
@@ -770,7 +770,7 @@ function SectionRow({
         transition={{ duration: 0.18 }}
         className={[
           'flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
-          section.is_visible ? 'border-white/10 bg-zinc-900/50' : 'border-white/5 bg-zinc-900/20 opacity-60',
+          section.is_visible ? 'border-white/10 bg-surface/50' : 'border-white/5 bg-surface/20 opacity-60',
         ].join(' ')}
       >
         {/* Order controls */}
@@ -778,7 +778,7 @@ function SectionRow({
           <button
             onClick={onMoveUp}
             disabled={index === 0}
-            className="rounded p-1 text-zinc-600 transition-colors hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-20"
+            className="rounded p-1 text-ink-muted transition-colors hover:text-ink-secondary disabled:cursor-not-allowed disabled:opacity-20"
             aria-label="Subir"
           >
             <ArrowUpIcon className="size-3" />
@@ -786,7 +786,7 @@ function SectionRow({
           <button
             onClick={onMoveDown}
             disabled={index === total - 1}
-            className="rounded p-1 text-zinc-600 transition-colors hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-20"
+            className="rounded p-1 text-ink-muted transition-colors hover:text-ink-secondary disabled:cursor-not-allowed disabled:opacity-20"
             aria-label="Bajar"
           >
             <ArrowDownIcon className="size-3" />
@@ -794,7 +794,7 @@ function SectionRow({
         </div>
 
         {/* Order number */}
-        <span className="w-4 shrink-0 text-center text-xs text-zinc-700 tabular-nums">{index + 1}</span>
+        <span className="w-4 shrink-0 text-center text-xs text-ink-muted tabular-nums">{index + 1}</span>
 
         {/* Icon */}
         <div className={['flex size-8 shrink-0 items-center justify-center rounded-lg border', colorCls].join(' ')}>
@@ -805,7 +805,7 @@ function SectionRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p
-              className={['truncate text-sm font-medium', section.is_visible ? 'text-zinc-200' : 'text-zinc-500'].join(
+              className={['truncate text-sm font-medium', section.is_visible ? 'text-ink' : 'text-ink-muted'].join(
                 ' '
               )}
             >
@@ -818,7 +818,7 @@ function SectionRow({
               </span>
             )}
           </div>
-          <p className="text-xs text-zinc-600">{def.label}</p>
+          <p className="text-xs text-ink-muted">{def.label}</p>
         </div>
 
         {/* Actions */}
@@ -829,7 +829,7 @@ function SectionRow({
               onClick={onToggleMedia}
               className={[
                 'rounded-lg p-1.5 transition-colors',
-                isMediaOpen ? 'bg-pink-500/10 text-pink-400' : 'text-zinc-500 hover:bg-pink-500/10 hover:text-pink-400',
+                isMediaOpen ? 'bg-pink-500/10 text-pink-400' : 'text-ink-muted hover:bg-pink-500/10 hover:text-pink-400',
               ].join(' ')}
               aria-label="Gestionar imágenes"
               title="Gestionar imágenes"
@@ -845,7 +845,7 @@ function SectionRow({
                 'rounded-lg p-1.5 transition-colors',
                 isEditOpen
                   ? 'bg-indigo-500/10 text-indigo-400'
-                  : 'text-zinc-500 hover:bg-indigo-500/10 hover:text-indigo-400',
+                  : 'text-ink-muted hover:bg-indigo-500/10 hover:text-indigo-400',
               ].join(' ')}
               aria-label="Editar configuración"
               title="Editar configuración"
@@ -858,8 +858,8 @@ function SectionRow({
             className={[
               'rounded-lg p-1.5 transition-colors',
               section.is_visible
-                ? 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
-                : 'text-zinc-700 hover:bg-white/5 hover:text-zinc-400',
+                ? 'text-ink-muted hover:bg-white/5 hover:text-ink-secondary'
+                : 'text-ink-muted hover:bg-white/5 hover:text-ink-secondary',
             ].join(' ')}
             aria-label={section.is_visible ? 'Ocultar sección' : 'Mostrar sección'}
           >
@@ -867,7 +867,7 @@ function SectionRow({
           </button>
           <button
             onClick={onDelete}
-            className="rounded-lg p-1.5 text-zinc-700 transition-colors hover:bg-pink-500/10 hover:text-pink-400"
+            className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-pink-500/10 hover:text-pink-400"
             aria-label="Eliminar sección"
           >
             <TrashIcon className="size-4" />
@@ -1061,7 +1061,7 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
     return (
       <div className="space-y-2">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-14 animate-pulse rounded-xl bg-zinc-800/50" />
+          <div key={i} className="h-14 animate-pulse rounded-xl bg-surface-raised/50" />
         ))}
       </div>
     )
@@ -1161,7 +1161,7 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
       {!showAdd && sorted.length > 0 && (
         <button
           onClick={() => setShowAdd(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 px-4 py-3 text-sm text-zinc-500 transition-all hover:border-white/20 hover:bg-white/5 hover:text-zinc-300"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 px-4 py-3 text-sm text-ink-muted transition-all hover:border-white/20 hover:bg-white/5 hover:text-ink-secondary"
         >
           <PlusIcon className="size-4" />
           Agregar sección
@@ -1169,7 +1169,7 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
       )}
 
       {sorted.length > 0 && (
-        <p className="text-center text-xs text-zinc-600">
+        <p className="text-center text-xs text-ink-muted">
           {sorted.length} sección{sorted.length !== 1 ? 'es' : ''} · {visibleCount} visible
           {visibleCount !== 1 ? 's' : ''}
           {sorted.filter((s) => {
@@ -1195,7 +1195,7 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
         title="¿Eliminar esta sección?"
         description={
           <>
-            <strong className="text-zinc-200">
+            <strong className="text-ink">
               {sectionToDelete ? getSectionTypeDef(sectionToDelete.component_type).label : ''}
             </strong>{' '}
             desaparecerá de la página pública. Esta acción no se puede deshacer.

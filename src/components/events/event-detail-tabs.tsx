@@ -110,7 +110,7 @@ export function EventDetailTabs({
   }
 
   return (
-    <div className="sticky top-[4.75rem] z-20 -mx-1 rounded-xl border border-white/[0.09] bg-zinc-950/90 p-1 shadow-[0_14px_38px_rgba(0,0,0,0.28)] ring-1 ring-black/20 backdrop-blur-2xl md:-mx-2 md:rounded-2xl md:p-1.5 lg:top-2">
+    <div className="sticky top-[4.75rem] z-20 -mx-1 rounded-xl border border-white/[0.09] bg-canvas/90 p-1 shadow-[0_14px_38px_rgba(0,0,0,0.28)] ring-1 ring-black/20 backdrop-blur-2xl md:-mx-2 md:rounded-2xl md:p-1.5 lg:top-2">
       <div
         ref={tabListRef}
         role="tablist"
@@ -126,7 +126,7 @@ export function EventDetailTabs({
           >
             <span
               aria-hidden="true"
-              className="hidden px-2 pt-0.5 text-[10px] font-semibold tracking-[0.14em] text-zinc-500 uppercase md:block"
+              className="hidden px-2 pt-0.5 text-[10px] font-semibold tracking-[0.14em] text-ink-muted uppercase md:block"
             >
               {group}
             </span>
@@ -157,16 +157,16 @@ export function EventDetailTabs({
                       'group relative flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-[color,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:outline-none sm:px-3 sm:text-sm md:rounded-xl md:px-3.5 md:py-2',
                       isActive
                         ? 'bg-gradient-to-b from-indigo-400/20 to-indigo-500/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_22px_rgba(0,0,0,0.18)] ring-1 ring-indigo-300/20'
-                        : 'text-zinc-400 hover:bg-white/[0.055] hover:text-zinc-100',
+                        : 'text-ink-secondary hover:bg-white/[0.055] hover:text-ink',
                     ].join(' ')}
                   >
                     <Icon
                       aria-hidden="true"
-                      className={`size-4 shrink-0 ${isActive ? 'text-indigo-300' : 'text-zinc-500 group-hover:text-zinc-300'}`}
+                      className={`size-4 shrink-0 ${isActive ? 'text-indigo-300' : 'text-ink-muted group-hover:text-ink-secondary'}`}
                     />
                     <span>{label}</span>
                     {id === 'invitados' && guestCount > 0 && (
-                      <span className="rounded-full bg-white/[0.07] px-1.5 py-0.5 text-xs text-zinc-300 ring-1 ring-white/[0.06]">
+                      <span className="rounded-full bg-white/[0.07] px-1.5 py-0.5 text-xs text-ink-secondary ring-1 ring-white/[0.06]">
                         {guestCount}
                       </span>
                     )}

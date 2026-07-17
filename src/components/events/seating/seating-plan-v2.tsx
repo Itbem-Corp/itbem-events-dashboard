@@ -58,7 +58,7 @@ export function SeatingPlanV2({ eventId }: Props) {
         'ring-2',
         'ring-violet-400',
         'ring-offset-2',
-        'ring-offset-zinc-950'
+        'ring-offset-canvas'
       )
     }
   }, [])
@@ -258,13 +258,13 @@ export function SeatingPlanV2({ eventId }: Props) {
         'ring-2',
         'ring-violet-400',
         'ring-offset-2',
-        'ring-offset-zinc-950'
+        'ring-offset-canvas'
       )
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      el.classList.add('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-zinc-950')
+      el.classList.add('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-canvas')
       highlightedTableRef.current = el
       highlightTimerRef.current = setTimeout(() => {
-        el.classList.remove('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-zinc-950')
+        el.classList.remove('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-canvas')
         highlightedTableRef.current = null
         highlightTimerRef.current = null
       }, 1500)
@@ -278,7 +278,7 @@ export function SeatingPlanV2({ eventId }: Props) {
     return (
       <div className="grid animate-pulse gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-48 rounded-xl bg-zinc-800/50" />
+          <div key={i} className="h-48 rounded-xl bg-surface-raised/50" />
         ))}
       </div>
     )
@@ -376,9 +376,9 @@ export function SeatingPlanV2({ eventId }: Props) {
           <div className="flex-1">
             {seating.tables.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <RectangleGroupIcon className="mb-3 size-12 text-zinc-700" />
-                <p className="text-sm text-zinc-500">No hay mesas creadas aun</p>
-                <p className="mt-1 text-xs text-zinc-600">Crea tu primera mesa para comenzar a organizar invitados</p>
+                <RectangleGroupIcon className="mb-3 size-12 text-ink-muted" />
+                <p className="text-sm text-ink-muted">No hay mesas creadas aun</p>
+                <p className="mt-1 text-xs text-ink-muted">Crea tu primera mesa para comenzar a organizar invitados</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

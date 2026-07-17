@@ -73,7 +73,7 @@ export function SidebarLayout({
     <>
       <a
         href="#dashboard-main"
-        className="fixed top-3 left-3 z-[100] -translate-y-20 rounded-xl border border-white/15 bg-zinc-950/95 px-4 py-2.5 text-sm font-semibold text-white shadow-2xl shadow-black/40 backdrop-blur-xl transition-transform focus:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) motion-reduce:transition-none"
+        className="fixed top-3 left-3 z-[100] -translate-y-20 rounded-xl border border-[var(--app-border-strong)] bg-[var(--app-surface-raised)]/95 px-4 py-2.5 text-sm font-semibold text-[var(--app-text-primary)] shadow-[0_18px_54px_var(--app-shadow-strong)] backdrop-blur-xl transition-transform focus:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) motion-reduce:transition-none"
       >
         Saltar al contenido principal
       </a>
@@ -100,7 +100,7 @@ export function SidebarLayout({
             showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
         >
-          <div className="flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-white/[0.09] bg-zinc-950/86 shadow-[0_24px_90px_rgba(0,0,0,0.52)] ring-1 ring-white/[0.025] backdrop-blur-2xl ring-inset">
+          <div className="app-shell-panel flex h-full flex-col overflow-hidden rounded-2xl border">
             <div className="-mb-3 px-4 pt-3 lg:hidden">
               <NavbarItem ref={closeButtonRef} onClick={closeSidebar} aria-label="Cerrar navegación">
                 <XMarkIcon />
@@ -113,7 +113,7 @@ export function SidebarLayout({
         <header
           aria-hidden={!isDesktop && showSidebar ? true : undefined}
           inert={!isDesktop && showSidebar ? true : undefined}
-          className="sticky top-0 z-30 flex min-w-0 items-center border-b border-white/[0.06] bg-zinc-950/78 px-4 shadow-lg shadow-black/10 backdrop-blur-2xl lg:hidden"
+          className="sticky top-0 z-30 flex min-w-0 items-center border-b border-[var(--app-border-subtle)] bg-[var(--app-surface)] px-4 shadow-sm lg:hidden"
         >
           <div className="py-2.5">
             <NavbarItem ref={openButtonRef} onClick={() => setShowSidebar(true)} aria-label="Abrir navegación">
@@ -130,7 +130,7 @@ export function SidebarLayout({
           inert={!isDesktop && showSidebar ? true : undefined}
           className="flex min-w-0 flex-1 flex-col pb-24 outline-none lg:pt-2 lg:pr-2 lg:pb-2 lg:pl-68"
         >
-          <div className="grow px-4 py-6 sm:px-6 lg:rounded-[1.35rem] lg:border lg:border-white/[0.075] lg:bg-zinc-950/48 lg:p-10 lg:shadow-[0_24px_90px_rgba(0,0,0,0.2)] lg:ring-1 lg:ring-white/[0.02] lg:backdrop-blur-2xl lg:ring-inset xl:p-12">
+          <div className="app-shell-panel grow px-4 py-6 sm:px-6 lg:rounded-2xl lg:border lg:p-10 xl:p-12">
             <div className="mx-auto max-w-7xl">{children}</div>
           </div>
         </main>

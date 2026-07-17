@@ -11,7 +11,7 @@ export default function DashboardError({ error, reset }: { error: Error & { dige
 
   return (
     <section className="flex min-h-[62vh] items-center justify-center py-12" role="alert" aria-live="polite">
-      <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/70 p-7 shadow-2xl shadow-black/20 sm:p-10">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-white/10 bg-canvas/70 p-7 shadow-2xl shadow-black/20 sm:p-10">
         <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-red-500/[0.07] via-transparent to-indigo-500/[0.06]" />
         <div className="relative">
           <span className="flex size-11 items-center justify-center rounded-2xl border border-red-400/15 bg-red-500/10 text-red-300">
@@ -21,7 +21,7 @@ export default function DashboardError({ error, reset }: { error: Error & { dige
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
             Esta vista no pudo terminar de cargar
           </h1>
-          <p className="mt-3 max-w-md text-sm leading-6 text-zinc-400">
+          <p className="mt-3 max-w-md text-sm leading-6 text-ink-secondary">
             Tu información está segura. Reintenta la operación o vuelve al centro de operaciones para continuar.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -34,7 +34,7 @@ export default function DashboardError({ error, reset }: { error: Error & { dige
               Ir al dashboard
             </Button>
           </div>
-          {error.digest && <p className="mt-6 font-mono text-[10px] text-zinc-700">Referencia {error.digest}</p>}
+          {error.digest && <p className="mt-6 font-mono text-[10px] text-ink-muted">Referencia {error.digest}</p>}
         </div>
       </div>
     </section>

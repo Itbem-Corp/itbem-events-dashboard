@@ -142,7 +142,7 @@ function CreateUserForm({ clientId, roles, onDone }: CreateUserFormProps) {
       exit={{ opacity: 0, y: -8 }}
       className="space-y-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4"
     >
-      <p className="text-sm font-medium text-zinc-200">Crear nuevo usuario</p>
+      <p className="text-sm font-medium text-ink">Crear nuevo usuario</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field>
           <Label>Nombre</Label>
@@ -193,14 +193,14 @@ function CreateUserForm({ clientId, roles, onDone }: CreateUserFormProps) {
               </option>
             ))}
           </Select>
-          {roleGuidance(roles, roleId) && <p className="mt-1 text-xs text-zinc-500">{roleGuidance(roles, roleId)}</p>}
+          {roleGuidance(roles, roleId) && <p className="mt-1 text-xs text-ink-muted">{roleGuidance(roles, roleId)}</p>}
           {errors.roleId && <ErrorMessage>{errors.roleId}</ErrorMessage>}
         </Field>
         <Button onClick={handleCreate} disabled={loading || !roleId} color="emerald">
           {loading ? 'Enviando invitación…' : 'Invitar y asignar'}
         </Button>
       </div>
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-ink-muted">
         Cognito enviará la invitación y gestionará la contraseña temporal. El dashboard nunca verá la contraseña.
       </p>
     </motion.div>
@@ -256,13 +256,13 @@ function MemberApplicationsDialog({
     <Dialog open onClose={onClose} size="lg">
       <DialogTitle>Acceso a aplicaciones</DialogTitle>
       <DialogBody className="space-y-4 py-4">
-        <p className="text-sm leading-6 text-zinc-400">
-          Define en qué portales puede iniciar sesión <strong className="text-zinc-200">{displayName}</strong>.
+        <p className="text-sm leading-6 text-ink-secondary">
+          Define en qué portales puede iniciar sesión <strong className="text-ink">{displayName}</strong>.
           Su rol dentro de la organización se conserva, pero sólo aplica en las aplicaciones activadas.
         </p>
         {isLoading ? (
           <div className="space-y-2">
-            {[0, 1].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl bg-zinc-800/50" />)}
+            {[0, 1].map((item) => <div key={item} className="h-16 animate-pulse rounded-xl bg-surface-raised/50" />)}
           </div>
         ) : error ? (
           <div role="alert" className="rounded-xl border border-red-400/15 bg-red-400/[0.06] p-3 text-sm text-red-200">
@@ -271,13 +271,13 @@ function MemberApplicationsDialog({
         ) : data?.length ? (
           <div className="space-y-2">
             {data.map((application) => (
-              <div key={application.code} className="flex items-center gap-4 rounded-xl border border-white/10 bg-zinc-900/60 px-4 py-3">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-zinc-300">
+              <div key={application.code} className="flex items-center gap-4 rounded-xl border border-white/10 bg-surface/60 px-4 py-3">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-ink-secondary">
                   <Squares2X2Icon className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-zinc-200">{application.name}</p>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-sm font-medium text-ink">{application.name}</p>
+                  <p className="text-xs text-ink-muted">
                     {application.is_active ? 'Puede iniciar sesión en este producto' : 'Sin acceso a este producto'}
                   </p>
                 </div>
@@ -289,7 +289,7 @@ function MemberApplicationsDialog({
                   disabled={!application.is_enabled || savingCode === application.code}
                   onClick={() => void toggle(application)}
                   className={`relative h-6 w-11 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                    application.is_active ? 'bg-indigo-500' : 'bg-zinc-700'
+                    application.is_active ? 'bg-indigo-500' : 'bg-surface-soft'
                   }`}
                 >
                   <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-transform ${
@@ -367,7 +367,7 @@ function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
       exit={{ opacity: 0, y: -8 }}
       className="space-y-3 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4"
     >
-      <p className="text-sm font-medium text-zinc-200">Invitar miembro</p>
+      <p className="text-sm font-medium text-ink">Invitar miembro</p>
       <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_auto_auto]">
         <Field>
           <Label>Correo electrónico</Label>
@@ -393,7 +393,7 @@ function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
               </option>
             ))}
           </Select>
-          {roleGuidance(roles, roleId) && <p className="mt-1 text-xs text-zinc-500">{roleGuidance(roles, roleId)}</p>}
+          {roleGuidance(roles, roleId) && <p className="mt-1 text-xs text-ink-muted">{roleGuidance(roles, roleId)}</p>}
         </Field>
         <Button onClick={handleInvite} disabled={loading || !roleId}>
           {loading ? 'Enviando…' : 'Invitar'}
@@ -563,7 +563,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
 
           {/* Header + action buttons */}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-ink-secondary">
               {members.length} de {membersTotal} miembro{membersTotal !== 1 ? 's' : ''}
             </p>
             <div className="flex gap-2">
@@ -624,7 +624,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
           {isLoading ? (
             <div className="space-y-2">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-14 animate-pulse rounded-xl bg-zinc-800/50" />
+                <div key={i} className="h-14 animate-pulse rounded-xl bg-surface-raised/50" />
               ))}
             </div>
           ) : members.length === 0 ? (
@@ -632,6 +632,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
               icon={UsersIcon}
               title="Sin miembros"
               description="Invita personas a colaborar en este cliente."
+              compact
             />
           ) : (
             <div className="space-y-1.5">
@@ -655,12 +656,12 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -8 }}
-                      className="flex items-center gap-3 rounded-xl border border-white/10 bg-zinc-900/50 px-4 py-3"
+                      className="flex items-center gap-3 rounded-xl border border-white/10 bg-surface/50 px-4 py-3"
                     >
                       <Avatar src={profileImage} initials={initials} className="size-8 shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-zinc-200">{displayName}</p>
-                        {email && <p className="truncate text-xs text-zinc-500">{email}</p>}
+                        <p className="truncate text-sm font-medium text-ink">{displayName}</p>
+                        {email && <p className="truncate text-xs text-ink-muted">{email}</p>}
                       </div>
 
                       {isEditing ? (
@@ -693,7 +694,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
                           {canManageMember && (
                             <button
                               onClick={() => setApplicationsMember(member)}
-                              className="rounded-lg p-1.5 text-zinc-600 transition-colors hover:bg-indigo-500/10 hover:text-indigo-300"
+                              className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-indigo-500/10 hover:text-indigo-300"
                               aria-label={`Administrar aplicaciones de ${displayName}`}
                               title="Acceso a aplicaciones"
                             >
@@ -707,14 +708,14 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
                                   setEditingMemberId(memberKey)
                                   setEditingRole(member.role_id)
                                 }}
-                                className="rounded-lg p-1.5 text-zinc-600 transition-colors hover:bg-white/5 hover:text-zinc-300"
+                                className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-white/5 hover:text-ink-secondary"
                                 aria-label="Editar rol"
                               >
                                 <PencilIcon className="size-3.5" />
                               </button>
                               <button
                                 onClick={() => setMemberToRemove(member)}
-                                className="rounded-lg p-1.5 text-zinc-600 transition-colors hover:bg-pink-500/10 hover:text-pink-400"
+                                className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-pink-500/10 hover:text-pink-400"
                                 aria-label="Remover miembro"
                               >
                                 <TrashIcon className="size-3.5" />
@@ -744,7 +745,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
         <AlertTitle>¿Remover miembro?</AlertTitle>
         <AlertDescription>
           Se removerá a{' '}
-          <strong className="text-zinc-200">
+          <strong className="text-ink">
             {memberToRemove?.user?.first_name} {memberToRemove?.user?.last_name}
           </strong>{' '}
           de {clientName}. Perderá el acceso inmediatamente.

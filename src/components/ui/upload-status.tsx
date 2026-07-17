@@ -31,7 +31,7 @@ export function UploadStatus({
         className={[
           'flex gap-3 rounded-xl border',
           canceled
-            ? 'border-white/10 bg-white/[0.035] text-zinc-300'
+            ? 'border-white/10 bg-white/[0.035] text-ink-secondary'
             : 'border-red-400/20 bg-red-400/[0.07] text-red-100',
           compact ? 'items-center px-3 py-2' : 'flex-col p-3 sm:flex-row sm:items-center sm:justify-between',
         ].join(' ')}
@@ -43,7 +43,7 @@ export function UploadStatus({
           className={[
             'min-h-11 shrink-0 rounded-lg border px-3 text-xs font-semibold transition-colors',
             canceled
-              ? 'border-white/10 text-zinc-200 hover:bg-white/5'
+              ? 'border-white/10 text-ink hover:bg-white/5'
               : 'border-red-300/20 text-red-100 hover:bg-red-300/10',
           ].join(' ')}
         >
@@ -57,14 +57,14 @@ export function UploadStatus({
   return (
     <div className={compact ? 'space-y-1.5' : 'space-y-2 rounded-xl border border-white/10 bg-white/[0.035] p-3'}>
       <div className="flex items-center justify-between gap-3 text-xs">
-        <span role="status" aria-live="polite" className="font-medium text-zinc-300">
+        <span role="status" aria-live="polite" className="font-medium text-ink-secondary">
           {progress === 0 ? preparingLabel : label}
           {determinate && progress > 0 ? ` · ${progress}%` : ''}
         </span>
         <button
           type="button"
           onClick={onCancel}
-          className="min-h-11 shrink-0 px-2 font-semibold text-zinc-400 transition-colors hover:text-white"
+          className="min-h-11 shrink-0 px-2 font-semibold text-ink-secondary transition-colors hover:text-white"
         >
           Cancelar
         </button>
@@ -75,7 +75,7 @@ export function UploadStatus({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={determinate ? progress : undefined}
-        className="h-1.5 overflow-hidden rounded-full bg-zinc-800"
+        className="h-1.5 overflow-hidden rounded-full bg-surface-raised"
       >
         <div
           className={[

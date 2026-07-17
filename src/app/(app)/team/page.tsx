@@ -40,6 +40,7 @@ export default function TeamPage() {
         icon={UserGroupIcon}
         actions={
           <Button
+            color="indigo"
             onPointerEnter={() => void loadClientMembersModal()}
             onFocus={() => void loadClientMembersModal()}
             onClick={() => setOpen(true)}
@@ -55,8 +56,8 @@ export default function TeamPage() {
           <span className="flex size-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-300">
             <ShieldCheckIcon className="size-5" />
           </span>
-          <h2 className="mt-4 text-sm font-semibold text-zinc-100">Roles por responsabilidad</h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-500">
+          <h2 className="mt-4 text-sm font-semibold text-ink">Roles por responsabilidad</h2>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">
             Owner y Admin gestionan el equipo; operación, check-in y analítica reciben sólo las acciones necesarias.
           </p>
         </div>
@@ -64,8 +65,8 @@ export default function TeamPage() {
           <span className="flex size-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">
             <Squares2X2Icon className="size-5" />
           </span>
-          <h2 className="mt-4 text-sm font-semibold text-zinc-100">Acceso independiente por producto</h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-500">
+          <h2 className="mt-4 text-sm font-semibold text-ink">Acceso independiente por producto</h2>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">
             Una misma identidad puede entrar a EventiApp, ITBEM o Cafetton sin compartir datos ni permisos entre
             portales.
           </p>

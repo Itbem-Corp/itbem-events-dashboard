@@ -41,7 +41,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
             onClick={onClose}
           />
           <motion.div
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl bg-zinc-900 border-t border-white/10"
+            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl bg-surface border-t border-white/10"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
@@ -54,7 +54,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
               <div className="w-10 h-1 rounded-full bg-white/20" />
             </div>
             {title && (
-              <p className="px-4 py-2 text-sm font-semibold text-zinc-300 border-b border-white/5">
+              <p className="px-4 py-2 text-sm font-semibold text-ink-secondary border-b border-white/5">
                 {title}
               </p>
             )}
@@ -87,7 +87,7 @@ export function SheetRow({ icon, label, onClick, trailing, variant = 'default', 
       className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-colors disabled:opacity-40 ${
         variant === 'danger'
           ? 'text-rose-400 hover:bg-rose-500/10'
-          : 'text-zinc-200 hover:bg-white/5'
+          : 'text-ink hover:bg-white/5'
       }`}
     >
       <span className="shrink-0 w-5 h-5 flex items-center justify-center">{icon}</span>

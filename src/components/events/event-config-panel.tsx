@@ -65,19 +65,19 @@ function SettingRow({ icon: Icon, title, description, checked, onChange, disable
   return (
     <div className="flex items-center justify-between gap-3 py-4 sm:gap-6">
       <div className="flex min-w-0 flex-1 items-start gap-3">
-        <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-zinc-800">
-          <Icon className="size-4 text-zinc-400" />
+        <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-raised">
+          <Icon className="size-4 text-ink-secondary" />
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-zinc-200">{title}</p>
+            <p className="text-sm font-medium text-ink">{title}</p>
             {badge && (
               <span className="rounded border border-indigo-500/20 bg-indigo-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-400">
                 {badge}
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-sm text-zinc-500">{description}</p>
+          <p className="mt-0.5 text-sm text-ink-muted">{description}</p>
         </div>
       </div>
       <Switch checked={checked} onChange={onChange} disabled={disabled} aria-label={title} />
@@ -89,7 +89,7 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }
   return (
     <div className="border-b border-white/5 py-4">
       <Subheading>{title}</Subheading>
-      {subtitle && <p className="mt-0.5 text-sm text-zinc-600">{subtitle}</p>}
+      {subtitle && <p className="mt-0.5 text-sm text-ink-muted">{subtitle}</p>}
     </div>
   )
 }
@@ -319,14 +319,14 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
     return (
       <div className="space-y-4">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-16 animate-pulse rounded-xl bg-zinc-800/50" />
+          <div key={i} className="h-16 animate-pulse rounded-xl bg-surface-raised/50" />
         ))}
       </div>
     )
   }
 
   if (!effectiveConfig) {
-    return <div className="py-12 text-center text-sm text-zinc-500">No se pudo cargar la configuración del evento.</div>
+    return <div className="py-12 text-center text-sm text-ink-muted">No se pudo cargar la configuración del evento.</div>
   }
 
   return (
@@ -340,7 +340,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         initial={reducedMotion ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={reducedMotion ? { duration: 0 } : { delay: 0.04 }}
-        className="divide-y divide-white/5 rounded-xl border border-white/10 bg-zinc-900/50 px-5"
+        className="divide-y divide-white/5 rounded-xl border border-white/10 bg-surface/50 px-5"
       >
         <SectionHeader title="Visibilidad y acceso" />
 
@@ -358,12 +358,12 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         {/* Password */}
         <div className="py-4">
           <div className="mb-3 flex items-start gap-3">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-zinc-800">
-              <LockClosedIcon className="size-4 text-zinc-400" />
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-raised">
+              <LockClosedIcon className="size-4 text-ink-secondary" />
             </div>
             <div>
-              <p className="text-sm font-medium text-zinc-200">Contraseña de acceso</p>
-              <p className="mt-0.5 text-sm text-zinc-500">
+              <p className="text-sm font-medium text-ink">Contraseña de acceso</p>
+              <p className="mt-0.5 text-sm text-ink-muted">
                 Opcional. Si se establece, los invitados deberán ingresarla.
               </p>
             </div>
@@ -388,7 +388,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         initial={reducedMotion ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={reducedMotion ? { duration: 0 } : { delay: 0.08 }}
-        className="divide-y divide-white/5 rounded-xl border border-white/10 bg-zinc-900/50 px-5"
+        className="divide-y divide-white/5 rounded-xl border border-white/10 bg-surface/50 px-5"
       >
         <SectionHeader title="Interacción de invitados" subtitle="Permite que los invitados participen en el evento." />
 
@@ -452,12 +452,12 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
 
         <div className="py-4">
           <div className="mb-3 flex items-start gap-3">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-zinc-800">
-              <PhotoIcon className="size-4 text-zinc-400" />
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-raised">
+              <PhotoIcon className="size-4 text-ink-secondary" />
             </div>
             <div>
-              <p className="text-sm font-medium text-zinc-200">Limite de uploads</p>
-              <p className="mt-0.5 text-sm text-zinc-500">
+              <p className="text-sm font-medium text-ink">Limite de uploads</p>
+              <p className="mt-0.5 text-sm text-ink-muted">
                 Cantidad maxima de archivos por invitado/IP en la ventana publica. Usa 0 para el default global de 30.
               </p>
             </div>
@@ -494,7 +494,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         initial={reducedMotion ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={reducedMotion ? { duration: 0 } : { delay: 0.12 }}
-        className="space-y-4 rounded-xl border border-white/10 bg-zinc-900/50 px-5 py-4"
+        className="space-y-4 rounded-xl border border-white/10 bg-surface/50 px-5 py-4"
       >
         <SectionHeader
           title="Programar visibilidad"
@@ -504,8 +504,8 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         <div className="grid gap-4 pt-2 sm:grid-cols-2">
           <div>
             <div className="mb-1.5 flex items-center gap-2">
-              <ClockIcon className="size-4 text-zinc-500" />
-              <label htmlFor="event-config-active-from" className="text-sm font-medium text-zinc-300">
+              <ClockIcon className="size-4 text-ink-muted" />
+              <label htmlFor="event-config-active-from" className="text-sm font-medium text-ink-secondary">
                 Disponible desde
               </label>
             </div>
@@ -518,13 +518,13 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
                 setActiveFrom(e.target.value)
                 mark('active_from')
               }}
-              className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              className="w-full rounded-lg border border-white/10 bg-canvas px-3 py-2 text-sm text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
             />
           </div>
           <div>
             <div className="mb-1.5 flex items-center gap-2">
-              <ClockIcon className="size-4 text-zinc-500" />
-              <label htmlFor="event-config-active-until" className="text-sm font-medium text-zinc-300">
+              <ClockIcon className="size-4 text-ink-muted" />
+              <label htmlFor="event-config-active-until" className="text-sm font-medium text-ink-secondary">
                 Disponible hasta
               </label>
             </div>
@@ -537,11 +537,11 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
                 setActiveUntil(e.target.value)
                 mark('active_until')
               }}
-              className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              className="w-full rounded-lg border border-white/10 bg-canvas px-3 py-2 text-sm text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
             />
           </div>
         </div>
-        <p id="event-config-availability-help" className="text-xs text-zinc-600">
+        <p id="event-config-availability-help" className="text-xs text-ink-muted">
           Deja en blanco para que la página esté siempre disponible.
         </p>
       </motion.div>
@@ -551,7 +551,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         initial={reducedMotion ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={reducedMotion ? { duration: 0 } : { delay: 0.16 }}
-        className="space-y-4 rounded-xl border border-white/10 bg-zinc-900/50 px-5 py-4"
+        className="space-y-4 rounded-xl border border-white/10 bg-surface/50 px-5 py-4"
       >
         <SectionHeader
           title="Mensajes personalizados"
@@ -601,8 +601,8 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
           ).map(({ key, field, label, icon: Icon, placeholder, value, set }) => (
             <div key={key}>
               <div className="mb-1.5 flex items-center gap-2">
-                <Icon className="size-4 text-zinc-500" />
-                <label htmlFor={`event-config-${key}`} className="text-sm font-medium text-zinc-300">
+                <Icon className="size-4 text-ink-muted" />
+                <label htmlFor={`event-config-${key}`} className="text-sm font-medium text-ink-secondary">
                   {label}
                 </label>
               </div>
@@ -615,7 +615,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
                 }}
                 placeholder={placeholder}
                 rows={2}
-                className="w-full resize-none rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                className="w-full resize-none rounded-lg border border-white/10 bg-canvas px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
               />
             </div>
           ))}
@@ -627,7 +627,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         initial={reducedMotion ? false : { opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={reducedMotion ? { duration: 0 } : { delay: 0.2 }}
-        className="divide-y divide-white/5 rounded-xl border border-white/10 bg-zinc-900/50 px-5"
+        className="divide-y divide-white/5 rounded-xl border border-white/10 bg-surface/50 px-5"
       >
         <SectionHeader
           title="Visibilidad de bloques"

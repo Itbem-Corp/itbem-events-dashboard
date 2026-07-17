@@ -17,7 +17,7 @@ export function SidebarHeader({ className, ...props }: React.ComponentPropsWitho
       data-slot="sidebar-header"
       className={clsx(
         className,
-        'flex flex-col border-b border-zinc-950/5 p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5'
+        'flex flex-col border-b border-border-subtle p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5'
       )}
     />
   )
@@ -43,7 +43,7 @@ export function SidebarFooter({ className, ...props }: React.ComponentPropsWitho
       data-slot="sidebar-footer"
       className={clsx(
         className,
-        'flex flex-col border-t border-zinc-950/5 p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5'
+        'flex flex-col border-t border-border-subtle p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5'
       )}
     />
   )
@@ -54,7 +54,7 @@ export function SidebarSection({ className, ...props }: React.ComponentPropsWith
 }
 
 export function SidebarDivider({ className, ...props }: React.ComponentPropsWithoutRef<'hr'>) {
-  return <hr {...props} className={clsx(className, 'my-4 border-t border-zinc-950/5 lg:-mx-4 dark:border-white/5')} />
+  return <hr {...props} className={clsx(className, 'my-4 border-t border-border-subtle lg:-mx-4 dark:border-white/5')} />
 }
 
 export function SidebarSpacer({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
@@ -63,7 +63,7 @@ export function SidebarSpacer({ className, ...props }: React.ComponentPropsWitho
 
 export function SidebarHeading({ className, ...props }: React.ComponentPropsWithoutRef<'h3'>) {
   return (
-    <h3 {...props} className={clsx(className, 'mb-1 px-2 text-xs/6 font-medium text-zinc-500 dark:text-zinc-400')} />
+    <h3 {...props} className={clsx(className, 'mb-1 px-2 text-xs/6 font-medium text-ink-muted dark:text-ink-secondary')} />
   )
 }
 
@@ -81,30 +81,30 @@ export const SidebarItem = forwardRef(function SidebarItem(
 ) {
   let classes = clsx(
     // Base
-    'flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-base/6 font-medium text-zinc-950 transition-[background-color,color,transform,box-shadow] duration-200 ease-out motion-reduce:transition-none sm:py-2.5 sm:text-sm/5',
+    'flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-base/6 font-medium text-ink transition-[background-color,color,transform,box-shadow] duration-200 ease-out motion-reduce:transition-none sm:py-2.5 sm:text-sm/5',
     // Leading icon/icon-only
-    '*:data-[slot=icon]:size-6 *:data-[slot=icon]:shrink-0 *:data-[slot=icon]:fill-zinc-500 sm:*:data-[slot=icon]:size-5',
+    '*:data-[slot=icon]:size-6 *:data-[slot=icon]:shrink-0 *:data-[slot=icon]:fill-ink-muted sm:*:data-[slot=icon]:size-5',
     // Trailing icon (down chevron or similar)
     '*:last:data-[slot=icon]:ml-auto *:last:data-[slot=icon]:size-5 sm:*:last:data-[slot=icon]:size-4',
     // Avatar
     '*:data-[slot=avatar]:-m-0.5 *:data-[slot=avatar]:size-7 sm:*:data-[slot=avatar]:size-6',
     // Hover
-    'data-hover:bg-zinc-950/5 data-hover:*:data-[slot=icon]:fill-zinc-950',
+    'data-hover:bg-canvas/5 data-hover:*:data-[slot=icon]:fill-ink',
     // Active
-    'data-active:bg-zinc-950/5 data-active:*:data-[slot=icon]:fill-zinc-950',
+    'data-active:bg-canvas/5 data-active:*:data-[slot=icon]:fill-ink',
     // Current
-    'data-current:*:data-[slot=icon]:fill-zinc-950',
+    'data-current:bg-(--tenant-accent)/[0.10] data-current:shadow-[inset_0_1px_rgba(255,255,255,0.16)] data-current:*:data-[slot=icon]:fill-(--tenant-accent)',
     // Dark mode
-    'dark:text-white dark:*:data-[slot=icon]:fill-zinc-400',
+    'dark:text-white dark:*:data-[slot=icon]:fill-ink-secondary',
     'dark:data-hover:translate-x-0.5 dark:data-hover:bg-white/[0.055] dark:data-hover:*:data-[slot=icon]:fill-white',
     'dark:data-active:bg-white/[0.07] dark:data-active:*:data-[slot=icon]:fill-white',
-    'dark:data-current:bg-white/[0.07] dark:data-current:shadow-[inset_0_1px_rgba(255,255,255,0.035)] dark:data-current:*:data-[slot=icon]:fill-white'
+    'dark:data-current:bg-(--tenant-accent)/[0.14] dark:data-current:shadow-[inset_0_1px_rgba(255,255,255,0.045)] dark:data-current:*:data-[slot=icon]:fill-white'
   )
 
   return (
     <span className={clsx(className, 'relative')}>
       {current && (
-        <span className="absolute inset-y-2 -left-4 w-0.5 rounded-full bg-zinc-950 shadow-[0_0_16px_var(--tenant-accent)] dark:bg-(--tenant-accent)" />
+        <span className="absolute inset-y-2 -left-4 w-0.5 rounded-full bg-(--tenant-accent)" />
       )}
       {typeof props.href === 'string' ? (
         <Headless.CloseButton

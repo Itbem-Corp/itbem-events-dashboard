@@ -68,7 +68,7 @@ export function StudioPanelTabs({ activePanel, onPanelChange, onPanelIntent }: S
             onKeyDown={(event) => handleKeyDown(event, id)}
             className={[
               'flex min-h-11 flex-1 shrink-0 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[10px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-indigo-400',
-              isActive ? 'border-b-2 border-indigo-500 text-indigo-400' : 'text-zinc-600 hover:text-zinc-400',
+              isActive ? 'border-b-2 border-indigo-500 text-indigo-400' : 'text-ink-muted hover:text-ink-secondary',
             ].join(' ')}
           >
             <Icon aria-hidden="true" className="size-4" />

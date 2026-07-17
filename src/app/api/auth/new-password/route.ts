@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     if (!access.ok) {
       return NextResponse.json({ error: access.error }, { status: access.status, headers: PRIVATE_NO_STORE_HEADERS })
     }
-    const response = NextResponse.json({ ok: true }, { headers: PRIVATE_NO_STORE_HEADERS })
+    const response = NextResponse.json({ ok: true, session: access.session }, { headers: PRIVATE_NO_STORE_HEADERS })
     response.cookies.set(AUTH_COOKIE_NAMES.session, auth.IdToken, { ...authCookieOptions(), maxAge: sessionMaxAge(auth.ExpiresIn) })
     if (auth.RefreshToken) response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, auth.RefreshToken, { ...authCookieOptions(), maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS })
     response.cookies.set(AUTH_COOKIE_NAMES.challengeSession, '', { path: '/', maxAge: 0 })

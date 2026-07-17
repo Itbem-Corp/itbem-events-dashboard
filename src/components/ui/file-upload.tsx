@@ -1,4 +1,4 @@
-﻿// src/components/ui/file-upload.tsx
+// src/components/ui/file-upload.tsx
 import { SECTION_IMAGE_DROPZONE_ACCEPT } from '@/lib/resource-upload-policy'
 import { CloudArrowUpIcon, DocumentTextIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { useCallback, useEffect, useState } from 'react'
@@ -123,17 +123,17 @@ export function FileUpload({
 
   return (
     <div className={`space-y-2 ${className}`}>
-      {label && <label className="text-sm font-semibold text-zinc-200">{label}</label>}
+      {label && <label className="text-sm font-semibold text-ink">{label}</label>}
 
       <div
         {...getRootProps()}
         aria-disabled={disabled}
         className={`relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 transition-all duration-200 ${previewType === 'user-avatar' ? 'min-h-[340px]' : 'min-h-[160px]'} ${
           disabled
-            ? 'cursor-not-allowed border-white/5 bg-zinc-900/25 opacity-70'
+            ? 'cursor-not-allowed border-white/5 bg-surface/25 opacity-70'
             : isDragActive
               ? 'scale-[1.01] border-blue-500 bg-blue-500/10'
-              : 'border-white/10 bg-zinc-900/40 hover:border-white/20'
+              : 'border-white/10 bg-surface/40 hover:border-white/20'
         }`}
       >
         <input {...getInputProps()} />
@@ -143,12 +143,12 @@ export function FileUpload({
             {/* 1. VISTA PREVIA: AVATAR / LOGO */}
             {previewType === 'avatar' && (
               <div className="group/preview relative flex w-full flex-col items-center justify-center">
-                {/* Eliminamos el bg-zinc-800/50 y el size-40 fijo para que sea fluido */}
+                {/* Eliminamos el bg-surface-raised/50 y el size-40 fijo para que sea fluido */}
                 <div className="relative flex min-h-[180px] w-full items-center justify-center overflow-hidden rounded-2xl">
                   {isHeic ? (
                     <div className="flex h-full flex-col items-center justify-center">
-                      <PhotoIcon className="size-10 text-zinc-500" />
-                      <span className="mt-1 text-[10px] font-bold text-zinc-500 uppercase">HEIC (iOS)</span>
+                      <PhotoIcon className="size-10 text-ink-muted" />
+                      <span className="mt-1 text-[10px] font-bold text-ink-muted uppercase">HEIC (iOS)</span>
                     </div>
                   ) : (
                     <img
@@ -164,11 +164,11 @@ export function FileUpload({
             {/* USER AVATAR (perfil de usuario) */}
             {previewType === 'user-avatar' && (
               <div className="relative w-full">
-                <div className="relative mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-xl">
+                <div className="relative mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-3xl border border-white/10 bg-canvas shadow-xl">
                   {isHeic ? (
                     <div className="flex h-full w-full flex-col items-center justify-center">
-                      <PhotoIcon className="size-12 text-zinc-500" />
-                      <span className="mt-2 text-xs font-semibold text-zinc-500">HEIC (iOS)</span>
+                      <PhotoIcon className="size-12 text-ink-muted" />
+                      <span className="mt-2 text-xs font-semibold text-ink-muted">HEIC (iOS)</span>
                     </div>
                   ) : (
                     <img
@@ -191,8 +191,8 @@ export function FileUpload({
             {previewType === 'image' && (
               <div className="max-w-full">
                 {isHeic ? (
-                  <div className="flex h-40 w-64 items-center justify-center rounded-xl border border-white/10 bg-zinc-800">
-                    <PhotoIcon className="size-12 text-zinc-600" />
+                  <div className="flex h-40 w-64 items-center justify-center rounded-xl border border-white/10 bg-surface-raised">
+                    <PhotoIcon className="size-12 text-ink-muted" />
                   </div>
                 ) : (
                   <img
@@ -213,13 +213,13 @@ export function FileUpload({
 
             {/* 4. VISTA PREVIA: DOCUMENTO / ARCHIVO */}
             {previewType === 'file' && (
-              <div className="flex w-full max-w-xs items-center gap-4 rounded-2xl border border-white/10 bg-zinc-800 p-4">
+              <div className="flex w-full max-w-xs items-center gap-4 rounded-2xl border border-white/10 bg-surface-raised p-4">
                 <DocumentTextIcon className="size-10 shrink-0 text-blue-400" />
                 <div className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm font-medium text-zinc-100">
+                  <span className="truncate text-sm font-medium text-ink">
                     {fileName || 'Archivo seleccionado'}
                   </span>
-                  <span className="text-[10px] font-bold tracking-tighter text-zinc-500 uppercase">
+                  <span className="text-[10px] font-bold tracking-tighter text-ink-muted uppercase">
                     Click para cambiar
                   </span>
                 </div>
@@ -239,16 +239,16 @@ export function FileUpload({
           </div>
         ) : (
           <div className="space-y-4 text-center">
-            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-white/5 bg-zinc-800 shadow-inner">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-white/5 bg-surface-raised shadow-inner">
               <CloudArrowUpIcon
-                className={`size-8 transition-colors ${isDragActive ? 'text-blue-400' : 'text-zinc-500'}`}
+                className={`size-8 transition-colors ${isDragActive ? 'text-blue-400' : 'text-ink-muted'}`}
               />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-semibold text-zinc-200">
+              <p className="text-sm font-semibold text-ink">
                 {isDragActive ? 'Suelta el archivo' : `Cargar ${uploadKind}`}
               </p>
-              <p className="mx-auto max-w-[260px] text-xs text-zinc-500">
+              <p className="mx-auto max-w-[260px] text-xs text-ink-muted">
                 {description || `JPG, PNG, WebP, HEIC, MP4, MOV · Hasta ${maxSizeLabel}`}
               </p>
             </div>

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
@@ -124,7 +124,7 @@ export function UserFormModal({ isOpen, setIsOpen, user, onSaved }: Props) {
             transition={{ duration: reducedMotion ? 0 : 0.18, ease: 'easeOut' }}
             className="space-y-6"
           >
-          <p className="-mt-2 text-sm leading-6 text-zinc-400">
+          <p className="-mt-2 text-sm leading-6 text-ink-secondary">
             {isEdit
               ? 'Los cambios se reflejan al instante en el directorio. Los roles y organizaciones se administran desde cada organización.'
               : 'Enviaremos una invitación segura. La persona elegirá su acceso al completar el registro.'}

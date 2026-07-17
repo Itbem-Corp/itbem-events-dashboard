@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-const publicRoutes = ['/login', '/auth', '/logout']
+const publicRoutes = ['/login', '/forgot-password', '/register', '/auth', '/logout']
 const LOCAL_WARMUP_HEADER = 'x-eventi-local-warmup'
 const LOCAL_WARMUP_VALUE = 'route-shell'
 

@@ -135,7 +135,7 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
       subtitle: new Date(e.event_date_time).toLocaleDateString('es-MX', { dateStyle: 'medium' }),
       href: `/events/${e.id}`,
       icon: Square2StackIcon,
-      color: e.is_active ? 'text-lime-400' : 'text-zinc-600',
+      color: e.is_active ? 'text-lime-400' : 'text-ink-muted',
       recordId: e.id,
       event: e,
     }))
@@ -147,7 +147,7 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
       subtitle: u.email,
       href: `/users/${u.id}/clients`,
       icon: UsersIcon,
-      color: 'text-zinc-400',
+      color: 'text-ink-secondary',
       recordId: u.id,
     }))
 
@@ -253,26 +253,26 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -8 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="fixed top-20 left-1/2 z-50 w-full max-w-lg -translate-x-1/2 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl shadow-black/60"
+            className="fixed top-20 left-1/2 z-50 w-full max-w-lg -translate-x-1/2 overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-2xl shadow-black/60"
           >
             {/* Search input */}
             <div className="flex items-center gap-3 border-b border-white/5 px-4 py-3.5">
-              <MagnifyingGlassIcon className="size-5 shrink-0 text-zinc-500" />
+              <MagnifyingGlassIcon className="size-5 shrink-0 text-ink-muted" />
               <input
                 ref={inputRef}
                 type="text"
                 placeholder="Buscar eventos, usuarios, comandos…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+                className="flex-1 bg-transparent text-sm text-ink placeholder:text-ink-muted focus:outline-none"
               />
               <div className="flex items-center gap-2">
                 {query && (
-                  <button onClick={() => setQuery('')} className="text-zinc-600 hover:text-zinc-400">
+                  <button onClick={() => setQuery('')} className="text-ink-muted hover:text-ink-secondary">
                     <XMarkIcon className="size-4" />
                   </button>
                 )}
-                <kbd className="hidden rounded border border-zinc-800 bg-zinc-800/80 px-1.5 py-0.5 font-mono text-[10px] text-zinc-600 sm:block">
+                <kbd className="hidden rounded border border-border-subtle bg-surface-raised/80 px-1.5 py-0.5 font-mono text-[10px] text-ink-muted sm:block">
                   ESC
                 </kbd>
               </div>
@@ -283,16 +283,16 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
               {remoteLoading && query ? (
                 <div className="flex items-center gap-3 px-4 py-8" role="status" aria-label="Buscando">
                   <span className="size-4 animate-spin rounded-full border-2 border-indigo-400/25 border-t-indigo-400" />
-                  <p className="text-sm text-zinc-500">Buscando en eventos y usuarios…</p>
+                  <p className="text-sm text-ink-muted">Buscando en eventos y usuarios…</p>
                 </div>
               ) : items.length === 0 ? (
                 <div className="px-4 py-10 text-center">
-                  <p className="text-sm text-zinc-600">Sin resultados para &quot;{query}&quot;</p>
+                  <p className="text-sm text-ink-muted">Sin resultados para &quot;{query}&quot;</p>
                 </div>
               ) : (
                 <>
                   {!query && (
-                    <p className="px-4 pb-1 text-[10px] font-semibold tracking-wider text-zinc-700 uppercase">
+                    <p className="px-4 pb-1 text-[10px] font-semibold tracking-wider text-ink-muted uppercase">
                       Acceso rápido
                     </p>
                   )}
@@ -321,17 +321,17 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
                             item.type === 'event'
                               ? 'bg-indigo-500/10'
                               : item.type === 'user'
-                                ? 'bg-zinc-800'
-                                : 'bg-zinc-800',
+                                ? 'bg-surface-raised'
+                                : 'bg-surface-raised',
                           ].join(' ')}
                         >
-                          <Icon className={`size-4 ${item.color ?? 'text-zinc-400'}`} />
+                          <Icon className={`size-4 ${item.color ?? 'text-ink-secondary'}`} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-zinc-200">{item.title}</p>
-                          {item.subtitle && <p className="truncate text-xs text-zinc-600">{item.subtitle}</p>}
+                          <p className="truncate text-sm font-medium text-ink">{item.title}</p>
+                          {item.subtitle && <p className="truncate text-xs text-ink-muted">{item.subtitle}</p>}
                         </div>
-                        {isActive && <ArrowRightIcon className="size-4 shrink-0 text-zinc-600" />}
+                        {isActive && <ArrowRightIcon className="size-4 shrink-0 text-ink-muted" />}
                       </button>
                     )
                   })}
@@ -356,16 +356,16 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
 
             {/* Footer */}
             <div className="flex items-center gap-4 border-t border-white/5 px-4 py-2.5">
-              <span className="flex items-center gap-1 text-[10px] text-zinc-700">
-                <kbd className="rounded border border-zinc-800 bg-zinc-800 px-1 py-0.5 font-mono text-[9px]">↑↓</kbd>
+              <span className="flex items-center gap-1 text-[10px] text-ink-muted">
+                <kbd className="rounded border border-border-subtle bg-surface-raised px-1 py-0.5 font-mono text-[9px]">↑↓</kbd>
                 navegar
               </span>
-              <span className="flex items-center gap-1 text-[10px] text-zinc-700">
-                <kbd className="rounded border border-zinc-800 bg-zinc-800 px-1 py-0.5 font-mono text-[9px]">↵</kbd>
+              <span className="flex items-center gap-1 text-[10px] text-ink-muted">
+                <kbd className="rounded border border-border-subtle bg-surface-raised px-1 py-0.5 font-mono text-[9px]">↵</kbd>
                 abrir
               </span>
-              <span className="flex items-center gap-1 text-[10px] text-zinc-700">
-                <kbd className="rounded border border-zinc-800 bg-zinc-800 px-1 py-0.5 font-mono text-[9px]">esc</kbd>
+              <span className="flex items-center gap-1 text-[10px] text-ink-muted">
+                <kbd className="rounded border border-border-subtle bg-surface-raised px-1 py-0.5 font-mono text-[9px]">esc</kbd>
                 cerrar
               </span>
             </div>

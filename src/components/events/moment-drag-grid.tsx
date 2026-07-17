@@ -79,7 +79,7 @@ export function MomentDragGrid({ moments, onOrderChange, renderCard }: MomentDra
       </SortableContext>
       <DragOverlay>
         {activeMoment ? (
-          <div className="scale-105 rotate-1 rounded-xl opacity-95 shadow-2xl ring-2 shadow-black/60 ring-cyan-400 ring-offset-2 ring-offset-zinc-950 transition-transform">
+          <div className="scale-105 rotate-1 rounded-xl opacity-95 shadow-2xl ring-2 shadow-black/60 ring-cyan-400 ring-offset-2 ring-offset-canvas transition-transform">
             {renderCard(activeMoment)}
           </div>
         ) : null}

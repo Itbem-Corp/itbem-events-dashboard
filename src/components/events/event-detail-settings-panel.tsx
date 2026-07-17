@@ -33,20 +33,20 @@ function SettingsDisclosure({
   return (
     <details
       open={defaultOpen || undefined}
-      className="group overflow-hidden rounded-2xl border border-white/[0.09] bg-zinc-900/48 shadow-[0_18px_48px_rgba(0,0,0,0.16)] ring-1 ring-black/15"
+      className="group overflow-hidden rounded-2xl border border-white/[0.09] bg-surface/48 shadow-[0_18px_48px_rgba(0,0,0,0.16)] ring-1 ring-black/15"
     >
       <summary className="flex min-h-20 cursor-pointer list-none items-center gap-4 px-4 py-4 transition-colors hover:bg-white/[0.035] focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:outline-none focus-visible:ring-inset sm:px-5 [&::-webkit-details-marker]:hidden">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045] text-indigo-300">
           <Icon aria-hidden="true" className="size-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[10px] font-semibold tracking-[0.16em] text-zinc-500 uppercase">{eyebrow}</span>
-          <span className="mt-0.5 block text-sm font-semibold text-zinc-100 sm:text-base">{title}</span>
-          <span className="mt-0.5 block text-xs leading-5 text-zinc-500 sm:text-sm">{description}</span>
+          <span className="block text-[10px] font-semibold tracking-[0.16em] text-ink-muted uppercase">{eyebrow}</span>
+          <span className="mt-0.5 block text-sm font-semibold text-ink sm:text-base">{title}</span>
+          <span className="mt-0.5 block text-xs leading-5 text-ink-muted sm:text-sm">{description}</span>
         </span>
         <ChevronDownIcon
           aria-hidden="true"
-          className="size-5 shrink-0 text-zinc-500 transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
+          className="size-5 shrink-0 text-ink-muted transition-transform duration-200 group-open:rotate-180 motion-reduce:transition-none"
         />
       </summary>
       <div className="border-t border-white/[0.07] p-4 sm:p-5">{children}</div>
@@ -62,7 +62,7 @@ export function EventDetailSettingsPanel({ event, onPublicContentChanged }: Even
         <h2 id="event-settings-heading" className="mt-1 text-xl font-semibold tracking-tight text-white sm:text-2xl">
           Configuración del evento
         </h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-500">
+        <p className="mt-2 text-sm leading-6 text-ink-muted">
           Comparte, estructura y publica la experiencia. Abre solo el bloque que necesitas para mantener el flujo
           enfocado.
         </p>

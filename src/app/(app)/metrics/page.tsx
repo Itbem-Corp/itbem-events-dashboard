@@ -24,7 +24,6 @@ import {
   ExclamationTriangleIcon,
   UsersIcon,
 } from '@heroicons/react/20/solid'
-import { motion, useReducedMotion } from 'motion/react'
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 
@@ -85,23 +84,20 @@ function productRows(rows: ProductMetricSummary[]): ProductMetricSummary[] {
 }
 
 function ProductCard({ row, index }: { row: ProductMetricSummary; index: number }) {
-  const reducedMotion = useReducedMotion()
   const successRate = row.requests ? ((row.requests - row.errors) / row.requests) * 100 : 100
   const latency = row.requests ? Math.round(row.duration_ms / row.requests) : 0
 
   return (
-    <motion.article
-      initial={reducedMotion ? false : { opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: reducedMotion ? 0 : 0.4, delay: index * 0.05 }}
-      className="premium-surface relative overflow-hidden rounded-3xl p-5"
+    <article
+      className="dashboard-reveal premium-surface relative overflow-hidden rounded-3xl p-5"
+      style={{ animationDelay: `${index * 0.05}s` }}
     >
       <div className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-(--tenant-accent) to-transparent opacity-55" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-[0.14em] text-zinc-600 uppercase">Producto</p>
+          <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Producto</p>
           <h2 className="mt-1 text-lg font-semibold text-white">{PRODUCT_NAMES[row.tenant_code] ?? row.tenant_code}</h2>
-          <p className="mt-0.5 truncate text-xs text-zinc-500">{row.client_name || 'Tráfico general del producto'}</p>
+          <p className="mt-0.5 truncate text-xs text-ink-muted">{row.client_name || 'Tráfico general del producto'}</p>
         </div>
         <Badge color={successRate >= 99 ? 'lime' : successRate >= 97 ? 'amber' : 'red'}>
           {successRate.toFixed(1)}% sano
@@ -110,18 +106,18 @@ function ProductCard({ row, index }: { row: ProductMetricSummary; index: number 
       <div className="mt-7 grid grid-cols-2 gap-4">
         <div>
           <p className="text-2xl font-semibold text-white tabular-nums">{compact(row.requests)}</p>
-          <p className="mt-1 text-xs text-zinc-600">solicitudes</p>
+          <p className="mt-1 text-xs text-ink-muted">solicitudes</p>
         </div>
         <div>
           <p className="text-2xl font-semibold text-white tabular-nums">{compact(row.mutations)}</p>
-          <p className="mt-1 text-xs text-zinc-600">acciones de valor</p>
+          <p className="mt-1 text-xs text-ink-muted">acciones de valor</p>
         </div>
       </div>
-      <div className="mt-5 flex items-center justify-between border-t border-white/[0.07] pt-4 text-xs text-zinc-500">
+      <div className="mt-5 flex items-center justify-between border-t border-white/[0.07] pt-4 text-xs text-ink-muted">
         <span>{latency} ms promedio</span>
         <span>{row.active_users} activos</span>
       </div>
-    </motion.article>
+    </article>
   )
 }
 
@@ -165,9 +161,9 @@ export default function MetricsPage() {
     return (
       <PageTransition>
         <div className="premium-surface flex min-h-80 flex-col items-center justify-center rounded-3xl px-6 text-center">
-          <ChartBarSquareIcon className="size-9 text-zinc-700" />
+          <ChartBarSquareIcon className="size-9 text-ink-muted" />
           <h1 className="mt-4 text-lg font-semibold text-white">Métricas no disponibles</h1>
-          <p className="mt-1 text-sm text-zinc-500">Tu rol no incluye acceso a analítica operativa.</p>
+          <p className="mt-1 text-sm text-ink-muted">Tu rol no incluye acceso a analítica operativa.</p>
         </div>
       </PageTransition>
     )
@@ -207,7 +203,7 @@ export default function MetricsPage() {
         <div className="mt-8 flex min-h-72 flex-col items-center justify-center rounded-3xl border border-red-500/15 bg-red-500/[0.035] px-6 text-center">
           <ExclamationTriangleIcon className="size-8 text-red-400" />
           <p className="mt-4 text-sm font-medium text-white">No pudimos leer las métricas</p>
-          <p className="mt-1 text-sm text-zinc-500">La operación continúa normalmente. Puedes reintentar sin riesgo.</p>
+          <p className="mt-1 text-sm text-ink-muted">La operación continúa normalmente. Puedes reintentar sin riesgo.</p>
           <Button className="mt-5" outline onClick={() => void mutate()}>
             <ArrowPathIcon />
             Reintentar
@@ -216,7 +212,7 @@ export default function MetricsPage() {
       ) : isLoading || !portfolio ? (
         <div className="mt-8 grid animate-pulse gap-4 lg:grid-cols-4">
           {[0, 1, 2, 3].map((item) => (
-            <div key={item} className="h-36 rounded-3xl bg-zinc-900" />
+            <div key={item} className="h-36 rounded-3xl bg-surface" />
           ))}
         </div>
       ) : (
@@ -250,11 +246,11 @@ export default function MetricsPage() {
             ].map(({ label, value, detail, icon: Icon }) => (
               <article key={label} className="rounded-3xl border border-white/[0.07] bg-white/[0.025] p-5">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-zinc-500">{label}</p>
-                  <Icon className="size-4 text-zinc-600" />
+                  <p className="text-xs font-medium text-ink-muted">{label}</p>
+                  <Icon className="size-4 text-ink-muted" />
                 </div>
                 <p className="mt-5 text-3xl font-semibold tracking-tight text-white tabular-nums">{value}</p>
-                <p className="mt-1 text-xs text-zinc-600">{detail}</p>
+                <p className="mt-1 text-xs text-ink-muted">{detail}</p>
               </article>
             ))}
           </section>
@@ -266,9 +262,9 @@ export default function MetricsPage() {
               ))
             ) : (
               <div className="premium-surface col-span-full rounded-3xl px-6 py-14 text-center">
-                <ChartBarSquareIcon className="mx-auto size-8 text-zinc-700" />
-                <p className="mt-4 text-sm font-medium text-zinc-300">La medición está activa</p>
-                <p className="mt-1 text-sm text-zinc-600">
+                <ChartBarSquareIcon className="mx-auto size-8 text-ink-muted" />
+                <p className="mt-4 text-sm font-medium text-ink-secondary">La medición está activa</p>
+                <p className="mt-1 text-sm text-ink-muted">
                   Los primeros datos aparecerán conforme se use cada producto.
                 </p>
               </div>
@@ -279,10 +275,10 @@ export default function MetricsPage() {
             <section className="premium-surface mt-4 rounded-3xl p-5 sm:p-6">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold tracking-[0.14em] text-zinc-600 uppercase">Actividad</p>
+                  <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Actividad</p>
                   <h2 className="mt-1 text-lg font-semibold text-white">Ritmo diario de uso</h2>
                 </div>
-                <p className="text-xs text-zinc-600">Solicitudes completadas por día</p>
+                <p className="text-xs text-ink-muted">Solicitudes completadas por día</p>
               </div>
               <div className="mt-7 flex h-36 items-end gap-1.5" aria-label="Actividad diaria">
                 {activity.map(([day, requests]) => (
@@ -298,7 +294,7 @@ export default function MetricsPage() {
                   </div>
                 ))}
               </div>
-              <div className="mt-2 flex justify-between text-[10px] text-zinc-700">
+              <div className="mt-2 flex justify-between text-[10px] text-ink-muted">
                 <span>{new Date(activity[0][0]).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>
                 <span>
                   {new Date(activity.at(-1)![0]).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
@@ -310,7 +306,7 @@ export default function MetricsPage() {
           {portfolio.summaries.some((row) => row.client_name) && (
             <section className="mt-4 overflow-hidden rounded-3xl border border-white/[0.07]">
               <div className="border-b border-white/[0.07] px-5 py-4">
-                <p className="text-xs font-semibold tracking-[0.14em] text-zinc-600 uppercase">Organizaciones</p>
+                <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Organizaciones</p>
                 <h2 className="mt-1 text-base font-semibold text-white">Mayor actividad del periodo</h2>
               </div>
               <div className="divide-y divide-white/[0.06]">
@@ -323,18 +319,18 @@ export default function MetricsPage() {
                       className="grid grid-cols-[1fr_auto_auto] items-center gap-5 px-5 py-4"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-zinc-200">{row.client_name}</p>
-                        <p className="mt-0.5 text-xs text-zinc-600">
+                        <p className="truncate text-sm font-medium text-ink">{row.client_name}</p>
+                        <p className="mt-0.5 text-xs text-ink-muted">
                           {PRODUCT_NAMES[row.tenant_code] ?? row.tenant_code}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-white tabular-nums">{compact(row.mutations)}</p>
-                        <p className="text-[10px] text-zinc-600">acciones</p>
+                        <p className="text-[10px] text-ink-muted">acciones</p>
                       </div>
                       <div className="w-16 text-right">
-                        <p className="text-sm font-semibold text-zinc-300 tabular-nums">{row.active_users}</p>
-                        <p className="text-[10px] text-zinc-600">activos</p>
+                        <p className="text-sm font-semibold text-ink-secondary tabular-nums">{row.active_users}</p>
+                        <p className="text-[10px] text-ink-muted">activos</p>
                       </div>
                     </div>
                   ))}
@@ -349,12 +345,12 @@ export default function MetricsPage() {
               { label: 'Eventos operados', value: portfolio.inventory.events, icon: ChartBarSquareIcon },
             ].map(({ label, value, icon: Icon }) => (
               <div key={label} className="flex items-center gap-4 rounded-2xl border border-white/[0.06] px-5 py-4">
-                <span className="flex size-10 items-center justify-center rounded-xl bg-white/[0.04] text-zinc-500">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-white/[0.04] text-ink-muted">
                   <Icon className="size-5" />
                 </span>
                 <div>
                   <p className="text-xl font-semibold text-white tabular-nums">{value.toLocaleString('es-MX')}</p>
-                  <p className="text-xs text-zinc-600">{label}</p>
+                  <p className="text-xs text-ink-muted">{label}</p>
                 </div>
               </div>
             ))}

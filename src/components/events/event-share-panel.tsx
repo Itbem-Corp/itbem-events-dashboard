@@ -49,20 +49,20 @@ function ShareLinkRow({ icon: Icon, label, url, description }: ShareLinkRowProps
   return (
     <div className="flex flex-col justify-between gap-3 border-b border-white/5 py-3 last:border-0 sm:flex-row sm:items-center sm:gap-4">
       <div className="flex min-w-0 items-start gap-3">
-        <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-zinc-800">
-          <Icon className="size-3.5 text-zinc-400" />
+        <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface-raised">
+          <Icon className="size-3.5 text-ink-secondary" />
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-medium text-zinc-200">{label}</p>
-          {description && <p className="mt-0.5 text-xs text-zinc-500">{description}</p>}
-          <p className="mt-1 max-w-full truncate font-mono text-xs text-zinc-600">{url}</p>
+          <p className="text-sm font-medium text-ink">{label}</p>
+          {description && <p className="mt-0.5 text-xs text-ink-muted">{description}</p>}
+          <p className="mt-1 max-w-full truncate font-mono text-xs text-ink-muted">{url}</p>
         </div>
       </div>
       <button
         onClick={handleCopy}
         className={[
           'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all',
-          copied ? 'bg-lime-500/20 text-lime-400' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200',
+          copied ? 'bg-lime-500/20 text-lime-400' : 'bg-surface-raised text-ink-secondary hover:bg-surface-soft hover:text-ink',
         ].join(' ')}
       >
         {copied ? 'OK Copiado' : 'Copiar'}
@@ -130,10 +130,10 @@ export function EventSharePanel({ event, guests: providedGuests, isLoading, erro
       <div role="status" aria-live="polite" aria-busy="true">
         <span className="sr-only">Cargando datos para compartir…</span>
         <div aria-hidden="true" className="animate-pulse space-y-3 motion-reduce:animate-none">
-          <div className="h-28 rounded-xl border border-white/5 bg-zinc-900/70" />
+          <div className="h-28 rounded-xl border border-white/5 bg-surface/70" />
           <div className="grid grid-cols-2 gap-3">
-            <div className="h-20 rounded-xl border border-white/5 bg-zinc-900/70" />
-            <div className="h-20 rounded-xl border border-white/5 bg-zinc-900/70" />
+            <div className="h-20 rounded-xl border border-white/5 bg-surface/70" />
+            <div className="h-20 rounded-xl border border-white/5 bg-surface/70" />
           </div>
         </div>
       </div>
@@ -143,10 +143,10 @@ export function EventSharePanel({ event, guests: providedGuests, isLoading, erro
   if (loadError) {
     return (
       <div role="alert" className="rounded-xl border border-red-400/20 bg-red-400/[0.06] p-5">
-        <p className="text-sm font-medium text-zinc-200">
+        <p className="text-sm font-medium text-ink">
           No se pudieron cargar los datos de invitados para compartir.
         </p>
-        <p className="mt-1 text-sm text-zinc-500">Las demás opciones de configuración siguen disponibles.</p>
+        <p className="mt-1 text-sm text-ink-muted">Las demás opciones de configuración siguen disponibles.</p>
         <Button outline className="mt-4" onClick={retry}>
           <ArrowPathIcon aria-hidden="true" className="size-4" />
           Reintentar datos
@@ -188,9 +188,9 @@ export function EventSharePanel({ event, guests: providedGuests, isLoading, erro
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-white/10 bg-zinc-900/50 px-5 py-4"
+        className="rounded-xl border border-white/10 bg-surface/50 px-5 py-4"
       >
-        <p className="mb-3 text-sm font-semibold text-zinc-300">Links del evento</p>
+        <p className="mb-3 text-sm font-semibold text-ink-secondary">Links del evento</p>
         <ShareLinkRow
           icon={GlobeAltIcon}
           label="Pagina del evento"
@@ -215,21 +215,21 @@ export function EventSharePanel({ event, guests: providedGuests, isLoading, erro
         transition={{ delay: 0.06 }}
         className="grid grid-cols-1 gap-3 sm:grid-cols-2"
       >
-        <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
+        <div className="rounded-xl border border-white/10 bg-surface/50 p-4">
           <div className="mb-2 flex items-center gap-2">
             <EnvelopeIcon className="size-4 text-indigo-400" />
-            <p className="text-xs font-medium text-zinc-300">Con correo registrado</p>
+            <p className="text-xs font-medium text-ink-secondary">Con correo registrado</p>
           </div>
-          <p className="text-2xl font-bold text-zinc-100">{summary?.with_email ?? 0}</p>
-          <p className="mt-0.5 text-xs text-zinc-600">de {summary?.total ?? 0} invitados</p>
+          <p className="text-2xl font-bold text-ink">{summary?.with_email ?? 0}</p>
+          <p className="mt-0.5 text-xs text-ink-muted">de {summary?.total ?? 0} invitados</p>
         </div>
-        <div className="rounded-xl border border-white/10 bg-zinc-900/50 p-4">
+        <div className="rounded-xl border border-white/10 bg-surface/50 p-4">
           <div className="mb-2 flex items-center gap-2">
             <DevicePhoneMobileIcon className="size-4 text-indigo-400" />
-            <p className="text-xs font-medium text-zinc-300">Con telefono registrado</p>
+            <p className="text-xs font-medium text-ink-secondary">Con telefono registrado</p>
           </div>
-          <p className="text-2xl font-bold text-zinc-100">{summary?.with_phone ?? 0}</p>
-          <p className="mt-0.5 text-xs text-zinc-600">de {summary?.total ?? 0} invitados</p>
+          <p className="text-2xl font-bold text-ink">{summary?.with_phone ?? 0}</p>
+          <p className="mt-0.5 text-xs text-ink-muted">de {summary?.total ?? 0} invitados</p>
         </div>
       </motion.div>
 
@@ -244,7 +244,7 @@ export function EventSharePanel({ event, guests: providedGuests, isLoading, erro
             <EnvelopeIcon className="mt-0.5 size-5 shrink-0 text-amber-400" />
             <div>
               <p className="text-sm font-medium text-amber-300">{pendingWithEmailCount} pendientes con correo</p>
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-ink-secondary">
                 Hay {pendingWithEmailCount} invitados pendientes con correo y enlace RSVP personal. Abre el primero y
                 repite desde Invitaciones para los demas.
               </p>
@@ -264,10 +264,10 @@ export function EventSharePanel({ event, guests: providedGuests, isLoading, erro
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.18 }}
-        className="rounded-xl border border-white/10 bg-zinc-900/50 p-6"
+        className="rounded-xl border border-white/10 bg-surface/50 p-6"
       >
-        <p className="mb-2 text-sm font-semibold text-zinc-300">Codigo QR del evento</p>
-        <p className="mb-5 text-xs text-zinc-500">
+        <p className="mb-2 text-sm font-semibold text-ink-secondary">Codigo QR del evento</p>
+        <p className="mb-5 text-xs text-ink-muted">
           Los invitados pueden escanear este codigo para acceder directamente al evento.
         </p>
         <BrandedQR

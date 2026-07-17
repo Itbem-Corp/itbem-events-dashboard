@@ -26,8 +26,8 @@ export function EventGuestCollectionBoundary({
   if (error) {
     return (
       <section role="alert" className="rounded-xl border border-red-400/20 bg-red-400/[0.06] p-6 text-center">
-        <p className="text-sm font-medium text-zinc-200">No se pudo cargar la colección de invitados.</p>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="text-sm font-medium text-ink">No se pudo cargar la colección de invitados.</p>
+        <p className="mt-1 text-sm text-ink-muted">
           Este panel falló de forma aislada; puedes reintentarlo sin recargar el evento.
         </p>
         <Button outline className="mt-4" onClick={onRetry}>

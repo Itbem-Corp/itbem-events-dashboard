@@ -38,3 +38,12 @@ describe('development route warmup boundary', () => {
     expect(new URL(response.headers.get('location')!).pathname).toBe('/login')
   })
 })
+
+describe('public authentication routes', () => {
+  it.each(['/login', '/forgot-password', '/register'])('allows %s without an existing session', (pathname) => {
+    const response = middleware(request(`https://dashboard.eventiapp.com.mx${pathname}`, false))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-middleware-next')).toBe('1')
+  })
+})

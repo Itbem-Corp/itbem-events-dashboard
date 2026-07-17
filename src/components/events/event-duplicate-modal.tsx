@@ -63,9 +63,9 @@ export function EventDuplicateModal({ event, isOpen, setIsOpen, onCreated }: Pro
       <DialogTitle>Duplicar evento</DialogTitle>
       <form onSubmit={handleSubmit}>
         <DialogBody className="space-y-4">
-          <p className="text-sm text-zinc-400">
-            Se creará una copia de <span className="font-medium text-zinc-200">{event?.name}</span> con los mismos
-            ajustes. El evento duplicado comenzará como <span className="font-medium text-zinc-300">inactivo</span>.
+          <p className="text-sm text-ink-secondary">
+            Se creará una copia de <span className="font-medium text-ink">{event?.name}</span> con los mismos
+            ajustes. El evento duplicado comenzará como <span className="font-medium text-ink-secondary">inactivo</span>.
           </p>
 
           <Field>

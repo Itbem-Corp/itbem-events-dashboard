@@ -36,7 +36,7 @@ export function BrandMark({
       role="img"
       aria-label={name}
       className={clsx(
-        'relative isolate flex shrink-0 items-center justify-center overflow-hidden border border-white/12 bg-white/[0.065] shadow-[0_14px_40px_rgba(0,0,0,0.3)] ring-1 ring-white/[0.035] ring-inset',
+        'relative isolate flex shrink-0 items-center justify-center overflow-hidden border border-[var(--app-border-subtle)] bg-[var(--app-surface-raised)] shadow-sm',
         sizeClasses[size],
         className
       )}
@@ -44,11 +44,11 @@ export function BrandMark({
         {
           '--brand-mark-accent': accent,
           backgroundImage:
-            'radial-gradient(circle at 24% 18%, color-mix(in srgb, var(--brand-mark-accent) 34%, transparent), transparent 62%)',
+            'linear-gradient(145deg, color-mix(in srgb, var(--brand-mark-accent) 10%, var(--app-surface-raised)), var(--app-surface-raised))',
         } as CSSProperties
       }
     >
-      <span className="absolute inset-x-2 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+      <span className="absolute inset-x-2 top-0 h-px bg-[var(--app-border-subtle)]" />
       {code === 'eventiapp' ? (
         <Image
           src="/eventiapp-icon.svg"

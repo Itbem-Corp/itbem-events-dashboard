@@ -174,13 +174,13 @@ function SelectableCard({ title, subtitle, isSelected, onSelect, children }: Sel
         'relative rounded-xl border p-4 text-left transition-all hover:border-indigo-500/50',
         isSelected
           ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500'
-          : 'border-white/10 bg-zinc-900/50 hover:bg-zinc-900',
+          : 'border-white/10 bg-surface/50 hover:bg-surface',
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-zinc-200">{title}</p>
-          {subtitle && <p className="mt-0.5 text-xs text-zinc-600">{subtitle}</p>}
+          <p className="truncate text-sm font-semibold text-ink">{title}</p>
+          {subtitle && <p className="mt-0.5 text-xs text-ink-muted">{subtitle}</p>}
           {children && <div className="mt-2">{children}</div>}
         </div>
 
@@ -245,7 +245,7 @@ function TemplateCard({ template, isSelected, onSelect, compact = false }: Templ
         'relative rounded-xl border p-4 text-left transition-all hover:border-indigo-500/50',
         isSelected
           ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500'
-          : 'border-white/10 bg-zinc-900/50 hover:bg-zinc-900',
+          : 'border-white/10 bg-surface/50 hover:bg-surface',
       ].join(' ')}
     >
       {previewSrc ? (
@@ -262,24 +262,24 @@ function TemplateCard({ template, isSelected, onSelect, compact = false }: Templ
         <div
           className={[
             compact ? 'h-20' : 'h-28',
-            'mb-3 flex w-full items-center justify-center rounded-lg border border-white/10 bg-zinc-800',
+            'mb-3 flex w-full items-center justify-center rounded-lg border border-white/10 bg-surface-raised',
           ].join(' ')}
         >
-          <SwatchIcon className="size-8 text-zinc-700" />
+          <SwatchIcon className="size-8 text-ink-muted" />
         </div>
       )}
 
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-zinc-200">{template.name}</p>
-          <p className="mt-0.5 truncate font-mono text-xs text-zinc-600">{template.identifier}</p>
+          <p className="truncate text-sm font-semibold text-ink">{template.name}</p>
+          <p className="mt-0.5 truncate font-mono text-xs text-ink-muted">{template.identifier}</p>
           {template.default_color_palette && (
             <div className="mt-2">
               <ColorSwatches palette={template.default_color_palette} />
             </div>
           )}
           {template.default_font_set && (
-            <p className="mt-1 truncate text-xs text-zinc-600">{template.default_font_set.name}</p>
+            <p className="mt-1 truncate text-xs text-ink-muted">{template.default_font_set.name}</p>
           )}
         </div>
 
@@ -449,10 +449,10 @@ export function EventDesignPicker({ eventId, compact = false, initialConfig, onS
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-4">
-        <div className="h-4 w-32 rounded bg-zinc-800" />
+        <div className="h-4 w-32 rounded bg-surface-raised" />
         <div className={catalogGridClass}>
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-40 rounded-xl bg-zinc-800" />
+            <div key={i} className="h-40 rounded-xl bg-surface-raised" />
           ))}
         </div>
       </div>
@@ -460,7 +460,7 @@ export function EventDesignPicker({ eventId, compact = false, initialConfig, onS
   }
 
   if (!config) {
-    return <div className="py-12 text-center text-sm text-zinc-500">No se pudo cargar la configuración de diseño.</div>
+    return <div className="py-12 text-center text-sm text-ink-muted">No se pudo cargar la configuración de diseño.</div>
   }
 
   return (
@@ -477,8 +477,8 @@ export function EventDesignPicker({ eventId, compact = false, initialConfig, onS
       {templates.length > 0 && (
         <div>
           <div className="mb-4">
-            <p className="text-sm font-semibold text-zinc-200">Plantilla de diseño</p>
-            <p className="mt-0.5 text-xs text-zinc-500">Elige la plantilla visual base para la página pública.</p>
+            <p className="text-sm font-semibold text-ink">Plantilla de diseño</p>
+            <p className="mt-0.5 text-xs text-ink-muted">Elige la plantilla visual base para la página pública.</p>
           </div>
           <div className={catalogGridClass}>
             {templates.map((template) => (
@@ -497,8 +497,8 @@ export function EventDesignPicker({ eventId, compact = false, initialConfig, onS
       {palettes.length > 0 && (
         <div>
           <div className="mb-4">
-            <p className="text-sm font-semibold text-zinc-200">Paleta de colores</p>
-            <p className="mt-0.5 text-xs text-zinc-500">Override opcional; vacío usa la paleta de la plantilla.</p>
+            <p className="text-sm font-semibold text-ink">Paleta de colores</p>
+            <p className="mt-0.5 text-xs text-ink-muted">Override opcional; vacío usa la paleta de la plantilla.</p>
           </div>
           <div className={catalogGridClass}>
             <SelectableCard
@@ -528,8 +528,8 @@ export function EventDesignPicker({ eventId, compact = false, initialConfig, onS
       {fontSets.length > 0 && (
         <div>
           <div className="mb-4">
-            <p className="text-sm font-semibold text-zinc-200">Tipografía</p>
-            <p className="mt-0.5 text-xs text-zinc-500">Override opcional; vacío usa la fuente de la plantilla.</p>
+            <p className="text-sm font-semibold text-ink">Tipografía</p>
+            <p className="mt-0.5 text-xs text-ink-muted">Override opcional; vacío usa la fuente de la plantilla.</p>
           </div>
           <div className={catalogGridClass}>
             <SelectableCard
@@ -579,10 +579,10 @@ export function EventDesignPicker({ eventId, compact = false, initialConfig, onS
       )}
 
       {!hasCatalogs && !catalogError && (
-        <div className="rounded-xl border border-white/10 bg-zinc-900/30 p-8 text-center">
-          <SwatchIcon className="mx-auto mb-3 size-10 text-zinc-700" />
-          <p className="text-sm text-zinc-500">No hay catálogos de diseño disponibles aún.</p>
-          <p className="mt-1 text-xs text-zinc-700">
+        <div className="rounded-xl border border-white/10 bg-surface/30 p-8 text-center">
+          <SwatchIcon className="mx-auto mb-3 size-10 text-ink-muted" />
+          <p className="text-sm text-ink-muted">No hay catálogos de diseño disponibles aún.</p>
+          <p className="mt-1 text-xs text-ink-muted">
             Los catálogos de diseño se configuran desde el panel de administración.
           </p>
         </div>
