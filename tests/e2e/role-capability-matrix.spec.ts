@@ -199,10 +199,12 @@ test.describe('Matriz E2E de personas', () => {
       await expect(page.getByRole('heading', { name: persona.expectedHeading })).toBeVisible()
 
       if (persona.rootLevel === 1) {
-        await expect(page.getByRole('link', { name: 'Auditoría' })).toBeVisible()
-        await expect(page.getByRole('link', { name: 'Clientes', exact: true })).toBeVisible()
+        await expect(page.getByRole('link', { name: 'Auditoría', exact: true })).toBeVisible()
+        // EventiApp keeps platform governance but does not expose the CRM surface
+        // reserved for ITBEM and Cafetton House.
+        await expect(page.getByRole('link', { name: 'Clientes', exact: true })).toHaveCount(0)
       } else {
-        await expect(page.getByRole('link', { name: 'Auditoría' })).toHaveCount(0)
+        await expect(page.getByRole('link', { name: 'Auditoría', exact: true })).toHaveCount(0)
       }
 
       if (persona.rootLevel === 2) {
