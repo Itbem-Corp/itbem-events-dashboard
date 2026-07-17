@@ -6,7 +6,8 @@ const page = readFileSync(resolve(process.cwd(), 'src/app/(app)/events/[id]/chec
 
 describe('check-in stale-data policy', () => {
   it('reuses intent-preloaded data and deduplicates requests on entry', () => {
-    expect(page).toContain('checkinWorkspacePath(id)')
+    expect(page).toContain('eventCapabilitiesPath(id)')
+    expect(page).toContain('id && canRunCheckin ? checkinWorkspacePath(id) : null')
     expect(page.match(/\.\.\.responsiveListSwrOptions/g)).toHaveLength(1)
     expect(page).toContain('const event = workspace?.event')
     expect(page).toContain('const rawGuestStatuses = workspace?.statuses')
