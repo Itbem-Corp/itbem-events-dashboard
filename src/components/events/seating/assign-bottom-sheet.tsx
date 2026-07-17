@@ -48,25 +48,25 @@ export function AssignBottomSheet({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-white/10 bg-zinc-900 pb-safe"
+            className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-white/10 bg-surface pb-safe"
           >
             <div className="flex justify-center py-3">
-              <div className="h-1 w-10 rounded-full bg-zinc-700" />
+              <div className="h-1 w-10 rounded-full bg-surface-soft" />
             </div>
 
             <div className="px-4 pb-6 max-h-[60vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-sm font-semibold text-zinc-200">
+                  <p className="text-sm font-semibold text-ink">
                     Asignar a {guest.first_name} {guest.last_name}
                   </p>
                   {companionCount > 0 && (
-                    <p className="text-xs text-zinc-500">+{companionCount} acompañantes</p>
+                    <p className="text-xs text-ink-muted">+{companionCount} acompañantes</p>
                   )}
                 </div>
                 <button
                   onClick={onClose}
-                  className="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+                  className="rounded-lg p-1.5 text-ink-muted hover:text-ink-secondary hover:bg-surface-raised"
                 >
                   <XMarkIcon className="size-5" />
                 </button>
@@ -103,16 +103,16 @@ export function AssignBottomSheet({
                         isCurrentTable
                           ? 'border-indigo-500/30 bg-indigo-500/10 cursor-default'
                           : isFull
-                            ? 'border-white/5 bg-zinc-900/30 opacity-50 cursor-not-allowed'
-                            : 'border-white/10 bg-zinc-900/30 hover:bg-zinc-800/50 hover:border-indigo-500/30',
+                            ? 'border-white/5 bg-surface/30 opacity-50 cursor-not-allowed'
+                            : 'border-white/10 bg-surface/30 hover:bg-surface-raised/50 hover:border-indigo-500/30',
                       ].join(' ')}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-zinc-200">{table.name}</span>
+                        <span className="text-sm font-medium text-ink">{table.name}</span>
                         <span
                           className={[
                             'text-xs tabular-nums',
-                            isFull ? 'text-red-400' : 'text-zinc-500',
+                            isFull ? 'text-red-400' : 'text-ink-muted',
                           ].join(' ')}
                         >
                           {occupancy}/{table.capacity}
@@ -131,7 +131,7 @@ export function AssignBottomSheet({
                   onCreateTable()
                   onClose()
                 }}
-                className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 px-4 py-3 text-sm text-zinc-400 hover:text-zinc-200 hover:border-indigo-500/30 transition-colors"
+                className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl border border-dashed border-white/10 px-4 py-3 text-sm text-ink-secondary hover:text-ink hover:border-indigo-500/30 transition-colors"
               >
                 <PlusIcon className="size-4" />
                 Crear nueva mesa

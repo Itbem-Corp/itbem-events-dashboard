@@ -185,7 +185,7 @@ export function EventCoverUpload({ event, onChanged }: Props) {
   return (
     <div className="space-y-3">
       {hasCover ? (
-        <div className="group relative aspect-[16/9] overflow-hidden rounded-xl bg-zinc-800">
+        <div className="group relative aspect-[16/9] overflow-hidden rounded-xl bg-surface-raised">
           <Image
             src={coverImageUrl}
             alt="Portada del evento"
@@ -242,7 +242,7 @@ export function EventCoverUpload({ event, onChanged }: Props) {
             upload.isUploading ? 'cursor-not-allowed opacity-70' : 'cursor-pointer',
             dragOver
               ? 'border-indigo-500 bg-indigo-500/10'
-              : 'border-white/10 bg-zinc-900/30 hover:border-white/20 hover:bg-zinc-900/50',
+              : 'border-white/10 bg-surface/30 hover:border-white/20 hover:bg-surface/50',
           ].join(' ')}
         >
           <input
@@ -253,17 +253,17 @@ export function EventCoverUpload({ event, onChanged }: Props) {
             disabled={upload.isUploading}
           />
           {upload.isUploading ? (
-            <div className="text-sm text-zinc-400">Preparando portada…</div>
+            <div className="text-sm text-ink-secondary">Preparando portada…</div>
           ) : (
             <>
-              <PhotoIcon className="mb-3 size-10 text-zinc-500" />
-              <p className="text-sm font-semibold text-zinc-200">
+              <PhotoIcon className="mb-3 size-10 text-ink-muted" />
+              <p className="text-sm font-semibold text-ink">
                 {dragOver ? 'Suelta para subir' : 'Subir portada del evento'}
               </p>
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-ink-secondary">
                 Arrastra o haz clic · {SECTION_IMAGE_UPLOAD_HELP_TEXT} · máx. 10 MB
               </p>
-              <p className="mt-3 text-xs text-zinc-500">Recomendado: 1920 × 1080 px (16:9)</p>
+              <p className="mt-3 text-xs text-ink-muted">Recomendado: 1920 × 1080 px (16:9)</p>
             </>
           )}
         </label>

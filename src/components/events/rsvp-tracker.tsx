@@ -102,7 +102,7 @@ function KPIRing({
   const offset = circumference - (pct / 100) * circumference
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+    <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-surface p-4">
       <div className="relative size-12 shrink-0">
         <svg viewBox="0 0 48 48" className="size-12 -rotate-90">
           <circle cx="24" cy="24" r={radius} fill="none" stroke="#27272a" strokeWidth="4" />
@@ -120,13 +120,13 @@ function KPIRing({
             transition={{ duration: 1, ease: 'easeOut' }}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-zinc-300">
+        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-ink-secondary">
           {pct}%
         </span>
       </div>
       <div className="min-w-0">
         <p className={`text-2xl font-bold ${accent}`}>{value}</p>
-        <p className="text-xs text-zinc-500">{label}</p>
+        <p className="text-xs text-ink-muted">{label}</p>
       </div>
     </div>
   )
@@ -162,7 +162,7 @@ function MethodBadge({ method }: { method?: string }) {
         <UsersIconSolid className="size-2.5" /> Host
       </span>
     )
-  return <span className="text-[10px] text-zinc-600">{method}</span>
+  return <span className="text-[10px] text-ink-muted">{method}</span>
 }
 
 function ProgressStepper({ createdAt, respondedAt }: { createdAt: string; respondedAt?: string }) {
@@ -177,18 +177,18 @@ function ProgressStepper({ createdAt, respondedAt }: { createdAt: string; respon
         <div key={step.label} className="flex items-center">
           <div className="flex flex-col items-center">
             <div
-              className={['size-2.5 rounded-full transition-colors', step.done ? 'bg-lime-400' : 'bg-zinc-700'].join(
+              className={['size-2.5 rounded-full transition-colors', step.done ? 'bg-lime-400' : 'bg-surface-soft'].join(
                 ' '
               )}
             />
             {step.date && (
-              <span className="mt-0.5 text-[9px] whitespace-nowrap text-zinc-600">{formatRelative(step.date)}</span>
+              <span className="mt-0.5 text-[9px] whitespace-nowrap text-ink-muted">{formatRelative(step.date)}</span>
             )}
-            {!step.date && <span className="mt-0.5 text-[9px] text-zinc-700">—</span>}
+            {!step.date && <span className="mt-0.5 text-[9px] text-ink-muted">—</span>}
           </div>
           {i < steps.length - 1 && (
             <div
-              className={['mx-1 mt-[-10px] h-px w-6 sm:w-8', steps[i + 1].done ? 'bg-lime-400/50' : 'bg-zinc-700'].join(
+              className={['mx-1 mt-[-10px] h-px w-6 sm:w-8', steps[i + 1].done ? 'bg-lime-400/50' : 'bg-surface-soft'].join(
                 ' '
               )}
             />
@@ -200,7 +200,7 @@ function ProgressStepper({ createdAt, respondedAt }: { createdAt: string; respon
 }
 
 function PlusOneBadge({ count }: { count: number }) {
-  if (count <= 0) return <span className="text-xs text-zinc-700">—</span>
+  if (count <= 0) return <span className="text-xs text-ink-muted">—</span>
   return (
     <span className="inline-flex items-center gap-0.5 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-xs font-semibold text-indigo-400">
       +{count}
@@ -334,12 +334,12 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
       <div className="animate-pulse space-y-4">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 rounded-xl bg-zinc-800" />
+            <div key={i} className="h-20 rounded-xl bg-surface-raised" />
           ))}
         </div>
-        <div className="h-6 rounded-full bg-zinc-800" />
+        <div className="h-6 rounded-full bg-surface-raised" />
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-16 rounded-xl bg-zinc-800/50" />
+          <div key={i} className="h-16 rounded-xl bg-surface-raised/50" />
         ))}
       </div>
     )
@@ -385,15 +385,15 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
       </div>
 
       {/* ── Segmented Progress Bar ────────────────────────────────────────── */}
-      <div className="space-y-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+      <div className="space-y-3 rounded-xl border border-border-subtle bg-surface p-4">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-zinc-400">Progreso de respuestas</span>
-          <span className="font-semibold text-zinc-200 tabular-nums">
+          <span className="text-ink-secondary">Progreso de respuestas</span>
+          <span className="font-semibold text-ink tabular-nums">
             {responded} / {total}
           </span>
         </div>
 
-        <div className="flex h-3 overflow-hidden rounded-full bg-zinc-800">
+        <div className="flex h-3 overflow-hidden rounded-full bg-surface-raised">
           {confirmedPct > 0 && (
             <motion.div
               initial={{ width: 0 }}
@@ -420,7 +420,7 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-zinc-500">
+        <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-muted">
           <span className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-lime-500" />
             {confirmedCount} confirmados ({Math.round(confirmedPct)}%)
@@ -458,7 +458,7 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
                 }}
                 className={[
                   'flex flex-1 items-center justify-center gap-1 px-2 py-2 text-xs font-medium transition-colors sm:flex-initial sm:gap-1.5 sm:px-3 sm:py-1.5',
-                  filter === f.id ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200',
+                  filter === f.id ? 'bg-indigo-600 text-white' : 'text-ink-secondary hover:bg-white/5 hover:text-ink',
                 ].join(' ')}
               >
                 <FunnelIcon className="hidden size-3 sm:block" />
@@ -466,7 +466,7 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
                 <span
                   className={[
                     'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                    filter === f.id ? 'bg-white/20' : 'bg-zinc-800 text-zinc-500',
+                    filter === f.id ? 'bg-white/20' : 'bg-surface-raised text-ink-muted',
                   ].join(' ')}
                 >
                   {count}
@@ -479,7 +479,7 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
         {/* Search + Actions */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-0 flex-1">
-            <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-zinc-600" />
+            <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-ink-muted" />
             <input
               type="search"
               placeholder="Buscar por nombre, email o teléfono…"
@@ -489,14 +489,14 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
                 setPage(1)
               }}
               aria-busy={isSearchPending}
-              className="w-full rounded-lg border border-white/10 bg-zinc-900 py-2 pr-3 pl-8 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none sm:py-1.5"
+              className="w-full rounded-lg border border-white/10 bg-surface py-2 pr-3 pl-8 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none sm:py-1.5"
             />
           </div>
 
           <button
             onClick={copyRsvpLink}
             disabled={!firstPendingWithToken}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40 sm:py-1.5"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-2 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 sm:py-1.5"
             title="Copiar primer link RSVP pendiente"
           >
             <LinkIcon className="size-3.5" />
@@ -507,7 +507,7 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
             onClick={() => void exportRsvpCSV()}
             disabled={exportingCSV || filteredTotal === 0}
             aria-label="CSV completo"
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 sm:py-1.5"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-surface px-3 py-2 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-50 sm:py-1.5"
             title="Exportar RSVP a CSV"
           >
             <ArrowDownTrayIcon className="size-3.5" />
@@ -516,7 +516,7 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
         </div>
 
         {/* Result count */}
-        <p className="text-xs text-zinc-600">
+        <p className="text-xs text-ink-muted">
           {filteredTotal === total ? `${total} invitados` : `${filteredTotal} de ${total} invitados`}
         </p>
       </div>
@@ -542,17 +542,17 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="space-y-3 rounded-xl border border-white/10 bg-zinc-900/50 p-3.5"
+                  className="space-y-3 rounded-xl border border-white/10 bg-surface/50 p-3.5"
                 >
                   {/* Row 1: Name + Plus ones */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-zinc-100">
+                      <p className="truncate text-sm font-medium text-ink">
                         {guest.first_name} {guest.last_name}
                       </p>
-                      {guest.email && <p className="mt-0.5 truncate text-xs text-zinc-600">{guest.email}</p>}
+                      {guest.email && <p className="mt-0.5 truncate text-xs text-ink-muted">{guest.email}</p>}
                       {guest.phone && !guest.email && (
-                        <p className="mt-0.5 truncate text-xs text-zinc-600">{guest.phone}</p>
+                        <p className="mt-0.5 truncate text-xs text-ink-muted">{guest.phone}</p>
                       )}
                     </div>
                     <PlusOneBadge count={plusOnes} />
@@ -568,7 +568,7 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
                   <div className="flex items-center justify-between">
                     <ProgressStepper createdAt={guest.created_at} respondedAt={respondedAt} />
                     {respondedAt && (
-                      <span className="text-[10px] text-zinc-600 tabular-nums">{formatDateTime(respondedAt)}</span>
+                      <span className="text-[10px] text-ink-muted tabular-nums">{formatDateTime(respondedAt)}</span>
                     )}
                   </div>
                 </motion.div>
@@ -601,11 +601,11 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
                     <TableRow key={guest.id}>
                       <TableCell>
                         <div className="min-w-0">
-                          <span className="font-medium text-zinc-100">
+                          <span className="font-medium text-ink">
                             {guest.first_name} {guest.last_name}
                           </span>
                           {guest.email && (
-                            <p className="mt-0.5 max-w-[200px] truncate text-xs text-zinc-600">{guest.email}</p>
+                            <p className="mt-0.5 max-w-[200px] truncate text-xs text-ink-muted">{guest.email}</p>
                           )}
                         </div>
                       </TableCell>
@@ -621,11 +621,11 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
                       <TableCell>
                         {respondedAt ? (
                           <div>
-                            <p className="text-xs text-zinc-300 tabular-nums">{formatDate(respondedAt)}</p>
-                            <p className="text-[10px] text-zinc-600">{formatRelative(respondedAt)}</p>
+                            <p className="text-xs text-ink-secondary tabular-nums">{formatDate(respondedAt)}</p>
+                            <p className="text-[10px] text-ink-muted">{formatRelative(respondedAt)}</p>
                           </div>
                         ) : (
-                          <span className="text-xs text-zinc-700">Sin respuesta</span>
+                          <span className="text-xs text-ink-muted">Sin respuesta</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -643,11 +643,11 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
       <Pagination total={filteredTotal} page={page} pageSize={RSVP_PAGE_SIZE} onPageChange={setPage} />
 
       {/* ── Summary Footer ────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-zinc-900/50 px-4 py-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-surface/50 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
           <span className="flex items-center gap-1.5">
-            <ClipboardDocumentCheckIcon className="size-3.5 text-zinc-600" />
-            <strong className="text-zinc-300">{total}</strong> invitados totales
+            <ClipboardDocumentCheckIcon className="size-3.5 text-ink-muted" />
+            <strong className="text-ink-secondary">{total}</strong> invitados totales
           </span>
           <span>
             <strong className="text-lime-400">{totalPlusOnes}</strong> acompañantes confirmados
@@ -656,7 +656,7 @@ export function RSVPTracker({ eventId, eventIdentifier, summary }: Props) {
             <strong className="text-indigo-400">{estimatedAttendees}</strong> asistentes estimados
           </span>
         </div>
-        <div className="text-xs text-zinc-600 tabular-nums">{responseRate}% respondieron</div>
+        <div className="text-xs text-ink-muted tabular-nums">{responseRate}% respondieron</div>
       </div>
     </div>
   )

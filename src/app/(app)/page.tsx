@@ -16,7 +16,10 @@ import { eventTypeLabel } from '@/lib/event-type-label'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
+import type { TenantCode } from '@/lib/tenant-config'
 import type { Event, EventDashboardOverview } from '@/models/Event'
+import { productSupportsFeature } from '@/products/core/product-manifest'
+import { getProductManifest } from '@/products/registry'
 import { useStore } from '@/store/useStore'
 import {
   ArrowRightIcon,
@@ -24,6 +27,7 @@ import {
   BuildingOfficeIcon,
   CalendarDaysIcon,
   CheckCircleIcon,
+  ClipboardDocumentCheckIcon,
   ClockIcon,
   ExclamationTriangleIcon,
   PaintBrushIcon,
@@ -32,7 +36,6 @@ import {
   SparklesIcon,
   UsersIcon,
 } from '@heroicons/react/20/solid'
-import { motion, useReducedMotion } from 'motion/react'
 import { useRouter } from 'next/navigation'
 import type { ComponentType, SVGProps } from 'react'
 import { useCallback, useMemo } from 'react'
@@ -69,44 +72,39 @@ function Metric({
   value,
   detail,
   delay,
-  reducedMotion,
 }: {
   icon: Icon
   label: string
   value: number
   detail: string
   delay: number
-  reducedMotion: boolean | null
 }) {
   return (
-    <motion.div
-      initial={reducedMotion ? false : { opacity: 0, scale: 0.97, y: 10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={reducedMotion ? { duration: 0 } : { duration: 0.38, delay, ease: [0.22, 1, 0.36, 1] }}
-      whileHover={reducedMotion ? undefined : { y: -3, transition: { duration: 0.18 } }}
-      className="group rounded-2xl border border-white/7 bg-white/[0.025] p-4 transition-colors hover:border-white/12 hover:bg-white/[0.04]"
+    <div
+      className="dashboard-reveal premium-surface premium-surface-interactive group rounded-2xl border p-4 hover:border-(--tenant-accent)/25"
+      style={{ animationDelay: `${delay}s` }}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="text-xs font-medium text-zinc-500">{label}</span>
-        <span className="flex size-8 items-center justify-center rounded-lg bg-white/5 text-zinc-500 transition-colors group-hover:text-zinc-300">
+        <span className="text-xs font-medium text-ink-muted">{label}</span>
+        <span className="flex size-8 items-center justify-center rounded-lg bg-(--tenant-accent)/8 text-ink-muted transition-colors group-hover:text-(--tenant-accent)">
           <Icon className="size-4" />
         </span>
       </div>
-      <p className="mt-5 text-3xl font-semibold tracking-tight text-white tabular-nums">
+      <p className="mt-5 text-3xl font-semibold tracking-tight text-ink tabular-nums dark:text-white">
         {value.toLocaleString('es-MX')}
       </p>
-      <p className="mt-1 text-xs text-zinc-600">{detail}</p>
-    </motion.div>
+      <p className="mt-1 text-xs text-ink-muted">{detail}</p>
+    </div>
   )
 }
 
 function DashboardSkeleton() {
   return (
     <div className="mt-8 grid gap-4 lg:grid-cols-12">
-      <div className="h-64 animate-pulse rounded-3xl bg-zinc-900 lg:col-span-8" />
+      <div className="h-64 animate-pulse rounded-3xl bg-surface lg:col-span-8" />
       <div className="grid grid-cols-2 gap-4 lg:col-span-4">
         {[0, 1, 2, 3].map((item) => (
-          <div key={item} className="h-30 animate-pulse rounded-2xl bg-zinc-900" />
+          <div key={item} className="h-30 animate-pulse rounded-2xl bg-surface" />
         ))}
       </div>
     </div>
@@ -190,9 +188,24 @@ function ControlPlaneHome({
 }) {
   const session = useStore((state) => state.applicationSession)
   const organizationCount = session?.organizations.length ?? 0
-  const canViewPlatformUsers = accessProfile.isPlatformContext && accessCan(accessProfile, 'platform:users:view')
-  const canManageTeam = accessCan(accessProfile, 'members:manage')
-  const canViewMetrics = accessCan(accessProfile, 'metrics:view')
+  const product = getProductManifest((session?.application.code as TenantCode) || 'eventiapp')
+  const canViewOrganizations =
+    accessProfile.isPlatformContext &&
+    productSupportsFeature(product, 'organizations') &&
+    accessCan(accessProfile, 'organizations:view')
+  const canViewPlatformUsers =
+    accessProfile.isPlatformContext &&
+    productSupportsFeature(product, 'users') &&
+    accessCan(accessProfile, 'platform:users:view')
+  const canManageTeam =
+    accessProfile.isOrganizationContext &&
+    productSupportsFeature(product, 'team') &&
+    accessCan(accessProfile, 'members:manage')
+  const canViewMetrics = productSupportsFeature(product, 'metrics') && accessCan(accessProfile, 'metrics:view')
+  const canViewAudit =
+    accessProfile.isPlatformContext &&
+    productSupportsFeature(product, 'audit') &&
+    accessCan(accessProfile, 'audit:view')
   const peopleHref = canViewPlatformUsers ? '/users' : '/team'
   const peopleTitle = canViewPlatformUsers ? 'Identidad y permisos' : 'Equipo y accesos'
   const peopleDescription = canViewPlatformUsers
@@ -220,36 +233,36 @@ function ControlPlaneHome({
               <div className="mt-8 flex items-end justify-between gap-4">
                 <div>
                   <p className="text-lg font-semibold text-white">Actividad y métricas</p>
-                  <p className="mt-1 text-sm text-zinc-500">Uso, personas activas y salud de esta organización.</p>
+                  <p className="mt-1 text-sm text-ink-muted">Uso, personas activas y salud de esta organización.</p>
                 </div>
-                <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-(--tenant-accent)" />
+                <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-(--tenant-accent)" />
               </div>
             </Link>
           )}
 
           {canManageTeam && (
             <Link href="/team" className="premium-surface premium-surface-interactive group rounded-3xl p-6">
-              <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-zinc-300">
+              <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-ink-secondary">
                 <UsersIcon className="size-5" />
               </span>
               <div className="mt-8 flex items-end justify-between gap-4">
                 <div>
                   <p className="text-lg font-semibold text-white">Equipo y accesos</p>
-                  <p className="mt-1 text-sm text-zinc-500">Miembros y roles limitados a este espacio.</p>
+                  <p className="mt-1 text-sm text-ink-muted">Miembros y roles limitados a este espacio.</p>
                 </div>
-                <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-white" />
+                <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-white" />
               </div>
             </Link>
           )}
 
           {!canViewMetrics && !canManageTeam && (
             <div className="premium-surface rounded-3xl p-6">
-              <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-zinc-400">
+              <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-ink-secondary">
                 <ShieldCheckIcon className="size-5" />
               </span>
               <div className="mt-8">
                 <p className="text-lg font-semibold text-white">Espacio de colaboración</p>
-                <p className="mt-1 text-sm leading-6 text-zinc-500">
+                <p className="mt-1 text-sm leading-6 text-ink-muted">
                   Tu acceso está limitado a las herramientas que te asignó el propietario de la organización.
                 </p>
               </div>
@@ -268,13 +281,16 @@ function ControlPlaneHome({
         description={
           isOperationalRoot
             ? 'Resuelve accesos, acompaña organizaciones y revisa señales operativas sin alterar gobierno ni estructura crítica.'
-            : 'Administra organizaciones, accesos y usuarios desde un espacio separado de la operación de eventos.'
+            : canViewOrganizations || canViewPlatformUsers
+              ? 'Administra organizaciones, accesos y usuarios desde un espacio separado de la operación diaria.'
+              : 'Supervisa actividad, salud y trazabilidad sin mezclarla con la operación diaria de eventos.'
         }
         icon={ShieldCheckIcon}
       />
 
-      <div className="mt-8 grid gap-4 lg:grid-cols-3">
-        <Link
+      <div className="mt-8 grid gap-4 md:grid-cols-2">
+        {canViewOrganizations && (
+          <Link
           href="/clients"
           className="premium-surface premium-surface-interactive group relative overflow-hidden rounded-3xl p-6"
         >
@@ -285,26 +301,27 @@ function ControlPlaneHome({
           <div className="mt-8 flex items-end justify-between gap-4">
             <div>
               <p className="text-3xl font-semibold text-white tabular-nums">{organizationCount}</p>
-              <p className="mt-1 text-sm font-medium text-zinc-300">Organizaciones con acceso directo</p>
-              <p className="mt-1 text-xs text-zinc-600">
+              <p className="mt-1 text-sm font-medium text-ink-secondary">Organizaciones con acceso directo</p>
+              <p className="mt-1 text-xs text-ink-muted">
                 {isOperationalRoot ? 'Abre un contexto para brindar soporte.' : 'Gestiona estructura, clientes y configuración.'}
               </p>
             </div>
-            <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-(--tenant-accent)" />
+            <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-(--tenant-accent)" />
           </div>
-        </Link>
+          </Link>
+        )}
 
         {(canViewPlatformUsers || canManageTeam) && (
           <Link href={peopleHref} className="premium-surface premium-surface-interactive group rounded-3xl p-6">
-            <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-zinc-300">
+            <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-ink-secondary">
               <UsersIcon className="size-5" />
             </span>
             <div className="mt-8 flex items-end justify-between gap-4">
               <div>
                 <p className="text-lg font-semibold text-white">{peopleTitle}</p>
-                <p className="mt-1 text-sm text-zinc-500">{peopleDescription}</p>
+                <p className="mt-1 text-sm text-ink-muted">{peopleDescription}</p>
               </div>
-              <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-white" />
+              <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-white" />
             </div>
           </Link>
         )}
@@ -317,9 +334,24 @@ function ControlPlaneHome({
             <div className="mt-8 flex items-end justify-between gap-4">
               <div>
                 <p className="text-lg font-semibold text-white">Señales operativas</p>
-                <p className="mt-1 text-sm text-zinc-500">Actividad y salud del producto por organización.</p>
+                <p className="mt-1 text-sm text-ink-muted">Actividad y salud del producto por organización.</p>
               </div>
-              <ArrowRightIcon className="size-5 text-zinc-600 transition-transform group-hover:translate-x-1 group-hover:text-emerald-300" />
+              <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-emerald-300" />
+            </div>
+          </Link>
+        )}
+
+        {canViewAudit && (
+          <Link href="/audit" className="premium-surface premium-surface-interactive group rounded-3xl p-6">
+            <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-(--tenant-accent)">
+              <ClipboardDocumentCheckIcon className="size-5" />
+            </span>
+            <div className="mt-8 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-lg font-semibold text-white">Auditoría de plataforma</p>
+                <p className="mt-1 text-sm text-ink-muted">Accesos, cambios y resultados operativos trazables.</p>
+              </div>
+              <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-(--tenant-accent)" />
             </div>
           </Link>
         )}
@@ -329,8 +361,8 @@ function ControlPlaneHome({
         <div className="mt-6 flex items-start gap-3 rounded-2xl border border-amber-400/12 bg-amber-400/[0.035] p-4">
           <ShieldCheckIcon className="mt-0.5 size-5 shrink-0 text-amber-300" />
           <div>
-            <p className="text-sm font-medium text-zinc-200">Límite de soporte activo</p>
-            <p className="mt-1 text-xs leading-5 text-zinc-500">
+            <p className="text-sm font-medium text-ink">Límite de soporte activo</p>
+            <p className="mt-1 text-xs leading-5 text-ink-muted">
               Este nivel puede asistir usuarios, invitados y check-in. La creación o eliminación de eventos, los usuarios
               root y la configuración estructural permanecen reservados a Root 1.
             </p>
@@ -343,7 +375,6 @@ function ControlPlaneHome({
 
 export default function Home() {
   const router = useRouter()
-  const reducedMotion = useReducedMotion()
   const currentClient = useStore((state) => state.currentClient)
   const user = useStore((state) => state.user)
   const applicationSession = useStore((state) => state.applicationSession)
@@ -453,8 +484,8 @@ export default function Home() {
       {eventsErrorState === 'fatal' ? (
         <div className="mt-8 flex min-h-64 flex-col items-center justify-center rounded-3xl border border-red-500/15 bg-red-500/[0.035] px-6 text-center">
           <ExclamationTriangleIcon className="size-8 text-red-400" />
-          <p className="mt-4 text-sm font-medium text-zinc-200">No pudimos cargar el centro de operaciones</p>
-          <p className="mt-1 text-sm text-zinc-500">Tus eventos permanecen intactos. Intenta nuevamente.</p>
+          <p className="mt-4 text-sm font-medium text-ink">No pudimos cargar el centro de operaciones</p>
+          <p className="mt-1 text-sm text-ink-muted">Tus eventos permanecen intactos. Intenta nuevamente.</p>
           <Button className="mt-5" outline onClick={() => mutateEvents()}>
             Reintentar
           </Button>
@@ -464,21 +495,15 @@ export default function Home() {
       ) : (
         <>
           <div className="mt-8 grid gap-4 lg:grid-cols-12">
-            <motion.section
-              initial={reducedMotion ? false : { opacity: 0, y: 14, scale: 0.99 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={reducedMotion ? { duration: 0 } : { duration: 0.46, ease: [0.22, 1, 0.36, 1] }}
-              className="relative min-h-64 overflow-hidden rounded-3xl border border-indigo-400/15 bg-zinc-950 p-6 shadow-2xl shadow-black/20 lg:col-span-8 lg:p-8"
+            <section
+              className="dashboard-reveal app-hero-surface relative min-h-64 overflow-hidden rounded-3xl border p-6 lg:col-span-8 lg:p-8"
             >
-              <div className="pointer-events-none absolute -top-40 -right-28 size-96 rounded-full bg-indigo-500/12 blur-3xl" />
-              <div className="pointer-events-none absolute right-20 -bottom-44 size-80 rounded-full bg-violet-500/8 blur-3xl" />
-
               {nextEvent ? (
                 <div className="relative flex h-full flex-col justify-between gap-10">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge color="indigo">Próximo evento</Badge>
-                      <span className="text-xs text-zinc-500">
+                      <span className="text-xs text-ink-muted">
                         {getDaysUntil(nextEvent.event_date_time, nextEvent.timezone) === 0
                           ? 'Hoy'
                           : `En ${getDaysUntil(nextEvent.event_date_time, nextEvent.timezone)} días`}
@@ -491,12 +516,12 @@ export default function Home() {
                       onPointerEnter={() => preloadEventDetail(nextEvent)}
                       className="group mt-5 inline-block max-w-full"
                     >
-                      <h2 className="truncate text-3xl font-semibold tracking-tight text-white transition-colors group-hover:text-indigo-200 lg:text-4xl">
+                      <h2 className="truncate text-3xl font-semibold tracking-tight text-ink transition-colors group-hover:text-(--tenant-accent) lg:text-4xl dark:text-white">
                         {nextEvent.name}
                       </h2>
                     </Link>
-                    <p className="mt-3 flex items-center gap-2 text-sm text-zinc-400">
-                      <CalendarDaysIcon className="size-4 text-zinc-600" />
+                    <p className="mt-3 flex items-center gap-2 text-sm text-ink-secondary">
+                      <CalendarDaysIcon className="size-4 text-ink-muted" />
                       {formatEventDate(nextEvent.event_date_time, nextEvent.timezone, {
                         weekday: 'long',
                         year: 'numeric',
@@ -507,8 +532,8 @@ export default function Home() {
                   <div className="flex flex-col gap-5 border-t border-white/8 pt-5 sm:flex-row sm:items-end sm:justify-between">
                     <div className="flex min-h-4 flex-wrap gap-x-5 gap-y-2 text-xs">
                       <>
-                        <span className="flex items-center gap-1.5 text-zinc-400">
-                          <UsersIcon className="size-4 text-zinc-600" />
+                        <span className="flex items-center gap-1.5 text-ink-secondary">
+                          <UsersIcon className="size-4 text-ink-muted" />
                           {`${nextGuestSummary?.total ?? 0} invitados`}
                         </span>
                         <span className="flex items-center gap-1.5 text-emerald-400">
@@ -550,16 +575,16 @@ export default function Home() {
               ) : (
                 <div className="relative flex h-full flex-col justify-between gap-10">
                   <div>
-                    <span className="flex size-11 items-center justify-center rounded-2xl border border-indigo-400/15 bg-indigo-500/10 text-indigo-300">
+                    <span className="flex size-11 items-center justify-center rounded-2xl border border-(--tenant-accent)/20 bg-(--tenant-accent)/10 text-(--tenant-accent)">
                       <BoltIcon className="size-5" />
                     </span>
-                    <p className="mt-6 text-xs font-semibold tracking-wider text-indigo-400 uppercase">
+                    <p className="mt-6 text-xs font-semibold tracking-wider text-(--tenant-accent) uppercase">
                       Agenda disponible
                     </p>
-                    <h2 className="mt-2 max-w-lg text-3xl font-semibold tracking-tight text-white lg:text-4xl">
+                    <h2 className="mt-2 max-w-lg text-3xl font-semibold tracking-tight text-ink lg:text-4xl dark:text-white">
                       Tu próximo gran evento empieza aquí.
                     </h2>
-                    <p className="mt-3 max-w-md text-sm leading-6 text-zinc-500">
+                    <p className="mt-3 max-w-md text-sm leading-6 text-ink-muted">
                       {canCreateEvents
                         ? 'No hay eventos próximos. Crea uno nuevo o revisa los eventos que ya concluyeron.'
                         : 'No hay eventos próximos. Puedes consultar el portafolio y los eventos que ya concluyeron.'}
@@ -573,7 +598,7 @@ export default function Home() {
                   </div>
                 </div>
               )}
-            </motion.section>
+            </section>
 
             <section aria-label="Resumen" className="grid grid-cols-2 gap-4 lg:col-span-4">
               <Metric
@@ -582,7 +607,6 @@ export default function Home() {
                 value={metrics.total}
                 detail="eventos registrados"
                 delay={0.08}
-                reducedMotion={reducedMotion}
               />
               <Metric
                 icon={BoltIcon}
@@ -590,7 +614,6 @@ export default function Home() {
                 value={metrics.active}
                 detail="publicados o en trabajo"
                 delay={0.13}
-                reducedMotion={reducedMotion}
               />
               <Metric
                 icon={ClockIcon}
@@ -598,7 +621,6 @@ export default function Home() {
                 value={metrics.upcoming}
                 detail="en tu agenda"
                 delay={0.18}
-                reducedMotion={reducedMotion}
               />
               <Metric
                 icon={UsersIcon}
@@ -606,7 +628,6 @@ export default function Home() {
                 value={metrics.total_capacity}
                 detail="invitados en total"
                 delay={0.23}
-                reducedMotion={reducedMotion}
               />
             </section>
           </div>
@@ -616,10 +637,10 @@ export default function Home() {
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <Subheading className="text-base/6">Eventos activos</Subheading>
-                  <p className="mt-1 text-xs text-zinc-600">Acceso rápido a la operación actual.</p>
+                  <p className="mt-1 text-xs text-ink-muted">Acceso rápido a la operación actual.</p>
                 </div>
                 {activeEvents.length > 0 && (
-                  <Link href="/events" className="text-xs font-medium text-zinc-500 transition-colors hover:text-white">
+                  <Link href="/events" className="text-xs font-medium text-ink-muted transition-colors hover:text-white">
                     Ver todos
                   </Link>
                 )}
@@ -628,9 +649,9 @@ export default function Home() {
               <div className="mt-4 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02]">
                 {activeEvents.length === 0 ? (
                   <div className="flex flex-col items-center px-5 py-12 text-center">
-                    <CalendarDaysIcon className="size-8 text-zinc-700" />
-                    <p className="mt-3 text-sm font-medium text-zinc-300">No hay eventos activos</p>
-                    <p className="mt-1 text-xs text-zinc-600">Tu operación aparecerá aquí cuando crees un evento.</p>
+                    <CalendarDaysIcon className="size-8 text-ink-muted" />
+                    <p className="mt-3 text-sm font-medium text-ink-secondary">No hay eventos activos</p>
+                    <p className="mt-1 text-xs text-ink-muted">Tu operación aparecerá aquí cuando crees un evento.</p>
                   </div>
                 ) : (
                   <ul className="divide-y divide-white/6">
@@ -638,13 +659,10 @@ export default function Home() {
                       const daysUntil = getDaysUntil(event.event_date_time, event.timezone)
                       const isPast = daysUntil !== null && daysUntil < 0
                       return (
-                        <motion.li
+                        <li
                           key={event.id}
-                          initial={reducedMotion ? false : { opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={
-                            reducedMotion ? { duration: 0 } : { duration: 0.28, delay: 0.28, ease: 'easeOut' }
-                          }
+                          className="dashboard-reveal"
+                          style={{ animationDelay: '0.28s' }}
                         >
                           <Link
                             href={`/events/${event.id}`}
@@ -655,16 +673,16 @@ export default function Home() {
                           >
                             <span
                               className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
-                                isPast ? 'bg-zinc-800/70 text-zinc-500' : 'bg-indigo-500/10 text-indigo-400'
+                                isPast ? 'bg-surface-raised/70 text-ink-muted' : 'bg-indigo-500/10 text-indigo-400'
                               }`}
                             >
                               <CalendarDaysIcon className="size-4" />
                             </span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium text-zinc-200 transition-colors group-hover:text-white">
+                              <span className="block truncate text-sm font-medium text-ink transition-colors group-hover:text-white">
                                 {event.name}
                               </span>
-                              <span className="mt-0.5 block truncate text-xs text-zinc-600">
+                              <span className="mt-0.5 block truncate text-xs text-ink-muted">
                                 {eventTypeLabel(event.event_type?.name) || 'Evento'} ·{' '}
                                 {formatEventDate(event.event_date_time, event.timezone)}
                               </span>
@@ -678,9 +696,9 @@ export default function Home() {
                                     ? 'Finalizado'
                                     : `En ${daysUntil}d`}
                             </Badge>
-                            <ArrowRightIcon className="size-4 shrink-0 text-zinc-700 transition-all group-hover:translate-x-0.5 group-hover:text-zinc-400" />
+                            <ArrowRightIcon className="size-4 shrink-0 text-ink-muted transition-all group-hover:translate-x-0.5 group-hover:text-ink-secondary" />
                           </Link>
-                        </motion.li>
+                        </li>
                       )
                     })}
                   </ul>
@@ -690,7 +708,7 @@ export default function Home() {
 
             <aside>
               <Subheading className="text-base/6">Prioridades</Subheading>
-              <p className="mt-1 text-xs text-zinc-600">Señales que requieren tu atención.</p>
+              <p className="mt-1 text-xs text-ink-muted">Señales que requieren tu atención.</p>
 
               <div className="mt-4 space-y-3">
                 {metrics.past_active > 0 ? (
@@ -702,12 +720,12 @@ export default function Home() {
                       <ExclamationTriangleIcon className="size-4" />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium text-zinc-200">
+                      <span className="block text-sm font-medium text-ink">
                         {metrics.past_active} evento{metrics.past_active === 1 ? '' : 's'} finalizado
                         {metrics.past_active === 1 ? '' : 's'} sigue{metrics.past_active === 1 ? '' : 'n'} activo
                         {metrics.past_active === 1 ? '' : 's'}
                       </span>
-                      <span className="mt-1 block text-xs leading-5 text-zinc-500">
+                      <span className="mt-1 block text-xs leading-5 text-ink-muted">
                         Revisa su publicación y estado operativo.
                       </span>
                     </span>
@@ -719,20 +737,20 @@ export default function Home() {
                       <CheckCircleIcon className="size-4" />
                     </span>
                     <div>
-                      <p className="text-sm font-medium text-zinc-200">Todo al día</p>
-                      <p className="mt-1 text-xs leading-5 text-zinc-500">No hay eventos finalizados aún activos.</p>
+                      <p className="text-sm font-medium text-ink">Todo al día</p>
+                      <p className="mt-1 text-xs leading-5 text-ink-muted">No hay eventos finalizados aún activos.</p>
                     </div>
                   </div>
                 )}
 
                 <div className="rounded-2xl border border-white/7 bg-white/[0.02] p-4">
-                  <p className="text-xs font-medium text-zinc-400">Próxima ventana operativa</p>
-                  <p className="mt-2 text-sm text-zinc-200">
+                  <p className="text-xs font-medium text-ink-secondary">Próxima ventana operativa</p>
+                  <p className="mt-2 text-sm text-ink">
                     {nextEvent
                       ? `${nextEvent.name} · ${formatEventDate(nextEvent.event_date_time, nextEvent.timezone)}`
                       : 'Sin eventos próximos programados'}
                   </p>
-                  <p className="mt-1 text-xs leading-5 text-zinc-600">
+                  <p className="mt-1 text-xs leading-5 text-ink-muted">
                     {nextEvent
                       ? organizationRole === 'CHECKIN'
                         ? 'La lista de acceso está lista para operar.'

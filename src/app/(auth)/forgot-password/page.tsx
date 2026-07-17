@@ -64,13 +64,13 @@ export default function ForgotPasswordPage() {
       className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-6xl items-center justify-center px-3 py-3 sm:px-6"
       style={{ '--tenant-accent': tenant.accent } as React.CSSProperties}
     >
-      <section className="w-full max-w-[540px] rounded-[1.75rem] bg-[#f2f1ed] px-6 py-7 text-zinc-950 shadow-[0_36px_100px_rgba(0,0,0,0.35)] sm:px-12 sm:py-10">
+      <section className="w-full max-w-[540px] rounded-[1.75rem] border border-[var(--app-border-subtle)] bg-[var(--app-surface-raised)]/94 px-6 py-7 text-[var(--app-text-primary)] shadow-[0_36px_100px_var(--app-shadow-strong)] backdrop-blur-xl sm:px-12 sm:py-10">
         <header className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <BrandMark code={tenant.code} name={tenant.name} accent={tenant.accent} size="sm" priority />
             <div>
               <p className="text-sm font-semibold">{tenant.name}</p>
-              <p className="mt-0.5 text-[9px] tracking-[0.14em] text-zinc-500 uppercase">Recuperación segura</p>
+              <p className="mt-0.5 text-[9px] tracking-[0.14em] text-ink-muted uppercase">Recuperación segura</p>
             </div>
           </div>
           <CheckCircleIcon className="size-5" style={{ color: tenant.accent }} aria-label="Proceso protegido" />
@@ -83,7 +83,7 @@ export default function ForgotPasswordPage() {
           <h1 className="mt-4 text-[2.4rem] leading-[1.02] font-semibold tracking-[-0.055em]">
             {sent ? 'Revisa tu correo.' : 'Recupera tu acceso.'}
           </h1>
-          <p className="mt-4 max-w-sm text-sm leading-6 text-zinc-600">
+          <p className="mt-4 max-w-sm text-sm leading-6 text-[var(--app-text-secondary)]">
             {sent
               ? `Ingresa el código enviado a ${email} y define una contraseña nueva.`
               : 'Te enviaremos un código si el correo pertenece a una cuenta autorizada.'}
@@ -92,7 +92,7 @@ export default function ForgotPasswordPage() {
 
         <form onSubmit={submit} className="mt-9 space-y-5" aria-busy={pending}>
           <div>
-            <label htmlFor="recovery-email" className="mb-2 block text-xs font-semibold text-zinc-700">
+            <label htmlFor="recovery-email" className="mb-2 block text-xs font-semibold text-[var(--app-text-primary)]">
               Correo de trabajo
             </label>
             <input
@@ -106,14 +106,17 @@ export default function ForgotPasswordPage() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               disabled={sent}
-              className="h-13 w-full rounded-xl border border-zinc-300 bg-white px-4 text-[15px] transition-[border-color,box-shadow] outline-none hover:border-zinc-400 focus:border-zinc-900 focus:ring-3 focus:ring-zinc-950/8 disabled:bg-zinc-100 disabled:text-zinc-500"
+              className="h-13 w-full rounded-xl border border-[var(--app-border-subtle)] bg-[var(--app-surface-interactive)] px-4 text-[15px] text-[var(--app-text-primary)] transition-[border-color,background-color,box-shadow] outline-none hover:border-[var(--app-border-strong)] focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15 disabled:bg-[var(--app-surface-soft)] disabled:text-[var(--app-text-muted)]"
             />
           </div>
 
           {sent && (
             <>
               <div>
-                <label htmlFor="recovery-code" className="mb-2 block text-xs font-semibold text-zinc-700">
+                <label
+                  htmlFor="recovery-code"
+                  className="mb-2 block text-xs font-semibold text-[var(--app-text-primary)]"
+                >
                   Código de verificación
                 </label>
                 <input
@@ -125,11 +128,14 @@ export default function ForgotPasswordPage() {
                   maxLength={12}
                   value={code}
                   onChange={(event) => setCode(event.target.value.replace(/\s/g, ''))}
-                  className="h-13 w-full rounded-xl border border-zinc-300 bg-white px-4 font-mono text-[15px] tracking-[0.18em] transition-[border-color,box-shadow] outline-none hover:border-zinc-400 focus:border-zinc-900 focus:ring-3 focus:ring-zinc-950/8"
+                  className="h-13 w-full rounded-xl border border-[var(--app-border-subtle)] bg-[var(--app-surface-interactive)] px-4 font-mono text-[15px] tracking-[0.18em] text-[var(--app-text-primary)] transition-[border-color,background-color,box-shadow] outline-none hover:border-[var(--app-border-strong)] focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15"
                 />
               </div>
               <div>
-                <label htmlFor="recovery-password" className="mb-2 block text-xs font-semibold text-zinc-700">
+                <label
+                  htmlFor="recovery-password"
+                  className="mb-2 block text-xs font-semibold text-[var(--app-text-primary)]"
+                >
                   Nueva contraseña
                 </label>
                 <div className="relative">
@@ -141,14 +147,14 @@ export default function ForgotPasswordPage() {
                     autoComplete="new-password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    className="h-13 w-full rounded-xl border border-zinc-300 bg-white pr-13 pl-4 text-[15px] transition-[border-color,box-shadow] outline-none hover:border-zinc-400 focus:border-zinc-900 focus:ring-3 focus:ring-zinc-950/8"
+                    className="h-13 w-full rounded-xl border border-[var(--app-border-subtle)] bg-[var(--app-surface-interactive)] pr-13 pl-4 text-[15px] text-[var(--app-text-primary)] transition-[border-color,background-color,box-shadow] outline-none hover:border-[var(--app-border-strong)] focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((value) => !value)}
                     aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     aria-pressed={showPassword}
-                    className="absolute top-1/2 right-1.5 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-800 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-zinc-950/40"
+                    className="absolute top-1/2 right-1.5 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--app-text-muted)] transition hover:bg-(--tenant-accent)/8 hover:text-[var(--app-text-primary)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--tenant-accent)"
                   >
                     {showPassword ? <EyeSlashIcon className="size-4" /> : <EyeIcon className="size-4" />}
                   </button>
@@ -171,13 +177,10 @@ export default function ForgotPasswordPage() {
           <button
             type="submit"
             disabled={pending}
-            className="group flex h-13 w-full items-center justify-between rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(0,0,0,0.16)] transition-[background-color,box-shadow,opacity] outline-none hover:bg-black focus-visible:ring-3 focus-visible:ring-zinc-950/20 disabled:cursor-wait disabled:opacity-60"
+            className="auth-cta group flex h-13 w-full items-center justify-between rounded-xl border border-white/15 px-4 text-sm font-semibold text-white transition-[filter,box-shadow,opacity] outline-none hover:brightness-105 focus-visible:ring-3 focus-visible:ring-(--tenant-accent)/30 disabled:cursor-wait disabled:opacity-60"
           >
             <span>{pending ? 'Procesando' : sent ? 'Guardar contraseña' : 'Enviar código'}</span>
-            <span
-              className="flex size-7 items-center justify-center rounded-lg"
-              style={{ backgroundColor: tenant.accent, color: '#09090b' }}
-            >
+            <span className="flex size-7 items-center justify-center rounded-lg bg-white/12 text-white">
               {pending ? (
                 <ArrowPathIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
               ) : (
@@ -189,7 +192,7 @@ export default function ForgotPasswordPage() {
 
         <Link
           href="/login"
-          className="mt-7 inline-flex min-h-10 items-center gap-2 rounded-lg pr-3 text-sm font-medium text-zinc-500 transition hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-950/40"
+          className="mt-7 inline-flex min-h-10 items-center gap-2 rounded-lg pr-3 text-sm font-medium text-[var(--app-text-secondary)] transition hover:text-[var(--app-text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)"
         >
           <ArrowLeftIcon className="size-4" />
           Volver al acceso

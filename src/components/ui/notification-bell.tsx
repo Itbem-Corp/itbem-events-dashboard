@@ -75,7 +75,7 @@ function buildNotifications(events: Event[]): Notification[] {
         body: event.name,
         href: `/events/${event.id}`,
         icon: CheckCircleIcon,
-        color: 'text-zinc-500',
+        color: 'text-ink-muted',
         event,
       })
     }
@@ -143,7 +143,7 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
         }}
         onPointerEnter={() => setHasOpened(true)}
         onFocus={() => setHasOpened(true)}
-        className="relative flex size-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        className="relative flex size-8 items-center justify-center rounded-lg text-ink-secondary transition-colors hover:bg-white/5 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         aria-label="Notificaciones"
       >
         <BellIcon className="size-5" />
@@ -155,10 +155,10 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
       </button>
 
       {open && (
-        <div className="absolute top-full right-0 z-50 mt-2 w-80 rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl shadow-black/40">
+        <div className="absolute top-full right-0 z-50 mt-2 w-80 rounded-2xl border border-white/10 bg-surface shadow-2xl shadow-black/40">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
-            <p className="text-sm font-semibold text-zinc-200">Notificaciones</p>
+            <p className="text-sm font-semibold text-ink">Notificaciones</p>
             {count > 0 && (
               <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-semibold text-indigo-400">
                 {count} activa{count !== 1 ? 's' : ''}
@@ -183,7 +183,7 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
             ) : dataErrorState === 'fatal' ? (
               <div className="px-4 py-7 text-center" role="alert">
                 <ExclamationTriangleIcon className="mx-auto mb-2 size-6 text-amber-400" />
-                <p className="text-sm text-zinc-300">No pudimos cargar tus notificaciones.</p>
+                <p className="text-sm text-ink-secondary">No pudimos cargar tus notificaciones.</p>
                 <button
                   type="button"
                   onClick={() => void mutate()}
@@ -195,9 +195,9 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
               </div>
             ) : notifications.length === 0 ? (
               <div className="px-4 py-8 text-center">
-                <BellIcon className="mx-auto mb-2 size-7 text-zinc-700" />
-                <p className="text-sm text-zinc-600">Sin notificaciones activas</p>
-                <p className="mt-1 text-xs text-zinc-700">Te avisamos cuando un evento esté próximo.</p>
+                <BellIcon className="mx-auto mb-2 size-7 text-ink-muted" />
+                <p className="text-sm text-ink-muted">Sin notificaciones activas</p>
+                <p className="mt-1 text-xs text-ink-muted">Te avisamos cuando un evento esté próximo.</p>
               </div>
             ) : (
               notifications.map((n) => {
@@ -217,7 +217,7 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
                     </div>
                     <div className="min-w-0">
                       <p className={`text-xs font-semibold ${n.color}`}>{n.title}</p>
-                      <p className="mt-0.5 truncate text-sm text-zinc-300">{n.body}</p>
+                      <p className="mt-0.5 truncate text-sm text-ink-secondary">{n.body}</p>
                     </div>
                   </Link>
                 )

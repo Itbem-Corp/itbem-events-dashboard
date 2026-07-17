@@ -33,8 +33,8 @@ function OnboardingHint() {
         <SparklesIcon className="size-4 text-indigo-400 shrink-0 mt-0.5" />
         <div className="flex-1 space-y-1">
           <p className="text-xs font-medium text-indigo-300">Arrastra las secciones</p>
-          <p className="text-[10px] text-zinc-500">
-            Usa el icono <Bars3Icon className="inline size-3 text-zinc-400" /> para arrastrar y reordenar.
+          <p className="text-[10px] text-ink-muted">
+            Usa el icono <Bars3Icon className="inline size-3 text-ink-secondary" /> para arrastrar y reordenar.
             Los cambios se guardan automaticamente.
           </p>
         </div>
@@ -43,7 +43,7 @@ function OnboardingHint() {
             setDismissed(true)
             localStorage.setItem(HINT_KEY, '1')
           }}
-          className="shrink-0 text-zinc-600 hover:text-zinc-400 text-[10px] transition-colors"
+          className="shrink-0 text-ink-muted hover:text-ink-secondary text-[10px] transition-colors"
         >
           Entendido
         </button>
@@ -90,7 +90,7 @@ export function DraggableSectionList({
     return (
       <div className="space-y-1.5">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-12 bg-zinc-800/50 animate-pulse rounded-xl" />
+          <div key={i} className="h-12 bg-surface-raised/50 animate-pulse rounded-xl" />
         ))}
       </div>
     )
@@ -100,9 +100,9 @@ export function DraggableSectionList({
   if (sections.length === 0) {
     return (
       <div className="py-8 text-center">
-        <Squares2X2Icon className="mx-auto size-8 text-zinc-700 mb-3" />
-        <p className="text-xs text-zinc-600">Sin secciones aun.</p>
-        <p className="text-[10px] text-zinc-700 mt-1">
+        <Squares2X2Icon className="mx-auto size-8 text-ink-muted mb-3" />
+        <p className="text-xs text-ink-muted">Sin secciones aun.</p>
+        <p className="text-[10px] text-ink-muted mt-1">
           Agrega secciones desde la pestana del evento.
         </p>
       </div>
@@ -113,10 +113,10 @@ export function DraggableSectionList({
     <div>
       {/* Header */}
       <div className="flex items-center justify-between px-1 mb-2">
-        <p className="text-[10px] text-zinc-600">
+        <p className="text-[10px] text-ink-muted">
           {sections.length} seccion{sections.length !== 1 ? 'es' : ''}
         </p>
-        <span className="text-[10px] text-zinc-700">
+        <span className="text-[10px] text-ink-muted">
           Arrastra para reordenar
         </span>
       </div>

@@ -19,33 +19,33 @@ export function StudioPanelSkeleton({ panel }: StudioPanelSkeletonProps) {
       <div aria-hidden="true" className="animate-pulse space-y-3 motion-reduce:animate-none">
         {panel === 'design' ? (
           <>
-            <div className="h-3 w-4/5 rounded bg-zinc-800/80" />
+            <div className="h-3 w-4/5 rounded bg-surface-raised/80" />
             <div className="grid grid-cols-2 gap-2">
               {[0, 1, 2, 3].map((item) => (
-                <div key={item} className="aspect-[4/3] rounded-xl border border-white/5 bg-zinc-900" />
+                <div key={item} className="aspect-[4/3] rounded-xl border border-white/5 bg-surface" />
               ))}
             </div>
-            <div className="h-9 rounded-lg bg-zinc-800/70" />
+            <div className="h-9 rounded-lg bg-surface-raised/70" />
           </>
         ) : panel === 'config' ? (
           [...Array(7)].map((_, item) => (
             <div key={item} className="flex items-center justify-between gap-3 rounded-lg py-1.5">
-              <div className="h-3 w-28 rounded bg-zinc-800/80" />
-              <div className="h-5 w-9 rounded-full bg-zinc-800" />
+              <div className="h-3 w-28 rounded bg-surface-raised/80" />
+              <div className="h-5 w-9 rounded-full bg-surface-raised" />
             </div>
           ))
         ) : (
           [...Array(5)].map((_, item) => (
             <div
               key={item}
-              className="flex h-14 items-center gap-3 rounded-xl border border-white/5 bg-zinc-900/70 px-3"
+              className="flex h-14 items-center gap-3 rounded-xl border border-white/5 bg-surface/70 px-3"
             >
-              <div className="size-8 rounded-lg bg-zinc-800" />
+              <div className="size-8 rounded-lg bg-surface-raised" />
               <div className="min-w-0 flex-1 space-y-2">
-                <div className="h-3 w-2/3 rounded bg-zinc-800" />
-                <div className="h-2.5 w-1/3 rounded bg-zinc-800/70" />
+                <div className="h-3 w-2/3 rounded bg-surface-raised" />
+                <div className="h-2.5 w-1/3 rounded bg-surface-raised/70" />
               </div>
-              <div className="h-5 w-9 rounded-full bg-zinc-800" />
+              <div className="h-5 w-9 rounded-full bg-surface-raised" />
             </div>
           ))
         )}

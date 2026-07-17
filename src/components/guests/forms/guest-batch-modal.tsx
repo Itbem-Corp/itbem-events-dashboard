@@ -337,7 +337,7 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
       <DialogBody className="py-4">
         <div className="mb-4 flex items-center gap-3 rounded-lg border border-indigo-500/20 bg-indigo-500/5 px-4 py-3">
           <UsersIcon className="size-4 shrink-0 text-indigo-400" />
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-ink-secondary">
             Agrega múltiples invitados a la vez. Se crearán automáticamente sus invitaciones y tokens de RSVP.
           </p>
         </div>
@@ -365,19 +365,19 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
           onClick={() => !csvReading && fileInputRef.current?.click()}
           aria-busy={csvReading}
         >
-          <DocumentArrowUpIcon className="size-6 text-zinc-600" />
-          <p className="text-sm text-zinc-400">
+          <DocumentArrowUpIcon className="size-6 text-ink-muted" />
+          <p className="text-sm text-ink-secondary">
             {csvReading ? (
               <span role="status" aria-live="polite">
                 Leyendo CSV…
               </span>
             ) : (
               <>
-                Arrastra un <span className="font-medium text-zinc-300">.csv</span> o haz clic para seleccionar
+                Arrastra un <span className="font-medium text-ink-secondary">.csv</span> o haz clic para seleccionar
               </>
             )}
           </p>
-          <p className="text-xs text-zinc-600">Hasta 2 MB · máximo {GUEST_CSV_MAX_ROWS} invitados</p>
+          <p className="text-xs text-ink-muted">Hasta 2 MB · máximo {GUEST_CSV_MAX_ROWS} invitados</p>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -408,7 +408,7 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
         {/* Desktop table header — hidden on mobile */}
         <div className="mb-2 hidden grid-cols-[1fr_1fr_1.2fr_0.8fr_0.55fr_0.7fr_0.55fr_0.8fr_auto] gap-2 px-1 md:grid">
           {['Nombre *', 'Apellido *', 'Correo', 'Teléfono', '+1s', 'Mesa', 'Orden', 'Rol', ''].map((h) => (
-            <p key={h} className="text-xs font-medium tracking-wide text-zinc-500 uppercase">
+            <p key={h} className="text-xs font-medium tracking-wide text-ink-muted uppercase">
               {h}
             </p>
           ))}
@@ -434,7 +434,7 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                       placeholder="Ana"
                       autoFocus={index === rows.length - 1 && index > 0}
                       className={[
-                        'w-full rounded-lg border bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none',
+                        'w-full rounded-lg border bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none',
                         errors[row.id]?.first_name ? 'border-red-500/50' : 'border-white/10',
                       ].join(' ')}
                     />
@@ -449,7 +449,7 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                       onChange={(e) => updateRow(row.id, 'last_name', e.target.value)}
                       placeholder="García"
                       className={[
-                        'w-full rounded-lg border bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none',
+                        'w-full rounded-lg border bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none',
                         errors[row.id]?.last_name ? 'border-red-500/50' : 'border-white/10',
                       ].join(' ')}
                     />
@@ -463,14 +463,14 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                     value={row.email}
                     onChange={(e) => updateRow(row.id, 'email', e.target.value)}
                     placeholder="correo@ejemplo.com"
-                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
 
                   <input
                     value={row.phone}
                     onChange={(e) => updateRow(row.id, 'phone', e.target.value)}
                     placeholder="+52 55…"
-                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
 
                   <input
@@ -479,14 +479,14 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                     max={20}
                     value={row.guests_count}
                     onChange={(e) => updateRow(row.id, 'guests_count', parseInt(e.target.value) || 1)}
-                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-center text-sm text-zinc-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-center text-sm text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
 
                   <input
                     value={row.table_number}
                     onChange={(e) => updateRow(row.id, 'table_number', e.target.value)}
                     placeholder="Mesa 1"
-                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
 
                   <input
@@ -500,14 +500,14 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                     }
                     aria-label="Orden publico"
                     placeholder="0"
-                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-center text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-center text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
 
                   <select
                     value={row.role}
                     onChange={(e) => updateRow(row.id, 'role', e.target.value)}
                     aria-label="Rol publico"
-                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   >
                     <option value="">Sin rol</option>
                     {PUBLIC_GUEST_ROLES.map((role) => (
@@ -520,7 +520,7 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                   <button
                     onClick={() => removeRow(row.id)}
                     disabled={rows.length === 1}
-                    className="rounded-lg p-2 text-zinc-600 transition-colors hover:bg-pink-500/10 hover:text-pink-400 disabled:cursor-not-allowed disabled:opacity-30"
+                    className="rounded-lg p-2 text-ink-muted transition-colors hover:bg-pink-500/10 hover:text-pink-400 disabled:cursor-not-allowed disabled:opacity-30"
                     aria-label="Eliminar fila"
                   >
                     <TrashIcon className="size-4" />
@@ -528,13 +528,13 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                 </div>
 
                 {/* Mobile: card layout */}
-                <div className="space-y-2 rounded-xl border border-white/10 bg-zinc-900/50 p-3 md:hidden">
+                <div className="space-y-2 rounded-xl border border-white/10 bg-surface/50 p-3 md:hidden">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-zinc-500">#{index + 1}</span>
+                    <span className="text-xs font-medium text-ink-muted">#{index + 1}</span>
                     <button
                       onClick={() => removeRow(row.id)}
                       disabled={rows.length === 1}
-                      className="rounded-lg p-1.5 text-zinc-600 transition-colors hover:bg-pink-500/10 hover:text-pink-400 disabled:opacity-30"
+                      className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-pink-500/10 hover:text-pink-400 disabled:opacity-30"
                       aria-label="Eliminar fila"
                     >
                       <TrashIcon className="size-3.5" />
@@ -542,14 +542,14 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Field>
-                      <label className="text-[10px] font-medium text-zinc-500 uppercase">Nombre *</label>
+                      <label className="text-[10px] font-medium text-ink-muted uppercase">Nombre *</label>
                       <input
                         value={row.first_name}
                         onChange={(e) => updateRow(row.id, 'first_name', e.target.value)}
                         placeholder="Ana"
                         autoFocus={index === rows.length - 1 && index > 0}
                         className={[
-                          'w-full rounded-lg border bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none',
+                          'w-full rounded-lg border bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none',
                           errors[row.id]?.first_name ? 'border-red-500/50' : 'border-white/10',
                         ].join(' ')}
                       />
@@ -558,13 +558,13 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                       )}
                     </Field>
                     <Field>
-                      <label className="text-[10px] font-medium text-zinc-500 uppercase">Apellido *</label>
+                      <label className="text-[10px] font-medium text-ink-muted uppercase">Apellido *</label>
                       <input
                         value={row.last_name}
                         onChange={(e) => updateRow(row.id, 'last_name', e.target.value)}
                         placeholder="García"
                         className={[
-                          'w-full rounded-lg border bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none',
+                          'w-full rounded-lg border bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none',
                           errors[row.id]?.last_name ? 'border-red-500/50' : 'border-white/10',
                         ].join(' ')}
                       />
@@ -578,37 +578,37 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                     value={row.email}
                     onChange={(e) => updateRow(row.id, 'email', e.target.value)}
                     placeholder="Correo electrónico"
-                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                   <input
                     value={row.phone}
                     onChange={(e) => updateRow(row.id, 'phone', e.target.value)}
                     placeholder="Teléfono"
-                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   />
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="text-[10px] font-medium text-zinc-500 uppercase">+1s</label>
+                      <label className="text-[10px] font-medium text-ink-muted uppercase">+1s</label>
                       <input
                         type="number"
                         min={1}
                         max={20}
                         value={row.guests_count}
                         onChange={(e) => updateRow(row.id, 'guests_count', parseInt(e.target.value) || 1)}
-                        className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                        className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-medium text-zinc-500 uppercase">Mesa</label>
+                      <label className="text-[10px] font-medium text-ink-muted uppercase">Mesa</label>
                       <input
                         value={row.table_number}
                         onChange={(e) => updateRow(row.id, 'table_number', e.target.value)}
                         placeholder="Mesa 1"
-                        className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                        className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-medium text-zinc-500 uppercase">Orden</label>
+                      <label className="text-[10px] font-medium text-ink-muted uppercase">Orden</label>
                       <input
                         type="number"
                         min={0}
@@ -620,7 +620,7 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                         }
                         aria-label="Orden publico"
                         placeholder="0"
-                        className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                        className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink placeholder-ink-muted focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                       />
                     </div>
                   </div>
@@ -628,7 +628,7 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
                     value={row.role}
                     onChange={(e) => updateRow(row.id, 'role', e.target.value)}
                     aria-label="Rol publico"
-                    className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-zinc-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                   >
                     <option value="">Sin rol</option>
                     {PUBLIC_GUEST_ROLES.map((role) => (
@@ -646,13 +646,13 @@ export function GuestBatchModal({ isOpen, setIsOpen, eventId, onPublicContentCha
         {/* Add row button */}
         <button
           onClick={addRow}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-white/10 px-4 py-2.5 text-sm text-zinc-500 transition-all hover:border-white/20 hover:bg-white/5 hover:text-zinc-300"
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-white/10 px-4 py-2.5 text-sm text-ink-muted transition-all hover:border-white/20 hover:bg-white/5 hover:text-ink-secondary"
         >
           <PlusIcon className="size-4" />
           Agregar fila
         </button>
 
-        <p className="mt-3 text-center text-xs text-zinc-600">
+        <p className="mt-3 text-center text-xs text-ink-muted">
           {rows.length} invitado{rows.length !== 1 ? 's' : ''} · Los campos con * son obligatorios
         </p>
       </DialogBody>

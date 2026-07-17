@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { Avatar } from '@/components/avatar'
 import clsx from 'clsx'
@@ -36,7 +36,7 @@ export default function UserAvatar({
     return (
         <div
             className={clsx(
-                'relative shrink-0 overflow-hidden rounded-full bg-zinc-800',
+                'relative shrink-0 overflow-hidden rounded-full bg-surface-raised',
                 sizes[size],
                 className
             )}

@@ -94,7 +94,7 @@ export function QRScanner({ onScan, onClose }: Props) {
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 rounded-full bg-zinc-800 p-2 text-white"
+          className="absolute top-4 right-4 z-10 rounded-full bg-surface-raised p-2 text-white"
           aria-label="Cerrar escáner"
         >
           <XMarkIcon className="size-6" />
@@ -142,7 +142,7 @@ export function QRScanner({ onScan, onClose }: Props) {
             </button>
           </div>
         ) : (
-          <p className="mt-6 text-sm text-zinc-400">Apunta la cámara al código QR de la invitación</p>
+          <p className="mt-6 text-sm text-ink-secondary">Apunta la cámara al código QR de la invitación</p>
         )}
       </motion.div>
     </AnimatePresence>

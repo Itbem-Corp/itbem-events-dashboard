@@ -28,7 +28,7 @@ export class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         <div className="flex min-h-[50vh] flex-col items-center justify-center px-4 text-center">
-          <div className="rounded-2xl border border-white/10 bg-zinc-900 px-10 py-12 max-w-sm w-full">
+          <div className="rounded-2xl border border-white/10 bg-surface px-10 py-12 max-w-sm w-full">
             <div className="flex size-14 items-center justify-center rounded-xl bg-red-500/10 border border-red-500/20 mx-auto mb-6">
               <svg
                 className="size-7 text-red-400"
@@ -44,15 +44,15 @@ export class ErrorBoundary extends React.Component<
                 />
               </svg>
             </div>
-            <h2 className="text-base font-semibold text-zinc-100">
+            <h2 className="text-base font-semibold text-ink">
               Algo salió mal
             </h2>
-            <p className="mt-2 text-sm text-zinc-400">
+            <p className="mt-2 text-sm text-ink-secondary">
               Ocurrió un error inesperado. Por favor recarga la página.
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="mt-6 w-full rounded-lg bg-zinc-700 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-600 transition-colors"
+              className="mt-6 w-full rounded-lg bg-surface-soft px-4 py-2 text-sm font-medium text-ink hover:bg-zinc-600 transition-colors"
             >
               Recargar página
             </button>

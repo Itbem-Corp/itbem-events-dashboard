@@ -61,7 +61,7 @@ interface CheckinWorkspace {
 const QRScanner = dynamic(() => loadQRScanner().then((module) => module.QRScanner), {
   ssr: false,
   loading: () => (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black text-sm text-zinc-400">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black text-sm text-ink-secondary">
       Preparando cámara…
     </div>
   ),
@@ -148,7 +148,7 @@ function GuestCheckinCard({ guest, confirmedStatus, pendingStatus, isOnline, pat
     <div
       className={[
         'relative flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors sm:gap-4 sm:px-4 sm:py-3.5',
-        isConfirmed ? 'border-lime-500/30 bg-lime-500/5' : 'border-white/10 bg-zinc-900/60 hover:border-white/20',
+        isConfirmed ? 'border-lime-500/30 bg-lime-500/5' : 'border-white/10 bg-surface/60 hover:border-white/20',
       ].join(' ')}
     >
       {/* Left: avatar + info */}
@@ -156,19 +156,19 @@ function GuestCheckinCard({ guest, confirmedStatus, pendingStatus, isOnline, pat
         <div
           className={[
             'flex size-10 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold',
-            isConfirmed ? 'border-lime-400 text-lime-400' : 'border-zinc-700 text-zinc-500',
+            isConfirmed ? 'border-lime-400 text-lime-400' : 'border-border-subtle text-ink-muted',
           ].join(' ')}
         >
           {guest.first_name[0]}
           {guest.last_name[0]}
         </div>
         <div className="min-w-0">
-          <p className="truncate font-semibold text-zinc-100">
+          <p className="truncate font-semibold text-ink">
             {guest.first_name} {guest.last_name}
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
-            {getGuestTableLabel(guest) && <span className="text-xs text-zinc-500">{getGuestTableLabel(guest)}</span>}
-            {companionCount > 0 && <span className="text-xs text-zinc-600">+{companionCount} acomp.</span>}
+            {getGuestTableLabel(guest) && <span className="text-xs text-ink-muted">{getGuestTableLabel(guest)}</span>}
+            {companionCount > 0 && <span className="text-xs text-ink-muted">+{companionCount} acomp.</span>}
             <span
               className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${status.color}`}
             >
@@ -200,7 +200,7 @@ function GuestCheckinCard({ guest, confirmedStatus, pendingStatus, isOnline, pat
             disabled={loading || !pendingStatus || !isOnline}
             aria-label={`Desmarcar llegada de ${guest.first_name} ${guest.last_name}`}
             title={isOnline ? undefined : 'Sin conexión'}
-            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-800 px-3 py-2 text-xs text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-raised px-3 py-2 text-xs text-ink-secondary transition-colors hover:bg-surface-soft hover:text-ink disabled:opacity-50"
           >
             {loading ? <ArrowPathIcon className="size-3 animate-spin" /> : <ClockIcon className="size-3" />}
             Desmarcar
@@ -404,10 +404,10 @@ export default function CheckinPage() {
 
   if (capabilitiesLoading) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas">
         <div className="text-center">
           <div className="mx-auto size-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent motion-reduce:animate-none" />
-          <p className="mt-4 text-sm text-zinc-500">Validando acceso a check-in…</p>
+          <p className="mt-4 text-sm text-ink-muted">Validando acceso a check-in…</p>
         </div>
       </div>
     )
@@ -415,13 +415,13 @@ export default function CheckinPage() {
 
   if (capabilitiesError || !canRunCheckin) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950 px-6">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas px-6">
         <div className="premium-surface max-w-md rounded-3xl p-8 text-center">
           <span className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-amber-400/15 bg-amber-400/[0.06] text-amber-300">
             <LockClosedIcon className="size-5" />
           </span>
           <h1 className="mt-6 text-xl font-semibold tracking-tight text-white">Check-in no disponible</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-500">
+          <p className="mt-2 text-sm leading-6 text-ink-muted">
             Tu rol puede consultar este evento, pero no registrar ni modificar la llegada de invitados.
           </p>
           <Link
@@ -436,9 +436,9 @@ export default function CheckinPage() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-zinc-950">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-canvas">
       {/* Header bar */}
-      <div className="sticky top-0 z-20 border-b border-white/10 bg-zinc-950/90 backdrop-blur-md">
+      <div className="sticky top-0 z-20 border-b border-white/10 bg-canvas/90 backdrop-blur-md">
         <div className="mx-auto max-w-3xl px-4 py-3">
           {!isOnline && (
             <div role="status" className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2">
@@ -480,19 +480,19 @@ export default function CheckinPage() {
           <div className="mb-3 flex items-center gap-3">
             <Link
               href={`/events/${id}`}
-              className="flex items-center gap-1 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+              className="flex items-center gap-1 text-sm text-ink-muted transition-colors hover:text-ink-secondary"
             >
               <ChevronLeftIcon className="size-4" />
               Volver
             </Link>
             <div className="flex-1 text-center">
-              <p className="text-sm font-semibold text-zinc-200">
+              <p className="text-sm font-semibold text-ink">
                 {workspaceLoading ? 'Cargando evento…' : (event?.name ?? 'Check-in')}
               </p>
-              <p className="text-xs text-zinc-600">Modo check-in</p>
+              <p className="text-xs text-ink-muted">Modo check-in</p>
             </div>
             <div className="text-right">
-              <p className="text-xs text-zinc-600">Llegaron</p>
+              <p className="text-xs text-ink-muted">Llegaron</p>
               <p className="text-sm font-bold text-lime-400">
                 {confirmedCount} / {totalGuests}
               </p>
@@ -506,7 +506,7 @@ export default function CheckinPage() {
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={checkinRate}
-            className="mb-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"
+            className="mb-3 h-1.5 overflow-hidden rounded-full bg-surface-raised"
           >
             <div
               className="h-full rounded-full bg-lime-500 transition-[width] duration-500"
@@ -540,7 +540,7 @@ export default function CheckinPage() {
                       : tab.id === 'PENDING'
                         ? 'bg-amber-500/20 text-amber-400'
                         : 'bg-indigo-600 text-white'
-                    : 'bg-zinc-900 text-zinc-500 hover:text-zinc-300',
+                    : 'bg-surface text-ink-muted hover:text-ink-secondary',
                 ].join(' ')}
               >
                 {tab.label}
@@ -569,7 +569,7 @@ export default function CheckinPage() {
 
           {/* Search */}
           <div className="relative">
-            <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-500" />
+            <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
             <input
               ref={inputRef}
               type="search"
@@ -584,7 +584,7 @@ export default function CheckinPage() {
               disabled={!isOnline}
               title={isOnline ? undefined : 'La búsqueda requiere conexión'}
               placeholder="Buscar por nombre, correo, teléfono o mesa…"
-              className="w-full rounded-xl border border-white/10 bg-zinc-900 py-3 pr-4 pl-10 text-sm text-zinc-200 placeholder-zinc-600 focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/50 focus:outline-none"
+              className="w-full rounded-xl border border-white/10 bg-surface py-3 pr-4 pl-10 text-sm text-ink placeholder-ink-muted focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/50 focus:outline-none"
             />
           </div>
         </div>
@@ -601,8 +601,8 @@ export default function CheckinPage() {
         {guestsErrorState === 'fatal' ? (
           <div role="alert" className="rounded-2xl border border-red-500/20 bg-red-500/5 px-6 py-12 text-center">
             <XCircleIcon className="mx-auto size-10 text-red-400" />
-            <p className="mt-4 text-sm font-semibold text-zinc-100">No pudimos cargar la lista de invitados</p>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="mt-4 text-sm font-semibold text-ink">No pudimos cargar la lista de invitados</p>
+            <p className="mt-1 text-xs text-ink-muted">
               La lista existente no se modificó. Revisa la conexión e intenta de nuevo.
             </p>
             <button
@@ -621,19 +621,19 @@ export default function CheckinPage() {
         ) : initialLoading ? (
           <div className="space-y-3">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-16 animate-pulse rounded-xl bg-zinc-800/50" />
+              <div key={i} className="h-16 animate-pulse rounded-xl bg-surface-raised/50" />
             ))}
           </div>
         ) : guests.length === 0 ? (
           <div className="py-16 text-center">
-            <UserCircleIcon className="mx-auto mb-3 size-12 text-zinc-700" />
-            <p className="text-sm text-zinc-500">
+            <UserCircleIcon className="mx-auto mb-3 size-12 text-ink-muted" />
+            <p className="text-sm text-ink-muted">
               {search ? 'Ningún invitado coincide con la búsqueda.' : 'No hay invitados en esta vista.'}
             </p>
           </div>
         ) : (
           <div className="space-y-2">
-            <p className="mb-3 text-xs text-zinc-600">
+            <p className="mb-3 text-xs text-ink-muted">
               {resultTotal} invitado{resultTotal !== 1 ? 's' : ''} · toca &ldquo;Llegó&rdquo; para marcar
             </p>
             {guests.map((guest) => (
@@ -661,9 +661,9 @@ export default function CheckinPage() {
       </div>
 
       {/* Floating summary footer */}
-      <div className="sticky bottom-0 border-t border-white/10 bg-zinc-950/90 backdrop-blur-md">
+      <div className="sticky bottom-0 border-t border-white/10 bg-canvas/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 text-xs">
-          <span className={isOnline ? 'text-zinc-600' : 'font-medium text-amber-400'}>
+          <span className={isOnline ? 'text-ink-muted' : 'font-medium text-amber-400'}>
             {isOnline
               ? liveRefreshEnabled
                 ? `${checkinRate}% de asistencia · sincronización cada 10s`

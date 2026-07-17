@@ -23,20 +23,20 @@ export function EventDetailPanelSkeleton({ tab }: EventDetailPanelSkeletonProps)
           <>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {[0, 1, 2, 3].map((item) => (
-                <div key={item} className="h-20 rounded-xl border border-white/5 bg-zinc-900/70" />
+                <div key={item} className="h-20 rounded-xl border border-white/5 bg-surface/70" />
               ))}
             </div>
             <div className="flex flex-wrap gap-3">
-              <div className="h-10 min-w-56 flex-1 rounded-lg bg-zinc-900/80" />
-              <div className="h-10 w-64 rounded-lg bg-zinc-900/80" />
+              <div className="h-10 min-w-56 flex-1 rounded-lg bg-surface/80" />
+              <div className="h-10 w-64 rounded-lg bg-surface/80" />
             </div>
             <div className="overflow-hidden rounded-xl border border-white/10">
               {[0, 1, 2, 3, 4].map((item) => (
                 <div key={item} className="flex h-14 items-center gap-4 border-b border-white/5 px-4 last:border-0">
-                  <div className="size-4 rounded bg-zinc-800" />
-                  <div className="h-3 flex-1 rounded bg-zinc-800" />
-                  <div className="h-3 w-24 rounded bg-zinc-800/80" />
-                  <div className="h-6 w-20 rounded-md bg-zinc-800" />
+                  <div className="size-4 rounded bg-surface-raised" />
+                  <div className="h-3 flex-1 rounded bg-surface-raised" />
+                  <div className="h-3 w-24 rounded bg-surface-raised/80" />
+                  <div className="h-6 w-20 rounded-md bg-surface-raised" />
                 </div>
               ))}
             </div>
@@ -44,23 +44,23 @@ export function EventDetailPanelSkeleton({ tab }: EventDetailPanelSkeletonProps)
         ) : tab === 'configuracion' ? (
           [0, 1, 2].map((item) => (
             <div key={item} className="space-y-3 border-b border-white/10 pb-7 last:border-0">
-              <div className="h-4 w-40 rounded bg-zinc-800" />
-              <div className="h-3 w-3/5 rounded bg-zinc-800/70" />
-              <div className="h-24 rounded-xl border border-white/5 bg-zinc-900/70" />
+              <div className="h-4 w-40 rounded bg-surface-raised" />
+              <div className="h-3 w-3/5 rounded bg-surface-raised/70" />
+              <div className="h-24 rounded-xl border border-white/5 bg-surface/70" />
             </div>
           ))
         ) : (
           <>
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-2">
-                <div className="h-4 w-40 rounded bg-zinc-800" />
-                <div className="h-3 w-64 max-w-full rounded bg-zinc-800/70" />
+                <div className="h-4 w-40 rounded bg-surface-raised" />
+                <div className="h-3 w-64 max-w-full rounded bg-surface-raised/70" />
               </div>
-              <div className="h-9 w-24 rounded-lg bg-zinc-800" />
+              <div className="h-9 w-24 rounded-lg bg-surface-raised" />
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {[0, 1, 2].map((item) => (
-                <div key={item} className="h-32 rounded-xl border border-white/5 bg-zinc-900/70" />
+                <div key={item} className="h-32 rounded-xl border border-white/5 bg-surface/70" />
               ))}
             </div>
           </>

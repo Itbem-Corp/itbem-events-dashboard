@@ -116,7 +116,7 @@ export function NavigationProgress() {
         }`}
       >
         <div
-          className="h-full origin-left bg-gradient-to-r from-indigo-500 via-violet-400 to-sky-300 shadow-[0_0_12px_rgba(129,140,248,0.75)] transition-transform duration-500 ease-out motion-reduce:transition-none"
+          className="h-full origin-left bg-(--tenant-accent) transition-transform duration-500 ease-out motion-reduce:transition-none"
           style={{ transform: `scaleX(${progress / 100})` }}
         />
       </div>

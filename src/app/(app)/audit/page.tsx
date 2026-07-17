@@ -59,7 +59,7 @@ export default function AuditPage() {
               setStatus(event.target.value as typeof status)
               setPage(1)
             }}
-            className="min-h-10 rounded-xl border border-white/10 bg-zinc-900 px-3 text-sm text-zinc-200 focus:border-indigo-400 focus:outline-none"
+            className="min-h-10 rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm text-ink transition-colors hover:border-border-strong hover:bg-surface-raised focus:border-(--tenant-accent) focus:ring-2 focus:ring-(--tenant-accent)/12 focus:outline-none"
           >
             <option value="all">Toda la actividad</option>
             <option value="denied">Accesos denegados</option>
@@ -77,14 +77,14 @@ export default function AuditPage() {
       {errorState === 'fatal' ? (
         <div className="premium-surface mt-8 flex min-h-72 flex-col items-center justify-center rounded-3xl px-6 text-center">
           <ExclamationTriangleIcon className="size-8 text-amber-300" />
-          <p className="mt-4 text-sm font-medium text-zinc-200">No pudimos cargar la auditoría</p>
+          <p className="mt-4 text-sm font-medium text-ink">No pudimos cargar la auditoría</p>
           <button className="mt-4 text-sm font-semibold text-indigo-300" onClick={() => void mutate()}>
             Reintentar
           </button>
         </div>
       ) : (
         <div className="premium-surface mt-8 overflow-hidden rounded-3xl">
-          <div className="grid grid-cols-[minmax(8rem,0.8fr)_minmax(10rem,1.4fr)_minmax(7rem,0.7fr)] gap-4 border-b border-white/8 px-5 py-3 text-[10px] font-semibold tracking-wider text-zinc-600 uppercase md:grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.4fr)_minmax(9rem,0.8fr)_minmax(7rem,0.6fr)]">
+          <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)_auto] gap-3 border-b border-border-subtle px-4 py-3 text-[10px] font-semibold tracking-wider text-ink-muted uppercase sm:gap-4 sm:px-5 md:grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.4fr)_minmax(9rem,0.8fr)_minmax(7rem,0.6fr)]">
             <span>Momento</span>
             <span>Acción</span>
             <span className="hidden md:block">Recurso</span>
@@ -93,28 +93,28 @@ export default function AuditPage() {
           {isLoading ? (
             <div className="space-y-px p-2" aria-label="Cargando auditoría" role="status">
               {[0, 1, 2, 3, 4].map((item) => (
-                <div key={item} className="h-16 animate-pulse rounded-xl bg-white/[0.025]" />
+                <div key={item} className="h-16 animate-pulse rounded-xl bg-surface-soft" />
               ))}
             </div>
           ) : visibleRecords.length === 0 ? (
-            <div className="px-6 py-16 text-center text-sm text-zinc-500">No hay registros para este filtro.</div>
+            <div className="px-6 py-16 text-center text-sm text-ink-muted">No hay registros para este filtro.</div>
           ) : (
-            <ul className="divide-y divide-white/6">
+            <ul className="divide-y divide-border-subtle">
               {visibleRecords.map((entry) => (
                 <li
                   key={entry.id}
-                  className="grid grid-cols-[minmax(8rem,0.8fr)_minmax(10rem,1.4fr)_minmax(7rem,0.7fr)] items-center gap-4 px-5 py-4 text-sm md:grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.4fr)_minmax(9rem,0.8fr)_minmax(7rem,0.6fr)]"
+                  className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)_auto] items-center gap-3 px-4 py-4 text-sm sm:gap-4 sm:px-5 md:grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.4fr)_minmax(9rem,0.8fr)_minmax(7rem,0.6fr)]"
                 >
-                  <span className="text-xs text-zinc-500 tabular-nums">{formatDate(entry.occurred_at)}</span>
+                  <span className="text-xs text-ink-muted tabular-nums">{formatDate(entry.occurred_at)}</span>
                   <span className="min-w-0">
-                    <span className="block truncate font-medium text-zinc-200">
+                    <span className="block truncate font-medium text-ink">
                       {entry.method} {entry.route}
                     </span>
-                    <span className="mt-1 block truncate text-[11px] text-zinc-600">{entry.request_id}</span>
+                    <span className="mt-1 block truncate text-[11px] text-ink-muted">{entry.request_id}</span>
                   </span>
                   <span className="hidden min-w-0 md:block">
-                    <span className="block truncate text-xs text-zinc-400">{entry.resource_type || 'plataforma'}</span>
-                    <span className="mt-1 block truncate font-mono text-[10px] text-zinc-700">
+                    <span className="block truncate text-xs text-ink-secondary">{entry.resource_type || 'plataforma'}</span>
+                    <span className="mt-1 block truncate font-mono text-[10px] text-ink-muted">
                       {entry.resource_id || '—'}
                     </span>
                   </span>

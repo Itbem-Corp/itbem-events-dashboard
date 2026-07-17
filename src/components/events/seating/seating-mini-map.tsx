@@ -13,7 +13,7 @@ interface Props {
 }
 
 function fillColor(filled: number, capacity: number): string {
-  if (capacity === 0 || filled === 0) return 'bg-zinc-700 border-zinc-600'
+  if (capacity === 0 || filled === 0) return 'bg-surface-soft border-border-subtle'
   const pct = filled / capacity
   if (pct >= 0.9) return 'bg-red-500/80 border-red-400'
   if (pct >= 0.7) return 'bg-amber-400/80 border-amber-300'
@@ -21,7 +21,7 @@ function fillColor(filled: number, capacity: number): string {
 }
 
 function fillTextColor(filled: number, capacity: number): string {
-  if (capacity === 0 || filled === 0) return 'text-zinc-500'
+  if (capacity === 0 || filled === 0) return 'text-ink-muted'
   const pct = filled / capacity
   if (pct >= 0.9) return 'text-red-300'
   if (pct >= 0.7) return 'text-amber-300'
@@ -32,12 +32,12 @@ export function SeatingMiniMap({ tables, occupancy, isOpen, onToggle, onTableCli
   if (tables.length === 0) return null
 
   return (
-    <div className="rounded-xl border border-white/10 bg-zinc-900/60 overflow-hidden">
+    <div className="rounded-xl border border-white/10 bg-surface/60 overflow-hidden">
       {/* Header / toggle */}
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-ink-secondary hover:text-ink transition-colors"
       >
         <span className="font-medium tracking-wide uppercase text-[10px]">
           Vista general — {tables.length} mesa{tables.length !== 1 ? 's' : ''}

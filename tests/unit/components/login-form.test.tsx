@@ -5,6 +5,12 @@ import userEvent from '@testing-library/user-event'
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const navigationMocks = vi.hoisted(() => ({ replace: vi.fn() }))
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => navigationMocks,
+}))
+
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
   useReducedMotion: () => false,
@@ -44,6 +50,7 @@ vi.mock('motion/react', () => ({
     }) => <button {...props}>{children}</button>,
   },
 }))
+vi.mock('@/components/theme/theme-toggle', () => ({ ThemeToggle: () => <button aria-label="Cambiar tema" /> }))
 
 vi.mock('next/image', () => ({
   default: ({ src, alt, priority: _priority, unoptimized: _unoptimized, ...props }: any) => (
@@ -74,14 +81,46 @@ async function fillCredentials() {
 
 describe('LoginForm', () => {
   afterEach(() => {
+    navigationMocks.replace.mockReset()
     vi.unstubAllGlobals()
+  })
+
+  it('reuses the verified session and enters the dashboard without a document reload', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          session: {
+            application: {
+              id: 'app-1',
+              code: 'eventiapp',
+              name: 'EventiApp',
+              product_label: 'Event operations',
+              modules: ['home', 'events'],
+              allows_platform_admin: true,
+              is_active: true,
+            },
+            user: { id: 'user-1', email: 'owner@eventiapp.com', is_root: true },
+            organizations: [],
+            capabilities: ['metrics:view'],
+          },
+        }),
+      })
+    )
+    render(<LoginForm tenant={tenant} />)
+
+    await fillCredentials()
+
+    await waitFor(() => expect(navigationMocks.replace).toHaveBeenCalledWith('/'))
   })
 
   it('renders the tenant identity and exposes the password safely', async () => {
     const user = userEvent.setup()
     render(<LoginForm tenant={tenant} />)
 
-    expect(screen.getByRole('heading', { name: 'Los eventos no esperan.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Tu operación empieza aquí.' })).toBeInTheDocument()
     const password = screen.getByLabelText('Contraseña')
     expect(password).toHaveAttribute('type', 'password')
 

@@ -44,7 +44,7 @@ interface Props {
 export function GuestStatusSelect({ guest, eventIdentifier, eventId, statuses }: Props) {
   const [loading, setLoading] = useState(false)
   const currentCode = getEffectiveStatus(guest)
-  const colorClass = STATUS_BG[currentCode] ?? 'bg-zinc-800 text-zinc-400 border-white/10'
+  const colorClass = STATUS_BG[currentCode] ?? 'bg-surface-raised text-ink-secondary border-white/10'
 
   // If statuses are not provided, render as plain select using only the code mapping
   const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -109,7 +109,7 @@ export function GuestStatusSelect({ guest, eventIdentifier, eventId, statuses }:
         ].join(' ')}
       >
         {STATUS_OPTIONS.map((opt) => (
-          <option key={opt.code} value={opt.code} className="bg-zinc-900 text-zinc-200">
+          <option key={opt.code} value={opt.code} className="bg-surface text-ink">
             {opt.label}
           </option>
         ))}

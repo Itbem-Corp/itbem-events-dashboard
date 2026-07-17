@@ -52,7 +52,7 @@ const DeleteUserModal = dynamic(() => loadDeleteUserModal().then((module) => mod
 const UserListActionsMenu = dynamic(() => loadUserListActionsMenu().then((module) => module.UserListActionsMenu), {
   ssr: false,
   loading: () => (
-    <div className="absolute top-full right-0 z-30 mt-2 h-20 w-48 animate-pulse rounded-xl border border-white/10 bg-zinc-900" />
+    <div className="absolute top-full right-0 z-30 mt-2 h-20 w-48 animate-pulse rounded-xl border border-white/10 bg-surface" />
   ),
 })
 function preloadUserForm() {
@@ -330,7 +330,7 @@ export default function UsersPage() {
                   'flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium transition-colors',
                   statusFilter === item.filter
                     ? 'bg-white/8 text-white shadow-sm ring-1 ring-white/8'
-                    : 'text-zinc-500 hover:bg-white/[0.035] hover:text-zinc-200',
+                    : 'text-ink-muted hover:bg-white/[0.035] hover:text-ink',
                 ].join(' ')}
               >
                 {item.label}
@@ -352,17 +352,17 @@ export default function UsersPage() {
           >
             {isValidating && <div className="absolute inset-x-0 top-0 h-px animate-pulse bg-indigo-400" />}
             <div className="relative w-full sm:max-w-xs">
-              <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-500" />
+              <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
               <input
                 type="search"
                 aria-label="Buscar usuario"
                 placeholder="Buscar usuario..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border border-transparent bg-black/15 py-2 pr-4 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
+                className="w-full rounded-xl border border-transparent bg-black/15 py-2 pr-4 pl-9 text-sm text-ink placeholder:text-ink-muted focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
               />
             </div>
-            <span className="hidden pr-2 text-xs text-zinc-600 sm:block">
+            <span className="hidden pr-2 text-xs text-ink-muted sm:block">
               {totalUsers} usuario{totalUsers === 1 ? '' : 's'}
             </span>
           </div>
@@ -372,7 +372,7 @@ export default function UsersPage() {
         <div className="grid grid-cols-1 gap-4">
           {isLoading ? (
             [...Array(4)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-zinc-900/50 p-5">
+              <div key={i} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-surface/50 p-5">
                 <div className="skeleton size-10 shrink-0 rounded-full" />
                 <div className="flex-1 space-y-3">
                   <div className="skeleton h-4 w-1/4 rounded" />
@@ -430,7 +430,7 @@ export default function UsersPage() {
 
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
-                        <p className="min-w-0 truncate text-sm font-semibold text-zinc-100 sm:text-base">
+                        <p className="min-w-0 truncate text-sm font-semibold text-ink sm:text-base">
                           {user.first_name} {user.last_name}
                         </p>
                         {user.root_level === 1 && <Badge color="indigo">ROOT 1</Badge>}
@@ -439,10 +439,10 @@ export default function UsersPage() {
                         {!user.is_active && <Badge color="zinc">INACTIVO</Badge>}
                       </div>
 
-                      <p className="mt-0.5 truncate text-xs text-zinc-500">{user.email}</p>
+                      <p className="mt-0.5 truncate text-xs text-ink-muted">{user.email}</p>
 
                       {(user.clients ?? 0) > 0 && (
-                        <p className="mt-1 text-[11px] text-zinc-500">{user.clients} clientes asociados</p>
+                        <p className="mt-1 text-[11px] text-ink-muted">{user.clients} clientes asociados</p>
                       )}
                     </div>
                   </div>
@@ -494,7 +494,7 @@ export default function UsersPage() {
                         onPointerEnter={preloadUserActions}
                         onPointerDown={preloadUserActions}
                         onFocus={preloadUserActions}
-                        className="flex size-11 cursor-pointer list-none items-center justify-center rounded-xl text-zinc-500 transition-colors hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+                        className="flex size-11 cursor-pointer list-none items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
                       >
                         <EllipsisVerticalIcon aria-hidden="true" className="size-5" />
                       </summary>

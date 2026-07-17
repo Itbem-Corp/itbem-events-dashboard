@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useRef, useState } from 'react'
@@ -218,8 +218,8 @@ export function ClientFormModal({
 
           <div className="border-t border-white/6 pt-6">
             <div className="mb-4">
-              <p className="text-sm font-semibold text-zinc-100">Identidad visual</p>
-              <p className="mt-1 text-sm text-zinc-500">
+              <p className="text-sm font-semibold text-ink">Identidad visual</p>
+              <p className="mt-1 text-sm text-ink-muted">
                 Opcional. Agrega un logo cuadrado para reconocer la organización.
               </p>
             </div>
@@ -229,7 +229,7 @@ export function ClientFormModal({
                 className={`relative flex min-h-[200px] w-full items-center justify-center rounded-2xl border-2 border-dashed transition-colors ${
                   selectedFile || (!isLogoRemoved && client?.logo)
                     ? 'border-transparent bg-white shadow-xl'
-                    : 'border-white/10 bg-zinc-900/40 hover:bg-zinc-800'
+                    : 'border-white/10 bg-surface/40 hover:bg-surface-raised'
                 } `}
               >
                 <FileUpload
@@ -248,7 +248,7 @@ export function ClientFormModal({
               </div>
 
               {(selectedFile || (!isLogoRemoved && client?.logo)) && (
-                <p className="mt-4 text-[10px] font-bold tracking-[0.3em] text-zinc-500 uppercase">
+                <p className="mt-4 text-[10px] font-bold tracking-[0.3em] text-ink-muted uppercase">
                   Haz clic o toca la imagen para reemplazarla
                 </p>
               )}

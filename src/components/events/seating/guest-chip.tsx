@@ -47,15 +47,15 @@ export function GuestChip({ guest, onMobileTap, isDraggable = true }: GuestChipP
         'flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-xs',
         'cursor-grab active:cursor-grabbing touch-none',
         isDragging ? 'z-50 shadow-lg shadow-indigo-500/20' : '',
-        isConfirmed ? 'border-lime-500/20 bg-lime-500/5' : 'border-white/10 bg-zinc-900/50',
+        isConfirmed ? 'border-lime-500/20 bg-lime-500/5' : 'border-white/10 bg-surface/50',
       ].join(' ')}
     >
       <div className="flex items-center gap-2 min-w-0">
-        <span className="font-medium text-zinc-200 truncate">
+        <span className="font-medium text-ink truncate">
           {guest.first_name} {guest.last_name}
         </span>
         {companionCount > 0 && (
-          <span className="text-zinc-600 flex-shrink-0">+{companionCount}</span>
+          <span className="text-ink-muted flex-shrink-0">+{companionCount}</span>
         )}
       </div>
 
@@ -67,7 +67,7 @@ export function GuestChip({ guest, onMobileTap, isDraggable = true }: GuestChipP
               e.stopPropagation()
               onMobileTap(guest)
             }}
-            className="md:hidden rounded p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+            className="md:hidden rounded p-1 text-ink-muted hover:text-ink-secondary hover:bg-surface-raised"
             aria-label="Mover invitado"
           >
             <ArrowsRightLeftIcon className="size-3.5" />

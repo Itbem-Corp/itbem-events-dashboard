@@ -16,13 +16,14 @@
 
 # next.js
 /.next/
-/.next-*-validation/
+/.next-*-validation*/
 /out/
 
 # production
 /build
 
 # misc
+.codex-audit/
 .DS_Store
 *.pem
 

@@ -36,7 +36,7 @@ export function ClientListActionsMenu({
     <div
       role="group"
       aria-label={`Más acciones para ${client.name}`}
-      className="absolute top-full right-0 z-30 mt-2 w-52 rounded-xl border border-white/10 bg-zinc-900/95 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
+      className="absolute top-full right-0 z-30 mt-2 w-52 rounded-xl border border-white/10 bg-surface/95 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
     >
       {canHaveSubClients && canEditOrganization && (
         <button
@@ -45,9 +45,9 @@ export function ClientListActionsMenu({
           onFocus={onFormIntent}
           onPointerDown={onFormIntent}
           onPointerEnter={onFormIntent}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-zinc-300 hover:bg-white/5 hover:text-white"
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary hover:bg-white/5 hover:text-white"
         >
-          <PlusIcon className="size-4 text-zinc-500" />
+          <PlusIcon className="size-4 text-ink-muted" />
           Agregar sub-cliente
         </button>
       )}
@@ -58,7 +58,7 @@ export function ClientListActionsMenu({
           onFocus={() => onMembersIntent?.(client)}
           onPointerDown={() => onMembersIntent?.(client)}
           onPointerEnter={() => onMembersIntent?.(client)}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-zinc-300 hover:bg-white/5 hover:text-white"
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary hover:bg-white/5 hover:text-white"
         >
           Gestionar miembros
         </button>
@@ -70,7 +70,7 @@ export function ClientListActionsMenu({
           onFocus={onFormIntent}
           onPointerDown={onFormIntent}
           onPointerEnter={onFormIntent}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-zinc-300 hover:bg-white/5 hover:text-white"
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary hover:bg-white/5 hover:text-white"
         >
           Editar organización
         </button>

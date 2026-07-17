@@ -1,7 +1,13 @@
 'use client'
 
 import { Link } from '@/components/link'
-import { BuildingOfficeIcon, ChartBarSquareIcon, HomeIcon, Square2StackIcon, UsersIcon } from '@heroicons/react/20/solid'
+import {
+  BuildingOfficeIcon,
+  ChartBarSquareIcon,
+  HomeIcon,
+  Square2StackIcon,
+  UsersIcon,
+} from '@heroicons/react/20/solid'
 import clsx from 'clsx'
 
 type PrimaryHref = '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients'
@@ -51,7 +57,7 @@ export function MobilePrimaryNavigation({
   return (
     <nav
       aria-label="Navegación principal"
-      className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-1/2 z-30 grid w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 rounded-[1.35rem] border border-white/[0.12] bg-zinc-950/88 p-1.5 shadow-[0_20px_64px_rgba(0,0,0,0.52)] ring-1 ring-black/20 backdrop-blur-2xl lg:hidden"
+      className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-1/2 z-30 grid w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 rounded-2xl border border-[var(--app-border-subtle)] bg-[var(--app-surface-raised)] p-1.5 shadow-[0_8px_24px_var(--app-shadow-strong)] lg:hidden"
       style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
       {items.map(({ href, label, icon: Icon }) => {
@@ -68,8 +74,8 @@ export function MobilePrimaryNavigation({
             className={clsx(
               'group relative flex min-h-13 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-2xl px-1 text-[11px] font-medium transition-[color,background-color,box-shadow,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) active:scale-[0.98] motion-reduce:transition-none',
               current
-                ? 'bg-gradient-to-b from-white/[0.13] to-white/[0.06] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_22px_rgba(0,0,0,0.2)] ring-1 ring-white/[0.09]'
-                : 'text-zinc-400 hover:bg-white/[0.055] hover:text-zinc-100'
+                ? 'bg-(--tenant-accent)/10 text-[var(--app-text-primary)] ring-1 ring-(--tenant-accent)/18'
+                : 'text-[var(--app-text-secondary)] hover:bg-(--tenant-accent)/7 hover:text-[var(--app-text-primary)]'
             )}
           >
             {current && (
@@ -81,7 +87,9 @@ export function MobilePrimaryNavigation({
             <span
               className={clsx(
                 'flex size-6 items-center justify-center rounded-lg transition-colors',
-                current ? 'bg-white/[0.06] text-(--tenant-accent)' : 'text-zinc-500 group-hover:text-zinc-300'
+                current
+                  ? 'bg-(--tenant-accent)/10 text-(--tenant-accent)'
+                  : 'text-[var(--app-text-muted)] group-hover:text-[var(--app-text-primary)]'
               )}
             >
               <Icon aria-hidden="true" className="size-[1.15rem]" />

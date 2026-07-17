@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     const access = await verifyApplicationAccess(request, auth.IdToken)
     if (!access.ok) return privateJson({ error: access.error }, access.status)
     clearAuthAttempts(request, email)
-    const response = privateJson({ ok: true, tenant: tenant.code })
+    const response = privateJson({ ok: true, tenant: tenant.code, session: access.session })
     response.cookies.set(AUTH_COOKIE_NAMES.session, auth.IdToken, {
       ...authCookieOptions(), maxAge: sessionMaxAge(auth.ExpiresIn),
     })

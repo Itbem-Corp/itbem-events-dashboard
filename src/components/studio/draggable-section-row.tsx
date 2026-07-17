@@ -70,15 +70,15 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
         className={[
           'flex items-center gap-2 rounded-xl border px-2.5 py-2.5 transition-colors',
           section.is_visible
-            ? 'border-white/10 bg-zinc-900/60 hover:bg-zinc-900/80'
-            : 'border-dashed border-white/5 bg-zinc-950/40 opacity-50',
+            ? 'border-white/10 bg-surface/60 hover:bg-surface/80'
+            : 'border-dashed border-white/5 bg-canvas/40 opacity-50',
           isExpanded ? 'rounded-b-none border-indigo-500/30 bg-indigo-500/5' : '',
         ].join(' ')}
       >
         {/* Drag handle */}
         <button
           onPointerDown={(e) => controls.start(e)}
-          className="shrink-0 cursor-grab active:cursor-grabbing touch-none p-1 rounded text-zinc-600 hover:text-zinc-400 transition-colors"
+          className="shrink-0 cursor-grab active:cursor-grabbing touch-none p-1 rounded text-ink-muted hover:text-ink-secondary transition-colors"
           title="Arrastra para reordenar"
         >
           <Bars3Icon className="size-4" />
@@ -91,8 +91,8 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
 
         {/* Name + type label */}
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-zinc-200 truncate">{section.name}</p>
-          <p className="text-[10px] text-zinc-600">{meta.label}</p>
+          <p className="text-xs font-medium text-ink truncate">{section.name}</p>
+          <p className="text-[10px] text-ink-muted">{meta.label}</p>
         </div>
 
         {/* Visibility toggle */}
@@ -102,8 +102,8 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
           className={[
             'shrink-0 p-1.5 rounded-lg transition-colors',
             section.is_visible
-              ? 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
-              : 'text-zinc-700 hover:text-zinc-500 hover:bg-white/5',
+              ? 'text-ink-secondary hover:text-ink hover:bg-white/5'
+              : 'text-ink-muted hover:text-ink-muted hover:bg-white/5',
           ].join(' ')}
           title={section.is_visible ? 'Ocultar seccion' : 'Mostrar seccion'}
         >
@@ -123,7 +123,7 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
               'shrink-0 rounded-lg p-1.5 transition-colors',
               isMediaOpen
                 ? 'bg-pink-500/10 text-pink-400'
-                : 'text-zinc-600 hover:bg-pink-500/10 hover:text-pink-400',
+                : 'text-ink-muted hover:bg-pink-500/10 hover:text-pink-400',
             ].join(' ')}
             title="Editar imagenes"
           >
@@ -136,7 +136,7 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
           onClick={() => onToggleExpand(section.id)}
           className={[
             'shrink-0 p-1 rounded transition-colors',
-            isExpanded ? 'text-indigo-400' : 'text-zinc-600 hover:text-zinc-400',
+            isExpanded ? 'text-indigo-400' : 'text-ink-muted hover:text-ink-secondary',
           ].join(' ')}
           title="Editar configuracion"
         >

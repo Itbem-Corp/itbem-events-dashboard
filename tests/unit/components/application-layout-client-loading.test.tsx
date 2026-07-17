@@ -22,6 +22,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/components/ui/notification-bell', () => ({ NotificationBell: () => <div>Centro de notificaciones</div> }))
 vi.mock('@/components/ui/UserAvatar', () => ({ default: () => <span>Avatar</span> }))
 vi.mock('@/components/ui/command-palette', () => ({ CommandPalette: () => <div>Paleta global</div> }))
+vi.mock('@/components/theme/theme-toggle', () => ({ ThemeToggle: () => <button aria-label="Cambiar tema" /> }))
 
 import { ApplicationLayout } from '@/components/application-layout'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
@@ -65,7 +66,7 @@ describe('ApplicationLayout client loading', () => {
   it('requests organizations when the user opens the switcher', async () => {
     render(<ApplicationLayout>Contenido</ApplicationLayout>)
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Organización actual' }))
+    fireEvent.pointerEnter(screen.getByRole('button', { name: /Organización actual/ }))
     expect(useSWRMock).toHaveBeenLastCalledWith(
       '/clients?page=1&page_size=50',
       expect.any(Function),

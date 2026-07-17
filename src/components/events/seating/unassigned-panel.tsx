@@ -59,7 +59,7 @@ export function UnassignedPanel({ guests, onMobileAssign }: UnassignedPanelProps
         </div>
 
         <div className="relative">
-          <MagnifyingGlassIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-zinc-600" />
+          <MagnifyingGlassIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-ink-muted" />
           <input
             type="text"
             value={search}
@@ -69,7 +69,7 @@ export function UnassignedPanel({ guests, onMobileAssign }: UnassignedPanelProps
             }}
             aria-busy={search !== deferredSearch}
             placeholder="Buscar invitado..."
-            className="w-full rounded-lg border border-white/10 bg-zinc-900/50 py-1.5 pr-3 pl-8 text-xs text-zinc-200 placeholder:text-zinc-600 focus:ring-1 focus:ring-amber-500/50 focus:outline-none"
+            className="w-full rounded-lg border border-white/10 bg-surface/50 py-1.5 pr-3 pl-8 text-xs text-ink placeholder:text-ink-muted focus:ring-1 focus:ring-amber-500/50 focus:outline-none"
           />
         </div>
       </div>
@@ -77,7 +77,7 @@ export function UnassignedPanel({ guests, onMobileAssign }: UnassignedPanelProps
       <SortableContext items={guestIds} strategy={verticalListSortingStrategy}>
         <div data-unassigned-list className="flex-1 space-y-1.5 overflow-y-auto p-3">
           {filtered.length === 0 ? (
-            <p className="py-4 text-center text-xs text-zinc-600">{search ? 'Sin resultados' : 'Todos asignados'}</p>
+            <p className="py-4 text-center text-xs text-ink-muted">{search ? 'Sin resultados' : 'Todos asignados'}</p>
           ) : (
             visibleGuests.map((g) => <GuestChip key={g.id} guest={g} onMobileTap={onMobileAssign} />)
           )}

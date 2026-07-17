@@ -68,7 +68,7 @@ const ClientListActionsMenu = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="absolute top-full right-0 z-30 mt-2 h-36 w-52 animate-pulse rounded-xl border border-white/10 bg-zinc-900" />
+      <div className="absolute top-full right-0 z-30 mt-2 h-36 w-52 animate-pulse rounded-xl border border-white/10 bg-surface" />
     ),
   }
 )
@@ -303,17 +303,17 @@ export default function ClientsPage() {
           >
             {isValidating && <div className="absolute inset-x-0 top-0 h-px animate-pulse bg-indigo-400" />}
             <div className="relative w-full sm:max-w-xs">
-              <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-500" />
+              <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
               <input
                 type="search"
                 aria-label="Buscar cliente"
                 placeholder="Buscar cliente..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border border-transparent bg-black/15 py-2 pr-4 pl-9 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
+                className="w-full rounded-xl border border-transparent bg-black/15 py-2 pr-4 pl-9 text-sm text-ink placeholder:text-ink-muted focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
               />
             </div>
-            <span className="hidden pr-2 text-xs text-zinc-600 sm:block">
+            <span className="hidden pr-2 text-xs text-ink-muted sm:block">
               {clientsPage?.total ?? clients.length} organización
               {(clientsPage?.total ?? clients.length) === 1 ? '' : 'es'}
             </span>
@@ -323,7 +323,7 @@ export default function ClientsPage() {
         {isLoading ? (
           <div className="grid grid-cols-1 gap-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-zinc-900/50 p-5">
+              <div key={i} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-surface/50 p-5">
                 <div className="skeleton size-16 shrink-0 rounded-xl" />
                 <div className="flex-1 space-y-3">
                   <div className="skeleton h-4 w-1/3 rounded" />
@@ -357,8 +357,8 @@ export default function ClientsPage() {
             <section className="rounded-2xl border border-indigo-400/15 bg-indigo-400/[0.045] px-4 py-3 sm:px-5">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-zinc-100">Tu alcance organizacional</p>
-                  <p className="mt-1 text-xs text-zinc-400">
+                  <p className="text-sm font-semibold text-ink">Tu alcance organizacional</p>
+                  <p className="mt-1 text-xs text-ink-secondary">
                     {user?.is_root
                       ? user.root_level === 2
                         ? 'Acceso operativo: puedes supervisar la plataforma y dar soporte, sin cambiar su jerarquía ni equipos.'
@@ -377,7 +377,7 @@ export default function ClientsPage() {
             <section aria-label="Directorio de organizaciones">
               <div className="mb-4 flex flex-wrap items-center gap-3">
                 <Badge color="violet">Organizaciones visibles</Badge>
-                <span className="basis-full text-xs text-zinc-600 sm:basis-auto">
+                <span className="basis-full text-xs text-ink-muted sm:basis-auto">
                   Lista paginada · la organización superior aparece como referencia
                 </span>
                 <div className="hidden h-px flex-1 bg-white/5 sm:block" />
@@ -437,46 +437,46 @@ export default function ClientsPage() {
                           ) : (
                             <Avatar
                               initials={(client.name || '??').substring(0, 2).toUpperCase()}
-                              className="size-12 rounded-xl border border-white/10 bg-zinc-800 font-bold text-white sm:size-14"
+                              className="size-12 rounded-xl border border-white/10 bg-surface-raised font-bold text-white sm:size-14"
                             />
                           )}
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <h2 className="truncate text-sm font-semibold text-zinc-100 transition-colors group-hover:text-white sm:text-base">
+                          <h2 className="truncate text-sm font-semibold text-ink transition-colors group-hover:text-white sm:text-base">
                             {client.name}
                           </h2>
                           {client.parent?.name && (
-                            <p className="mt-0.5 truncate text-xs text-zinc-500">
+                            <p className="mt-0.5 truncate text-xs text-ink-muted">
                               Organización superior: {client.parent.name}
                             </p>
                           )}
                           <div className="mt-1 flex flex-wrap items-center gap-2">
                             <Badge color={typeMeta.color}>{typeMeta.singularLabel}</Badge>
-                            <span className="rounded-full border border-white/8 bg-white/[0.025] px-2 py-0.5 text-[10px] font-medium text-zinc-400">
+                            <span className="rounded-full border border-white/8 bg-white/[0.025] px-2 py-0.5 text-[10px] font-medium text-ink-secondary">
                               {isInheritedRole
                                 ? `${role?.label ?? 'Acceso'} heredado`
                                 : (role?.label ?? 'Sin acceso directo')}
                             </span>
-                            <span className="truncate font-mono text-xs text-zinc-500">{client.code}</span>
+                            <span className="truncate font-mono text-xs text-ink-muted">{client.code}</span>
                           </div>
                         </div>
                       </div>
 
                       <div className="hidden items-center gap-8 lg:flex">
                         <div>
-                          <span className="text-[10px] font-semibold tracking-wide text-zinc-600 uppercase">
+                          <span className="text-[10px] font-semibold tracking-wide text-ink-muted uppercase">
                             Tu rol
                           </span>
-                          <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-400">
+                          <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-secondary">
                             {role ? role.label : 'Sin acceso directo'}
                           </div>
                         </div>
                         <div>
-                          <span className="text-[10px] font-semibold tracking-wide text-zinc-600 uppercase">
+                          <span className="text-[10px] font-semibold tracking-wide text-ink-muted uppercase">
                             Alcance
                           </span>
-                          <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-400">
+                          <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-secondary">
                             {isInheritedRole
                               ? `${role?.description ?? 'Acceso'} heredado de la organización superior`
                               : (role?.description ?? 'Sin permiso de operación asignado')}
@@ -512,7 +512,7 @@ export default function ClientsPage() {
                               onPointerEnter={preloadClientActions}
                               onPointerDown={preloadClientActions}
                               onFocus={preloadClientActions}
-                              className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+                              className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
                             >
                               <EllipsisVerticalIcon className="size-5" aria-hidden="true" />
                             </summary>

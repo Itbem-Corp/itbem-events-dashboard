@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { Alert, AlertActions, AlertDescription, AlertTitle } from '@/components/alert'
 import { Button } from '@/components/button'
@@ -53,7 +53,7 @@ export function DeleteUserModal({
       <AlertTitle>¿Eliminar usuario?</AlertTitle>
       <AlertDescription>
         <span className="block">Eliminarás permanentemente a <strong>{user?.email}</strong>.</span>
-        <span className="mt-2 block text-zinc-400">
+        <span className="mt-2 block text-ink-secondary">
           Se retirará de sus organizaciones y no podrá iniciar sesión. Esta acción no se puede deshacer.
         </span>
       </AlertDescription>

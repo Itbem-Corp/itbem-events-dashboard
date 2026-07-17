@@ -55,16 +55,16 @@ export function TableCard({
         'rounded-xl border overflow-hidden transition-colors duration-150',
         isOver
           ? 'border-indigo-500 bg-indigo-500/10 ring-2 ring-indigo-500/30'
-          : 'border-white/10 bg-zinc-900/30',
+          : 'border-white/10 bg-surface/30',
       ].join(' ')}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-zinc-900/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-surface/50">
         <div className="flex items-center gap-3 min-w-0">
           <CapacityRing current={totalAttendees} capacity={table.capacity} />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-zinc-200 truncate">{table.name}</p>
-            <p className="text-xs text-zinc-500">
+            <p className="text-sm font-semibold text-ink truncate">{table.name}</p>
+            <p className="text-xs text-ink-muted">
               {guests.length} inv. · {totalAttendees} asist.
             </p>
           </div>
@@ -72,7 +72,7 @@ export function TableCard({
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button aria-label="Opciones de mesa" className="rounded p-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors">
+            <button aria-label="Opciones de mesa" className="rounded p-1 text-ink-muted hover:text-ink-secondary hover:bg-surface-raised transition-colors">
               <EllipsisVerticalIcon className="size-4" />
             </button>
           </DropdownMenuTrigger>
@@ -96,7 +96,7 @@ export function TableCard({
       <SortableContext items={guestIds} strategy={verticalListSortingStrategy}>
         <div className="p-3 space-y-1.5 min-h-[60px]">
           {guests.length === 0 ? (
-            <p className="text-xs text-zinc-700 text-center py-4">
+            <p className="text-xs text-ink-muted text-center py-4">
               Arrastra invitados aquí
             </p>
           ) : (
@@ -111,12 +111,12 @@ export function TableCard({
                 (_, i) => (
                   <div
                     key={i}
-                    className="size-2 rounded-full bg-zinc-800 border border-zinc-700"
+                    className="size-2 rounded-full bg-surface-raised border border-border-subtle"
                   />
                 ),
               )}
               {table.capacity - totalAttendees > 5 && (
-                <span className="text-[10px] text-zinc-700">
+                <span className="text-[10px] text-ink-muted">
                   +{table.capacity - totalAttendees - 5}
                 </span>
               )}

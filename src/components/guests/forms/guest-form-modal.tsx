@@ -301,10 +301,10 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, guest, onPublicCont
             <button
               type="button"
               onClick={() => setProfileExpanded((v) => !v)}
-              className="flex w-full items-center justify-between text-xs font-medium text-zinc-500 transition-colors hover:text-zinc-300"
+              className="flex w-full items-center justify-between text-xs font-medium text-ink-muted transition-colors hover:text-ink-secondary"
             >
               <span>
-                Perfil público <span className="font-normal text-zinc-700">(graduados / perfiles)</span>
+                Perfil público <span className="font-normal text-ink-muted">(graduados / perfiles)</span>
               </span>
               <ChevronDownIcon
                 className={['size-4 transition-transform', profileExpanded ? 'rotate-180' : ''].join(' ')}
