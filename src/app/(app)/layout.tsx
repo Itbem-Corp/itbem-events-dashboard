@@ -21,17 +21,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const workspaceMode = useStore((s) => s.workspaceMode)
 
   const accessProfile = createAccessProfile(applicationSession, workspaceMode, currentClient?.id)
-  const canViewEvents = accessCan(accessProfile, 'events:view')
+  const organizationContextPending = Boolean(
+    profileLoaded &&
+      applicationSession &&
+      accessProfile.platformLevel === 'none' &&
+      applicationSession.organizations.length > 0 &&
+      !currentClient
+  )
+  const canViewEvents = accessProfile.isOrganizationContext && accessCan(accessProfile, 'events:view')
   const canViewUsers = accessProfile.isPlatformContext && accessCan(accessProfile, 'platform:users:view')
   const canViewOrganizations = accessProfile.isPlatformContext && accessCan(accessProfile, 'organizations:view')
   const canManageMembers = accessProfile.isOrganizationContext && accessCan(accessProfile, 'members:manage')
   const canViewMetrics = accessCan(accessProfile, 'metrics:view')
+  const canViewAudit = accessProfile.isPlatformContext && accessCan(accessProfile, 'audit:view')
 
   useEffect(() => {
     // ⛔ NO VALIDAR NADA hasta que el perfil esté listo
     if (!profileLoaded) return
 
-    if (pathname.startsWith('/events') && !canViewEvents) {
+    if (pathname.startsWith('/events') && !organizationContextPending && !canViewEvents) {
       router.replace('/')
       return
     }
@@ -52,8 +60,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       return
     }
 
+    if (pathname.startsWith('/audit') && !canViewAudit) {
+      router.replace('/')
+      return
+    }
+
     // 🔒 RUTAS SOLO CLIENT
-    if (pathname.startsWith('/team') && !canManageMembers) {
+    if (pathname.startsWith('/team') && !organizationContextPending && !canManageMembers) {
       router.replace('/')
       return
     }
@@ -65,10 +78,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [
     canViewEvents,
+    organizationContextPending,
     canViewOrganizations,
     canViewUsers,
     canManageMembers,
     canViewMetrics,
+    canViewAudit,
     currentClient,
     pathname,
     profileLoaded,

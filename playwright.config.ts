@@ -7,12 +7,20 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [['html'], ['list']],
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'on-first-retry',
   },
   projects: [
+    {
+      name: 'personas',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+      testMatch: '**/role-capability-matrix.spec.ts',
+    },
     {
       name: 'setup',
       testMatch: '**/fixtures/auth.setup.ts',

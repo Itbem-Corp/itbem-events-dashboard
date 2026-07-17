@@ -36,6 +36,7 @@ import {
 import {
   BellIcon,
   ChartBarSquareIcon,
+  ClipboardDocumentCheckIcon,
   HomeIcon,
   MagnifyingGlassIcon,
   Square2StackIcon,
@@ -242,6 +243,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
     : isRoot && modules.includes('organizations')
   const canManageMembers = accessProfile.isOrganizationContext && accessCan(accessProfile, 'members:manage')
   const canViewMetrics = applicationSession ? accessCan(accessProfile, 'metrics:view') : modules.includes('metrics')
+  const canViewAudit = accessProfile.isPlatformContext && accessCan(accessProfile, 'audit:view')
   const canSwitchOrganizations = applicationSession ? accessProfile.canSwitchOrganizations : isRoot
   const preloadCommandPaletteIntent = () => {
     if (hasEvents) preloadCommandPaletteResources(currentClient?.id, isRoot)
@@ -266,7 +268,7 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
   )
 
   const preloadRoute = useCallback(
-    (href: '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients') => {
+    (href: '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients' | '/audit') => {
       router.prefetch(href)
 
       const dataPath =
@@ -284,7 +286,9 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                   ? currentClient?.id
                     ? clientMembersPagePath(currentClient.id, 1, 20)
                     : null
-                  : clientsPagePath({ page: 1, page_size: 12 })
+                  : href === '/audit'
+                    ? null
+                    : clientsPagePath({ page: 1, page_size: 12 })
 
       if (dataPath) preloadDataIfMissing(dataPath)
     },
@@ -672,6 +676,12 @@ export function ApplicationLayout({ children }: { children: React.ReactNode }) {
                   >
                     <UsersIcon />
                     <SidebarLabel>Usuarios</SidebarLabel>
+                  </SidebarItem>
+                )}
+                {canViewAudit && (
+                  <SidebarItem href="/audit" current={pathname.startsWith('/audit')}>
+                    <ClipboardDocumentCheckIcon />
+                    <SidebarLabel>Auditoría</SidebarLabel>
                   </SidebarItem>
                 )}
                 {canManageMembers && !canViewUsers && (

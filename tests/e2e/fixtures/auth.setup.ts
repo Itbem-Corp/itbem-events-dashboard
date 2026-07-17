@@ -1,7 +1,8 @@
 /**
  * auth.setup.ts — Shared login fixture
  *
- * Runs once before all tests. Logs in via Cognito hosted UI and saves
+ * Runs once before all tests. Logs in through the custom dashboard BFF,
+ * which uses Cognito as its identity engine, and saves
  * cookies/localStorage to .auth/session.json so all specs reuse the
  * session without re-authenticating.
  *
@@ -41,19 +42,14 @@ setup('authenticate', async ({ page }) => {
     )
   }
 
-  // Navigate to login — app redirects to Cognito hosted UI
+  // The product owns the form; credentials are submitted server-side to the
+  // dedicated Cognito client selected by hostname.
   await page.goto('/login')
+  await page.getByRole('textbox', { name: /correo|email/i }).fill(email)
+  await page.getByLabel(/contraseña|password/i).fill(password)
+  await page.getByRole('button', { name: /iniciar sesión|acceder|sign in/i }).click()
 
-  // Wait for Cognito hosted UI redirect
-  await page.waitForURL(/stagingauth\.eventiapp\.com\.mx/, { timeout: 10_000 })
-
-  // Cognito Managed Login uses a two-step email → password flow.
-  await page.getByRole('textbox', { name: /email address/i }).fill(email)
-  await page.getByRole('button', { name: /^next$/i }).click()
-  await page.getByRole('textbox', { name: /^password$/i }).fill(password)
-  await page.getByRole('button', { name: /continue|sign in/i }).click()
-
-  // Wait for OAuth callback and app load
+  // Wait for Cognito authentication, application-access verification and app load.
   await page.waitForURL('http://localhost:3000/**', { timeout: 15_000 })
   await expect(page).not.toHaveURL(/login/)
 

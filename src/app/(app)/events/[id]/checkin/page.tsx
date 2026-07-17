@@ -7,7 +7,7 @@ import { usePageActivity } from '@/hooks/usePageActivity'
 import { api } from '@/lib/api'
 import { readApiData, readApiList } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { checkinWorkspacePath, eventCheckinGuestsPath, guestPath } from '@/lib/api-paths'
+import { checkinWorkspacePath, eventCapabilitiesPath, eventCheckinGuestsPath, guestPath } from '@/lib/api-paths'
 import type { CheckinGuestFilter } from '@/lib/checkin-guest-index'
 import { parseCheckinQrPayload } from '@/lib/checkin-qr'
 import { patchCheckinGuestsValue, patchCheckinWorkspaceValue } from '@/lib/checkin-cache'
@@ -25,6 +25,7 @@ import {
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import type { Event } from '@/models/Event'
+import type { EventCapabilities } from '@/models/EventMember'
 import type { CheckinGuestsPageResponse, Guest } from '@/models/Guest'
 import type { GuestStatus } from '@/models/GuestStatus'
 import dynamic from 'next/dynamic'
@@ -42,6 +43,7 @@ import {
   ChevronLeftIcon,
   ClockIcon,
   MagnifyingGlassIcon,
+  LockClosedIcon,
   UserCircleIcon,
   XCircleIcon,
 } from '@heroicons/react/20/solid'
@@ -225,11 +227,21 @@ export default function CheckinPage() {
   const debouncedSearch = useDebounce(search, 200)
 
   const {
+    data: capabilities,
+    error: capabilitiesError,
+    isLoading: capabilitiesLoading,
+  } = useSWR<EventCapabilities>(id ? eventCapabilitiesPath(id) : null, fetcher, {
+    revalidateOnFocus: false,
+    shouldRetryOnError: false,
+  })
+  const canRunCheckin = capabilities?.['checkin:run'] === true
+
+  const {
     data: workspace,
     error: workspaceError,
     isLoading: workspaceLoading,
     mutate: retryWorkspace,
-  } = useSWR<CheckinWorkspace>(id ? checkinWorkspacePath(id) : null, fetcher, responsiveListSwrOptions)
+  } = useSWR<CheckinWorkspace>(id && canRunCheckin ? checkinWorkspacePath(id) : null, fetcher, responsiveListSwrOptions)
 
   const event = workspace?.event
   const liveRefreshEnabled = shouldLiveRefreshEvent(Boolean(event?.is_active), event?.event_date_time, event?.timezone)
@@ -389,6 +401,39 @@ export default function CheckinPage() {
     },
     [closeScanner, confirmedStatus, guestsKey, id, isOnline, patchCaches, revalidateCaches]
   )
+
+  if (capabilitiesLoading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950">
+        <div className="text-center">
+          <div className="mx-auto size-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent motion-reduce:animate-none" />
+          <p className="mt-4 text-sm text-zinc-500">Validando acceso a check-in…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (capabilitiesError || !canRunCheckin) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950 px-6">
+        <div className="premium-surface max-w-md rounded-3xl p-8 text-center">
+          <span className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-amber-400/15 bg-amber-400/[0.06] text-amber-300">
+            <LockClosedIcon className="size-5" />
+          </span>
+          <h1 className="mt-6 text-xl font-semibold tracking-tight text-white">Check-in no disponible</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-500">
+            Tu rol puede consultar este evento, pero no registrar ni modificar la llegada de invitados.
+          </p>
+          <Link
+            href={`/events/${id}`}
+            className="mt-6 inline-flex min-h-10 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-indigo-500"
+          >
+            Volver al evento
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-zinc-950">

@@ -93,6 +93,17 @@ export function applicationSessionPath(): string {
   return '/session'
 }
 
+export function auditLogsPath(query?: {
+  page?: number
+  page_size?: number
+  status?: number
+  resource_type?: string
+  resource_id?: string
+  succeeded?: boolean
+}): string {
+  return apiPath('/audit-logs', query)
+}
+
 export function metricsPortfolioPath(clientId?: string | number | null, days = 30): string {
   const today = new Date()
   const from = new Date(today)

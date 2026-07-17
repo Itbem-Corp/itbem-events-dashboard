@@ -356,6 +356,7 @@ export default function Home() {
   const hasEvents = applicationSession ? accessCan(accessProfile, 'events:view') : true
   const canCreateEvents = accessCan(accessProfile, 'events:create')
   const canEditEvents = accessCan(accessProfile, 'events:manage')
+  const organizationRole = (accessProfile.organizationRole ?? '').replace('INHERITED_', '').toUpperCase()
   const workspaceCopy = organizationWorkspaceCopy(accessProfile, currentClient?.name)
   const eventsKey =
     hasEvents && !accessProfile.isPlatformContext ? scopedEventsDashboardPath(currentClient?.id, isRoot) : null
@@ -375,6 +376,23 @@ export default function Home() {
   const metrics = overview?.metrics ?? EMPTY_METRICS
 
   const nextGuestSummary = overview?.next_event_guest_summary
+  const primaryEventHref = nextEvent
+    ? organizationRole === 'CHECKIN'
+      ? `/events/${nextEvent.id}/checkin`
+      : organizationRole === 'ANALYST'
+        ? `/events/${nextEvent.id}?tab=analiticas`
+        : organizationRole === 'MEMBER'
+          ? `/events/${nextEvent.id}?tab=invitados`
+          : `/events/${nextEvent.id}`
+    : '/events'
+  const primaryEventLabel =
+    organizationRole === 'CHECKIN'
+      ? 'Abrir check-in'
+      : organizationRole === 'ANALYST'
+        ? 'Ver analíticas'
+        : organizationRole === 'MEMBER'
+          ? 'Gestionar invitados'
+          : 'Abrir evento'
 
   const preloadEventDetail = useCallback(
     (event: Event) => {
@@ -517,13 +535,13 @@ export default function Home() {
                         </Button>
                       )}
                       <Button
-                        href={`/events/${nextEvent.id}`}
+                        href={primaryEventHref}
                         color="indigo"
                         onFocus={() => preloadEventDetail(nextEvent)}
                         onPointerDown={() => preloadEventDetail(nextEvent)}
                         onPointerEnter={() => preloadEventDetail(nextEvent)}
                       >
-                        Abrir evento
+                        {primaryEventLabel}
                         <ArrowRightIcon />
                       </Button>
                     </div>
@@ -716,7 +734,13 @@ export default function Home() {
                   </p>
                   <p className="mt-1 text-xs leading-5 text-zinc-600">
                     {nextEvent
-                      ? 'El acceso a Studio y operación está listo.'
+                      ? organizationRole === 'CHECKIN'
+                        ? 'La lista de acceso está lista para operar.'
+                        : organizationRole === 'ANALYST'
+                          ? 'La lectura de resultados está disponible.'
+                          : organizationRole === 'MEMBER'
+                            ? 'La colaboración de invitados está disponible.'
+                            : 'El acceso a Studio y operación está listo.'
                       : 'La agenda está disponible para un nuevo evento.'}
                   </p>
                 </div>

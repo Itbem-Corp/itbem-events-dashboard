@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -27,7 +27,7 @@ jobs:
           EXPECTED_SHA: ${{ github.sha }}
         run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20.19
           cache: npm
@@ -73,7 +73,7 @@ jobs:
       PRODUCTION_SMOKE_DOMAINS: dashboard.eventiapp.com.mx|EventiApp,dashboard.itbem.com|ITBEM,dashboard.itbem.com.mx|ITBEM,dashboard.cafettonhouse.com|Cafetton House
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -83,7 +83,7 @@ jobs:
           EXPECTED_SHA: ${{ github.sha }}
         run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20.19
           cache: npm
@@ -234,7 +234,46 @@ jobs:
             exit 1
           fi
 
-# ── E2E tests — manual trigger only ──────────────────────────────────────────
+# ── Deterministic persona E2E — every production promotion ──────────────────
+  persona-e2e:
+    name: Persona E2E (production)
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 12
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20.19
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify all role workspaces against the promoted UI
+        run: npx playwright test --project=personas
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ vars.PRODUCTION_SMOKE_URL || 'https://dashboard.eventiapp.com.mx' }}
+          CI: true
+
+      - name: Upload persona report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persona-playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+# ── Full authenticated E2E — manual staging trigger ──────────────────────────
 # E2E requires a real Cognito staging pool (stagingauth.eventiapp.com.mx),
 # TEST_EMAIL / TEST_PASSWORD secrets, and the full auth flow.
 # Run manually when you have the staging environment ready.
@@ -245,9 +284,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20.19
           cache: npm
