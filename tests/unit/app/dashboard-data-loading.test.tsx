@@ -1,6 +1,7 @@
 import Home from '@/app/(app)/page'
 import { eventGuestsPath, eventsDashboardPath } from '@/lib/api-paths'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import { requestPathFromKey, type ScopedFetcherKey } from '@/lib/request-context'
 import type { Event } from '@/models/Event'
 import { useStore } from '@/store/useStore'
 import { render, screen } from '@testing-library/react'
@@ -24,7 +25,9 @@ const overview = {
 }
 
 const useSWRMock = vi.fn((key: unknown, _fetcher?: unknown, _options?: unknown): Record<string, unknown> => {
-  if (key === eventsDashboardPath()) return { data: overview, isLoading: false }
+  if (key && requestPathFromKey(key as string | ScopedFetcherKey) === eventsDashboardPath()) {
+    return { data: overview, isLoading: false }
+  }
   return { data: undefined, isLoading: false }
 })
 
@@ -58,13 +61,19 @@ describe('dashboard data loading', () => {
     expect(screen.getByText('30 confirmados')).toBeInTheDocument()
     expect(screen.getByText('9 pendientes')).toBeInTheDocument()
     expect(useSWRMock).toHaveBeenCalledTimes(1)
-    expect(useSWRMock.mock.calls.some(([key]) => key === eventGuestsPath(nextEvent.id))).toBe(false)
+    expect(useSWRMock.mock.calls.some(([key]) => (
+      key && requestPathFromKey(key as string | ScopedFetcherKey) === eventGuestsPath(nextEvent.id)
+    ))).toBe(false)
   })
 
   it('shows cached dashboard data immediately while revalidating with the shared deduped policy', () => {
     render(<Home />)
 
-    expect(useSWRMock).toHaveBeenCalledWith(eventsDashboardPath(), expect.any(Function), responsiveListSwrOptions)
+    expect(useSWRMock).toHaveBeenCalledWith(
+      expect.arrayContaining([eventsDashboardPath()]),
+      expect.any(Function),
+      responsiveListSwrOptions
+    )
     expect(responsiveListSwrOptions).toMatchObject({
       dedupingInterval: 15_000,
       revalidateIfStale: true,
@@ -74,7 +83,7 @@ describe('dashboard data loading', () => {
 
   it('keeps cached events visible when their background refresh fails', () => {
     useSWRMock.mockImplementation((key: unknown) => {
-      if (key === eventsDashboardPath()) {
+      if (key && requestPathFromKey(key as string | ScopedFetcherKey) === eventsDashboardPath()) {
         return { data: overview, isLoading: false, error: new Error('offline'), mutate: vi.fn() }
       }
       return { data: undefined, isLoading: false }

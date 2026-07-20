@@ -5,6 +5,7 @@ import { isEventCacheKey, patchEventCacheValue } from '@/lib/event-cache'
 import { normalizeKeys } from '@/lib/normalizer'
 import type { Event } from '@/models/Event'
 import type { EventConfig } from '@/models/EventConfig'
+import { requestPathFromUnknownKey } from '@/lib/request-context'
 
 type RecordValue = Record<string, unknown>
 
@@ -32,11 +33,11 @@ export function hasEventConfigCacheIdentity(config: EventConfig | null | undefin
   return Boolean(eventConfigRecordId(config))
 }
 
-export function isEventConfigCacheKey(key: unknown, eventId: string | number): key is string {
-  return key === eventConfigPath(eventId)
+export function isEventConfigCacheKey(key: unknown, eventId: string | number): boolean {
+  return requestPathFromUnknownKey(key) === eventConfigPath(eventId)
 }
 
-export function isEventConfigBackedEventCacheKey(key: unknown, eventId: string | number): key is string {
+export function isEventConfigBackedEventCacheKey(key: unknown, eventId: string | number): boolean {
   return isEventCacheKey(key, eventId)
 }
 

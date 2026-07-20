@@ -5,6 +5,7 @@ import type { GuestStatusUpdatePayload } from '@/lib/guest-utils'
 import { normalizeKeys } from '@/lib/normalizer'
 import type { Guest } from '@/models/Guest'
 import type { GuestStatus } from '@/models/GuestStatus'
+import { requestPathFromUnknownKey } from '@/lib/request-context'
 
 type RecordValue = Record<string, unknown>
 
@@ -21,20 +22,21 @@ function mapGuestListPayload(payload: unknown, mapper: (guests: Guest[]) => Gues
   return mapApiListItems<Guest>(payload, mapper, { adjustTotal: true })
 }
 
-export function isEventGuestsCacheKey(key: unknown, eventId: string | number): key is string {
-  if (typeof key !== 'string') return false
+export function isEventGuestsCacheKey(key: unknown, eventId: string | number): boolean {
+  const path = requestPathFromUnknownKey(key)
+  if (!path) return false
   const encodedEventId = eventGuestsPath(eventId).slice('/guests/all:'.length)
   return (
-    key === eventGuestsPath(eventId) ||
-    key === `/guests/seating:${encodedEventId}` ||
-    key.startsWith(`/guests/page:${encodedEventId}?`) ||
-    key.startsWith(`/guests/checkin:${encodedEventId}?`) ||
-    key.startsWith(`/guests/invitations:${encodedEventId}?`)
+    path === eventGuestsPath(eventId) ||
+    path === `/guests/seating:${encodedEventId}` ||
+    path.startsWith(`/guests/page:${encodedEventId}?`) ||
+    path.startsWith(`/guests/checkin:${encodedEventId}?`) ||
+    path.startsWith(`/guests/invitations:${encodedEventId}?`)
   )
 }
 
 export function eventGuestsCacheKeyFilter(eventId: string | number) {
-  return (key: unknown): key is string => isEventGuestsCacheKey(key, eventId)
+  return (key: unknown): boolean => isEventGuestsCacheKey(key, eventId)
 }
 
 export function patchGuestCacheValue(payload: unknown, guestId: string | number, patch: Partial<Guest>): unknown {

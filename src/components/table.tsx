@@ -64,10 +64,10 @@ export function TableRow({
         className={clsx(
           className,
           href &&
-            'has-[[data-row-link][data-focus]]:outline-2 has-[[data-row-link][data-focus]]:-outline-offset-2 has-[[data-row-link][data-focus]]:outline-blue-500 dark:focus-within:bg-white/2.5',
-          striped && 'even:bg-canvas/2.5 dark:even:bg-white/2.5',
-          href && striped && 'hover:bg-canvas/5 dark:hover:bg-white/5',
-          href && !striped && 'hover:bg-canvas/2.5 dark:hover:bg-white/2.5'
+            'has-[[data-row-link][data-focus]]:outline-2 has-[[data-row-link][data-focus]]:-outline-offset-2 has-[[data-row-link][data-focus]]:outline-(--tenant-accent) focus-within:bg-surface-interactive',
+          striped && 'even:bg-surface-soft',
+          href && striped && 'hover:bg-surface-interactive',
+          href && !striped && 'hover:bg-surface-interactive'
         )}
       />
     </TableRowContext.Provider>
@@ -83,7 +83,7 @@ export function TableHeader({ className, ...props }: React.ComponentPropsWithout
       className={clsx(
         className,
         'border-b border-b-[var(--app-border-subtle)] px-4 py-2 font-medium first:pl-(--gutter,--spacing(2)) last:pr-(--gutter,--spacing(2))',
-        grid && 'border-l border-l-border-subtle first:border-l-0 dark:border-l-white/5',
+        grid && 'border-l border-l-border-subtle first:border-l-0',
         !bleed && 'sm:first:pl-1 sm:last:pr-1'
       )}
     />
@@ -103,7 +103,7 @@ export function TableCell({ className, children, ...props }: React.ComponentProp
         className,
         'relative px-4 first:pl-(--gutter,--spacing(2)) last:pr-(--gutter,--spacing(2))',
         !striped && 'border-b border-[var(--app-border-subtle)]',
-        grid && 'border-l border-l-border-subtle first:border-l-0 dark:border-l-white/5',
+        grid && 'border-l border-l-border-subtle first:border-l-0',
         dense ? 'py-2.5' : 'py-4',
         !bleed && 'sm:first:pl-1 sm:last:pr-1'
       )}

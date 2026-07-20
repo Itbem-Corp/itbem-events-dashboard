@@ -3,6 +3,27 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const source = readFileSync(resolve(process.cwd(), 'src/components/application-layout.tsx'), 'utf8')
+const navigationSource = readFileSync(resolve(process.cwd(), 'src/lib/application-navigation.ts'), 'utf8')
+const primaryNavigationSource = readFileSync(
+  resolve(process.cwd(), 'src/components/application-primary-navigation.tsx'),
+  'utf8'
+)
+const commandPaletteSource = readFileSync(
+  resolve(process.cwd(), 'src/components/ui/application-command-palette-controller.tsx'),
+  'utf8'
+)
+const notificationSource = readFileSync(
+  resolve(process.cwd(), 'src/components/ui/lazy-notification-button.tsx'),
+  'utf8'
+)
+const navbarAccountSource = readFileSync(
+  resolve(process.cwd(), 'src/components/account/application-navbar-account.tsx'),
+  'utf8'
+)
+const sidebarFooterSource = readFileSync(
+  resolve(process.cwd(), 'src/components/account/application-sidebar-footer.tsx'),
+  'utf8'
+)
 const switcherSource = readFileSync(
   resolve(process.cwd(), 'src/components/workspace/organization-switcher.tsx'),
   'utf8'
@@ -32,24 +53,28 @@ describe('application layout client intent', () => {
   })
 
   it('keeps secondary shell features behind explicit user intent', () => {
-    expect(source).toContain("const loadNotificationBell = () => import('@/components/ui/notification-bell')")
-    expect(source).toContain('const NotificationBell = dynamic(')
-    expect(source).toContain('notificationsRequested ? (')
-    expect(source).toContain('<NotificationBell initialOpen={notificationsOpenRequested} />')
-    expect(source.match(/<NotificationBell initialOpen=\{notificationsOpenRequested\} \/>/g)).toHaveLength(2)
-    expect(source).toContain('onPointerEnter={preloadProfile}')
-    expect(source).toContain('onFocus={preloadProfile}')
+    expect(commandPaletteSource).toContain("const loadCommandPalette = () => import('@/components/ui/command-palette')")
+    expect(commandPaletteSource).toContain('const CommandPalette = dynamic(')
+    expect(notificationSource).toContain("const loadNotificationBell = () => import('@/components/ui/notification-bell')")
+    expect(notificationSource).toContain('const NotificationBell = dynamic(')
+    expect(source).toContain('<LazyNotificationButton />')
+    expect(sidebarFooterSource).toContain('<LazyNotificationButton />')
+    expect(navbarAccountSource).toContain('onPointerEnter={onProfileIntent}')
+    expect(sidebarFooterSource).toContain('onFocus={onProfileIntent}')
+    expect(source).toContain('const preloadProfile = useCallback(')
     expect(source).not.toContain('requestIdleCallback')
     expect(source).not.toContain("router.prefetch('/settings/profile')\n    if")
   })
 
   it('warms every visible desktop route on pointer and keyboard intent', () => {
     for (const href of ['/', '/events', '/metrics', '/users', '/audit', '/team', '/clients']) {
-      expect(source).toContain(`onPointerEnter={() => preloadRoute('${href}')}`)
-      expect(source).toContain(`onPointerDown={() => preloadRoute('${href}')}`)
-      expect(source).toContain(`onFocus={() => preloadRoute('${href}')}`)
+      expect(primaryNavigationSource).toContain(`intentProps('${href}')`)
     }
-    expect(source).toContain('metricsPortfolioPath(currentClient?.id, 30)')
-    expect(source).toContain('auditLogsPath({ page: 1, page_size: 30 })')
+    expect(primaryNavigationSource).toContain('onPointerEnter: () => onIntent(href)')
+    expect(primaryNavigationSource).toContain('onPointerDown: () => onIntent(href)')
+    expect(primaryNavigationSource).toContain('onFocus: () => onIntent(href)')
+    expect(source).toContain('applicationRoutePreloadPath({ href, clientId: currentClient?.id, isRoot })')
+    expect(navigationSource).toContain('metricsPortfolioPath(clientId, 30)')
+    expect(navigationSource).toContain('auditLogsPath({ page: 1, page_size: 30 })')
   })
 })

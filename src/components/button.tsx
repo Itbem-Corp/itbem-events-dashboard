@@ -10,7 +10,7 @@ const styles = {
     // Sizing
     'px-[calc(--spacing(3.5)-1px)] py-[calc(--spacing(2.5)-1px)] sm:px-[calc(--spacing(3)-1px)] sm:py-[calc(--spacing(1.5)-1px)] sm:text-sm/6',
     // Focus
-    'focus:not-data-focus:outline-hidden data-focus:outline-2 data-focus:outline-offset-2 data-focus:outline-(--tenant-accent)',
+    'focus:not-data-focus:outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent) data-focus:outline-2 data-focus:outline-offset-2 data-focus:outline-(--tenant-accent)',
     // Disabled
     'data-disabled:cursor-not-allowed data-disabled:opacity-50 data-active:translate-y-px',
     // Icon
@@ -42,19 +42,15 @@ const styles = {
   ],
   outline: [
     // Base
-    'border-border-subtle text-ink data-active:bg-canvas/2.5 data-hover:bg-canvas/2.5',
-    // Dark mode
-    'dark:border-white/15 dark:text-white dark:[--btn-bg:transparent] dark:data-active:bg-white/5 dark:data-hover:bg-white/5',
+    'border-border-subtle bg-[var(--app-surface-raised)] text-ink data-active:bg-surface-interactive data-hover:bg-surface-interactive data-hover:border-border-strong',
     // Icon
-    '[--btn-icon:var(--color-zinc-500)] data-active:[--btn-icon:var(--color-zinc-700)] data-hover:[--btn-icon:var(--color-zinc-700)] dark:data-active:[--btn-icon:var(--color-zinc-400)] dark:data-hover:[--btn-icon:var(--color-zinc-400)]',
+    '[--btn-icon:var(--app-text-muted)] data-active:[--btn-icon:var(--app-text-primary)] data-hover:[--btn-icon:var(--app-text-primary)]',
   ],
   plain: [
     // Base
-    'border-transparent text-ink data-active:bg-canvas/5 data-hover:bg-canvas/5',
-    // Dark mode
-    'dark:text-white dark:data-active:bg-white/10 dark:data-hover:bg-white/10',
+    'border-transparent text-ink data-active:bg-surface-interactive data-hover:bg-surface-interactive',
     // Icon
-    '[--btn-icon:var(--color-zinc-500)] data-active:[--btn-icon:var(--color-zinc-700)] data-hover:[--btn-icon:var(--color-zinc-700)] dark:[--btn-icon:var(--color-zinc-500)] dark:data-active:[--btn-icon:var(--color-zinc-400)] dark:data-hover:[--btn-icon:var(--color-zinc-400)]',
+    '[--btn-icon:var(--app-text-muted)] data-active:[--btn-icon:var(--app-text-primary)] data-hover:[--btn-icon:var(--app-text-primary)]',
   ],
   colors: {
     'dark/zinc': [

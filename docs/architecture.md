@@ -1,5 +1,15 @@
 # Architecture
 
+## Frontend and backend contract boundary
+
+Language-neutral integration contracts live in `itbem-product-contract`. The dashboard keeps a checked-in runtime projection under `src/contracts` and verifies it against the pinned `.contracts` revision in CI. Pages and product modules consume typed exports from that projection; they must not redefine transport header names or backend workspace semantics.
+
+Keep page-specific composition in `app`, reusable workflow UI in `components/<feature>`, product availability in `products`, and cross-page transport/cache primitives in `lib` or `contracts`. A product package may select a feature, but core transport code must never import a concrete product.
+
+Feature-owned server state belongs under `src/features/<domain>`. Route pages consume feature hooks and should not assemble endpoint paths for composed workspaces such as check-in or Studio. Feature data modules may depend on shared `lib`, models, and hooks, but never on `app` route composition or another concrete product.
+
+Paginated list features own both their query hook and their path builder. Rendering and URL filter state remain in the route, while request parameters, response normalization, SWR policy, and tenant-scoped keys remain together in the feature. This keeps visible page behavior editable without duplicating backend integration details.
+
 ## Project Scope
 
 This repo (`dashboard-ts`) is the **admin dashboard frontend only**.
@@ -78,6 +88,14 @@ Browser → middleware.ts (session cookie check)
 
 ## Multi-Tenant
 
+- Product boundaries and the extension checklist: `docs/multi-tenant.md`
+- The protected server layout resolves the host before hydration and passes the product manifest into the client shell.
+- Navigation visibility and intent preloads are pure contracts in `src/lib/application-navigation.ts`; the shell only renders their result.
+- Desktop navigation, workspace identity, and account controls are isolated memoized components, so transient shell state does not re-render them.
+- Command palette and notification state live in isolated controllers; opening either tool does not update the application shell.
+- Product manifests own route exposure and preload policy; product core cannot depend on a concrete product.
+- Tenant-sensitive SWR keys include application, workspace mode, and organization. The same context is forwarded to the API as auditable headers, while backend authorization remains authoritative.
+- `npm run build:budget` enforces route-level first-load limits for the heaviest dashboard surfaces.
 - `currentClient` (Zustand) = active organization
 - API calls scoped by client context (backend enforces ownership)
 - Root users (`is_root`) can see/manage all clients; non-root see their client(s)
@@ -105,7 +123,9 @@ Two dropdown implementations — use the right one:
 
 **Login:** `/auth/login` → Cognito → `/auth/callback` → exchange code → set cookies → redirect `/`
 
-**Bootstrap:** `SessionBootstrap` → `GET /api/auth/token` → `decodeJWT()` (local) → `GET /api/users` → `store.setProfile()` → `profileLoaded = true`
+**Bootstrap:** `SessionBootstrap` → `POST /api/auth/token` → verified user,
+capabilities and organizations → `store.setApplicationSession()` →
+`profileLoaded = true`
 
 **Org switch:** `setCurrentClient(client)` → SWR keys change → re-fetch → route guard re-evaluates
 

@@ -2,6 +2,7 @@
 
 import { preloadEventWorkspace } from '@/components/events/preload-event-workspace'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import { readApiData } from '@/lib/api-envelope'
 import { scopedEventsPagePath, userSummaryPath, usersAllPath } from '@/lib/api-paths'
 import { beginNavigationProgress } from '@/lib/navigation-progress'
@@ -64,12 +65,15 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
     : null
   const usersKey =
     open && isRoot && debouncedQuery ? usersAllPath({ page: 1, page_size: 4, search: debouncedQuery }) : null
+  const scopedEventsKey = useScopedFetcherKey(eventsKey)
+  const scopedUsersKey = useScopedFetcherKey(usersKey)
+  const scopeFetcherKey = useScopedFetcherScope()
   const {
     data: rawEvents,
     isLoading: eventsLoading,
     error: eventsError,
     mutate: retryEvents,
-  } = useSWR<EventListPage>(eventsKey, fetcher, {
+  } = useSWR<EventListPage>(scopedEventsKey, fetcher, {
     ...responsiveListSwrOptions,
     keepPreviousData: true,
   })
@@ -78,7 +82,7 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
     isLoading: usersLoading,
     error: usersError,
     mutate: retryUsers,
-  } = useSWR<AdminUsersPageResponse>(usersKey, fetcher, {
+  } = useSWR<AdminUsersPageResponse>(scopedUsersKey, fetcher, {
     ...responsiveListSwrOptions,
     keepPreviousData: true,
     shouldRetryOnError: false,
@@ -182,12 +186,12 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
       router.prefetch(item.href)
 
       if (item.type === 'event' && item.event) {
-        void preloadEventWorkspace(item.event).catch(() => undefined)
+        void preloadEventWorkspace(item.event, scopeFetcherKey).catch(() => undefined)
       } else if (item.type === 'user' && item.recordId) {
-        void preload(userSummaryPath(item.recordId), fetcher).catch(() => undefined)
+        void preload(scopeFetcherKey(userSummaryPath(item.recordId)), fetcher).catch(() => undefined)
       }
     },
-    [router]
+    [router, scopeFetcherKey]
   )
 
   // Reset on open
@@ -253,10 +257,10 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -8 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="fixed top-20 left-1/2 z-50 w-full max-w-lg -translate-x-1/2 overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-2xl shadow-black/60"
+            className="fixed top-20 left-1/2 z-50 w-full max-w-lg -translate-x-1/2 overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised shadow-[0_24px_72px_var(--app-shadow-strong)]"
           >
             {/* Search input */}
-            <div className="flex items-center gap-3 border-b border-white/5 px-4 py-3.5">
+            <div className="flex items-center gap-3 border-b border-border-subtle px-4 py-3.5">
               <MagnifyingGlassIcon className="size-5 shrink-0 text-ink-muted" />
               <input
                 ref={inputRef}
@@ -312,14 +316,14 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
                         }}
                         className={[
                           'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                          isActive ? 'bg-white/5' : 'hover:bg-white/5',
+                          isActive ? 'bg-surface-interactive' : 'hover:bg-surface-interactive',
                         ].join(' ')}
                       >
                         <div
                           className={[
                             'flex size-8 shrink-0 items-center justify-center rounded-lg',
                             item.type === 'event'
-                              ? 'bg-indigo-500/10'
+                              ? 'bg-(--tenant-accent)/10'
                               : item.type === 'user'
                                 ? 'bg-surface-raised'
                                 : 'bg-surface-raised',
@@ -346,7 +350,7 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
                   <button
                     type="button"
                     onClick={() => void Promise.all([retryEvents(), usersKey ? retryUsers() : undefined])}
-                    className="font-semibold hover:text-white"
+                    className="font-semibold hover:text-ink"
                   >
                     Reintentar
                   </button>
@@ -355,7 +359,7 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
             </div>
 
             {/* Footer */}
-            <div className="flex items-center gap-4 border-t border-white/5 px-4 py-2.5">
+            <div className="flex items-center gap-4 border-t border-border-subtle px-4 py-2.5">
               <span className="flex items-center gap-1 text-[10px] text-ink-muted">
                 <kbd className="rounded border border-border-subtle bg-surface-raised px-1 py-0.5 font-mono text-[9px]">↑↓</kbd>
                 navegar

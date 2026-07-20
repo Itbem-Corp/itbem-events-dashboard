@@ -20,27 +20,30 @@ function response(headers: Record<string, string> = {}) {
 describe('production tenant smoke', () => {
   it('covers every branded production entry point by default', () => {
     expect(configuredTenants(undefined)).toEqual([
-      { hostname: 'dashboard.eventiapp.com.mx', brand: 'EventiApp' },
-      { hostname: 'dashboard.itbem.com', brand: 'ITBEM' },
-      { hostname: 'dashboard.itbem.com.mx', brand: 'ITBEM' },
-      { hostname: 'dashboard.cafettonhouse.com', brand: 'Cafetton House' },
+      { hostname: 'dashboard.eventiapp.com.mx', brand: 'EventiApp', apiOrigin: 'https://api.eventiapp.com.mx' },
+      { hostname: 'dashboard.itbem.com.mx', brand: 'ITBEM', apiOrigin: 'https://api.itbem.com.mx' },
+      { hostname: 'dashboard.itbem.com', brand: 'ITBEM', apiOrigin: 'https://api.itbem.com.mx' },
+      { hostname: 'dashboard.cafettonhouse.com', brand: 'Cafetton House', apiOrigin: 'https://api.cafettonhouse.com' },
     ])
   })
 
-  it('accepts a correctly branded login with the complete API CSP boundary', () => {
+  it('accepts a correctly branded login with its own API CSP boundary', () => {
     expect(() =>
       validateLoginResponse(
-        { hostname: 'dashboard.itbem.com.mx', brand: 'ITBEM' },
-        response(),
+        { hostname: 'dashboard.itbem.com.mx', brand: 'ITBEM', apiOrigin: 'https://api.itbem.com.mx' },
+        response({
+          'content-security-policy':
+            "default-src 'self'; connect-src 'self' https://api.itbem.com.mx; frame-ancestors 'none'",
+        }),
         '<html><title>ITBEM</title></html>',
       ),
     ).not.toThrow()
   })
 
-  it('fails when one branded API origin disappears from CSP', () => {
+  it('fails when the assigned API origin disappears from CSP', () => {
     expect(() =>
       validateLoginResponse(
-        { hostname: 'dashboard.itbem.com.mx', brand: 'ITBEM' },
+        { hostname: 'dashboard.itbem.com.mx', brand: 'ITBEM', apiOrigin: 'https://api.itbem.com.mx' },
         response({
           'content-security-policy':
             "default-src 'self'; connect-src 'self' https://api.eventiapp.com.mx; frame-ancestors 'none'",
@@ -48,5 +51,18 @@ describe('production tenant smoke', () => {
         '<html><title>ITBEM</title></html>',
       ),
     ).toThrow(/api\.itbem\.com\.mx/)
+  })
+
+  it('fails when a product login can connect to another product API', () => {
+    expect(() =>
+      validateLoginResponse(
+        { hostname: 'dashboard.itbem.com.mx', brand: 'ITBEM', apiOrigin: 'https://api.itbem.com.mx' },
+        response({
+          'content-security-policy':
+            "default-src 'self'; connect-src 'self' https://api.itbem.com.mx https://api.eventiapp.com.mx; frame-ancestors 'none'",
+        }),
+        '<html><title>ITBEM</title></html>',
+      ),
+    ).toThrow(/must not allow another product API/)
   })
 })

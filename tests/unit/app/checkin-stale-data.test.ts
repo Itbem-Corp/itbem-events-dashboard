@@ -3,12 +3,16 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const page = readFileSync(resolve(process.cwd(), 'src/app/(app)/events/[id]/checkin/page.tsx'), 'utf8')
+const workspaceHook = readFileSync(resolve(process.cwd(), 'src/features/events/checkin/use-checkin-workspace.ts'), 'utf8')
+const capabilitiesHook = readFileSync(resolve(process.cwd(), 'src/features/events/use-event-capabilities.ts'), 'utf8')
 
 describe('check-in stale-data policy', () => {
   it('reuses intent-preloaded data and deduplicates requests on entry', () => {
-    expect(page).toContain('eventCapabilitiesPath(id)')
-    expect(page).toContain('id && canRunCheckin ? checkinWorkspacePath(id) : null')
-    expect(page.match(/\.\.\.responsiveListSwrOptions/g)).toHaveLength(1)
+    expect(page).toContain('useEventCapabilities(id)')
+    expect(page).toContain('useCheckinWorkspace(id, canRunCheckin)')
+    expect(capabilitiesHook).toContain('eventCapabilitiesPath(eventId)')
+    expect(workspaceHook).toContain('eventId && enabled ? checkinWorkspacePath(eventId) : null')
+    expect(workspaceHook).toContain('responsiveListSwrOptions')
     expect(page).toContain('const event = workspace?.event')
     expect(page).toContain('const rawGuestStatuses = workspace?.statuses')
     expect(page).toContain('workspace?.guests')

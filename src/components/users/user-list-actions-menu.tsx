@@ -23,7 +23,7 @@ export function UserListActionsMenu({
     <div
       role="group"
       aria-label={`Más acciones para ${user.first_name} ${user.last_name}`}
-      className="absolute top-full right-0 z-30 mt-2 w-48 rounded-xl border border-white/10 bg-surface/95 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl"
+      className="absolute top-full right-0 z-30 mt-2 w-48 rounded-xl border border-border-subtle bg-surface-raised/95 p-1 shadow-[0_20px_60px_var(--app-shadow-strong)] backdrop-blur-xl"
     >
       <button
         type="button"
@@ -31,7 +31,7 @@ export function UserListActionsMenu({
         onFocus={onEditIntent}
         onPointerDown={onEditIntent}
         onPointerEnter={onEditIntent}
-        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary hover:bg-white/5 hover:text-white"
+        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-surface-interactive hover:text-ink"
       >
         Editar usuario
       </button>
@@ -43,7 +43,7 @@ export function UserListActionsMenu({
           onFocus={onDeleteIntent}
           onPointerDown={onDeleteIntent}
           onPointerEnter={onDeleteIntent}
-          className="mt-1 flex w-full items-center gap-2.5 border-t border-white/8 px-3 py-2.5 text-left text-sm text-red-400 hover:bg-red-500/8"
+          className="mt-1 flex w-full items-center gap-2.5 border-t border-border-subtle px-3 py-2.5 text-left text-sm text-red-500 transition-colors hover:bg-red-500/8 dark:text-red-400"
         >
           Eliminar usuario
         </button>

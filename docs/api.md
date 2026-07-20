@@ -52,7 +52,10 @@ toast.error('Failed')
 
 ## Internal Token Endpoint
 
-`GET /api/auth/token` (Next.js internal) — reads `session` cookie → `{ token: string }`. Only called by `getAuthToken()` in `api.ts`.
+`POST /api/auth/token` (Next.js internal) verifies same-origin requests, reads
+the HttpOnly session/refresh cookies and returns the in-memory ID token plus the
+verified application session. It is called by `getAuthToken()` in `api.ts`; the
+browser never reads the refresh credential.
 
 ---
 

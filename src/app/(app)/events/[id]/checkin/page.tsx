@@ -4,10 +4,13 @@ import { useDebounce } from '@/hooks/useDebounce'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { usePageActivity } from '@/hooks/usePageActivity'
+import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
+import { useCheckinWorkspace, type CheckinWorkspace } from '@/features/events/checkin/use-checkin-workspace'
+import { useEventCapabilities } from '@/features/events/use-event-capabilities'
 import { api } from '@/lib/api'
 import { readApiData, readApiList } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { checkinWorkspacePath, eventCapabilitiesPath, eventCheckinGuestsPath, guestPath } from '@/lib/api-paths'
+import { eventCheckinGuestsPath, guestPath } from '@/lib/api-paths'
 import type { CheckinGuestFilter } from '@/lib/checkin-guest-index'
 import { parseCheckinQrPayload } from '@/lib/checkin-qr'
 import { patchCheckinGuestsValue, patchCheckinWorkspaceValue } from '@/lib/checkin-cache'
@@ -24,8 +27,6 @@ import {
 } from '@/lib/guest-utils'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
-import type { Event } from '@/models/Event'
-import type { EventCapabilities } from '@/models/EventMember'
 import type { CheckinGuestsPageResponse, Guest } from '@/models/Guest'
 import type { GuestStatus } from '@/models/GuestStatus'
 import dynamic from 'next/dynamic'
@@ -51,12 +52,6 @@ import { QrCodeIcon } from '@heroicons/react/24/outline'
 
 const loadQRScanner = () => import('@/components/events/qr-scanner')
 const CHECKIN_PAGE_SIZE = 60
-
-interface CheckinWorkspace {
-  event: Event
-  statuses: GuestStatus[]
-  guests: CheckinGuestsPageResponse
-}
 
 const QRScanner = dynamic(() => loadQRScanner().then((module) => module.QRScanner), {
   ssr: false,
@@ -225,15 +220,13 @@ export default function CheckinPage() {
   const inputRef = useRef<HTMLInputElement>(null)
   const scannerButtonRef = useRef<HTMLButtonElement>(null)
   const debouncedSearch = useDebounce(search, 200)
+  const scopeFetcherKey = useScopedFetcherScope()
 
   const {
     data: capabilities,
     error: capabilitiesError,
     isLoading: capabilitiesLoading,
-  } = useSWR<EventCapabilities>(id ? eventCapabilitiesPath(id) : null, fetcher, {
-    revalidateOnFocus: false,
-    shouldRetryOnError: false,
-  })
+  } = useEventCapabilities(id)
   const canRunCheckin = capabilities?.['checkin:run'] === true
 
   const {
@@ -241,7 +234,7 @@ export default function CheckinPage() {
     error: workspaceError,
     isLoading: workspaceLoading,
     mutate: retryWorkspace,
-  } = useSWR<CheckinWorkspace>(id && canRunCheckin ? checkinWorkspacePath(id) : null, fetcher, responsiveListSwrOptions)
+  } = useCheckinWorkspace(id, canRunCheckin)
 
   const event = workspace?.event
   const liveRefreshEnabled = shouldLiveRefreshEvent(Boolean(event?.is_active), event?.event_date_time, event?.timezone)
@@ -255,13 +248,14 @@ export default function CheckinPage() {
         filter,
       })
     : null
+  const scopedGuestsKey = useScopedFetcherKey(guestsKey)
   const {
     data: rawGuests,
     isLoading: guestsLoading,
     isValidating: guestsValidating,
     error: guestsError,
     mutate: retryGuests,
-  } = useSWR<CheckinGuestsPageResponse>(guestsKey, fetcher, {
+  } = useSWR<CheckinGuestsPageResponse>(scopedGuestsKey, fetcher, {
     ...responsiveListSwrOptions,
     fallbackData: page === 1 && !debouncedSearch && filter === 'ALL' ? workspace?.guests : undefined,
     revalidateOnMount: !(page === 1 && !debouncedSearch && filter === 'ALL'),
@@ -349,9 +343,9 @@ export default function CheckinPage() {
         search: debouncedSearch,
         filter,
       })
-      void Promise.resolve(preload(path, fetcher)).catch(() => undefined)
+      void Promise.resolve(preload(scopeFetcherKey(path), fetcher)).catch(() => undefined)
     },
-    [debouncedSearch, filter, id]
+    [debouncedSearch, filter, id, scopeFetcherKey]
   )
 
   const handleQRScan = useCallback(

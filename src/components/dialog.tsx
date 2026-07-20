@@ -28,7 +28,7 @@ export function Dialog({
     <Headless.Dialog {...props} className="relative z-50">
       <Headless.DialogBackdrop
         transition
-        className="fixed inset-0 flex w-screen justify-center overflow-y-auto bg-canvas/25 px-2 py-2 transition duration-100 focus:outline-0 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:px-6 sm:py-8 lg:px-8 lg:py-16 dark:bg-canvas/50"
+        className="fixed inset-0 flex w-screen justify-center overflow-y-auto bg-[rgb(15_23_42_/_24%)] px-2 py-2 backdrop-blur-[2px] transition duration-100 focus:outline-0 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:px-6 sm:py-8 lg:px-8 lg:py-16 dark:bg-[rgb(2_6_12_/_58%)]"
       />
 
       <div className="fixed inset-0 w-screen overflow-y-auto pt-6 sm:pt-0">

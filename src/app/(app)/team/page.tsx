@@ -53,7 +53,7 @@ export default function TeamPage() {
 
       <section className="grid gap-4 sm:grid-cols-2">
         <div className="premium-surface rounded-2xl p-5">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-300">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-(--tenant-accent)/10 text-(--tenant-accent)">
             <ShieldCheckIcon className="size-5" />
           </span>
           <h2 className="mt-4 text-sm font-semibold text-ink">Roles por responsabilidad</h2>

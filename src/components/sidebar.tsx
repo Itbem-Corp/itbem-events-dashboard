@@ -17,7 +17,7 @@ export function SidebarHeader({ className, ...props }: React.ComponentPropsWitho
       data-slot="sidebar-header"
       className={clsx(
         className,
-        'flex flex-col border-b border-border-subtle p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5'
+        'flex flex-col border-b border-border-subtle p-4 [&>[data-slot=section]+[data-slot=section]]:mt-2.5'
       )}
     />
   )
@@ -43,7 +43,7 @@ export function SidebarFooter({ className, ...props }: React.ComponentPropsWitho
       data-slot="sidebar-footer"
       className={clsx(
         className,
-        'flex flex-col border-t border-border-subtle p-4 dark:border-white/5 [&>[data-slot=section]+[data-slot=section]]:mt-2.5'
+        'flex flex-col border-t border-border-subtle p-4 [&>[data-slot=section]+[data-slot=section]]:mt-2.5'
       )}
     />
   )
@@ -54,7 +54,7 @@ export function SidebarSection({ className, ...props }: React.ComponentPropsWith
 }
 
 export function SidebarDivider({ className, ...props }: React.ComponentPropsWithoutRef<'hr'>) {
-  return <hr {...props} className={clsx(className, 'my-4 border-t border-border-subtle lg:-mx-4 dark:border-white/5')} />
+  return <hr {...props} className={clsx(className, 'my-4 border-t border-border-subtle lg:-mx-4')} />
 }
 
 export function SidebarSpacer({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
@@ -63,7 +63,7 @@ export function SidebarSpacer({ className, ...props }: React.ComponentPropsWitho
 
 export function SidebarHeading({ className, ...props }: React.ComponentPropsWithoutRef<'h3'>) {
   return (
-    <h3 {...props} className={clsx(className, 'mb-1 px-2 text-xs/6 font-medium text-ink-muted dark:text-ink-secondary')} />
+    <h3 {...props} className={clsx(className, 'mb-1 px-2 text-xs/6 font-medium text-ink-muted')} />
   )
 }
 
@@ -89,16 +89,12 @@ export const SidebarItem = forwardRef(function SidebarItem(
     // Avatar
     '*:data-[slot=avatar]:-m-0.5 *:data-[slot=avatar]:size-7 sm:*:data-[slot=avatar]:size-6',
     // Hover
-    'data-hover:bg-canvas/5 data-hover:*:data-[slot=icon]:fill-ink',
+    'data-hover:bg-surface-interactive data-hover:*:data-[slot=icon]:fill-ink',
     // Active
-    'data-active:bg-canvas/5 data-active:*:data-[slot=icon]:fill-ink',
+    'data-active:bg-surface-interactive data-active:*:data-[slot=icon]:fill-ink',
     // Current
-    'data-current:bg-(--tenant-accent)/[0.10] data-current:shadow-[inset_0_1px_rgba(255,255,255,0.16)] data-current:*:data-[slot=icon]:fill-(--tenant-accent)',
-    // Dark mode
-    'dark:text-white dark:*:data-[slot=icon]:fill-ink-secondary',
-    'dark:data-hover:translate-x-0.5 dark:data-hover:bg-white/[0.055] dark:data-hover:*:data-[slot=icon]:fill-white',
-    'dark:data-active:bg-white/[0.07] dark:data-active:*:data-[slot=icon]:fill-white',
-    'dark:data-current:bg-(--tenant-accent)/[0.14] dark:data-current:shadow-[inset_0_1px_rgba(255,255,255,0.045)] dark:data-current:*:data-[slot=icon]:fill-white'
+    'data-current:bg-(--tenant-accent)/[0.11] data-current:text-ink data-current:shadow-[inset_0_1px_rgb(255_255_255_/_14%)] data-current:*:data-[slot=icon]:fill-(--tenant-accent)',
+    'dark:data-current:shadow-[inset_0_1px_rgb(255_255_255_/_4%)]'
   )
 
   return (

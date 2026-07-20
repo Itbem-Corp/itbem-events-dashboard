@@ -1,6 +1,7 @@
 import type { PanelId } from '@/components/studio/studio-constants'
 import { studioWorkspacePath } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
+import type { ScopedFetcherScope } from '@/lib/request-context'
 import { preload } from 'swr'
 
 export function preloadStudioPanel(panel: PanelId): Promise<unknown> {
@@ -9,9 +10,9 @@ export function preloadStudioPanel(panel: PanelId): Promise<unknown> {
   return import('@/components/events/event-design-picker')
 }
 
-export function preloadStudioWorkspace(eventId: string): Promise<unknown> {
+export function preloadStudioWorkspace(eventId: string, scope: ScopedFetcherScope): Promise<unknown> {
   return Promise.all([
     preloadStudioPanel('sections'),
-    Promise.resolve(preload(studioWorkspacePath(eventId), fetcher)),
+    Promise.resolve(preload(scope(studioWorkspacePath(eventId)), fetcher)),
   ])
 }

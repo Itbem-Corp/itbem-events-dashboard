@@ -1,0 +1,47 @@
+{
+  "eventiapp": {
+    "identity": {
+      "name": "EventiApp",
+      "productLabel": "Event operations",
+      "accent": "#818cf8"
+    },
+    "deployment": {
+      "organizationCode": "eventiapp",
+      "hostname": "dashboard.eventiapp.com.mx",
+      "hostnames": ["dashboard.eventiapp.com.mx"],
+      "localHostnames": ["localhost", "127.0.0.1", "dashboard.eventiapp.localhost"],
+      "apiHostname": "api.eventiapp.com.mx",
+      "clientIdEnv": "COGNITO_EVENTIAPP_CLIENT_ID"
+    }
+  },
+  "itbem": {
+    "identity": {
+      "name": "ITBEM",
+      "productLabel": "Business operations",
+      "accent": "#22d3ee"
+    },
+    "deployment": {
+      "organizationCode": "itbem",
+      "hostname": "dashboard.itbem.com.mx",
+      "hostnames": ["dashboard.itbem.com.mx", "dashboard.itbem.com"],
+      "localHostnames": ["dashboard.itbem.localhost"],
+      "apiHostname": "api.itbem.com.mx",
+      "clientIdEnv": "COGNITO_ITBEM_CLIENT_ID"
+    }
+  },
+  "cafettonhouse": {
+    "identity": {
+      "name": "Cafetton House",
+      "productLabel": "Client operations",
+      "accent": "#d97706"
+    },
+    "deployment": {
+      "organizationCode": "cafettonhouse",
+      "hostname": "dashboard.cafettonhouse.com",
+      "hostnames": ["dashboard.cafettonhouse.com"],
+      "localHostnames": ["dashboard.cafettonhouse.localhost"],
+      "apiHostname": "api.cafettonhouse.com",
+      "clientIdEnv": "COGNITO_CAFETTONHOUSE_CLIENT_ID"
+    }
+  }
+}

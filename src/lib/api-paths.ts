@@ -93,6 +93,10 @@ export function applicationSessionPath(): string {
   return '/session'
 }
 
+export function organizationContextPath(): string {
+  return '/session/organization-context'
+}
+
 export function auditLogsPath(query?: {
   page?: number
   page_size?: number

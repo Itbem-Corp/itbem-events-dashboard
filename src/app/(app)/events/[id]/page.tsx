@@ -47,6 +47,7 @@ import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useEventDetailGuestData } from '@/hooks/useEventDetailGuestData'
 import { useEventDetailTabNavigation } from '@/hooks/useEventDetailTabNavigation'
 import { useEventHealthCheck } from '@/hooks/useEventHealthCheck'
+import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import { checkinWorkspacePath, eventCapabilitiesPath, eventDetailPath, eventGuestSummaryPath } from '@/lib/api-paths'
 import { findEventInListCache } from '@/lib/event-cache'
 import { sanitizeEvent } from '@/lib/sanitize-event'
@@ -156,18 +157,19 @@ function EventDetailSkeleton() {
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
+  const scopeFetcherKey = useScopedFetcherScope()
   const { cache: swrCache } = useSWRConfig()
   const cachedListEvent = useMemo(() => findEventInListCache(swrCache, id), [id, swrCache])
   const { activeTab: requestedTab, setActiveTab, replaceActiveTab } = useEventDetailTabNavigation()
 
   const preloadCheckinWorkspace = useCallback(() => {
     router.prefetch(`/events/${id}/checkin`)
-    void preload(checkinWorkspacePath(id), fetcher).catch(() => undefined)
-  }, [id, router])
+    void preload(scopeFetcherKey(checkinWorkspacePath(id)), fetcher).catch(() => undefined)
+  }, [id, router, scopeFetcherKey])
   const preloadStudioRoute = useCallback(() => {
     router.prefetch(`/events/${id}/studio`)
-    void preloadStudioWorkspace(id).catch(() => undefined)
-  }, [id, router])
+    void preloadStudioWorkspace(id, scopeFetcherKey).catch(() => undefined)
+  }, [id, router, scopeFetcherKey])
   const [guestsViewState, setGuestsViewState] = useState<EventDetailGuestsViewState>(initialEventDetailGuestsViewState)
   const [actionsOpen, setActionsOpen] = useState(false)
   const [coverEditorOpen, setCoverEditorOpen] = useState(false)
@@ -175,6 +177,8 @@ export default function EventDetailPage() {
 
   // Event modals
   const [isEditOpen, setIsEditOpen] = useState(false)
+  const eventRequestKey = useScopedFetcherKey(id ? eventDetailPath(id) : null)
+  const capabilitiesRequestKey = useScopedFetcherKey(id ? eventCapabilitiesPath(id) : null)
 
   // Data fetching — protected detail endpoint returns a single event object.
   const {
@@ -183,9 +187,9 @@ export default function EventDetailPage() {
     isValidating,
     error,
     mutate: mutateEvent,
-  } = useSWR<Event>(id ? eventDetailPath(id) : null, fetcher, {
-    fallbackData: id ? (eventWorkspaceCache.peek(id) ?? cachedListEvent) : undefined,
-    revalidateOnMount: id ? !eventWorkspaceCache.hasAuthoritative(id) : true,
+  } = useSWR<Event>(eventRequestKey, fetcher, {
+    fallbackData: eventRequestKey ? (eventWorkspaceCache.peek(eventRequestKey) ?? cachedListEvent) : undefined,
+    revalidateOnMount: eventRequestKey ? !eventWorkspaceCache.hasAuthoritative(eventRequestKey) : true,
   })
   const event = useMemo(() => (rawEvent ? sanitizeEvent(rawEvent) : undefined), [rawEvent])
   const {
@@ -194,7 +198,7 @@ export default function EventDetailPage() {
     isLoading: eventCapabilitiesLoading,
     isValidating: eventCapabilitiesValidating,
     mutate: retryEventCapabilities,
-  } = useSWR<EventCapabilities>(id ? eventCapabilitiesPath(id) : null, fetcher, {
+  } = useSWR<EventCapabilities>(capabilitiesRequestKey, fetcher, {
     revalidateOnFocus: false,
     shouldRetryOnError: false,
   })
@@ -223,8 +227,8 @@ export default function EventDetailPage() {
     ) {
       return
     }
-    eventWorkspaceCache.rememberAuthoritative(event)
-  }, [event])
+    if (eventRequestKey) eventWorkspaceCache.rememberAuthoritative(event, eventRequestKey)
+  }, [event, eventRequestKey])
 
   // Self-healing: detect and repair data issues transparently
   useEventHealthCheck(rawEvent)

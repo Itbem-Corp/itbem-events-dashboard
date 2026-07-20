@@ -58,49 +58,6 @@ const nextConfig = {
   },
 
   async headers() {
-    // Include the backend API URL in connect-src so browser API calls are allowed.
-    // In production this is set to https://api.eventiapp.com.mx via Vercel env vars.
-    const backendUrl = normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, 'http://localhost:8080')
-    const astroUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_ASTRO_URL, 'https://www.eventiapp.com.mx')
-    const brandedApiSources = [
-      'https://api.eventiapp.com.mx',
-      'https://api.itbem.com.mx',
-      'https://api.cafettonhouse.com',
-    ].join(' ')
-
-    // Cover all S3 URL patterns: single-level (s3.amazonaws.com), virtual-hosted
-    // (bucket.s3.amazonaws.com), and regional (bucket.s3.us-east-1.amazonaws.com).
-    // CSP wildcards only match ONE subdomain level, so we must list each pattern.
-    const awsSources = [
-      'https://*.amazonaws.com',
-      'https://*.s3.amazonaws.com',
-      'https://*.s3.us-east-1.amazonaws.com',
-      'https://*.s3.us-east-2.amazonaws.com',
-      'https://*.s3.us-west-2.amazonaws.com',
-      'https://*.cloudfront.net',
-      // CDN (cdn.eventiapp.com.mx, cdn-staging.eventiapp.com.mx)
-      'https://*.eventiapp.com.mx',
-    ].join(' ')
-
-    const scriptSources = process.env.NODE_ENV === 'production'
-      ? "script-src 'self' 'unsafe-inline'"
-      : "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    const csp = [
-      "default-src 'self'",
-      scriptSources,
-      "style-src 'self' 'unsafe-inline'",
-      `img-src 'self' data: blob: ${backendUrl} ${brandedApiSources} ${awsSources}`,
-      `media-src 'self' blob: ${backendUrl} ${brandedApiSources} ${awsSources}`,
-      "font-src 'self'",
-      `connect-src 'self' ${backendUrl} ${brandedApiSources} ${awsSources}`,
-      `frame-src 'self' ${astroUrl}`,
-      "frame-ancestors 'none'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      ...(process.env.NODE_ENV === 'production' ? ['upgrade-insecure-requests'] : []),
-    ].join('; ')
-
     return [
       {
         source: '/(.*)',
@@ -112,7 +69,6 @@ const nextConfig = {
             key: 'Permissions-Policy',
             value: 'camera=(self), microphone=(), geolocation=()',
           },
-          { key: 'Content-Security-Policy', value: csp },
           {
             key: 'Strict-Transport-Security',
             value: 'max-age=63072000; includeSubDomains; preload',

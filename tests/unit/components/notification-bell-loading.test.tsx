@@ -56,7 +56,12 @@ describe('NotificationBell loading', () => {
 
     fireEvent.focus(screen.getByRole('button', { name: 'Notificaciones' }))
 
-    expect(useSWRMock).toHaveBeenLastCalledWith('/events/notifications?client_id=client-1')
+    expect(useSWRMock).toHaveBeenLastCalledWith([
+      '/events/notifications?client_id=client-1',
+      'eventiapp',
+      'organization',
+      'client-1',
+    ])
   })
 
   it('shows a stable loading state instead of a false empty state', () => {

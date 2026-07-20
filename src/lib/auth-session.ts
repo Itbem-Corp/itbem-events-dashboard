@@ -10,8 +10,12 @@ export const AUTH_COOKIE_NAMES = {
 
 export const OAUTH_TRANSACTION_MAX_AGE_SECONDS = 10 * 60
 export const AUTH_CHALLENGE_MAX_AGE_SECONDS = 10 * 60
-export const REFRESH_TOKEN_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
+// Must stay aligned with CognitoTenantsStack.refreshTokenValidity. A browser
+// cookie that outlives Cognito's credential only creates a confusing stale
+// session; it never extends access.
+export const REFRESH_TOKEN_MAX_AGE_SECONDS = 5 * 24 * 60 * 60
 export const DEFAULT_SESSION_MAX_AGE_SECONDS = 60 * 60
+export const SESSION_REFRESH_SKEW_SECONDS = 90
 
 export function authCookieOptions(nodeEnv = process.env.NODE_ENV) {
   return {
@@ -30,6 +34,27 @@ export function sessionMaxAge(expiresIn: unknown): number {
   // normally returns 3600 seconds; the upper bound protects against a malformed
   // upstream response creating an effectively permanent authenticated shell.
   return Math.min(Math.max(Math.floor(seconds), 60), 24 * 60 * 60)
+}
+
+// The refresh credential never needs to travel on a cross-site navigation.
+// Keep the short-lived ID-token cookie Lax for OAuth return compatibility.
+export function refreshCookieOptions(nodeEnv = process.env.NODE_ENV) {
+  return { ...authCookieOptions(nodeEnv), sameSite: 'strict' as const }
+}
+
+// This only decides when to renew an HttpOnly cookie; it never authorizes a
+// request. The backend remains responsible for validating the Cognito JWT.
+export function sessionTokenNeedsRefresh(token: string, nowSeconds = Math.floor(Date.now() / 1000)): boolean {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return true
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const claims = JSON.parse(Buffer.from(normalized, 'base64').toString('utf8')) as { exp?: unknown }
+    const expiration = Number(claims.exp)
+    return !Number.isFinite(expiration) || expiration <= nowSeconds + SESSION_REFRESH_SKEW_SECONDS
+  } catch {
+    return true
+  }
 }
 
 export const PRIVATE_NO_STORE_HEADERS = {

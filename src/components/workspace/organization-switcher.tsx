@@ -31,7 +31,7 @@ interface OrganizationSwitcherProps {
   onSearchChange: (value: string) => void
   onRetry: () => void
   onPreloadOrganization: (clientId: string) => void
-  onSelectOrganization: (client: OrganizationOption) => void
+  onSelectOrganization: (client: OrganizationOption) => Promise<void>
   onSelectPlatform: () => void
 }
 
@@ -62,6 +62,7 @@ export function OrganizationSwitcher({
   const router = useRouter()
   const pathname = usePathname()
   const [switchingId, setSwitchingId] = useState<string | null>(null)
+  const [switchError, setSwitchError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
   const platformLabel = accessProfile.platformLevel === 'root_2' ? 'Centro de soporte' : 'Vista de plataforma'
 
@@ -70,10 +71,17 @@ export function OrganizationSwitcher({
     onSearchChange('')
   }
 
-  function completeSwitch(action: () => void, id: string) {
+  async function completeSwitch(action: () => void | Promise<void>, id: string) {
     if (switchingId) return
     setSwitchingId(id)
-    action()
+    setSwitchError(null)
+    try {
+      await action()
+    } catch {
+      setSwitchError('No pudimos validar el acceso a ese espacio. Reintenta sin cerrar tu sesión.')
+      setSwitchingId(null)
+      return
+    }
     onClose()
     onSearchChange('')
     // The dashboard home already reacts to workspace state. Replacing the
@@ -96,7 +104,7 @@ export function OrganizationSwitcher({
       size="xl"
       className="max-h-[min(760px,calc(100dvh-1rem))] overflow-hidden bg-[var(--app-surface-raised)]! p-0! ring-[var(--app-border-subtle)]!"
     >
-      <div className="border-b border-border-subtle px-5 pt-5 pb-4 sm:px-6 sm:pt-6 dark:border-white/[0.08]">
+      <div className="border-b border-border-subtle px-5 pt-5 pb-4 sm:px-6 sm:pt-6">
         <div className="flex items-start justify-between gap-5">
           <div>
             <p className="mb-2 text-[10px] font-semibold tracking-[0.16em] text-(--tenant-accent) uppercase">
@@ -111,7 +119,7 @@ export function OrganizationSwitcher({
             type="button"
             onClick={closeDialog}
             aria-label="Cerrar selector"
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-canvas/[0.06] hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) dark:hover:bg-white/[0.06] dark:hover:text-white"
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-surface-interactive hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)"
           >
             <XMarkIcon className="size-5" />
           </button>
@@ -135,27 +143,33 @@ export function OrganizationSwitcher({
         {accessProfile.canUsePlatformMode && (
           <button
             type="button"
-            onClick={() => completeSwitch(onSelectPlatform, 'platform')}
+            onClick={() => void completeSwitch(onSelectPlatform, 'platform')}
             disabled={Boolean(switchingId)}
-            className="flex min-h-16 w-full items-center gap-3 rounded-xl px-3 text-left transition-colors hover:bg-white/[0.055] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) disabled:cursor-wait disabled:opacity-60"
+            className="flex min-h-16 w-full items-center gap-3 rounded-xl px-3 text-left transition-colors hover:bg-surface-interactive focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) disabled:cursor-wait disabled:opacity-60"
           >
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-(--tenant-accent)/12 text-(--tenant-accent)">
               <Square2StackIcon className="size-5" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-ink dark:text-white">{platformLabel}</span>
+              <span className="block text-sm font-semibold text-ink">{platformLabel}</span>
               <span className="mt-0.5 block text-xs text-ink-muted">Administración global de {tenant.name}</span>
             </span>
             {accessProfile.isPlatformContext && <CheckIcon className="size-5 text-(--tenant-accent)" />}
           </button>
         )}
 
-        <div className="mt-2 flex items-center justify-between border-t border-border-subtle px-3 pt-4 pb-2 dark:border-white/[0.07]">
+        <div className="mt-2 flex items-center justify-between border-t border-border-subtle px-3 pt-4 pb-2">
           <p className="text-[10px] font-semibold tracking-[0.15em] text-ink-muted uppercase">Organizaciones</p>
           <p className="text-[11px] text-ink-muted" aria-live="polite">
             {clients.length} de {clientsTotal}
           </p>
         </div>
+
+        {switchError && (
+          <p className="mx-3 mb-2 rounded-xl border border-red-500/20 bg-red-500/[0.07] px-3 py-2 text-xs text-red-700 dark:text-red-200" role="alert">
+            {switchError}
+          </p>
+        )}
 
         {loading && !errorState && (
           <p className="px-3 py-8 text-center text-sm text-ink-muted">Cargando organizaciones…</p>
@@ -180,7 +194,7 @@ export function OrganizationSwitcher({
         {!loading && !errorState && clients.length === 0 && (
           <div className="px-4 py-10 text-center">
             <BuildingOfficeIcon className="mx-auto size-7 text-ink-muted" />
-            <p className="mt-3 text-sm font-medium text-ink-muted dark:text-ink-secondary">No encontramos organizaciones</p>
+            <p className="mt-3 text-sm font-medium text-ink-muted">No encontramos organizaciones</p>
             <p className="mt-1 text-xs text-ink-muted">Prueba con otro nombre o código.</p>
           </div>
         )}
@@ -193,19 +207,19 @@ export function OrganizationSwitcher({
               <button
                 type="button"
                 key={client.id}
-                onClick={() => completeSwitch(() => onSelectOrganization(client), client.id)}
+                onClick={() => void completeSwitch(() => onSelectOrganization(client), client.id)}
                 onFocus={() => onPreloadOrganization(client.id)}
                 onPointerEnter={() => onPreloadOrganization(client.id)}
                 disabled={Boolean(switchingId)}
-                className="flex min-h-16 w-full items-center gap-3 rounded-xl px-3 text-left transition-colors hover:bg-white/[0.055] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) disabled:cursor-wait disabled:opacity-60"
+                className="flex min-h-16 w-full items-center gap-3 rounded-xl px-3 text-left transition-colors hover:bg-surface-interactive focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) disabled:cursor-wait disabled:opacity-60"
               >
                 <Avatar
                   src={client.logo}
                   initials={(client.name || 'OR').substring(0, 2).toUpperCase()}
-                  className="size-10 bg-canvas/[0.07] text-ink dark:bg-white/[0.07] dark:text-white"
+                  className="size-10 bg-surface-soft text-ink"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-ink dark:text-white">
+                  <span className="block truncate text-sm font-semibold text-ink">
                     {client.name}
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-ink-muted">
