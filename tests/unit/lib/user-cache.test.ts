@@ -2,6 +2,13 @@ import { isUsersAllCacheKey, patchUserCacheValue, removeUsersCacheValue, upsertU
 import type { AdminUserListItemResponse, AdminUserResponse } from '@/models/User'
 import { describe, expect, it } from 'vitest'
 
+describe('isUsersAllCacheKey', () => {
+  it('matches tenant-scoped user list keys', () => {
+    expect(isUsersAllCacheKey(['/users/all?page=1', 'eventiapp', 'platform', null])).toBe(true)
+    expect(isUsersAllCacheKey(['/users/user-1', 'eventiapp', 'platform', null])).toBe(false)
+  })
+})
+
 function listUser(id: string, patch: Partial<AdminUserListItemResponse> = {}): AdminUserListItemResponse {
   return {
     id,

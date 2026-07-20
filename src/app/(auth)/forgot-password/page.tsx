@@ -1,6 +1,7 @@
 'use client'
 
 import { BrandMark } from '@/components/product/brand-mark'
+import { ThemeToggle } from '@/components/theme/theme-toggle'
 import { tenantPresentationForHostname } from '@/lib/tenant-config'
 import {
   ArrowLeftIcon,
@@ -61,10 +62,10 @@ export default function ForgotPasswordPage() {
 
   return (
     <div
-      className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-6xl items-center justify-center px-3 py-3 sm:px-6"
+      className="mx-auto flex min-h-dvh w-full max-w-6xl items-center justify-center px-5 py-7 sm:px-8"
       style={{ '--tenant-accent': tenant.accent } as React.CSSProperties}
     >
-      <section className="w-full max-w-[540px] rounded-[1.75rem] border border-[var(--app-border-subtle)] bg-[var(--app-surface-raised)]/94 px-6 py-7 text-[var(--app-text-primary)] shadow-[0_36px_100px_var(--app-shadow-strong)] backdrop-blur-xl sm:px-12 sm:py-10">
+      <section className="premium-surface w-full max-w-[540px] rounded-[1.6rem] px-6 py-7 text-ink sm:px-12 sm:py-10">
         <header className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <BrandMark code={tenant.code} name={tenant.name} accent={tenant.accent} size="sm" priority />
@@ -73,7 +74,10 @@ export default function ForgotPasswordPage() {
               <p className="mt-0.5 text-[9px] tracking-[0.14em] text-ink-muted uppercase">Recuperación segura</p>
             </div>
           </div>
-          <CheckCircleIcon className="size-5" style={{ color: tenant.accent }} aria-label="Proceso protegido" />
+          <div className="flex items-center gap-2">
+            <CheckCircleIcon className="size-5" style={{ color: tenant.accent }} aria-label="Proceso protegido" />
+            <ThemeToggle />
+          </div>
         </header>
 
         <div className="mt-14">
@@ -92,7 +96,7 @@ export default function ForgotPasswordPage() {
 
         <form onSubmit={submit} className="mt-9 space-y-5" aria-busy={pending}>
           <div>
-            <label htmlFor="recovery-email" className="mb-2 block text-xs font-semibold text-[var(--app-text-primary)]">
+            <label htmlFor="recovery-email" className="mb-2 block text-xs font-semibold text-ink-secondary">
               Correo de trabajo
             </label>
             <input
@@ -106,7 +110,7 @@ export default function ForgotPasswordPage() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               disabled={sent}
-              className="h-13 w-full rounded-xl border border-[var(--app-border-subtle)] bg-[var(--app-surface-interactive)] px-4 text-[15px] text-[var(--app-text-primary)] transition-[border-color,background-color,box-shadow] outline-none hover:border-[var(--app-border-strong)] focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15 disabled:bg-[var(--app-surface-soft)] disabled:text-[var(--app-text-muted)]"
+              className="h-13 w-full rounded-xl border border-border-subtle bg-surface-interactive px-4 text-[15px] text-ink transition-[border-color,background-color,box-shadow] outline-none hover:border-border-strong hover:bg-surface-raised focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15 disabled:bg-surface-soft disabled:text-ink-muted"
             />
           </div>
 
@@ -115,7 +119,7 @@ export default function ForgotPasswordPage() {
               <div>
                 <label
                   htmlFor="recovery-code"
-                  className="mb-2 block text-xs font-semibold text-[var(--app-text-primary)]"
+                  className="mb-2 block text-xs font-semibold text-ink-secondary"
                 >
                   Código de verificación
                 </label>
@@ -128,13 +132,13 @@ export default function ForgotPasswordPage() {
                   maxLength={12}
                   value={code}
                   onChange={(event) => setCode(event.target.value.replace(/\s/g, ''))}
-                  className="h-13 w-full rounded-xl border border-[var(--app-border-subtle)] bg-[var(--app-surface-interactive)] px-4 font-mono text-[15px] tracking-[0.18em] text-[var(--app-text-primary)] transition-[border-color,background-color,box-shadow] outline-none hover:border-[var(--app-border-strong)] focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15"
+                  className="h-13 w-full rounded-xl border border-border-subtle bg-surface-interactive px-4 font-mono text-[15px] tracking-[0.18em] text-ink transition-[border-color,background-color,box-shadow] outline-none hover:border-border-strong hover:bg-surface-raised focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15"
                 />
               </div>
               <div>
                 <label
                   htmlFor="recovery-password"
-                  className="mb-2 block text-xs font-semibold text-[var(--app-text-primary)]"
+                  className="mb-2 block text-xs font-semibold text-ink-secondary"
                 >
                   Nueva contraseña
                 </label>
@@ -147,7 +151,7 @@ export default function ForgotPasswordPage() {
                     autoComplete="new-password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    className="h-13 w-full rounded-xl border border-[var(--app-border-subtle)] bg-[var(--app-surface-interactive)] pr-13 pl-4 text-[15px] text-[var(--app-text-primary)] transition-[border-color,background-color,box-shadow] outline-none hover:border-[var(--app-border-strong)] focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15"
+                    className="h-13 w-full rounded-xl border border-border-subtle bg-surface-interactive pr-13 pl-4 text-[15px] text-ink transition-[border-color,background-color,box-shadow] outline-none hover:border-border-strong hover:bg-surface-raised focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15"
                   />
                   <button
                     type="button"
@@ -168,7 +172,7 @@ export default function ForgotPasswordPage() {
               ref={errorRef}
               role="alert"
               tabIndex={-1}
-              className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-800 outline-none"
+              className="rounded-xl border border-red-500/25 bg-red-500/8 px-3.5 py-3 text-sm text-red-700 outline-none dark:text-red-300"
             >
               {error}
             </div>

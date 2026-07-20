@@ -7,6 +7,7 @@ import {
   PRIVATE_NO_STORE_HEADERS,
   REFRESH_TOKEN_MAX_AGE_SECONDS,
   authCookieOptions,
+  refreshCookieOptions,
   sessionMaxAge,
 } from '@/lib/auth-session'
 import { verifyApplicationAccess } from '@/lib/application-access'
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
     })
     if (auth.RefreshToken) {
       response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, auth.RefreshToken, {
-        ...authCookieOptions(),
+        ...refreshCookieOptions(),
         maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS,
       })
     }

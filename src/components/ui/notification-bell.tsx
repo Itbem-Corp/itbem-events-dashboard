@@ -10,6 +10,7 @@ import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import type { Event } from '@/models/Event'
 import { useStore } from '@/store/useStore'
+import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import {
   ArrowRightIcon,
   BellIcon,
@@ -97,6 +98,8 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
   const ref = useRef<HTMLDivElement>(null)
   const currentClient = useStore((state) => state.currentClient)
   const eventsKey = eventNotificationsPath(currentClient?.id)
+  const scopedEventsKey = useScopedFetcherKey(hasOpened ? eventsKey : null)
+  const scopeFetcherKey = useScopedFetcherScope()
 
   const {
     data: rawEvents,
@@ -104,7 +107,7 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
     isLoading,
     isValidating,
     mutate,
-  } = useSWR<Event[] | { data?: Event[] }>(hasOpened ? eventsKey : null, fetcher, responsiveListSwrOptions)
+  } = useSWR<Event[] | { data?: Event[] }>(scopedEventsKey, fetcher, responsiveListSwrOptions)
   const events = useMemo(() => readApiList<Event>(rawEvents), [rawEvents])
   const dataErrorState = getDataErrorState(error, rawEvents)
 
@@ -113,12 +116,12 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
 
   function preloadEventsList() {
     router.prefetch('/events')
-    if (eventsKey) void preload(eventsKey, fetcher).catch(() => undefined)
+    if (eventsKey) void preload(scopeFetcherKey(eventsKey), fetcher).catch(() => undefined)
   }
 
   function preloadNotification(event: Event) {
     router.prefetch(`/events/${event.id}`)
-    void preloadEventWorkspace(event).catch(() => undefined)
+    void preloadEventWorkspace(event, scopeFetcherKey).catch(() => undefined)
   }
 
   // Close on outside click
@@ -143,24 +146,24 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
         }}
         onPointerEnter={() => setHasOpened(true)}
         onFocus={() => setHasOpened(true)}
-        className="relative flex size-8 items-center justify-center rounded-lg text-ink-secondary transition-colors hover:bg-white/5 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        className="relative flex size-8 items-center justify-center rounded-lg text-ink-secondary transition-colors hover:bg-surface-interactive hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)"
         aria-label="Notificaciones"
       >
         <BellIcon className="size-5" />
         {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-indigo-500 text-[9px] font-bold text-white">
+          <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-(--tenant-accent) text-[9px] font-bold text-white">
             {count > 9 ? '9+' : count}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute top-full right-0 z-50 mt-2 w-80 rounded-2xl border border-white/10 bg-surface shadow-2xl shadow-black/40">
+        <div className="absolute top-full right-0 z-50 mt-2 w-80 rounded-2xl border border-border-subtle bg-surface-raised shadow-[0_20px_60px_var(--app-shadow-strong)]">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
             <p className="text-sm font-semibold text-ink">Notificaciones</p>
             {count > 0 && (
-              <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[10px] font-semibold text-indigo-400">
+              <span className="rounded-full bg-(--tenant-accent)/15 px-2 py-0.5 text-[10px] font-semibold text-(--tenant-accent)">
                 {count} activa{count !== 1 ? 's' : ''}
               </span>
             )}
@@ -188,7 +191,7 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
                   type="button"
                   onClick={() => void mutate()}
                   disabled={isValidating}
-                  className="mt-2 text-xs font-semibold text-indigo-400 hover:text-indigo-300 disabled:opacity-60"
+                  className="mt-2 text-xs font-semibold text-(--tenant-accent) hover:text-ink disabled:opacity-60"
                 >
                   {isValidating ? 'Reintentando…' : 'Reintentar'}
                 </button>
@@ -210,7 +213,7 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
                     onFocus={() => preloadNotification(n.event)}
                     onPointerDown={() => preloadNotification(n.event)}
                     onPointerEnter={() => preloadNotification(n.event)}
-                    className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-white/5"
+                    className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-surface-interactive"
                   >
                     <div className={`mt-0.5 shrink-0 ${n.color}`}>
                       <Icon className="size-4" />
@@ -226,14 +229,14 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
           </div>
 
           {/* Footer */}
-          <div className="border-t border-white/5 px-4 py-2.5">
+          <div className="border-t border-border-subtle px-4 py-2.5">
             <Link
               href="/events"
               onClick={() => setOpen(false)}
               onFocus={preloadEventsList}
               onPointerDown={preloadEventsList}
               onPointerEnter={preloadEventsList}
-              className="inline-flex min-h-10 items-center gap-1.5 text-xs text-indigo-400 transition-colors hover:text-indigo-300"
+              className="inline-flex min-h-10 items-center gap-1.5 text-xs text-(--tenant-accent) transition-colors hover:text-ink"
             >
               Ver todos los eventos
               <ArrowRightIcon aria-hidden="true" className="size-3.5" />

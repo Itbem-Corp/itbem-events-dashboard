@@ -14,6 +14,7 @@ vi.mock('swr', () => ({
   default: (key: unknown, fetcher: unknown, options: unknown) => useSWRMock(key, fetcher, options),
   preload: (key: unknown, fetcher: unknown) => preloadMock(key, fetcher),
   useSWRConfig: () => ({ cache: swrCache }),
+  unstable_serialize: (key: unknown) => JSON.stringify(key),
 }))
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
@@ -138,7 +139,7 @@ describe('ApplicationLayout client loading', () => {
 
     expect(routerPrefetchMock).toHaveBeenCalledWith('/events')
     expect(preloadMock).toHaveBeenCalledWith(
-      '/events?client_id=client-1&page=1&page_size=12&filter=all',
+      ['/events?client_id=client-1&page=1&page_size=12&filter=all', 'eventiapp', 'organization', 'client-1'],
       expect.any(Function)
     )
 
@@ -158,14 +159,17 @@ describe('ApplicationLayout client loading', () => {
   })
 
   it('does not refetch a cached destination on repeated navigation intent', () => {
-    swrCache.set('/events?client_id=client-1&page=1&page_size=12&filter=all', { data: { data: [] } })
+    swrCache.set(
+      JSON.stringify(['/events?client_id=client-1&page=1&page_size=12&filter=all', 'eventiapp', 'organization', 'client-1']),
+      { data: { data: [] } }
+    )
     render(<ApplicationLayout>Contenido</ApplicationLayout>)
 
     fireEvent.pointerEnter(screen.getAllByRole('link', { name: 'Eventos' })[0])
 
     expect(routerPrefetchMock).toHaveBeenCalledWith('/events')
     expect(preloadMock).not.toHaveBeenCalledWith(
-      '/events?client_id=client-1&page=1&page_size=12&filter=all',
+      ['/events?client_id=client-1&page=1&page_size=12&filter=all', 'eventiapp', 'organization', 'client-1'],
       expect.any(Function)
     )
   })

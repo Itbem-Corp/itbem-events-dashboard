@@ -1,5 +1,6 @@
 import { preloadStudioPanel, preloadStudioWorkspace } from '@/components/studio/preload-studio-panel'
 import { describe, expect, it, vi } from 'vitest'
+import type { ScopedFetcherScope } from '@/lib/request-context'
 
 const loaded = vi.hoisted(() => ({
   sections: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('@/components/events/event-design-picker', () => {
 })
 
 describe('preloadStudioPanel', () => {
+  const scope: ScopedFetcherScope = (path) => [path, 'eventiapp', 'organization', 'client-1']
   it('imports only the panel requested by user intent', async () => {
     expect(loaded.sections).not.toHaveBeenCalled()
     expect(loaded.config).not.toHaveBeenCalled()
@@ -44,10 +46,12 @@ describe('preloadStudioPanel', () => {
   })
 
   it('preloads the default editor and its composed bootstrap together', async () => {
-    await preloadStudioWorkspace('event-1')
+    await preloadStudioWorkspace('event-1', scope)
 
     expect(loaded.sections).toHaveBeenCalledTimes(1)
     expect(preloadData).toHaveBeenCalledTimes(1)
-    expect(preloadData.mock.calls.map(([path]) => path)).toEqual(['/events/event-1/studio-workspace'])
+    expect(preloadData.mock.calls.map(([path]) => path)).toEqual([
+      ['/events/event-1/studio-workspace', 'eventiapp', 'organization', 'client-1'],
+    ])
   })
 })

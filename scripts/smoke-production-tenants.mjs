@@ -1,17 +1,17 @@
-import { pathToFileURL } from 'node:url'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const DEFAULT_TENANTS = [
-  { hostname: 'dashboard.eventiapp.com.mx', brand: 'EventiApp' },
-  { hostname: 'dashboard.itbem.com', brand: 'ITBEM' },
-  { hostname: 'dashboard.itbem.com.mx', brand: 'ITBEM' },
-  { hostname: 'dashboard.cafettonhouse.com', brand: 'Cafetton House' },
-]
+const catalogPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'products', 'catalog.json')
+const catalog = JSON.parse(readFileSync(catalogPath, 'utf8'))
 
-const REQUIRED_API_ORIGINS = [
-  'https://api.eventiapp.com.mx',
-  'https://api.itbem.com.mx',
-  'https://api.cafettonhouse.com',
-]
+const DEFAULT_TENANTS = Object.values(catalog).flatMap(({ identity, deployment }) =>
+  deployment.hostnames.map(hostname => ({
+    hostname,
+    brand: identity.name,
+    apiOrigin: `https://${deployment.apiHostname}`,
+  })),
+)
 
 export function configuredTenants(value = process.env.PRODUCTION_SMOKE_DOMAINS) {
   if (!value?.trim()) return DEFAULT_TENANTS
@@ -21,7 +21,11 @@ export function configuredTenants(value = process.env.PRODUCTION_SMOKE_DOMAINS) 
     if (!hostname || !brand) {
       throw new Error(`Invalid tenant smoke entry "${entry}". Expected hostname|brand.`)
     }
-    return { hostname, brand }
+    const configured = DEFAULT_TENANTS.find(tenant => tenant.hostname === hostname)
+    if (!configured || configured.brand !== brand) {
+      throw new Error(`${hostname}: does not match the product catalog`)
+    }
+    return configured
   })
 }
 
@@ -39,9 +43,12 @@ export function validateLoginResponse(tenant, response, html) {
   }
 
   const csp = response.headers.get('content-security-policy') ?? ''
-  for (const origin of REQUIRED_API_ORIGINS) {
-    if (!csp.includes(origin)) {
-      throw new Error(`${tenant.hostname}: CSP does not allow ${origin}`)
+  if (!csp.includes(tenant.apiOrigin)) {
+    throw new Error(`${tenant.hostname}: CSP does not allow ${tenant.apiOrigin}`)
+  }
+  for (const other of DEFAULT_TENANTS) {
+    if (other.apiOrigin !== tenant.apiOrigin && csp.includes(other.apiOrigin)) {
+      throw new Error(`${tenant.hostname}: CSP must not allow another product API (${other.apiOrigin})`)
     }
   }
   if (!csp.includes("frame-ancestors 'none'")) {

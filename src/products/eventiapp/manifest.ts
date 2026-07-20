@@ -1,9 +1,13 @@
 import type { ProductManifest } from '@/products/core/product-manifest'
+import { productCatalogEntry } from '@/products/core/product-catalog'
+import { eventiAppRoutes } from '@/products/eventiapp/routes'
 
 export const eventiAppManifest = {
   code: 'eventiapp',
+  ...productCatalogEntry('eventiapp'),
   backendModules: ['home', 'events', 'metrics'],
   features: ['home', 'events', 'metrics', 'team', 'audit', 'profile'],
+  routes: eventiAppRoutes,
   login: {
     index: 'EA / 01',
     discipline: 'Event operations',

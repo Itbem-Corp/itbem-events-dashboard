@@ -1,4 +1,5 @@
 import { productSupportsFeature, productSupportsPath } from '@/products/core/product-manifest'
+import { assertProductManifestContract } from '@/products/core/product-contract'
 import { getProductManifest } from '@/products/registry'
 import { describe, expect, it } from 'vitest'
 
@@ -25,5 +26,27 @@ describe('product manifests', () => {
     expect(getProductManifest('eventiapp').backendModules).toEqual(['home', 'events', 'metrics'])
     expect(getProductManifest('itbem').backendModules).toEqual(['home', 'users', 'organizations', 'metrics'])
     expect(getProductManifest('cafettonhouse').backendModules).toEqual(['home', 'users', 'organizations', 'metrics'])
+  })
+
+  it('keeps brand and deployment settings inside each product boundary', () => {
+    const eventiapp = getProductManifest('eventiapp')
+    const itbem = getProductManifest('itbem')
+
+    expect(eventiapp.identity.name).toBe('EventiApp')
+    expect(eventiapp.deployment.apiHostname).toBe('api.eventiapp.com.mx')
+    expect(itbem.identity.accent).toBe('#22d3ee')
+    expect(itbem.deployment.clientIdEnv).toBe('COGNITO_ITBEM_CLIENT_ID')
+  })
+
+  it('rejects a deployment contract that would merge product entry points', () => {
+    const manifests = structuredClone({
+      eventiapp: getProductManifest('eventiapp'),
+      itbem: getProductManifest('itbem'),
+      cafettonhouse: getProductManifest('cafettonhouse'),
+    })
+    manifests.itbem.deployment.hostname = manifests.eventiapp.deployment.hostname
+    manifests.itbem.deployment.hostnames = [manifests.eventiapp.deployment.hostname]
+
+    expect(() => assertProductManifestContract(manifests)).toThrow(/belongs to more than one product/)
   })
 })

@@ -10,7 +10,7 @@ describe('event list Studio intent', () => {
   it('warms both the Studio route and its critical workspace before navigation', () => {
     expect(page).toContain('router.prefetch(`/events/${event.id}/studio`)')
     expect(page).toContain("import('@/components/studio/preload-studio-panel')")
-    expect(page).toContain('module.preloadStudioWorkspace(event.id)')
+    expect(page).toContain('module.preloadStudioWorkspace(event.id, scopeFetcherKey)')
     expect(page).toContain('onStudioIntent={preloadEventStudio}')
   })
 
@@ -22,7 +22,7 @@ describe('event list Studio intent', () => {
 
   it('warms the Studio route and workspace from the event detail primary action', () => {
     expect(detailPage).toContain('router.prefetch(`/events/${id}/studio`)')
-    expect(detailPage).toContain('void preloadStudioWorkspace(id)')
+    expect(detailPage).toContain('void preloadStudioWorkspace(id, scopeFetcherKey)')
     expect(detailPage).toContain('onFocus={preloadStudioRoute}')
     expect(detailPage).toContain('onPointerDown={preloadStudioRoute}')
     expect(detailPage).toContain('onPointerEnter={preloadStudioRoute}')

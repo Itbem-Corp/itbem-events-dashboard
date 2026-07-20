@@ -110,7 +110,7 @@ export function EventDetailTabs({
   }
 
   return (
-    <div className="sticky top-[4.75rem] z-20 -mx-1 rounded-xl border border-white/[0.09] bg-canvas/90 p-1 shadow-[0_14px_38px_rgba(0,0,0,0.28)] ring-1 ring-black/20 backdrop-blur-2xl md:-mx-2 md:rounded-2xl md:p-1.5 lg:top-2">
+    <div className="sticky top-[4.75rem] z-20 -mx-1 rounded-xl border border-border-subtle bg-surface-raised/94 p-1 shadow-[0_14px_38px_var(--app-shadow-strong)] backdrop-blur-2xl md:-mx-2 md:rounded-2xl md:p-1.5 lg:top-2">
       <div
         ref={tabListRef}
         role="tablist"
@@ -122,7 +122,7 @@ export function EventDetailTabs({
           <div
             key={group}
             role="presentation"
-            className={`flex shrink-0 md:flex-col md:gap-1 ${groupIndex > 0 ? 'md:border-l md:border-white/[0.07] md:pl-1.5' : ''}`}
+            className={`flex shrink-0 md:flex-col md:gap-1 ${groupIndex > 0 ? 'md:border-l md:border-border-subtle md:pl-1.5' : ''}`}
           >
             <span
               aria-hidden="true"
@@ -154,19 +154,19 @@ export function EventDetailTabs({
                     transition={reducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 32 }}
                     whileHover={reducedMotion || isActive ? undefined : { y: -1 }}
                     className={[
-                      'group relative flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-[color,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-indigo-300 focus-visible:outline-none sm:px-3 sm:text-sm md:rounded-xl md:px-3.5 md:py-2',
+                      'group relative flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition-[color,background-color,box-shadow] focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:outline-none sm:px-3 sm:text-sm md:rounded-xl md:px-3.5 md:py-2',
                       isActive
-                        ? 'bg-gradient-to-b from-indigo-400/20 to-indigo-500/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_22px_rgba(0,0,0,0.18)] ring-1 ring-indigo-300/20'
-                        : 'text-ink-secondary hover:bg-white/[0.055] hover:text-ink',
+                        ? 'bg-(--tenant-accent)/12 text-ink shadow-[inset_0_1px_0_rgb(255_255_255_/_8%)] ring-1 ring-(--tenant-accent)/20'
+                        : 'text-ink-secondary hover:bg-surface-interactive hover:text-ink',
                     ].join(' ')}
                   >
                     <Icon
                       aria-hidden="true"
-                      className={`size-4 shrink-0 ${isActive ? 'text-indigo-300' : 'text-ink-muted group-hover:text-ink-secondary'}`}
+                      className={`size-4 shrink-0 ${isActive ? 'text-(--tenant-accent)' : 'text-ink-muted group-hover:text-ink-secondary'}`}
                     />
                     <span>{label}</span>
                     {id === 'invitados' && guestCount > 0 && (
-                      <span className="rounded-full bg-white/[0.07] px-1.5 py-0.5 text-xs text-ink-secondary ring-1 ring-white/[0.06]">
+                      <span className="rounded-full bg-surface-soft px-1.5 py-0.5 text-xs text-ink-secondary ring-1 ring-border-subtle">
                         {guestCount}
                       </span>
                     )}

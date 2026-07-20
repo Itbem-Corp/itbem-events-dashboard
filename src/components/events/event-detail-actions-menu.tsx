@@ -48,12 +48,12 @@ export function EventDetailActionsMenu({
   }, [ensurePreviewToken, event.id, event.identifier, openingPreview])
 
   return (
-    <div className="absolute top-full left-0 z-30 mt-2 w-60 rounded-xl border border-white/10 bg-surface/95 p-1 shadow-2xl shadow-black/40 backdrop-blur-xl sm:right-0 sm:left-auto">
+    <div className="absolute top-full left-0 z-30 mt-2 w-60 rounded-xl border border-border-subtle bg-surface-raised/95 p-1 shadow-[0_20px_60px_var(--app-shadow-strong)] backdrop-blur-xl sm:right-0 sm:left-auto">
       <button
         type="button"
         onClick={handleOpenPreview}
         disabled={openingPreview}
-        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-white/5 hover:text-white focus-visible:bg-white/5 focus-visible:outline-none disabled:opacity-50"
+        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-surface-interactive hover:text-ink focus-visible:bg-surface-interactive focus-visible:outline-none disabled:opacity-50"
       >
         <ArrowTopRightOnSquareIcon className="size-4 text-ink-muted" />
         {openingPreview ? 'Abriendo preview…' : 'Abrir vista previa'}
@@ -62,7 +62,7 @@ export function EventDetailActionsMenu({
         href={publicUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink-secondary transition-colors hover:bg-white/5 hover:text-white focus-visible:bg-white/5 focus-visible:outline-none"
+        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink-secondary transition-colors hover:bg-surface-interactive hover:text-ink focus-visible:bg-surface-interactive focus-visible:outline-none"
       >
         <ArrowTopRightOnSquareIcon className="size-4 text-ink-muted" />
         Ver página pública
@@ -72,12 +72,12 @@ export function EventDetailActionsMenu({
         onFocus={onEditIntent}
         onPointerEnter={onEditIntent}
         onClick={onEdit}
-        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-white/5 hover:text-white focus-visible:bg-white/5 focus-visible:outline-none"
+        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary transition-colors hover:bg-surface-interactive hover:text-ink focus-visible:bg-surface-interactive focus-visible:outline-none"
       >
         <PencilSquareIcon className="size-4 text-ink-muted" />
         Editar información
       </button>
-      <div className="mt-1 flex items-center justify-between gap-4 border-t border-white/8 px-3 py-2.5 text-xs text-ink-secondary">
+      <div className="mt-1 flex items-center justify-between gap-4 border-t border-border-subtle px-3 py-2.5 text-xs text-ink-secondary">
         <span>{event.is_active ? 'Evento activo' : 'Evento inactivo'}</span>
         <EventActiveToggle event={event} onPublicContentChanged={onPublicContentChanged} />
       </div>

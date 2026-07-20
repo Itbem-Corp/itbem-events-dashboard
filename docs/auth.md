@@ -37,10 +37,12 @@ The password is never stored or logged by the application.
 
 ## Session renewal
 
-`GET /api/auth/token` returns the current ID token to the in-memory API client.
-When refreshing, it obtains a new Cognito ID token and repeats the application
-access check. Revoked product access therefore cannot survive indefinitely in a
-refresh token.
+`POST /api/auth/token` returns the current ID token only to the in-memory API
+client and verifies the application session in the same response. When the ID
+token is near expiry, it obtains a new token from Cognito and repeats the
+application access check. The dashboard revalidates session capabilities and
+organization access periodically and when the tab returns to focus. Revoked
+product access therefore cannot survive indefinitely in a refresh token.
 
 Authenticated API requests include:
 
@@ -73,12 +75,13 @@ Customer portals never inherit platform-root authority.
 | Cookie | Purpose | Typical TTL |
 | --- | --- | --- |
 | `session` | Cognito ID token | 1 hour |
-| `refresh_token` | Session renewal | configured Cognito client lifetime |
+| `refresh_token` | Session renewal | 5 days (Cognito client lifetime) |
 | `auth_challenge_*` | Temporary password or MFA transaction | 10 minutes |
 
-All authentication responses are private/no-store. Challenge cookies use
-SameSite Strict. Logout revokes the Cognito refresh token and clears every
-authentication cookie.
+All authentication responses are private/no-store. Refresh and challenge
+cookies use SameSite Strict. Logout uses a same-origin POST, revokes the
+Cognito refresh token, clears every authentication cookie and synchronizes the
+sign-out across open dashboard tabs.
 
 ## Local domains
 

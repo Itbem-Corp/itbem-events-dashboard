@@ -5,7 +5,7 @@ import type { ApplicationSession } from '@/models/ApplicationSession'
 import type { NextRequest } from 'next/server'
 
 export type ApplicationAccessCheck =
-  | { ok: true; session?: ApplicationSession }
+  | { ok: true; session: ApplicationSession }
   | { ok: false; status: 403 | 503; error: string }
 
 // Cognito proves identity. This preflight proves that the identity may enter
@@ -27,6 +27,13 @@ export async function verifyApplicationAccess(
       // the sign-in route avoids a second /api/session request after login.
       const payload = await response.json().catch(() => undefined)
       const session = normalizeKeys(readApiData(payload)) as ApplicationSession | undefined
+      if (!session?.application || !session.user) {
+        console.error('Application session response was incomplete', {
+          requestHost: request.nextUrl.hostname,
+          backendHost: new URL(backend).host,
+        })
+        return { ok: false, status: 503, error: 'No pudimos verificar el acceso en este momento. Intenta nuevamente.' }
+      }
       return { ok: true, session }
     }
     if (response.status === 403) {

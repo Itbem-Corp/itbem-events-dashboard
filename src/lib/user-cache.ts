@@ -3,6 +3,7 @@ import { usersAllPath } from '@/lib/api-paths'
 import { cacheRecordId } from '@/lib/cache-record'
 import { normalizeKeys } from '@/lib/normalizer'
 import type { AdminUserListItemResponse, AdminUserResponse } from '@/models/User'
+import { requestPathFromUnknownKey } from '@/lib/request-context'
 
 type RecordValue = Record<string, unknown>
 type UserCacheInput = (Partial<AdminUserListItemResponse> & AdminUserResponse) | AdminUserListItemResponse
@@ -42,10 +43,11 @@ function mapUserListPayload(
   return mapApiListItems<AdminUserListItemResponse>(payload, mapper, { adjustTotal: true })
 }
 
-export function isUsersAllCacheKey(key: unknown): key is string {
-  if (typeof key !== 'string') return false
+export function isUsersAllCacheKey(key: unknown): boolean {
+  const path = requestPathFromUnknownKey(key)
+  if (!path) return false
   const basePath = usersAllPath()
-  return key === basePath || key.startsWith(`${basePath}?`)
+  return path === basePath || path.startsWith(`${basePath}?`)
 }
 
 export function patchUserCacheValue(

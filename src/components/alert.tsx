@@ -28,7 +28,7 @@ export function Alert({
     <Headless.Dialog {...props} className="relative z-50">
       <Headless.DialogBackdrop
         transition
-        className="fixed inset-0 flex w-screen justify-center overflow-y-auto bg-canvas/15 px-2 py-2 transition duration-100 focus:outline-0 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:px-6 sm:py-8 lg:px-8 lg:py-16 dark:bg-canvas/50"
+        className="fixed inset-0 flex w-screen justify-center overflow-y-auto bg-[rgb(15_23_42_/_24%)] px-2 py-2 backdrop-blur-[2px] transition duration-100 focus:outline-0 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:px-6 sm:py-8 lg:px-8 lg:py-16 dark:bg-[rgb(2_6_12_/_58%)]"
       />
 
       <div className="fixed inset-0 w-screen overflow-y-auto pt-6 sm:pt-0">
@@ -38,7 +38,7 @@ export function Alert({
             className={clsx(
               className,
               sizes[size],
-              'row-start-2 w-full rounded-2xl bg-white p-8 shadow-lg ring-1 ring-border-subtle sm:rounded-2xl sm:p-6 dark:bg-surface dark:ring-white/10 forced-colors:outline',
+              'row-start-2 w-full rounded-2xl bg-surface-raised p-8 shadow-[0_24px_72px_var(--app-shadow-strong)] ring-1 ring-border-subtle sm:rounded-2xl sm:p-6 forced-colors:outline',
               'transition duration-100 will-change-transform data-closed:opacity-0 data-enter:ease-out data-closed:data-enter:scale-95 data-leave:ease-in'
             )}
           >
@@ -59,7 +59,7 @@ export function AlertTitle({
       {...props}
       className={clsx(
         className,
-        'text-center text-base/6 font-semibold text-balance text-ink sm:text-left sm:text-sm/6 sm:text-wrap dark:text-white'
+        'text-center text-base/6 font-semibold text-balance text-ink sm:text-left sm:text-sm/6 sm:text-wrap'
       )}
     />
   )
