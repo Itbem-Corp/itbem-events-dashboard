@@ -3,7 +3,7 @@
 import { Avatar } from '@/components/avatar'
 import clsx from 'clsx'
 
-type User = {
+export type UserAvatarUser = {
     first_name?: string
     last_name?: string
     email?: string
@@ -11,7 +11,7 @@ type User = {
 }
 
 type Props = {
-    user?: User | null
+    user?: UserAvatarUser | null
     size?: 'sm' | 'md' | 'lg' | 'xl'
     className?: string
 }

@@ -53,15 +53,9 @@ setup('authenticate', async ({ page }) => {
   await page.waitForURL('http://localhost:3000/**', { timeout: 15_000 })
   await expect(page).not.toHaveURL(/login/)
 
-  await page.waitForFunction(() => {
-    const persisted = window.localStorage.getItem('eventi-storage')
-    if (!persisted) return false
-    try {
-      const state = JSON.parse(persisted)?.state
-      return Boolean(state?.user && (state.user.is_root || state.currentClient?.id))
-    } catch {
-      return false
-    }
+  await page.waitForFunction(async () => {
+    const response = await fetch('/api/auth/token', { method: 'POST', cache: 'no-store' })
+    return response.ok
   }, undefined, { timeout: 15_000 })
 
   // Save auth state — reused by all test specs

@@ -14,6 +14,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useListViewState } from '@/hooks/useListViewState'
+import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import { accessCan, createAccessProfile } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { scopedEventsPagePath } from '@/lib/api-paths'
@@ -62,7 +63,7 @@ const EventDeleteModal = dynamic(() => loadEventDeleteModal().then((module) => m
 const EventListActionsMenu = dynamic(() => loadEventListActionsMenu().then((module) => module.EventListActionsMenu), {
   ssr: false,
   loading: () => (
-    <div className="absolute top-full right-0 z-30 mt-2 h-36 w-52 animate-pulse rounded-xl border border-white/10 bg-surface" />
+    <div className="absolute top-full right-0 z-30 mt-2 h-36 w-52 animate-pulse rounded-xl border border-border-subtle bg-surface-raised" />
   ),
 })
 
@@ -118,6 +119,7 @@ function EventMomentsBadge({ pending }: { pending: number }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EventsPage() {
+  const scopeFetcherKey = useScopedFetcherScope()
   const router = useRouter()
   const currentClient = useStore((s) => s.currentClient)
   const user = useStore((s) => s.user)
@@ -153,13 +155,14 @@ export default function EventsPage() {
     search: debouncedSearch,
     filter,
   })
+  const scopedSWRKey = useScopedFetcherKey(swrKey)
   const {
     data: rawEvents,
     isLoading,
     isValidating,
     error,
     mutate: mutateEvents,
-  } = useSWR<EventListPage>(swrKey, fetcher, {
+  } = useSWR<EventListPage>(scopedSWRKey, fetcher, {
     ...responsiveListSwrOptions,
     keepPreviousData: true,
   })
@@ -194,19 +197,19 @@ export default function EventsPage() {
   const preloadEventDetail = useCallback(
     (event: Event) => {
       router.prefetch(`/events/${event.id}`)
-      void preloadEventWorkspace(event).catch(() => undefined)
+      void preloadEventWorkspace(event, scopeFetcherKey).catch(() => undefined)
     },
-    [router]
+    [router, scopeFetcherKey]
   )
 
   const preloadEventStudio = useCallback(
     (event: Event) => {
       router.prefetch(`/events/${event.id}/studio`)
       void import('@/components/studio/preload-studio-panel')
-        .then((module) => module.preloadStudioWorkspace(event.id))
+        .then((module) => module.preloadStudioWorkspace(event.id, scopeFetcherKey))
         .catch(() => undefined)
     },
-    [router]
+    [router, scopeFetcherKey]
   )
 
   useEffect(() => {
@@ -224,11 +227,11 @@ export default function EventsPage() {
         filter,
       })
       if (!nextPath) return
-      void Promise.resolve(preload(nextPath, fetcher))
+      void Promise.resolve(preload(scopeFetcherKey(nextPath), fetcher))
         .then(() => undefined)
         .catch(() => undefined)
     },
-    [currentClient?.id, debouncedSearch, filter, isRoot]
+    [currentClient?.id, debouncedSearch, filter, isRoot, scopeFetcherKey]
   )
 
   const saveEventInCurrentPage = useCallback(
@@ -372,7 +375,7 @@ export default function EventsPage() {
                   'flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-medium whitespace-nowrap transition-colors',
                   filter === tab.id
                     ? 'bg-(--tenant-accent)/10 text-ink shadow-sm ring-1 ring-(--tenant-accent)/18'
-                    : 'text-ink-muted hover:bg-white/[0.035] hover:text-ink',
+                    : 'text-ink-muted hover:bg-surface-interactive hover:text-ink',
                 ].join(' ')}
               >
                 {tab.label}
@@ -380,7 +383,7 @@ export default function EventsPage() {
                   <span
                     className={[
                       'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                      filter === tab.id ? 'bg-indigo-500/20 text-indigo-300' : 'bg-surface-raised/80 text-ink-muted',
+                      filter === tab.id ? 'bg-(--tenant-accent)/15 text-(--tenant-accent)' : 'bg-surface-raised text-ink-muted',
                     ].join(' ')}
                   >
                     {tab.count}
@@ -407,9 +410,9 @@ export default function EventsPage() {
 
       {/* List */}
       {isLoading ? (
-        <div className="mt-8 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02]">
+        <div className="mt-8 overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="flex animate-pulse items-center gap-4 border-b border-white/6 p-5 last:border-b-0">
+            <div key={i} className="flex animate-pulse items-center gap-4 border-b border-border-subtle p-5 last:border-b-0">
               <div className="size-14 shrink-0 rounded-xl bg-surface-raised" />
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="h-4 w-3/4 max-w-[12rem] rounded bg-surface-raised" />
@@ -425,7 +428,7 @@ export default function EventsPage() {
           ))}
         </div>
       ) : events.length === 0 ? (
-        <div className="mt-8 rounded-2xl border border-white/7 bg-white/[0.02]">
+        <div className="mt-8 rounded-2xl border border-border-subtle bg-surface-raised">
           {debouncedSearch || filter !== 'all' ? (
             <div className="py-16 text-center">
               <MagnifyingGlassIcon className="mx-auto mb-3 size-8 text-ink-muted" />
@@ -435,7 +438,7 @@ export default function EventsPage() {
                   setSearch('')
                   setFilter('all')
                 }}
-                className="mt-3 text-xs text-indigo-400 transition-colors hover:text-indigo-300"
+                className="mt-3 text-xs text-(--tenant-accent) transition-colors hover:text-ink"
               >
                 Limpiar filtros
               </button>
@@ -456,7 +459,7 @@ export default function EventsPage() {
           )}
         </div>
       ) : (
-        <ul className="mt-6 divide-y divide-white/6 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02] shadow-xl shadow-black/5">
+        <ul className="mt-6 divide-y divide-border-subtle overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised shadow-[0_12px_32px_var(--app-shadow)]">
           {events.map((event) => {
             const days = getDaysUntil(event.event_date_time, event.timezone) ?? 0
             const isPast = days < 0
@@ -469,8 +472,8 @@ export default function EventsPage() {
                   onPointerDown={() => preloadEventDetail(event)}
                   onFocusCapture={() => preloadEventDetail(event)}
                   className={[
-                    'group relative flex items-center gap-3 p-4 transition-colors focus-within:ring-2 focus-within:ring-pink-400/60 focus-within:ring-inset sm:gap-4 sm:p-5',
-                    isPast ? 'hover:bg-white/[0.02]' : 'hover:bg-white/[0.035]',
+                    'group relative flex items-center gap-3 p-4 transition-colors focus-within:ring-2 focus-within:ring-(--tenant-accent) focus-within:ring-inset sm:gap-4 sm:p-5',
+                    isPast ? 'hover:bg-surface-soft' : 'hover:bg-surface-interactive',
                   ].join(' ')}
                 >
                   <Link
@@ -495,11 +498,11 @@ export default function EventsPage() {
                       <div
                         className={[
                           'flex size-12 items-center justify-center rounded-xl sm:size-16',
-                          isPast ? 'bg-surface-raised/50' : 'bg-indigo-500/10',
+                          isPast ? 'bg-surface-soft' : 'bg-(--tenant-accent)/10',
                         ].join(' ')}
                       >
                         <CalendarDaysIcon
-                          className={['size-5 sm:size-6', isPast ? 'text-ink-muted' : 'text-indigo-400'].join(' ')}
+                          className={['size-5 sm:size-6', isPast ? 'text-ink-muted' : 'text-(--tenant-accent)'].join(' ')}
                         />
                       </div>
                     )}
@@ -510,7 +513,7 @@ export default function EventsPage() {
                     <div className="flex min-w-0 items-center gap-x-2">
                       <span
                         className={[
-                          'min-w-0 truncate text-sm font-semibold transition-colors group-hover:text-white sm:text-base',
+                          'min-w-0 truncate text-sm font-semibold transition-colors group-hover:text-(--tenant-accent) sm:text-base',
                           'text-ink',
                         ].join(' ')}
                       >
@@ -579,7 +582,7 @@ export default function EventsPage() {
                           onPointerEnter={preloadEventActions}
                           onPointerDown={preloadEventActions}
                           onFocus={preloadEventActions}
-                          className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-white/5 hover:text-ink focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+                          className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-interactive hover:text-ink focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:outline-none [&::-webkit-details-marker]:hidden"
                         >
                           <EllipsisVerticalIcon className="size-5" />
                         </summary>

@@ -1,6 +1,7 @@
 ﻿import type { WorkspaceMode } from '@/lib/access-profile'
 import type { TenantCode } from '@/lib/tenant-config'
 import type { ApplicationSession } from '@/models/ApplicationSession'
+import type { OrganizationContextCredential } from '@/lib/request-context'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -58,6 +59,7 @@ interface AppState {
   workspaceMode: WorkspaceMode
   activeTenantCode: TenantCode | null
   workspaceContexts: Partial<Record<TenantCode, TenantWorkspaceContext>>
+  organizationContext: OrganizationContextCredential | null
 
   // Bootstrap control
   profileLoaded: boolean
@@ -71,7 +73,8 @@ interface AppState {
   setCurrentClient: (client: Client | null) => void
   activateTenantWorkspace: (tenantCode: TenantCode, canUsePlatformMode: boolean) => void
   selectPlatformWorkspace: (tenantCode: TenantCode) => void
-  selectOrganizationWorkspace: (tenantCode: TenantCode, client: Client) => void
+  selectOrganizationWorkspace: (tenantCode: TenantCode, client: Client, credential?: OrganizationContextCredential) => void
+  setOrganizationContextCredential: (credential: OrganizationContextCredential | null) => void
   clearSession: () => void
 }
 
@@ -90,6 +93,7 @@ export const useStore = create<AppState>()(
       workspaceMode: 'organization',
       activeTenantCode: null,
       workspaceContexts: {},
+      organizationContext: null,
       profileLoaded: false,
 
       // --- ACTIONS ---
@@ -135,9 +139,10 @@ export const useStore = create<AppState>()(
       setCurrentClient: (client) =>
         set((state) => {
           const tenantCode = state.activeTenantCode
-          if (!tenantCode) return { currentClient: client }
+          if (!tenantCode) return { currentClient: client, organizationContext: null }
           return {
             currentClient: client,
+            organizationContext: null,
             workspaceMode: client ? 'organization' : state.workspaceMode,
             workspaceContexts: {
               ...state.workspaceContexts,
@@ -164,6 +169,7 @@ export const useStore = create<AppState>()(
             activeTenantCode: tenantCode,
             workspaceMode: mode,
             currentClient: mode === 'organization' ? (saved?.organization ?? null) : null,
+            organizationContext: null,
           }
         }),
 
@@ -172,21 +178,31 @@ export const useStore = create<AppState>()(
           activeTenantCode: tenantCode,
           workspaceMode: 'platform',
           currentClient: null,
+          organizationContext: null,
           workspaceContexts: {
             ...state.workspaceContexts,
             [tenantCode]: { mode: 'platform', organization: null },
           },
         })),
 
-      selectOrganizationWorkspace: (tenantCode, client) =>
+      selectOrganizationWorkspace: (tenantCode, client, credential) =>
         set((state) => ({
           activeTenantCode: tenantCode,
           workspaceMode: 'organization',
           currentClient: client,
+          organizationContext: credential ?? null,
           workspaceContexts: {
             ...state.workspaceContexts,
             [tenantCode]: { mode: 'organization', organization: client },
           },
+        })),
+
+      setOrganizationContextCredential: (credential) =>
+        set((state) => ({
+          organizationContext:
+            credential && state.workspaceMode === 'organization' && state.currentClient?.id === credential.organizationId
+              ? credential
+              : null,
         })),
 
       /**
@@ -201,26 +217,27 @@ export const useStore = create<AppState>()(
           workspaceMode: 'organization',
           activeTenantCode: null,
           workspaceContexts: {},
+          organizationContext: null,
           profileLoaded: false,
         }),
     }),
     {
       name: 'eventi-storage',
-      version: 1,
+      version: 2,
       skipHydration: true,
       migrate: (persistedState, version) => {
         const persisted = (persistedState ?? {}) as {
-          user?: User | null
           workspaceContexts?: Partial<Record<TenantCode, TenantWorkspaceContext>>
         }
         return {
-          user: persisted.user ?? null,
+          // Identity, profile image, roles and capabilities must always come
+          // from the current server-verified ApplicationSession, never from
+          // browser storage left by a previous login.
           workspaceContexts: version < 1 ? {} : (persisted.workspaceContexts ?? {}),
         }
       },
 
       partialize: (state) => ({
-        user: state.user,
         workspaceContexts: state.workspaceContexts,
       }),
     }

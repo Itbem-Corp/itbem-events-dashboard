@@ -17,6 +17,7 @@ describe('client cache mutations', () => {
   it('matches legacy and paginated client cache keys', () => {
     expect(isClientsCacheKey('/clients')).toBe(true)
     expect(isClientsCacheKey('/clients?page=2&page_size=12')).toBe(true)
+    expect(isClientsCacheKey(['/clients?page=2&page_size=12', 'itbem', 'organization', 'client-1'])).toBe(true)
     expect(isClientsCacheKey('/clients/children?parent_id=one')).toBe(false)
   })
   it('seeds empty caches when upserting a client', () => {

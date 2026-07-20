@@ -3,6 +3,7 @@ import {
   PRIVATE_NO_STORE_HEADERS,
   REFRESH_TOKEN_MAX_AGE_SECONDS,
   authCookieOptions,
+  refreshCookieOptions,
   sessionMaxAge,
 } from '@/lib/auth-session'
 import {
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
 
     if (typeof tokens.refresh_token === 'string' && tokens.refresh_token) {
       response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, tokens.refresh_token, {
-        ...cookieOptions,
+        ...refreshCookieOptions(),
         maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS,
       })
     } else {

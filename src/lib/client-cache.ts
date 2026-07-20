@@ -3,6 +3,7 @@ import { clientsPath } from '@/lib/api-paths'
 import { cacheRecordId } from '@/lib/cache-record'
 import { normalizeKeys } from '@/lib/normalizer'
 import type { Client } from '@/models/Client'
+import { requestPathFromUnknownKey } from '@/lib/request-context'
 
 type RecordValue = Record<string, unknown>
 
@@ -32,8 +33,9 @@ function mapClientListPayload(payload: unknown, mapper: (clients: Client[]) => C
   return mapApiListItems<Client>(payload, mapper, { adjustTotal: true })
 }
 
-export function isClientsCacheKey(key: unknown): key is string {
-  return typeof key === 'string' && (key === clientsPath() || key.startsWith(`${clientsPath()}?`))
+export function isClientsCacheKey(key: unknown): boolean {
+  const path = requestPathFromUnknownKey(key)
+  return Boolean(path && (path === clientsPath() || path.startsWith(`${clientsPath()}?`)))
 }
 
 export function upsertClientCacheValue(payload: unknown, client: Client | null | undefined): unknown {

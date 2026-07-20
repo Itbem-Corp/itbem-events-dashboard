@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { ExclamationTriangleIcon } from '@heroicons/react/20/solid'
 
 interface ErrorBoundaryState {
   hasError: boolean
@@ -27,22 +28,10 @@ export class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-[50vh] flex-col items-center justify-center px-4 text-center">
-          <div className="rounded-2xl border border-white/10 bg-surface px-10 py-12 max-w-sm w-full">
-            <div className="flex size-14 items-center justify-center rounded-xl bg-red-500/10 border border-red-500/20 mx-auto mb-6">
-              <svg
-                className="size-7 text-red-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
-                />
-              </svg>
+        <div className="flex min-h-[50vh] flex-col items-center justify-center px-4 text-center" role="alert" aria-live="assertive">
+          <div className="w-full max-w-sm rounded-2xl border border-red-500/20 bg-surface-raised px-8 py-10 shadow-[0_18px_48px_var(--app-shadow-strong)] sm:px-10 sm:py-12">
+            <div className="mx-auto mb-6 flex size-14 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10">
+              <ExclamationTriangleIcon className="size-7 text-red-700 dark:text-red-300" aria-hidden="true" />
             </div>
             <h2 className="text-base font-semibold text-ink">
               Algo salió mal
@@ -51,8 +40,9 @@ export class ErrorBoundary extends React.Component<
               Ocurrió un error inesperado. Por favor recarga la página.
             </p>
             <button
+              type="button"
               onClick={() => window.location.reload()}
-              className="mt-6 w-full rounded-lg bg-surface-soft px-4 py-2 text-sm font-medium text-ink hover:bg-zinc-600 transition-colors"
+              className="mt-6 min-h-11 w-full rounded-xl border border-border-subtle bg-surface-interactive px-4 py-2 text-sm font-semibold text-ink transition-[border-color,background-color] hover:border-border-strong hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)"
             >
               Recargar página
             </button>

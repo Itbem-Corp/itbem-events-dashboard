@@ -13,6 +13,7 @@ describe('isEventCacheKey', () => {
     expect(isEventCacheKey('/events', 'evt-1')).toBe(true)
     expect(isEventCacheKey('/events?client_id=client-1', 'evt-1')).toBe(true)
     expect(isEventCacheKey('/events/evt-1/detail', 'evt-1')).toBe(true)
+    expect(isEventCacheKey(['/events/evt-1/detail', 'itbem', 'organization', 'client-1'], 'evt-1')).toBe(true)
 
     expect(isEventCacheKey('/events/evt-1/config', 'evt-1')).toBe(false)
     expect(isEventCacheKey('/events/evt-1/sections', 'evt-1')).toBe(false)
@@ -24,7 +25,7 @@ describe('isEventCacheKey', () => {
 describe('findEventInListCache', () => {
   it('reuses a scoped list snapshot from the SWR cache', () => {
     const cache = new Map<unknown, unknown>([
-      ['/events?client_id=client-1', { data: [{ id: 'evt-1', name: 'Evento inmediato' }] }],
+      [[ '/events?client_id=client-1', 'eventiapp', 'organization', 'client-1' ], { data: [{ id: 'evt-1', name: 'Evento inmediato' }] }],
       [['moment-summaries'], { data: [] }],
     ])
 

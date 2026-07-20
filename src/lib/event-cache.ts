@@ -3,6 +3,7 @@ import { eventDetailPath, eventsDashboardPath, eventsPath } from '@/lib/api-path
 import { cacheRecordId } from '@/lib/cache-record'
 import { normalizeKeys } from '@/lib/normalizer'
 import type { Event } from '@/models/Event'
+import { requestPathFromUnknownKey } from '@/lib/request-context'
 
 type RecordValue = Record<string, unknown>
 
@@ -15,23 +16,25 @@ function normalizeEventCacheRecord<T extends Partial<Event>>(event: T): T {
   return isRecord(normalized) ? (normalized as T) : event
 }
 
-export function isEventListCacheKey(key: unknown): key is string {
-  return typeof key === 'string' && (key === eventsPath() || key.startsWith(`${eventsPath()}?`))
+export function isEventListCacheKey(key: unknown): boolean {
+  const path = requestPathFromUnknownKey(key)
+  return Boolean(path && (path === eventsPath() || path.startsWith(`${eventsPath()}?`)))
 }
 
-export function isEventOverviewCacheKey(key: unknown): key is string {
-  return typeof key === 'string' && (key === eventsDashboardPath() || key.startsWith(`${eventsDashboardPath()}?`))
+export function isEventOverviewCacheKey(key: unknown): boolean {
+  const path = requestPathFromUnknownKey(key)
+  return Boolean(path && (path === eventsDashboardPath() || path.startsWith(`${eventsDashboardPath()}?`)))
 }
 
-export function isEventCollectionCacheKey(key: unknown): key is string {
+export function isEventCollectionCacheKey(key: unknown): boolean {
   return isEventListCacheKey(key) || isEventOverviewCacheKey(key)
 }
 
-export function isEventDetailCacheKey(key: unknown, eventId: string | number): key is string {
-  return key === eventDetailPath(eventId)
+export function isEventDetailCacheKey(key: unknown, eventId: string | number): boolean {
+  return requestPathFromUnknownKey(key) === eventDetailPath(eventId)
 }
 
-export function isEventCacheKey(key: unknown, eventId: string | number): key is string {
+export function isEventCacheKey(key: unknown, eventId: string | number): boolean {
   return isEventListCacheKey(key) || isEventDetailCacheKey(key, eventId)
 }
 

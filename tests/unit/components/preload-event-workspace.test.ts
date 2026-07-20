@@ -3,7 +3,9 @@ import {
   eventWorkspacePreloaders,
   preloadEventWorkspace,
 } from '@/components/events/preload-event-workspace'
+import { eventDetailPath } from '@/lib/api-paths'
 import type { Event } from '@/models/Event'
+import type { ScopedFetcherScope } from '@/lib/request-context'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const event = {
@@ -18,6 +20,9 @@ const event = {
   updated_at: '2026-07-01T00:00:00.000Z',
 } satisfies Event
 
+const scope: ScopedFetcherScope = (path) => [path, 'eventiapp', 'organization', 'client-1']
+const detailKey = scope(eventDetailPath(event.id))
+
 afterEach(() => {
   eventWorkspaceCache.clear()
   vi.restoreAllMocks()
@@ -25,13 +30,22 @@ afterEach(() => {
 
 describe('preloadEventWorkspace', () => {
   it('keeps a synchronous normalized snapshot for the first detail paint', async () => {
-    await eventWorkspaceCache.prime({ ...event, identifier: '', timezone: '' })
+    await eventWorkspaceCache.prime({ ...event, identifier: '', timezone: '' }, detailKey)
 
-    expect(eventWorkspaceCache.peek(event.id)).toMatchObject({
+    expect(eventWorkspaceCache.peek(detailKey)).toMatchObject({
       id: event.id,
       identifier: event.id,
       timezone: 'America/Mexico_City',
     })
+  })
+
+  it('does not expose a snapshot to another product context with the same event id', async () => {
+    await eventWorkspaceCache.prime(event, detailKey)
+    const otherProductKey = [eventDetailPath(event.id), 'itbem', 'organization', 'client-1'] as const
+
+    expect(eventWorkspaceCache.peek(detailKey)).toMatchObject({ id: event.id })
+    expect(eventWorkspaceCache.peek(otherProductKey)).toBeUndefined()
+    expect(eventWorkspaceCache.hasAuthoritative(otherProductKey)).toBe(false)
   })
 
   it('primes the visible list snapshot and refreshes the composed detail', async () => {
@@ -39,11 +53,11 @@ describe('preloadEventWorkspace', () => {
     const detail = vi.spyOn(eventWorkspacePreloaders, 'detail').mockResolvedValue(event)
     const eventTypes = vi.spyOn(eventWorkspacePreloaders, 'eventTypes').mockResolvedValue([])
 
-    await preloadEventWorkspace(event)
+    await preloadEventWorkspace(event, scope)
 
-    expect(prime).toHaveBeenCalledWith(event)
-    expect(detail).toHaveBeenCalledWith(event.id)
-    expect(eventTypes).toHaveBeenCalledOnce()
+    expect(prime).toHaveBeenCalledWith(event, detailKey)
+    expect(detail).toHaveBeenCalledWith(event.id, scope)
+    expect(eventTypes).toHaveBeenCalledWith(scope)
   })
 
   it('does not let an already resolved event type compete with critical detail data', async () => {
@@ -59,7 +73,7 @@ describe('preloadEventWorkspace', () => {
         created_at: '2026-07-01T00:00:00.000Z',
         updated_at: '2026-07-01T00:00:00.000Z',
       },
-    })
+    }, scope)
 
     expect(eventTypes).not.toHaveBeenCalled()
   })
@@ -71,11 +85,11 @@ describe('preloadEventWorkspace', () => {
       guest_share_summary: { total: 4, with_email: 4, with_phone: 2, pending_with_email: 2 },
       event_sections: [],
     }
-    eventWorkspaceCache.rememberAuthoritative(composedEvent)
+    eventWorkspaceCache.rememberAuthoritative(composedEvent, detailKey)
     const prime = vi.spyOn(eventWorkspaceCache, 'prime')
     const detail = vi.spyOn(eventWorkspacePreloaders, 'detail').mockResolvedValue(composedEvent)
 
-    const result = await preloadEventWorkspace({ ...event, name: 'Snapshot reducido' })
+    const result = await preloadEventWorkspace({ ...event, name: 'Snapshot reducido' }, scope)
 
     expect(prime).not.toHaveBeenCalled()
     expect(detail).not.toHaveBeenCalled()

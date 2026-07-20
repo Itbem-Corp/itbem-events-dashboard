@@ -5,6 +5,7 @@ import { Button } from '@/components/button'
 import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
+import { useScopedFetcherKey } from '@/hooks/useScopedFetcherKey'
 import { accessCan, createAccessProfile } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { metricsPortfolioPath } from '@/lib/api-paths'
@@ -96,7 +97,7 @@ function ProductCard({ row, index }: { row: ProductMetricSummary; index: number 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Producto</p>
-          <h2 className="mt-1 text-lg font-semibold text-white">{PRODUCT_NAMES[row.tenant_code] ?? row.tenant_code}</h2>
+          <h2 className="mt-1 text-lg font-semibold text-ink">{PRODUCT_NAMES[row.tenant_code] ?? row.tenant_code}</h2>
           <p className="mt-0.5 truncate text-xs text-ink-muted">{row.client_name || 'Tráfico general del producto'}</p>
         </div>
         <Badge color={successRate >= 99 ? 'lime' : successRate >= 97 ? 'amber' : 'red'}>
@@ -105,15 +106,15 @@ function ProductCard({ row, index }: { row: ProductMetricSummary; index: number 
       </div>
       <div className="mt-7 grid grid-cols-2 gap-4">
         <div>
-          <p className="text-2xl font-semibold text-white tabular-nums">{compact(row.requests)}</p>
+          <p className="text-2xl font-semibold text-ink tabular-nums">{compact(row.requests)}</p>
           <p className="mt-1 text-xs text-ink-muted">solicitudes</p>
         </div>
         <div>
-          <p className="text-2xl font-semibold text-white tabular-nums">{compact(row.mutations)}</p>
+          <p className="text-2xl font-semibold text-ink tabular-nums">{compact(row.mutations)}</p>
           <p className="mt-1 text-xs text-ink-muted">acciones de valor</p>
         </div>
       </div>
-      <div className="mt-5 flex items-center justify-between border-t border-white/[0.07] pt-4 text-xs text-ink-muted">
+      <div className="mt-5 flex items-center justify-between border-t border-border-subtle pt-4 text-xs text-ink-muted">
         <span>{latency} ms promedio</span>
         <span>{row.active_users} activos</span>
       </div>
@@ -135,13 +136,14 @@ export default function MetricsPage() {
   const isRoot = Boolean(user?.is_root)
   const clientId = accessProfile.isOrganizationContext ? currentClient?.id : undefined
   const key = canView && (isRoot || clientId) ? metricsPortfolioPath(clientId, days) : null
+  const scopedKey = useScopedFetcherKey(key)
   const {
     data: raw,
     error,
     isLoading,
     isValidating,
     mutate,
-  } = useSWR<ProductMetricsPortfolio>(key, fetcher, responsiveListSwrOptions)
+  } = useSWR<ProductMetricsPortfolio>(scopedKey, fetcher, responsiveListSwrOptions)
   const portfolio = useMemo(() => readApiData<ProductMetricsPortfolio | undefined>(raw), [raw])
   const errorState = getDataErrorState(error, raw)
   const totals = useMemo(() => aggregate(portfolio?.summaries ?? []), [portfolio?.summaries])
@@ -162,7 +164,7 @@ export default function MetricsPage() {
       <PageTransition>
         <div className="premium-surface flex min-h-80 flex-col items-center justify-center rounded-3xl px-6 text-center">
           <ChartBarSquareIcon className="size-9 text-ink-muted" />
-          <h1 className="mt-4 text-lg font-semibold text-white">Métricas no disponibles</h1>
+          <h1 className="mt-4 text-lg font-semibold text-ink">Métricas no disponibles</h1>
           <p className="mt-1 text-sm text-ink-muted">Tu rol no incluye acceso a analítica operativa.</p>
         </div>
       </PageTransition>
@@ -202,7 +204,7 @@ export default function MetricsPage() {
       {errorState === 'fatal' ? (
         <div className="mt-8 flex min-h-72 flex-col items-center justify-center rounded-3xl border border-red-500/15 bg-red-500/[0.035] px-6 text-center">
           <ExclamationTriangleIcon className="size-8 text-red-400" />
-          <p className="mt-4 text-sm font-medium text-white">No pudimos leer las métricas</p>
+          <p className="mt-4 text-sm font-medium text-ink">No pudimos leer las métricas</p>
           <p className="mt-1 text-sm text-ink-muted">La operación continúa normalmente. Puedes reintentar sin riesgo.</p>
           <Button className="mt-5" outline onClick={() => void mutate()}>
             <ArrowPathIcon />
@@ -244,12 +246,12 @@ export default function MetricsPage() {
                 icon: CircleStackIcon,
               },
             ].map(({ label, value, detail, icon: Icon }) => (
-              <article key={label} className="rounded-3xl border border-white/[0.07] bg-white/[0.025] p-5">
+              <article key={label} className="rounded-3xl border border-border-subtle bg-surface-raised p-5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-medium text-ink-muted">{label}</p>
                   <Icon className="size-4 text-ink-muted" />
                 </div>
-                <p className="mt-5 text-3xl font-semibold tracking-tight text-white tabular-nums">{value}</p>
+                <p className="mt-5 text-3xl font-semibold tracking-tight text-ink tabular-nums">{value}</p>
                 <p className="mt-1 text-xs text-ink-muted">{detail}</p>
               </article>
             ))}
@@ -276,7 +278,7 @@ export default function MetricsPage() {
               <div className="flex items-end justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Actividad</p>
-                  <h2 className="mt-1 text-lg font-semibold text-white">Ritmo diario de uso</h2>
+                  <h2 className="mt-1 text-lg font-semibold text-ink">Ritmo diario de uso</h2>
                 </div>
                 <p className="text-xs text-ink-muted">Solicitudes completadas por día</p>
               </div>
@@ -304,12 +306,12 @@ export default function MetricsPage() {
           )}
 
           {portfolio.summaries.some((row) => row.client_name) && (
-            <section className="mt-4 overflow-hidden rounded-3xl border border-white/[0.07]">
-              <div className="border-b border-white/[0.07] px-5 py-4">
+            <section className="mt-4 overflow-hidden rounded-3xl border border-border-subtle bg-surface-raised">
+              <div className="border-b border-border-subtle px-5 py-4">
                 <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Organizaciones</p>
-                <h2 className="mt-1 text-base font-semibold text-white">Mayor actividad del periodo</h2>
+                <h2 className="mt-1 text-base font-semibold text-ink">Mayor actividad del periodo</h2>
               </div>
-              <div className="divide-y divide-white/[0.06]">
+              <div className="divide-y divide-border-subtle">
                 {portfolio.summaries
                   .filter((row) => row.client_name)
                   .slice(0, 8)
@@ -325,7 +327,7 @@ export default function MetricsPage() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-semibold text-white tabular-nums">{compact(row.mutations)}</p>
+                        <p className="text-sm font-semibold text-ink tabular-nums">{compact(row.mutations)}</p>
                         <p className="text-[10px] text-ink-muted">acciones</p>
                       </div>
                       <div className="w-16 text-right">
@@ -344,12 +346,12 @@ export default function MetricsPage() {
               { label: 'Usuarios vinculados', value: portfolio.inventory.users, icon: UsersIcon },
               { label: 'Eventos operados', value: portfolio.inventory.events, icon: ChartBarSquareIcon },
             ].map(({ label, value, icon: Icon }) => (
-              <div key={label} className="flex items-center gap-4 rounded-2xl border border-white/[0.06] px-5 py-4">
-                <span className="flex size-10 items-center justify-center rounded-xl bg-white/[0.04] text-ink-muted">
+              <div key={label} className="flex items-center gap-4 rounded-2xl border border-border-subtle bg-surface-raised px-5 py-4">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-surface-interactive text-ink-muted">
                   <Icon className="size-5" />
                 </span>
                 <div>
-                  <p className="text-xl font-semibold text-white tabular-nums">{value.toLocaleString('es-MX')}</p>
+                  <p className="text-xl font-semibold text-ink tabular-nums">{value.toLocaleString('es-MX')}</p>
                   <p className="text-xs text-ink-muted">{label}</p>
                 </div>
               </div>

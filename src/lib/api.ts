@@ -3,10 +3,14 @@ import { useStore } from "@/store/useStore";
 import { readApiData } from "@/lib/api-envelope";
 import { normalizeBackendBaseUrl } from "@/lib/base-url";
 import { getApiErrorMessage } from "@/lib/api-error";
-import { backendBaseUrlForHostname } from "@/lib/tenant-config";
+import { backendBaseUrlForHostname, tenantCodeForHostname } from "@/lib/tenant-config";
 import { releaseMutationKey, reserveMutationKey } from "@/lib/idempotency-key";
 import { normalizeKeys } from "@/lib/normalizer";
 import { toast } from "sonner";
+import { endSession } from '@/lib/end-session'
+import { organizationContextHeaders, requestContextHeaders } from '@/lib/request-context'
+import type { TenantCode } from '@/products/core/product-manifest'
+import type { ApplicationSession } from '@/models/ApplicationSession'
 
 // 1. Leemos la URL base pública y le pegamos "/api" al final.
 // Si no existe la variable, usamos localhost como fallback.
@@ -39,15 +43,23 @@ export function normalizeApiResponseData(data: unknown, responseType?: string): 
 }
 
 let tokenPromise: Promise<string | null> | null = null;
+let sessionRefreshPromise: Promise<ApplicationSession> | null = null
+let lastSessionValidationAt = 0
 
-const getAuthToken = async (forceRefresh = false) => {
+export const SESSION_REVALIDATE_INTERVAL_MS = 5 * 60 * 1000
+export const SESSION_FOCUS_REVALIDATE_AFTER_MS = 60 * 1000
+
+export const getAuthToken = async (forceRefresh = false) => {
     const { token, setToken } = useStore.getState();
 
     if (token && !forceRefresh) return token;
 
     if (tokenPromise) return tokenPromise;
 
-    tokenPromise = fetch(forceRefresh ? "/api/auth/token?refresh=1" : "/api/auth/token")
+    tokenPromise = fetch(forceRefresh ? "/api/auth/token?refresh=1" : "/api/auth/token", {
+        method: "POST",
+        cache: "no-store",
+    })
         .then((res) => {
             if (!res.ok) {
                 const error = new Error("No session") as Error & { status?: number }
@@ -58,6 +70,10 @@ const getAuthToken = async (forceRefresh = false) => {
         })
         .then((data) => {
             setToken(data.token);
+            if (data.session) {
+                useStore.getState().setApplicationSession(data.session)
+                lastSessionValidationAt = Date.now()
+            }
             return data.token;
         })
         .finally(() => {
@@ -67,6 +83,59 @@ const getAuthToken = async (forceRefresh = false) => {
     return tokenPromise;
 };
 
+// The token endpoint verifies product access and returns the normalized
+// application session in the same response. Reusing it avoids a second
+// profile/session request during the first dashboard paint.
+export async function getApplicationSession(): Promise<ApplicationSession> {
+    await getAuthToken()
+    const session = useStore.getState().applicationSession
+    if (session) return session
+
+    const error = new Error('No se pudo recuperar la sesión de la aplicación.') as Error & { status?: number }
+    error.status = 503
+    throw error
+}
+
+// Unlike ordinary API calls, this deliberately reaches the BFF even when an
+// ID token exists in memory. It revalidates roles, organization membership and
+// product access without calling Cognito again unless the ID token is near
+// expiry. The promise prevents simultaneous tabs/components from stampeding
+// the endpoint.
+export async function refreshApplicationSession(minAgeMs = 0): Promise<ApplicationSession> {
+    const currentSession = useStore.getState().applicationSession
+    if (currentSession && Date.now() - lastSessionValidationAt < minAgeMs) return currentSession
+    if (sessionRefreshPromise) return sessionRefreshPromise
+
+    sessionRefreshPromise = fetch('/api/auth/token', {
+        method: 'POST',
+        cache: 'no-store',
+    })
+        .then(async (response) => {
+            if (!response.ok) {
+                const error = new Error('No session') as Error & { status?: number }
+                error.status = response.status
+                throw error
+            }
+            return response.json() as Promise<{ token?: string; session?: ApplicationSession }>
+        })
+        .then((data) => {
+            if (!data.token || !data.session) {
+                const error = new Error('No se pudo recuperar la sesión de la aplicación.') as Error & { status?: number }
+                error.status = 503
+                throw error
+            }
+            useStore.getState().setToken(data.token)
+            useStore.getState().setApplicationSession(data.session)
+            lastSessionValidationAt = Date.now()
+            return data.session
+        })
+        .finally(() => {
+            sessionRefreshPromise = null
+        })
+
+    return sessionRefreshPromise
+}
+
 // --- INTERCEPTOR DE REQUEST ---
 api.interceptors.request.use(async (config) => {
     const idempotentConfig = config as typeof config & IdempotentRequestConfig
@@ -74,6 +143,23 @@ api.interceptors.request.use(async (config) => {
 
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    const state = useStore.getState()
+    const sessionTenant = state.applicationSession?.application.code as TenantCode | undefined
+    const hostnameTenant = typeof window === 'undefined' ? undefined : tenantCodeForHostname(window.location.hostname)
+    const tenantCode = hostnameTenant ?? state.activeTenantCode ?? sessionTenant ?? 'eventiapp'
+    const requestContext = {
+        tenantCode,
+        workspaceMode: state.workspaceMode,
+        organizationId: state.currentClient?.id ?? null,
+    }
+    const contextHeaders = {
+        ...requestContextHeaders(requestContext, { sessionResolved: Boolean(state.applicationSession) }),
+        ...organizationContextHeaders(requestContext, state.organizationContext),
+    }
+    for (const [name, value] of Object.entries(contextHeaders)) {
+        config.headers[name] = value
     }
 
     // Axios reuses this config after an auth refresh, so an ambiguous retry
@@ -124,7 +210,7 @@ api.interceptors.response.use(
             }
 
             useStore.getState().clearSession()
-            if (typeof window !== "undefined") window.location.href = "/logout"
+            void endSession()
         } else if (status === 403) {
             toast.error(getApiErrorMessage(error, 'Sin permisos para realizar esta acción'))
         } else if (!error?.response) {

@@ -37,7 +37,7 @@ describe('persisted dashboard state', () => {
     await useStore.persist.rehydrate()
 
     expect(useStore.persist.hasHydrated()).toBe(true)
-    expect(useStore.getState().user?.email).toBe('root@example.com')
+    expect(useStore.getState().user).toBeNull()
     expect(useStore.getState().currentClient).toBeNull()
     expect(useStore.getState().workspaceContexts).toEqual({})
   })
@@ -51,5 +51,37 @@ describe('persisted dashboard state', () => {
 
     expect(rehydrate).toHaveBeenCalledOnce()
     expect(useStore.persist.hasHydrated()).toBe(true)
+  })
+
+  it('keeps organization credentials in memory and clears them on workspace changes', async () => {
+    const { useStore } = await import('@/store/useStore')
+    const client = { id: 'org-1', name: 'Org 1', code: 'ORG1', client_type: { code: 'CUSTOMER' } }
+    useStore.getState().selectOrganizationWorkspace('eventiapp', client, {
+      token: 'signed-context',
+      organizationId: 'org-1',
+      expiresAt: '2099-01-01T00:00:00Z',
+    })
+
+    expect(useStore.getState().organizationContext?.token).toBe('signed-context')
+    expect(useStore.persist.getOptions().partialize?.(useStore.getState())).not.toHaveProperty('organizationContext')
+
+    useStore.getState().selectPlatformWorkspace('eventiapp')
+    expect(useStore.getState().organizationContext).toBeNull()
+  })
+
+  it('ignores a late credential response after the selected organization changed', async () => {
+    const { useStore } = await import('@/store/useStore')
+    const first = { id: 'org-1', name: 'Org 1', code: 'ORG1', client_type: { code: 'CUSTOMER' } }
+    const second = { id: 'org-2', name: 'Org 2', code: 'ORG2', client_type: { code: 'CUSTOMER' } }
+    useStore.getState().selectOrganizationWorkspace('eventiapp', first)
+    useStore.getState().selectOrganizationWorkspace('eventiapp', second)
+    useStore.getState().setOrganizationContextCredential({
+      token: 'late-org-1-token',
+      organizationId: 'org-1',
+      expiresAt: '2099-01-01T00:00:00Z',
+    })
+
+    expect(useStore.getState().currentClient?.id).toBe('org-2')
+    expect(useStore.getState().organizationContext).toBeNull()
   })
 })

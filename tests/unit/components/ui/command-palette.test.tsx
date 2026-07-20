@@ -61,8 +61,9 @@ describe('CommandPalette', () => {
     vi.clearAllMocks()
     window.HTMLElement.prototype.scrollIntoView = vi.fn()
 
-    mocks.useSWR.mockImplementation((key: string | null) => {
-      if (key?.startsWith('/events?')) {
+    mocks.useSWR.mockImplementation((key: string | readonly unknown[] | null) => {
+      const path = Array.isArray(key) ? key[0] : key
+      if (typeof path === 'string' && path.startsWith('/events?')) {
         return swrValue({
           data: [
             {
@@ -85,7 +86,7 @@ describe('CommandPalette', () => {
         })
       }
 
-      if (key?.startsWith('/users/all?')) {
+      if (typeof path === 'string' && path.startsWith('/users/all?')) {
         return swrValue({
           data: [
             {
@@ -120,7 +121,7 @@ describe('CommandPalette', () => {
     expect(await screen.findByText('Ana Garcia')).toBeInTheDocument()
     expect(screen.getByText('ana@example.com')).toBeInTheDocument()
     expect(mocks.useSWR).toHaveBeenCalledWith(
-      '/users/all?page=1&page_size=4&search=ana',
+      ['/users/all?page=1&page_size=4&search=ana', 'eventiapp', 'organization', null],
       expect.any(Function),
       expect.any(Object)
     )
@@ -141,7 +142,7 @@ describe('CommandPalette', () => {
     render(<CommandPalette open onClose={vi.fn()} isRoot clientId="client-1" />)
 
     expect(mocks.useSWR).toHaveBeenCalledWith(
-      '/events?client_id=client-1&page=1&page_size=6&filter=all',
+      ['/events?client_id=client-1&page=1&page_size=6&filter=all', 'eventiapp', 'organization', null],
       expect.any(Function),
       expect.any(Object)
     )

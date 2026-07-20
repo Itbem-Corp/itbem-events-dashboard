@@ -2,27 +2,25 @@
 
 import { useDebounce } from '@/hooks/useDebounce'
 import { useListViewState } from '@/hooks/useListViewState'
+import { useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
+import { useUsersPage, usersPageQueryPath, type UserStatusFilter } from '@/features/users/use-users-page'
 import { api } from '@/lib/api'
-import { readApiData } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { userClientsPagePath, userRootLevelPath, usersAllPath, type UsersAllStatusFilter } from '@/lib/api-paths'
+import { userClientsPagePath, userRootLevelPath } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
 import { paginateItems } from '@/lib/paginate'
-import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
-import { getDataErrorState } from '@/lib/swr-data-state'
 import { removeUsersCacheValue, upsertUserCacheValue } from '@/lib/user-cache'
 import type { AdminUserListItemResponse, AdminUserResponse, AdminUsersPageResponse } from '@/models/User'
 import { useStore } from '@/store/useStore'
 import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import useSWR, { preload } from 'swr'
+import { preload } from 'swr'
 
 // UI
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { PageHeader } from '@/components/product/page-header'
 import UserAvatar from '@/components/ui/UserAvatar'
-import { ConfirmAlert } from '@/components/ui/confirm-alert'
 import { EmptyState } from '@/components/ui/empty-state'
 import { IntentModalSkeleton } from '@/components/ui/intent-modal-skeleton'
 import { PageDataError } from '@/components/ui/page-data-error'
@@ -39,6 +37,7 @@ import { toast } from 'sonner'
 const loadUserFormModal = () => import('@/components/users/forms/user-form-modal')
 const loadDeleteUserModal = () => import('@/components/users/delete-user-modal')
 const loadUserListActionsMenu = () => import('@/components/users/user-list-actions-menu')
+const loadConfirmAlert = () => import('@/components/ui/confirm-alert')
 
 // Lazy-loaded modals — only downloaded when the user shows intent.
 const UserFormModal = dynamic(() => loadUserFormModal().then((module) => module.UserFormModal), {
@@ -52,9 +51,10 @@ const DeleteUserModal = dynamic(() => loadDeleteUserModal().then((module) => mod
 const UserListActionsMenu = dynamic(() => loadUserListActionsMenu().then((module) => module.UserListActionsMenu), {
   ssr: false,
   loading: () => (
-    <div className="absolute top-full right-0 z-30 mt-2 h-20 w-48 animate-pulse rounded-xl border border-white/10 bg-surface" />
+    <div className="absolute top-full right-0 z-30 mt-2 h-20 w-48 animate-pulse rounded-xl border border-border-subtle bg-surface-raised" />
   ),
 })
+const ConfirmAlert = dynamic(() => loadConfirmAlert().then((module) => module.ConfirmAlert), { ssr: false })
 function preloadUserForm() {
   void loadUserFormModal().catch(() => undefined)
 }
@@ -68,18 +68,11 @@ function preloadDeleteUser() {
 }
 
 const PAGE_SIZE = 10
-type StatusFilter = 'ALL' | 'ACTIVE' | 'INACTIVE' | 'ROOT'
-const USER_STATUS_FILTERS = ['ALL', 'ACTIVE', 'INACTIVE', 'ROOT'] as const satisfies readonly StatusFilter[]
-const SUPPORT_USER_STATUS_FILTERS = ['ALL', 'ACTIVE', 'INACTIVE'] as const satisfies readonly StatusFilter[]
-
-const statusQueryByFilter: Record<StatusFilter, UsersAllStatusFilter | undefined> = {
-  ALL: undefined,
-  ACTIVE: 'active',
-  INACTIVE: 'inactive',
-  ROOT: 'root',
-}
+const USER_STATUS_FILTERS = ['ALL', 'ACTIVE', 'INACTIVE', 'ROOT'] as const satisfies readonly UserStatusFilter[]
+const SUPPORT_USER_STATUS_FILTERS = ['ALL', 'ACTIVE', 'INACTIVE'] as const satisfies readonly UserStatusFilter[]
 
 export default function UsersPage() {
+  const scopeFetcherKey = useScopedFetcherScope()
   const currentUser = useStore((state) => state.user)
   const isPrimaryRoot = Boolean(currentUser?.root_level === 1 || (currentUser?.is_root && !currentUser.root_level))
   const availableStatusFilters = isPrimaryRoot ? USER_STATUS_FILTERS : SUPPORT_USER_STATUS_FILTERS
@@ -90,7 +83,7 @@ export default function UsersPage() {
     setFilter: setStatusFilter,
     page,
     setPage,
-  } = useListViewState<StatusFilter>({
+  } = useListViewState<UserStatusFilter>({
     defaultFilter: 'ALL',
     filterParam: 'status',
     pagination: true,
@@ -104,40 +97,22 @@ export default function UsersPage() {
   const [rootLevelPendingId, setRootLevelPendingId] = useState<string | null>(null)
 
   const debouncedSearch = useDebounce(search, 200)
-  const usersRequestPath = useMemo(
-    () =>
-      usersAllPath({
-        page,
-        page_size: PAGE_SIZE,
-        search: debouncedSearch,
-        status: statusQueryByFilter[statusFilter],
-      }),
-    [debouncedSearch, page, statusFilter]
-  )
-
   const {
     data: rawData,
     isLoading,
     isValidating,
     error,
     mutate,
-  } = useSWR<AdminUsersPageResponse | AdminUserListItemResponse[]>(usersRequestPath, fetcher, {
-    ...responsiveListSwrOptions,
-    keepPreviousData: true,
+    usersPayload,
+    usersPage,
+    users,
+    dataErrorState,
+  } = useUsersPage({
+    page,
+    pageSize: PAGE_SIZE,
+    search: debouncedSearch,
+    status: statusFilter,
   })
-  const usersPayload = useMemo(
-    () => readApiData<AdminUsersPageResponse | AdminUserListItemResponse[] | undefined>(rawData),
-    [rawData]
-  )
-  const dataErrorState = getDataErrorState(error, rawData)
-  const usersPage = useMemo(
-    () => (usersPayload && !Array.isArray(usersPayload) && Array.isArray(usersPayload.data) ? usersPayload : null),
-    [usersPayload]
-  )
-  const users = useMemo(
-    () => (usersPage ? usersPage.data : Array.isArray(usersPayload) ? usersPayload : []),
-    [usersPage, usersPayload]
-  )
 
   useEffect(() => {
     if (!usersPage) return
@@ -178,15 +153,15 @@ export default function UsersPage() {
 
   const preloadUsersPage = useCallback(
     (nextPage: number) => {
-      const nextPath = usersAllPath({
+      const nextPath = usersPageQueryPath({
         page: nextPage,
-        page_size: PAGE_SIZE,
+        pageSize: PAGE_SIZE,
         search: debouncedSearch,
-        status: statusQueryByFilter[statusFilter],
+        status: statusFilter,
       })
-      void Promise.resolve(preload(nextPath, fetcher)).catch(() => undefined)
+      void Promise.resolve(preload(scopeFetcherKey(nextPath), fetcher)).catch(() => undefined)
     },
-    [debouncedSearch, statusFilter]
+    [debouncedSearch, scopeFetcherKey, statusFilter]
   )
 
   const saveUserInCurrentPage = useCallback(
@@ -329,13 +304,13 @@ export default function UsersPage() {
                 className={[
                   'flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium transition-colors',
                   statusFilter === item.filter
-                    ? 'bg-white/8 text-white shadow-sm ring-1 ring-white/8'
-                    : 'text-ink-muted hover:bg-white/[0.035] hover:text-ink',
+                    ? 'bg-(--tenant-accent)/12 text-ink shadow-sm ring-1 ring-(--tenant-accent)/18'
+                    : 'text-ink-muted hover:bg-surface-interactive hover:text-ink',
                 ].join(' ')}
               >
                 {item.label}
                 {statusFilter === item.filter && (
-                  <span className="rounded-full bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300">
+                  <span className="rounded-full bg-(--tenant-accent)/15 px-1.5 py-0.5 text-[10px] font-semibold text-(--tenant-accent)">
                     {totalUsers}
                   </span>
                 )}
@@ -348,9 +323,9 @@ export default function UsersPage() {
         {!isLoading && showUserControls && (
           <div
             aria-busy={isValidating}
-            className="relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02] p-2"
+            className="relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised p-2"
           >
-            {isValidating && <div className="absolute inset-x-0 top-0 h-px animate-pulse bg-indigo-400" />}
+            {isValidating && <div className="absolute inset-x-0 top-0 h-px animate-pulse bg-(--tenant-accent)" />}
             <div className="relative w-full sm:max-w-xs">
               <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
               <input
@@ -359,7 +334,7 @@ export default function UsersPage() {
                 placeholder="Buscar usuario..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border border-transparent bg-black/15 py-2 pr-4 pl-9 text-sm text-ink placeholder:text-ink-muted focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
+                className="w-full rounded-xl border border-border-subtle bg-surface-interactive py-2 pr-4 pl-9 text-sm text-ink placeholder:text-ink-muted transition-colors hover:border-border-strong focus:border-(--tenant-accent)/45 focus:ring-2 focus:ring-(--tenant-accent)/10 focus:outline-none"
               />
             </div>
             <span className="hidden pr-2 text-xs text-ink-muted sm:block">
@@ -372,7 +347,7 @@ export default function UsersPage() {
         <div className="grid grid-cols-1 gap-4">
           {isLoading ? (
             [...Array(4)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-surface/50 p-5">
+              <div key={i} className="flex items-center gap-4 rounded-2xl border border-border-subtle bg-surface-raised p-5">
                 <div className="skeleton size-10 shrink-0 rounded-full" />
                 <div className="flex-1 space-y-3">
                   <div className="skeleton h-4 w-1/4 rounded" />
@@ -417,12 +392,12 @@ export default function UsersPage() {
           ) : (
             <ul
               aria-label="Directorio de usuarios"
-              className="divide-y divide-white/6 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02] shadow-xl shadow-black/5"
+              className="divide-y divide-border-subtle overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised shadow-[0_12px_32px_var(--app-shadow)]"
             >
               {paginatedUsers.map((user) => (
                 <li
                   key={user.id}
-                  className="group flex flex-col items-stretch gap-4 p-4 transition-colors hover:bg-white/[0.035] sm:flex-row sm:items-center sm:gap-4 sm:p-5"
+                  className="group flex flex-col items-stretch gap-4 p-4 transition-colors hover:bg-surface-interactive sm:flex-row sm:items-center sm:gap-4 sm:p-5"
                 >
                   {/* INFO */}
                   <div className="flex min-w-0 flex-1 items-center gap-4">
@@ -448,7 +423,7 @@ export default function UsersPage() {
                   </div>
 
                   {/* ACTIONS */}
-                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-white/6 pt-3 sm:flex-nowrap sm:border-0 sm:pt-0">
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border-subtle pt-3 sm:flex-nowrap sm:border-0 sm:pt-0">
                     <Button
                       href={`/users/${user.id}/clients`}
                       outline
@@ -474,6 +449,8 @@ export default function UsersPage() {
                         outline
                         disabled={rootLevelPendingId === user.id}
                         onClick={() => setRootLevelConfirmation(user)}
+                        onFocus={() => void loadConfirmAlert()}
+                        onPointerEnter={() => void loadConfirmAlert()}
                         title={user.root_level === 2 ? 'Revocar raíz operativa' : 'Asignar raíz operativa'}
                         aria-label={`${user.root_level === 2 ? 'Revocar' : 'Asignar'} acceso Root 2 a ${user.first_name} ${user.last_name}`}
                       >
@@ -494,7 +471,7 @@ export default function UsersPage() {
                         onPointerEnter={preloadUserActions}
                         onPointerDown={preloadUserActions}
                         onFocus={preloadUserActions}
-                        className="flex size-11 cursor-pointer list-none items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+                        className="flex size-11 cursor-pointer list-none items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-surface-interactive hover:text-ink focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:outline-none [&::-webkit-details-marker]:hidden"
                       >
                         <EllipsisVerticalIcon aria-hidden="true" className="size-5" />
                       </summary>
@@ -545,8 +522,8 @@ export default function UsersPage() {
             onDeleteRollback={restoreUserToCurrentPage}
           />
         )}
-        <ConfirmAlert
-          open={Boolean(rootLevelConfirmation)}
+        {rootLevelConfirmation && <ConfirmAlert
+          open
           title={rootLevelConfirmation?.root_level === 2 ? '¿Revocar acceso Root 2?' : '¿Asignar acceso Root 2?'}
           description={
             rootLevelConfirmation?.root_level === 2
@@ -561,7 +538,7 @@ export default function UsersPage() {
             if (!rootLevelConfirmation) return
             void updateOperationalRoot(rootLevelConfirmation, rootLevelConfirmation.root_level === 2 ? 0 : 2)
           }}
-        />
+        />}
       </div>
     </PageTransition>
   )

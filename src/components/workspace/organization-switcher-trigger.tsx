@@ -43,7 +43,7 @@ export function OrganizationSwitcherTrigger({
       onFocus={onOpenIntent}
       onPointerEnter={onOpenIntent}
       aria-haspopup="dialog"
-      className="group flex min-h-16 w-full items-center gap-3 rounded-2xl border border-border-subtle bg-canvas/[0.025] px-3 py-2.5 text-left transition-[border-color,background-color,transform] hover:border-border-subtle hover:bg-canvas/[0.045] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) active:scale-[0.99] motion-reduce:transition-none dark:border-white/[0.09] dark:bg-white/[0.035] dark:hover:border-white/[0.16] dark:hover:bg-white/[0.06]"
+      className="group flex min-h-16 w-full items-center gap-3 rounded-2xl border border-border-subtle bg-surface-interactive px-3 py-2.5 text-left transition-[border-color,background-color,transform] hover:border-border-strong hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) active:scale-[0.99] motion-reduce:transition-none"
     >
       <Avatar
         src={currentClient?.logo}
@@ -54,7 +54,7 @@ export function OrganizationSwitcherTrigger({
         <span className="block text-[10px] font-semibold tracking-[0.14em] text-ink-muted uppercase">
           {activeDescription}
         </span>
-        <span className="mt-0.5 block truncate text-sm font-semibold text-ink dark:text-white">{activeLabel}</span>
+        <span className="mt-0.5 block truncate text-sm font-semibold text-ink">{activeLabel}</span>
       </span>
       <ChevronDownIcon className="size-4 shrink-0 text-ink-muted transition-transform group-hover:text-ink-secondary" />
     </button>

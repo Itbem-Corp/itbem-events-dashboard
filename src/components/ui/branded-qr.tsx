@@ -218,7 +218,6 @@ export function BrandedQR({
         {/* Logo + brand */}
         <div className="flex items-center gap-2">
           {/* Real eventiapp icon */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/eventiapp-icon.svg"
             alt=""

@@ -13,6 +13,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import { api } from '@/lib/api'
 import { readApiData, readApiList } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
@@ -156,13 +157,16 @@ export function EventDetailGuestsPanel({
     sort: viewState.sortColumn,
     direction: viewState.sortDirection,
   })
+  const scopedGuestsKey = useScopedFetcherKey(guestsKey)
+  const scopedStatusesKey = useScopedFetcherKey(guestStatusesPath())
+  const scopeFetcherKey = useScopedFetcherScope()
   const {
     data: rawGuests,
     error: guestsError,
     isLoading,
     isValidating,
     mutate: retryGuests,
-  } = useSWR<CheckinGuestsPageResponse>(guestsKey, fetcher, {
+  } = useSWR<CheckinGuestsPageResponse>(scopedGuestsKey, fetcher, {
     ...responsiveListSwrOptions,
     keepPreviousData: true,
   })
@@ -172,7 +176,7 @@ export function EventDetailGuestsPanel({
   const guestsErrorState = getDataErrorState(guestsError, rawGuests)
   const isSearchPending = debouncedSearch !== viewState.search || isValidating
 
-  const { data: rawGuestStatuses } = useSWR<GuestStatus[] | { data?: GuestStatus[] }>(guestStatusesPath(), fetcher, {
+  const { data: rawGuestStatuses } = useSWR<GuestStatus[] | { data?: GuestStatus[] }>(scopedStatusesKey, fetcher, {
     shouldRetryOnError: false,
     revalidateOnFocus: false,
   })
@@ -215,9 +219,9 @@ export function EventDetailGuestsPanel({
         sort: viewState.sortColumn,
         direction: viewState.sortDirection,
       })
-      void Promise.resolve(preload(path, fetcher)).catch(() => undefined)
+      void Promise.resolve(preload(scopeFetcherKey(path), fetcher)).catch(() => undefined)
     },
-    [debouncedSearch, event.id, viewState.sortColumn, viewState.sortDirection, viewState.status]
+    [debouncedSearch, event.id, scopeFetcherKey, viewState.sortColumn, viewState.sortDirection, viewState.status]
   )
 
   const openNewGuest = useCallback(() => {
