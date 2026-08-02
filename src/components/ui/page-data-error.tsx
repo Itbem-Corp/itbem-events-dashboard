@@ -20,14 +20,14 @@ export function PageDataError({
 }: PageDataErrorProps) {
   return (
     <section className="flex min-h-[56vh] items-center justify-center py-10" role="alert" aria-live="polite">
-      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-red-400/15 bg-canvas/70 p-7 text-center shadow-2xl shadow-black/15 sm:p-9">
-        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-red-500/[0.07] via-transparent to-indigo-500/[0.05]" />
+      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-red-500/20 bg-surface-raised p-7 text-center shadow-[0_18px_48px_var(--app-shadow-strong)] sm:p-9">
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-red-500/[0.07] via-transparent to-(--tenant-accent)/[0.05]" />
         <div className="relative">
-          <span className="mx-auto flex size-11 items-center justify-center rounded-2xl border border-red-400/10 bg-red-500/10 text-red-300">
+          <span className="mx-auto flex size-11 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300">
             <Icon className="size-5" />
           </span>
-          <p className="mt-6 text-[11px] font-semibold tracking-[0.18em] text-red-300 uppercase">Conexión interrumpida</p>
-          <h1 className="mt-2 text-xl font-semibold tracking-tight text-white sm:text-2xl">{title}</h1>
+          <p className="mt-6 text-[11px] font-semibold tracking-[0.18em] text-red-700 uppercase dark:text-red-300">Conexión interrumpida</p>
+          <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink sm:text-2xl">{title}</h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-ink-secondary">{description}</p>
           <Button color="indigo" className="mt-7" onClick={onRetry} disabled={retrying} aria-busy={retrying}>
             <ArrowPathIcon className={retrying ? 'animate-spin motion-reduce:animate-none' : undefined} />

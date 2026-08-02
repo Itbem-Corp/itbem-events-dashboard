@@ -2,6 +2,7 @@ import type { EventDetailTabId } from '@/components/events/event-detail-tabs'
 import { useEventDetailGuestData } from '@/hooks/useEventDetailGuestData'
 import { eventGuestSummaryPath, eventGuestsPath } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
+import { requestPathFromKey } from '@/lib/request-context'
 import { renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { SWRConfig } from 'swr'
@@ -16,7 +17,8 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('useEventDetailGuestData', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(fetcher).mockImplementation(async (path: string) => {
+    vi.mocked(fetcher).mockImplementation(async (key) => {
+      const path = requestPathFromKey(key)
       if (path === eventGuestSummaryPath('event-1')) {
         return { total: 2, confirmed: 1, pending: 1, declined: 0, total_attendees: 3 }
       }

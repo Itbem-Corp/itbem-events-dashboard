@@ -8,6 +8,7 @@ import { Link } from '@/components/link'
 import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
+import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import { accessCan, createAccessProfile, type AccessProfile } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { scopedEventsDashboardPath } from '@/lib/api-paths'
@@ -90,7 +91,7 @@ function Metric({
           <Icon className="size-4" />
         </span>
       </div>
-      <p className="mt-5 text-3xl font-semibold tracking-tight text-ink tabular-nums dark:text-white">
+      <p className="mt-5 text-3xl font-semibold tracking-tight text-ink tabular-nums">
         {value.toLocaleString('es-MX')}
       </p>
       <p className="mt-1 text-xs text-ink-muted">{detail}</p>
@@ -227,12 +228,12 @@ function ControlPlaneHome({
         <div className="mt-8 grid gap-4 lg:grid-cols-2">
           {canViewMetrics && (
             <Link href="/metrics" className="premium-surface premium-surface-interactive group rounded-3xl p-6">
-              <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-(--tenant-accent)">
+              <span className="flex size-11 items-center justify-center rounded-2xl border border-border-subtle bg-surface-interactive text-(--tenant-accent)">
                 <BoltIcon className="size-5" />
               </span>
               <div className="mt-8 flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-lg font-semibold text-white">Actividad y métricas</p>
+                  <p className="text-lg font-semibold text-ink">Actividad y métricas</p>
                   <p className="mt-1 text-sm text-ink-muted">Uso, personas activas y salud de esta organización.</p>
                 </div>
                 <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-(--tenant-accent)" />
@@ -242,26 +243,26 @@ function ControlPlaneHome({
 
           {canManageTeam && (
             <Link href="/team" className="premium-surface premium-surface-interactive group rounded-3xl p-6">
-              <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-ink-secondary">
+              <span className="flex size-11 items-center justify-center rounded-2xl border border-border-subtle bg-surface-interactive text-ink-secondary">
                 <UsersIcon className="size-5" />
               </span>
               <div className="mt-8 flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-lg font-semibold text-white">Equipo y accesos</p>
+                  <p className="text-lg font-semibold text-ink">Equipo y accesos</p>
                   <p className="mt-1 text-sm text-ink-muted">Miembros y roles limitados a este espacio.</p>
                 </div>
-                <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-white" />
+                <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-ink" />
               </div>
             </Link>
           )}
 
           {!canViewMetrics && !canManageTeam && (
             <div className="premium-surface rounded-3xl p-6">
-              <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-ink-secondary">
+              <span className="flex size-11 items-center justify-center rounded-2xl border border-border-subtle bg-surface-interactive text-ink-secondary">
                 <ShieldCheckIcon className="size-5" />
               </span>
               <div className="mt-8">
-                <p className="text-lg font-semibold text-white">Espacio de colaboración</p>
+                <p className="text-lg font-semibold text-ink">Espacio de colaboración</p>
                 <p className="mt-1 text-sm leading-6 text-ink-muted">
                   Tu acceso está limitado a las herramientas que te asignó el propietario de la organización.
                 </p>
@@ -295,12 +296,12 @@ function ControlPlaneHome({
           className="premium-surface premium-surface-interactive group relative overflow-hidden rounded-3xl p-6"
         >
           <span className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-(--tenant-accent) to-transparent opacity-60" />
-          <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-(--tenant-accent)">
+          <span className="flex size-11 items-center justify-center rounded-2xl border border-border-subtle bg-surface-interactive text-(--tenant-accent)">
             <BuildingOfficeIcon className="size-5" />
           </span>
           <div className="mt-8 flex items-end justify-between gap-4">
             <div>
-              <p className="text-3xl font-semibold text-white tabular-nums">{organizationCount}</p>
+              <p className="text-3xl font-semibold text-ink tabular-nums">{organizationCount}</p>
               <p className="mt-1 text-sm font-medium text-ink-secondary">Organizaciones con acceso directo</p>
               <p className="mt-1 text-xs text-ink-muted">
                 {isOperationalRoot ? 'Abre un contexto para brindar soporte.' : 'Gestiona estructura, clientes y configuración.'}
@@ -313,27 +314,27 @@ function ControlPlaneHome({
 
         {(canViewPlatformUsers || canManageTeam) && (
           <Link href={peopleHref} className="premium-surface premium-surface-interactive group rounded-3xl p-6">
-            <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-ink-secondary">
+            <span className="flex size-11 items-center justify-center rounded-2xl border border-border-subtle bg-surface-interactive text-ink-secondary">
               <UsersIcon className="size-5" />
             </span>
             <div className="mt-8 flex items-end justify-between gap-4">
               <div>
-                <p className="text-lg font-semibold text-white">{peopleTitle}</p>
+                <p className="text-lg font-semibold text-ink">{peopleTitle}</p>
                 <p className="mt-1 text-sm text-ink-muted">{peopleDescription}</p>
               </div>
-              <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-white" />
+              <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-ink" />
             </div>
           </Link>
         )}
 
         {canViewMetrics && (
           <Link href="/metrics" className="premium-surface premium-surface-interactive group rounded-3xl p-6">
-            <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-emerald-300">
+            <span className="flex size-11 items-center justify-center rounded-2xl border border-border-subtle bg-surface-interactive text-emerald-500 dark:text-emerald-300">
               <BoltIcon className="size-5" />
             </span>
             <div className="mt-8 flex items-end justify-between gap-4">
               <div>
-                <p className="text-lg font-semibold text-white">Señales operativas</p>
+                <p className="text-lg font-semibold text-ink">Señales operativas</p>
                 <p className="mt-1 text-sm text-ink-muted">Actividad y salud del producto por organización.</p>
               </div>
               <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-emerald-300" />
@@ -343,12 +344,12 @@ function ControlPlaneHome({
 
         {canViewAudit && (
           <Link href="/audit" className="premium-surface premium-surface-interactive group rounded-3xl p-6">
-            <span className="flex size-11 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.05] text-(--tenant-accent)">
+            <span className="flex size-11 items-center justify-center rounded-2xl border border-border-subtle bg-surface-interactive text-(--tenant-accent)">
               <ClipboardDocumentCheckIcon className="size-5" />
             </span>
             <div className="mt-8 flex items-end justify-between gap-4">
               <div>
-                <p className="text-lg font-semibold text-white">Auditoría de plataforma</p>
+                <p className="text-lg font-semibold text-ink">Auditoría de plataforma</p>
                 <p className="mt-1 text-sm text-ink-muted">Accesos, cambios y resultados operativos trazables.</p>
               </div>
               <ArrowRightIcon className="size-5 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-(--tenant-accent)" />
@@ -374,6 +375,7 @@ function ControlPlaneHome({
 }
 
 export default function Home() {
+  const scopeFetcherKey = useScopedFetcherScope()
   const router = useRouter()
   const currentClient = useStore((state) => state.currentClient)
   const user = useStore((state) => state.user)
@@ -391,13 +393,14 @@ export default function Home() {
   const workspaceCopy = organizationWorkspaceCopy(accessProfile, currentClient?.name)
   const eventsKey =
     hasEvents && !accessProfile.isPlatformContext ? scopedEventsDashboardPath(currentClient?.id, isRoot) : null
+  const scopedEventsKey = useScopedFetcherKey(eventsKey)
   const {
     data: rawEvents,
     isLoading: eventsLoading,
     isValidating: eventsValidating,
     error: eventsError,
     mutate: mutateEvents,
-  } = useSWR<EventDashboardOverview>(eventsKey, fetcher, responsiveListSwrOptions)
+  } = useSWR<EventDashboardOverview>(scopedEventsKey, fetcher, responsiveListSwrOptions)
   const isLoading = Boolean(!eventsKey || eventsLoading)
   const overview = useMemo(() => readApiData<EventDashboardOverview | undefined>(rawEvents), [rawEvents])
   const eventsErrorState = getDataErrorState(eventsError, rawEvents)
@@ -428,19 +431,19 @@ export default function Home() {
   const preloadEventDetail = useCallback(
     (event: Event) => {
       router.prefetch(`/events/${event.id}`)
-      void preloadEventWorkspace(event).catch(() => undefined)
+      void preloadEventWorkspace(event, scopeFetcherKey).catch(() => undefined)
     },
-    [router]
+    [router, scopeFetcherKey]
   )
 
   const preloadEventStudio = useCallback(
     (eventId: string) => {
       router.prefetch(`/events/${eventId}/studio`)
       void import('@/components/studio/preload-studio-panel')
-        .then((module) => module.preloadStudioWorkspace(eventId))
+        .then((module) => module.preloadStudioWorkspace(eventId, scopeFetcherKey))
         .catch(() => undefined)
     },
-    [router]
+    [router, scopeFetcherKey]
   )
 
   const preloadEventCreation = useCallback(() => {
@@ -516,7 +519,7 @@ export default function Home() {
                       onPointerEnter={() => preloadEventDetail(nextEvent)}
                       className="group mt-5 inline-block max-w-full"
                     >
-                      <h2 className="truncate text-3xl font-semibold tracking-tight text-ink transition-colors group-hover:text-(--tenant-accent) lg:text-4xl dark:text-white">
+                      <h2 className="truncate text-3xl font-semibold tracking-tight text-ink transition-colors group-hover:text-(--tenant-accent) lg:text-4xl">
                         {nextEvent.name}
                       </h2>
                     </Link>
@@ -529,7 +532,7 @@ export default function Home() {
                     </p>
                   </div>
 
-                  <div className="flex flex-col gap-5 border-t border-white/8 pt-5 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="flex flex-col gap-5 border-t border-border-subtle pt-5 sm:flex-row sm:items-end sm:justify-between">
                     <div className="flex min-h-4 flex-wrap gap-x-5 gap-y-2 text-xs">
                       <>
                         <span className="flex items-center gap-1.5 text-ink-secondary">
@@ -581,7 +584,7 @@ export default function Home() {
                     <p className="mt-6 text-xs font-semibold tracking-wider text-(--tenant-accent) uppercase">
                       Agenda disponible
                     </p>
-                    <h2 className="mt-2 max-w-lg text-3xl font-semibold tracking-tight text-ink lg:text-4xl dark:text-white">
+                    <h2 className="mt-2 max-w-lg text-3xl font-semibold tracking-tight text-ink lg:text-4xl">
                       Tu próximo gran evento empieza aquí.
                     </h2>
                     <p className="mt-3 max-w-md text-sm leading-6 text-ink-muted">
@@ -640,13 +643,13 @@ export default function Home() {
                   <p className="mt-1 text-xs text-ink-muted">Acceso rápido a la operación actual.</p>
                 </div>
                 {activeEvents.length > 0 && (
-                  <Link href="/events" className="text-xs font-medium text-ink-muted transition-colors hover:text-white">
+                  <Link href="/events" className="text-xs font-medium text-ink-muted transition-colors hover:text-ink">
                     Ver todos
                   </Link>
                 )}
               </div>
 
-              <div className="mt-4 overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02]">
+              <div className="mt-4 overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised">
                 {activeEvents.length === 0 ? (
                   <div className="flex flex-col items-center px-5 py-12 text-center">
                     <CalendarDaysIcon className="size-8 text-ink-muted" />
@@ -654,7 +657,7 @@ export default function Home() {
                     <p className="mt-1 text-xs text-ink-muted">Tu operación aparecerá aquí cuando crees un evento.</p>
                   </div>
                 ) : (
-                  <ul className="divide-y divide-white/6">
+                  <ul className="divide-y divide-border-subtle">
                     {activeEvents.slice(0, 5).map((event) => {
                       const daysUntil = getDaysUntil(event.event_date_time, event.timezone)
                       const isPast = daysUntil !== null && daysUntil < 0
@@ -669,17 +672,17 @@ export default function Home() {
                             onFocus={() => preloadEventDetail(event)}
                             onPointerDown={() => preloadEventDetail(event)}
                             onPointerEnter={() => preloadEventDetail(event)}
-                            className="group flex items-center gap-4 px-4 py-4 transition-colors hover:bg-white/[0.035] sm:px-5"
+                            className="group flex items-center gap-4 px-4 py-4 transition-colors hover:bg-surface-interactive sm:px-5"
                           >
                             <span
                               className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
-                                isPast ? 'bg-surface-raised/70 text-ink-muted' : 'bg-indigo-500/10 text-indigo-400'
+                                isPast ? 'bg-surface-soft text-ink-muted' : 'bg-(--tenant-accent)/10 text-(--tenant-accent)'
                               }`}
                             >
                               <CalendarDaysIcon className="size-4" />
                             </span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium text-ink transition-colors group-hover:text-white">
+                              <span className="block truncate text-sm font-medium text-ink transition-colors group-hover:text-(--tenant-accent)">
                                 {event.name}
                               </span>
                               <span className="mt-0.5 block truncate text-xs text-ink-muted">
@@ -743,7 +746,7 @@ export default function Home() {
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-white/7 bg-white/[0.02] p-4">
+                <div className="rounded-2xl border border-border-subtle bg-surface-raised p-4">
                   <p className="text-xs font-medium text-ink-secondary">Próxima ventana operativa</p>
                   <p className="mt-2 text-sm text-ink">
                     {nextEvent

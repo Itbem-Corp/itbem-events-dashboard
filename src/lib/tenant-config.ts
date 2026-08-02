@@ -1,8 +1,8 @@
 import { PRODUCT_MANIFESTS } from '@/products/registry'
+import type { ProductManifest, TenantCode, TenantModule } from '@/products/core/product-manifest'
 import type { NextRequest } from 'next/server'
 
-export type TenantCode = 'eventiapp' | 'itbem' | 'cafettonhouse'
-export type TenantModule = 'home' | 'events' | 'users' | 'organizations' | 'metrics'
+export type { TenantCode, TenantModule } from '@/products/core/product-manifest'
 
 export type TenantConfig = {
   code: TenantCode
@@ -20,47 +20,25 @@ export type TenantConfig = {
 
 type TenantDefinition = Omit<TenantConfig, 'clientId'> & { clientIdEnv: string }
 
-const TENANTS: Record<TenantCode, TenantDefinition> = {
-  eventiapp: {
-    code: 'eventiapp',
-    organizationCode: 'eventiapp',
-    name: 'EventiApp',
-    productLabel: 'Event operations',
-    hostname: 'dashboard.eventiapp.com.mx',
-    hostnames: ['dashboard.eventiapp.com.mx'],
-    localHostnames: ['localhost', '127.0.0.1', 'dashboard.eventiapp.localhost'],
-    apiHostname: 'api.eventiapp.com.mx',
-    clientIdEnv: 'COGNITO_EVENTIAPP_CLIENT_ID',
-    modules: PRODUCT_MANIFESTS.eventiapp.backendModules,
-    accent: '#818cf8',
-  },
-  itbem: {
-    code: 'itbem',
-    organizationCode: 'itbem',
-    name: 'ITBEM',
-    productLabel: 'Business operations',
-    hostname: 'dashboard.itbem.com.mx',
-    hostnames: ['dashboard.itbem.com.mx', 'dashboard.itbem.com'],
-    localHostnames: ['dashboard.itbem.localhost'],
-    apiHostname: 'api.itbem.com.mx',
-    clientIdEnv: 'COGNITO_ITBEM_CLIENT_ID',
-    modules: PRODUCT_MANIFESTS.itbem.backendModules,
-    accent: '#22d3ee',
-  },
-  cafettonhouse: {
-    code: 'cafettonhouse',
-    organizationCode: 'cafettonhouse',
-    name: 'Cafetton House',
-    productLabel: 'Client operations',
-    hostname: 'dashboard.cafettonhouse.com',
-    hostnames: ['dashboard.cafettonhouse.com'],
-    localHostnames: ['dashboard.cafettonhouse.localhost'],
-    apiHostname: 'api.cafettonhouse.com',
-    clientIdEnv: 'COGNITO_CAFETTONHOUSE_CLIENT_ID',
-    modules: PRODUCT_MANIFESTS.cafettonhouse.backendModules,
-    accent: '#d97706',
-  },
+function tenantDefinition(manifest: ProductManifest): TenantDefinition {
+  return {
+    code: manifest.code,
+    organizationCode: manifest.deployment.organizationCode,
+    name: manifest.identity.name,
+    productLabel: manifest.identity.productLabel,
+    accent: manifest.identity.accent,
+    hostname: manifest.deployment.hostname,
+    hostnames: manifest.deployment.hostnames,
+    localHostnames: manifest.deployment.localHostnames,
+    apiHostname: manifest.deployment.apiHostname,
+    clientIdEnv: manifest.deployment.clientIdEnv,
+    modules: manifest.backendModules,
+  }
 }
+
+const TENANTS = Object.fromEntries(
+  Object.entries(PRODUCT_MANIFESTS).map(([code, manifest]) => [code, tenantDefinition(manifest)])
+) as Record<TenantCode, TenantDefinition>
 
 function normalizedHostname(value: string): string {
   return value.trim().toLowerCase().replace(/:\d+$/, '').replace(/\.$/, '')

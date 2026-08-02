@@ -5,6 +5,7 @@ import {
   PRIVATE_NO_STORE_HEADERS,
   REFRESH_TOKEN_MAX_AGE_SECONDS,
   authCookieOptions,
+  refreshCookieOptions,
   sessionMaxAge,
 } from '@/lib/auth-session'
 import { clearAuthAttempts, consumeAuthAttempt } from '@/lib/auth-rate-limit'
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
       ...authCookieOptions(), maxAge: sessionMaxAge(auth.ExpiresIn),
     })
     if (auth.RefreshToken) response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, auth.RefreshToken, {
-      ...authCookieOptions(), maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS,
+      ...refreshCookieOptions(), maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS,
     })
     return response
   } catch (error) {

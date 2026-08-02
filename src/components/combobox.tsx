@@ -55,11 +55,11 @@ export function Combobox<T>({
           // Basic layout
           'relative block w-full',
           // Background color + shadow applied to inset pseudo element, so shadow blends with border in light mode
-          'before:absolute before:inset-px before:rounded-[calc(var(--radius-lg)-1px)] before:bg-white before:shadow-sm',
+          'before:absolute before:inset-px before:rounded-[calc(var(--radius-lg)-1px)] before:bg-[var(--app-surface-raised)] before:shadow-sm',
           // Background color is moved to control and shadow is removed in dark mode so hide `before` pseudo
           'dark:before:hidden',
           // Focus ring
-          'after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:ring-transparent after:ring-inset sm:focus-within:after:ring-2 sm:focus-within:after:ring-blue-500',
+          'after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:ring-transparent after:ring-inset focus-within:after:ring-2 focus-within:after:ring-(--tenant-accent)',
           // Disabled state
           'has-data-disabled:opacity-50 has-data-disabled:before:bg-canvas/5 has-data-disabled:before:shadow-none',
           // Invalid state
@@ -83,11 +83,11 @@ export function Combobox<T>({
             // Horizontal padding
             'pr-[calc(--spacing(10)-1px)] pl-[calc(--spacing(3.5)-1px)] sm:pr-[calc(--spacing(9)-1px)] sm:pl-[calc(--spacing(3)-1px)]',
             // Typography
-            'text-base/6 text-ink placeholder:text-ink-muted sm:text-sm/6 dark:text-white',
+            'text-base/6 text-ink placeholder:text-ink-muted sm:text-sm/6',
             // Border
-            'border border-border-subtle data-hover:border-border-subtle dark:border-white/10 dark:data-hover:border-white/20',
+            'border border-border-subtle data-hover:border-border-strong',
             // Background color
-            'bg-transparent dark:bg-white/5',
+            'bg-transparent dark:bg-[var(--app-surface-raised)]/82',
             // Hide default focus styles
             'focus:outline-hidden',
             // Invalid state
@@ -149,7 +149,7 @@ export function ComboboxOption<T>({
     'flex min-w-0 items-center',
     // Icons
     '*:data-[slot=icon]:size-5 *:data-[slot=icon]:shrink-0 sm:*:data-[slot=icon]:size-4',
-    '*:data-[slot=icon]:text-ink-muted group-data-focus/option:*:data-[slot=icon]:text-white dark:*:data-[slot=icon]:text-ink-secondary',
+            '*:data-[slot=icon]:text-ink-muted group-data-focus/option:*:data-[slot=icon]:text-(--tenant-accent)',
     'forced-colors:*:data-[slot=icon]:text-[CanvasText] forced-colors:group-data-focus/option:*:data-[slot=icon]:text-[Canvas]',
     // Avatars
     '*:data-[slot=avatar]:-mx-0.5 *:data-[slot=avatar]:size-6 sm:*:data-[slot=avatar]:size-5'
@@ -162,9 +162,9 @@ export function ComboboxOption<T>({
         // Basic layout
         'group/option grid w-full cursor-default grid-cols-[1fr_--spacing(5)] items-baseline gap-x-2 rounded-lg py-2.5 pr-2 pl-3.5 sm:grid-cols-[1fr_--spacing(4)] sm:py-1.5 sm:pr-2 sm:pl-3',
         // Typography
-        'text-base/6 text-ink sm:text-sm/6 dark:text-white forced-colors:text-[CanvasText]',
+        'text-base/6 text-ink sm:text-sm/6 forced-colors:text-[CanvasText]',
         // Focus
-        'outline-hidden data-focus:bg-blue-500 data-focus:text-white',
+        'outline-hidden data-focus:bg-surface-interactive data-focus:text-ink',
         // Forced colors mode
         'forced-color-adjust-none forced-colors:data-focus:bg-[Highlight] forced-colors:data-focus:text-[HighlightText]',
         // Disabled
@@ -194,7 +194,7 @@ export function ComboboxDescription({ className, children, ...props }: React.Com
       {...props}
       className={clsx(
         className,
-        'flex flex-1 overflow-hidden text-ink-muted group-data-focus/option:text-white before:w-2 before:min-w-0 before:shrink dark:text-ink-secondary'
+        'flex flex-1 overflow-hidden text-ink-muted group-data-focus/option:text-ink-secondary before:w-2 before:min-w-0 before:shrink'
       )}
     >
       <span className="flex-1 truncate">{children}</span>

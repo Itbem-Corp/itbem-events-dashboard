@@ -155,17 +155,11 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
         className="auth-editorial-panel relative hidden overflow-hidden px-12 py-10 xl:flex xl:flex-col xl:justify-between xl:px-20 xl:py-14"
         aria-labelledby="product-statement"
       >
-        <div
-          aria-hidden="true"
-          className="absolute top-0 bottom-0 left-0 w-1"
-          style={{ backgroundColor: tenant.accent }}
-        />
-
         <header className="relative flex items-center justify-between gap-8">
           <div className="flex items-center gap-3.5">
             <BrandMark code={tenant.code} name={tenant.name} accent={tenant.accent} size="md" priority />
             <div>
-              <p className="text-sm font-semibold tracking-[-0.01em] text-ink dark:text-white">{tenant.name}</p>
+              <p className="text-sm font-semibold tracking-[-0.01em] text-ink">{tenant.name}</p>
               <p className="mt-0.5 text-[10px] font-medium tracking-[0.15em] text-ink-muted uppercase dark:text-ink-muted">
                 {copy.discipline}
               </p>
@@ -181,27 +175,27 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
           </p>
           <h1
             id="product-statement"
-            className="max-w-3xl text-[clamp(3.5rem,6.2vw,6.25rem)] leading-[0.91] font-medium tracking-[-0.07em] text-ink dark:text-white"
+            className="max-w-3xl text-[clamp(3.5rem,6.2vw,6.25rem)] leading-[0.91] font-medium tracking-[-0.07em] text-ink"
           >
             {copy.title}
           </h1>
-          <p className="mt-9 max-w-xl text-lg leading-8 tracking-[-0.015em] text-ink-muted dark:text-ink-secondary">
+          <p className="mt-9 max-w-xl text-lg leading-8 tracking-[-0.015em] text-ink-secondary">
             {copy.description}
           </p>
         </div>
 
-        <footer className="relative border-t border-border-subtle pt-6 dark:border-white/[0.08]">
-          <div className="flex items-center gap-5 text-[11px] font-medium text-ink-muted dark:text-ink-muted">
+        <footer className="relative border-t border-border-subtle pt-6">
+          <div className="flex items-center gap-5 text-[11px] font-medium text-ink-muted">
             <span className="flex items-center gap-2">
               <BoltIcon className="size-4 text-(--tenant-accent)" />
               Decisiones en tiempo real
             </span>
-            <span className="h-5 w-px bg-canvas/10 dark:bg-white/10" aria-hidden="true" />
+            <span className="h-5 w-px bg-border-subtle" aria-hidden="true" />
             <span className="flex items-center gap-2">
               <UserGroupIcon className="size-4 text-(--tenant-accent)" />
               Equipos alineados
             </span>
-            <span className="h-5 w-px bg-canvas/10 dark:bg-white/10" aria-hidden="true" />
+            <span className="h-5 w-px bg-border-subtle" aria-hidden="true" />
             <span className="flex items-center gap-2">
               <CheckCircleIcon className="size-4 text-(--tenant-accent)" />
               Operación coordinada
@@ -219,18 +213,18 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
         </footer>
       </motion.section>
 
-      <section className="flex min-h-dvh items-center justify-center border-border-subtle bg-[var(--app-surface)]/88 px-5 py-7 transition-colors duration-300 motion-reduce:transition-none sm:px-10 xl:border-l dark:border-white/[0.08] dark:bg-[#080d1b]/94">
+      <section className="flex min-h-dvh items-center justify-center border-border-subtle bg-surface px-5 py-7 transition-colors duration-300 motion-reduce:transition-none sm:px-10 xl:border-l">
         <motion.div
           initial={reducedMotion ? false : { opacity: 0, x: 18 }}
           animate={{ opacity: 1, x: 0 }}
           transition={reducedMotion ? { duration: 0 } : { ...entranceTransition, delay: 0.08 }}
-          className="relative flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[560px] flex-col px-1 py-1 text-ink sm:min-h-[680px] sm:px-3 sm:py-3 xl:min-h-[calc(100dvh-7rem)] dark:text-white"
+          className="relative flex min-h-[calc(100dvh-3.5rem)] w-full max-w-[560px] flex-col px-1 py-1 text-ink sm:min-h-[680px] sm:px-3 sm:py-3 xl:min-h-[calc(100dvh-7rem)]"
         >
           <div className="flex items-center justify-between gap-3 xl:justify-end">
             <div className="flex items-center gap-3 xl:hidden">
               <BrandMark code={tenant.code} name={tenant.name} accent={tenant.accent} size="sm" priority />
               <div>
-                <p className="text-sm font-semibold text-ink dark:text-white">{tenant.name}</p>
+                <p className="text-sm font-semibold text-ink">{tenant.name}</p>
                 <p className="mt-0.5 text-[9px] tracking-[0.14em] text-ink-muted uppercase">{copy.discipline}</p>
               </div>
             </div>
@@ -257,7 +251,7 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
                     <button
                       type="button"
                       onClick={resetChallenge}
-                      className="group mb-8 inline-flex min-h-10 items-center gap-2 rounded-lg pr-3 text-sm font-medium text-ink-muted transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
+                      className="group mb-8 inline-flex min-h-10 items-center gap-2 rounded-lg pr-3 text-sm font-medium text-ink-muted transition hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-strong"
                     >
                       <ArrowLeftIcon className="size-4 transition-transform group-hover:-translate-x-0.5" />
                       Cambiar cuenta
@@ -271,7 +265,7 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
                     >
                       {challenge ? 'Verificación requerida' : copy.index}
                     </p>
-                    <h2 className="max-w-lg text-[2.35rem] leading-[1.04] font-semibold tracking-[-0.052em] text-ink sm:text-[3.05rem] dark:text-white">
+                    <h2 className="max-w-lg text-[2.35rem] leading-[1.04] font-semibold tracking-[-0.052em] text-ink sm:text-[3.05rem]">
                       {title}
                     </h2>
                     <p className="mt-4 max-w-sm text-sm leading-6 text-ink-muted">{supportingCopy}</p>
@@ -282,7 +276,7 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
                       <div>
                         <label
                           htmlFor="login-email"
-                          className="mb-2 block text-xs font-semibold text-ink-muted dark:text-ink-secondary"
+                          className="mb-2 block text-xs font-semibold text-ink-secondary"
                         >
                           Correo de trabajo
                         </label>
@@ -298,7 +292,7 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
                           onChange={(event) => setEmail(event.target.value)}
                           placeholder="nombre@empresa.com"
                           aria-describedby={error ? 'login-error' : undefined}
-                          className="h-14 w-full rounded-xl border border-border-subtle bg-white/80 px-4 text-[15px] text-ink shadow-[0_10px_28px_var(--app-shadow)] transition-[border-color,background-color,box-shadow] outline-none placeholder:text-ink-secondary hover:border-border-subtle hover:bg-white focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15 sm:h-16 dark:border-white/[0.16] dark:bg-[#10182a]/86 dark:text-ink dark:shadow-[inset_0_1px_rgba(255,255,255,0.025),0_12px_32px_rgba(0,0,0,0.18)] dark:placeholder:text-ink-muted dark:hover:border-white/25 dark:hover:bg-[#121b2f] dark:focus:bg-[#121b2f]"
+                          className="h-14 w-full rounded-xl border border-border-subtle bg-surface-interactive px-4 text-[15px] text-ink shadow-[0_10px_28px_var(--app-shadow)] transition-[border-color,background-color,box-shadow] outline-none placeholder:text-ink-muted hover:border-border-strong hover:bg-surface-raised focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15 sm:h-16"
                         />
                       </div>
                     )}
@@ -308,14 +302,14 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
                         <div className="mb-2 flex items-center justify-between gap-4">
                           <label
                             htmlFor="login-password"
-                            className="text-xs font-semibold text-ink-muted dark:text-ink-secondary"
+                            className="text-xs font-semibold text-ink-secondary"
                           >
                             {isPasswordChallenge ? 'Nueva contraseña' : 'Contraseña'}
                           </label>
                           {!challenge && (
                             <Link
                               href="/forgot-password"
-                              className="rounded text-xs font-medium text-ink-muted underline decoration-ink-secondary underline-offset-4 transition hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-strong dark:decoration-ink-muted dark:hover:text-white dark:focus-visible:outline-white/40"
+                              className="rounded text-xs font-medium text-ink-muted underline decoration-ink-secondary underline-offset-4 transition hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-border-strong"
                             >
                               Recuperar acceso
                             </Link>
@@ -335,14 +329,14 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
                             aria-describedby={
                               isPasswordChallenge ? 'new-password-hint' : error ? 'login-error' : undefined
                             }
-                            className="h-14 w-full rounded-xl border border-border-subtle bg-white/80 pr-13 pl-4 text-[15px] text-ink shadow-[0_10px_28px_var(--app-shadow)] transition-[border-color,background-color,box-shadow] outline-none hover:border-border-subtle hover:bg-white focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15 sm:h-16 dark:border-white/[0.16] dark:bg-[#10182a]/86 dark:text-ink dark:shadow-[inset_0_1px_rgba(255,255,255,0.025),0_12px_32px_rgba(0,0,0,0.18)] dark:hover:border-white/25 dark:hover:bg-[#121b2f] dark:focus:bg-[#121b2f]"
+                            className="h-14 w-full rounded-xl border border-border-subtle bg-surface-interactive pr-13 pl-4 text-[15px] text-ink shadow-[0_10px_28px_var(--app-shadow)] transition-[border-color,background-color,box-shadow] outline-none hover:border-border-strong hover:bg-surface-raised focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15 sm:h-16"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword((value) => !value)}
                             aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                             aria-pressed={showPassword}
-                            className="absolute top-1/2 right-1.5 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-ink-secondary transition hover:bg-surface-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-border-strong dark:hover:bg-white/[0.06] dark:hover:text-ink dark:focus-visible:outline-white/40"
+                            className="absolute top-1/2 right-1.5 flex size-10 -translate-y-1/2 items-center justify-center rounded-lg text-ink-secondary transition hover:bg-surface-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-border-strong"
                           >
                             {showPassword ? <EyeSlashIcon className="size-4" /> : <EyeIcon className="size-4" />}
                           </button>
@@ -365,7 +359,7 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
                       <div>
                         <label
                           htmlFor="login-verification-code"
-                          className="mb-2 block text-xs font-semibold text-ink-muted dark:text-ink-secondary"
+                          className="mb-2 block text-xs font-semibold text-ink-secondary"
                         >
                           {verificationLabel}
                         </label>
@@ -382,7 +376,7 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
                             value={verificationCode}
                             onChange={(event) => setVerificationCode(event.target.value.replace(/\s/g, ''))}
                             aria-describedby={error ? 'login-error' : undefined}
-                            className="h-14 w-full rounded-xl border border-border-subtle bg-white/80 pr-4 pl-11 font-mono text-lg tracking-[0.28em] text-ink transition-[border-color,background-color,box-shadow] outline-none hover:border-border-subtle hover:bg-white focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15 dark:border-white/[0.16] dark:bg-[#10182a]/86 dark:text-ink dark:hover:border-white/25 dark:hover:bg-[#121b2f]"
+                            className="h-14 w-full rounded-xl border border-border-subtle bg-surface-interactive pr-4 pl-11 font-mono text-lg tracking-[0.28em] text-ink transition-[border-color,background-color,box-shadow] outline-none hover:border-border-strong hover:bg-surface-raised focus:border-(--tenant-accent) focus:ring-3 focus:ring-(--tenant-accent)/15"
                           />
                         </div>
                       </div>
@@ -434,13 +428,13 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
                     </motion.button>
                   </form>
 
-                  <div className="mt-8 border-t border-border-subtle pt-6 dark:border-white/[0.08]">
+                  <div className="mt-8 border-t border-border-subtle pt-6">
                     <div className="flex items-start gap-3 text-xs leading-5 text-ink-muted">
-                      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-canvas/[0.045] text-ink-muted dark:bg-white/[0.055] dark:text-ink-secondary">
+                      <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-surface-soft text-ink-muted">
                         <LockClosedIcon className="size-3.5" />
                       </span>
                       <p>
-                        <span className="block font-semibold text-ink-muted dark:text-ink-secondary">
+                        <span className="block font-semibold text-ink-secondary">
                           Tu acceso está protegido.
                         </span>
                         Autenticación e identidad administradas con Cognito.
@@ -452,7 +446,7 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
             </div>
           </div>
 
-          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5 text-[11px] text-ink-muted dark:border-white/[0.08] dark:text-ink-muted">
+          <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5 text-[11px] text-ink-muted">
             <span>Sesión privada · {copy.index}</span>
             <span className="font-mono tracking-[0.08em]">{tenant.hostname}</span>
           </footer>

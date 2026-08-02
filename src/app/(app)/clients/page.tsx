@@ -2,27 +2,24 @@
 
 import { useDebounce } from '@/hooks/useDebounce'
 import { useListViewState } from '@/hooks/useListViewState'
-import { readApiData } from '@/lib/api-envelope'
+import { useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
+import { clientsPageQueryPath, useClientsPage } from '@/features/clients/use-clients-page'
 import {
   clientMembersPagePath,
   clientRolesPath,
   clientTypesPath,
-  clientsPagePath,
   scopedEventsPath,
 } from '@/lib/api-paths'
 import { removeClientsCacheValue, upsertClientCacheValue } from '@/lib/client-cache'
 import { fetcher } from '@/lib/fetcher'
 import { beginNavigationProgress } from '@/lib/navigation-progress'
-import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { sessionCan } from '@/lib/session-capabilities'
-import { getDataErrorState } from '@/lib/swr-data-state'
 import { useStore } from '@/store/useStore'
-import { motion, useReducedMotion } from 'motion/react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import useSWR, { preload } from 'swr'
+import { preload } from 'swr'
 
 // UI Components
 import { Avatar } from '@/components/avatar'
@@ -68,7 +65,7 @@ const ClientListActionsMenu = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="absolute top-full right-0 z-30 mt-2 h-36 w-52 animate-pulse rounded-xl border border-white/10 bg-surface" />
+      <div className="absolute top-full right-0 z-30 mt-2 h-36 w-52 animate-pulse rounded-xl border border-border-subtle bg-surface-raised" />
     ),
   }
 )
@@ -116,7 +113,7 @@ const ROLE_META: Record<string, { label: string; description: string }> = {
 
 export default function ClientsPage() {
   const router = useRouter()
-  const reducedMotion = useReducedMotion()
+  const scopeFetcherKey = useScopedFetcherScope()
   const setCurrentClient = useStore((s) => s.setCurrentClient)
   const user = useStore((s) => s.user)
   const applicationSession = useStore((s) => s.applicationSession)
@@ -137,23 +134,20 @@ export default function ClientsPage() {
   const [openActionClientId, setOpenActionClientId] = useState<string | null>(null)
 
   const debouncedSearch = useDebounce(search, 200)
-  const clientsRequestPath = useMemo(
-    () => clientsPagePath({ page, page_size: PAGE_SIZE, search: debouncedSearch }),
-    [debouncedSearch, page]
-  )
   const {
     data: rawClients,
     isLoading,
     isValidating,
     error,
     mutate,
-  } = useSWR<ClientsPageResponse>(clientsRequestPath, fetcher, {
-    ...responsiveListSwrOptions,
-    keepPreviousData: true,
+    clientsPage,
+    clients,
+    dataErrorState,
+  } = useClientsPage({
+    page,
+    pageSize: PAGE_SIZE,
+    search: debouncedSearch,
   })
-  const clientsPage = useMemo(() => readApiData<ClientsPageResponse | undefined>(rawClients), [rawClients])
-  const clients = useMemo(() => clientsPage?.data ?? [], [clientsPage])
-  const dataErrorState = getDataErrorState(error, rawClients)
 
   useEffect(() => {
     if (isLoading) return
@@ -163,10 +157,10 @@ export default function ClientsPage() {
 
   const preloadClientsPage = useCallback(
     (nextPage: number) => {
-      const path = clientsPagePath({ page: nextPage, page_size: PAGE_SIZE, search: debouncedSearch })
-      void Promise.resolve(preload(path, fetcher)).catch(() => undefined)
+      const path = clientsPageQueryPath({ page: nextPage, pageSize: PAGE_SIZE, search: debouncedSearch })
+      void Promise.resolve(preload(scopeFetcherKey(path), fetcher)).catch(() => undefined)
     },
-    [debouncedSearch]
+    [debouncedSearch, scopeFetcherKey]
   )
 
   const openNewClientModal = useCallback(() => {
@@ -301,7 +295,7 @@ export default function ClientsPage() {
             aria-busy={isValidating}
             className="premium-surface relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl p-2"
           >
-            {isValidating && <div className="absolute inset-x-0 top-0 h-px animate-pulse bg-indigo-400" />}
+            {isValidating && <div className="absolute inset-x-0 top-0 h-px animate-pulse bg-(--tenant-accent)" />}
             <div className="relative w-full sm:max-w-xs">
               <MagnifyingGlassIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-muted" />
               <input
@@ -310,7 +304,7 @@ export default function ClientsPage() {
                 placeholder="Buscar cliente..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border border-transparent bg-black/15 py-2 pr-4 pl-9 text-sm text-ink placeholder:text-ink-muted focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
+                className="w-full rounded-xl border border-border-subtle bg-surface-interactive py-2 pr-4 pl-9 text-sm text-ink placeholder:text-ink-muted transition-colors hover:border-border-strong focus:border-(--tenant-accent)/45 focus:ring-2 focus:ring-(--tenant-accent)/10 focus:outline-none"
               />
             </div>
             <span className="hidden pr-2 text-xs text-ink-muted sm:block">
@@ -323,7 +317,7 @@ export default function ClientsPage() {
         {isLoading ? (
           <div className="grid grid-cols-1 gap-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-surface/50 p-5">
+              <div key={i} className="flex items-center gap-4 rounded-2xl border border-border-subtle bg-surface-raised p-5">
                 <div className="skeleton size-16 shrink-0 rounded-xl" />
                 <div className="flex-1 space-y-3">
                   <div className="skeleton h-4 w-1/3 rounded" />
@@ -354,7 +348,7 @@ export default function ClientsPage() {
           )
         ) : (
           <div className="space-y-6">
-            <section className="rounded-2xl border border-indigo-400/15 bg-indigo-400/[0.045] px-4 py-3 sm:px-5">
+            <section className="rounded-2xl border border-(--tenant-accent)/15 bg-(--tenant-accent)/[0.045] px-4 py-3 sm:px-5">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-ink">Tu alcance organizacional</p>
@@ -366,7 +360,7 @@ export default function ClientsPage() {
                       : 'Tus acciones se habilitan por tu rol dentro de cada organización y, cuando aplique, por evento.'}
                   </p>
                 </div>
-                <span className="text-xs font-medium text-indigo-300">
+                <span className="text-xs font-medium text-(--tenant-accent)">
                   {user?.is_root
                     ? `Root ${user.root_level ?? 1}`
                     : `${clientsPage?.total ?? clients.length} organizaciones visibles`}
@@ -380,11 +374,11 @@ export default function ClientsPage() {
                 <span className="basis-full text-xs text-ink-muted sm:basis-auto">
                   Lista paginada · la organización superior aparece como referencia
                 </span>
-                <div className="hidden h-px flex-1 bg-white/5 sm:block" />
+                <div className="hidden h-px flex-1 bg-border-subtle sm:block" />
               </div>
 
               <ul className="premium-surface divide-y divide-white/6 overflow-hidden rounded-2xl">
-                {clients.map((client, index) => {
+                {clients.map((client) => {
                   const parentTypeCode = (client.client_type?.code ?? '').toUpperCase()
                   const canHaveSubClients = parentTypeCode in SUB_TYPE
                   const typeMeta = TYPE_META[parentTypeCode] ?? {
@@ -410,22 +404,14 @@ export default function ClientsPage() {
                       : null
 
                   return (
-                    <motion.li
+                    <li
                       key={client.id}
-                      initial={reducedMotion ? false : { opacity: 0, x: -10, y: 4 }}
-                      animate={{ opacity: 1, x: 0, y: 0 }}
-                      transition={
-                        reducedMotion
-                          ? { duration: 0 }
-                          : { duration: 0.3, delay: Math.min(index, 8) * 0.035, ease: [0.22, 1, 0.36, 1] }
-                      }
-                      whileHover={reducedMotion ? undefined : { x: 2 }}
-                      className="group relative flex flex-col items-stretch gap-4 p-4 transition-colors hover:bg-white/[0.035] sm:flex-row sm:items-center sm:gap-4 sm:p-5"
+                      className="group relative flex flex-col items-stretch gap-4 p-4 transition-[background-color,transform] duration-200 motion-safe:hover:translate-x-0.5 hover:bg-surface-interactive sm:flex-row sm:items-center sm:gap-4 sm:p-5"
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
                         <div className="shrink-0">
                           {client.logo ? (
-                            <div className="relative size-12 overflow-hidden rounded-xl border border-white/15 bg-white shadow-sm sm:size-14">
+                            <div className="relative size-12 overflow-hidden rounded-xl border border-border-subtle bg-surface-raised shadow-sm sm:size-14">
                               <Image
                                 src={client.logo}
                                 alt={client.name ?? ''}
@@ -437,13 +423,13 @@ export default function ClientsPage() {
                           ) : (
                             <Avatar
                               initials={(client.name || '??').substring(0, 2).toUpperCase()}
-                              className="size-12 rounded-xl border border-white/10 bg-surface-raised font-bold text-white sm:size-14"
+                              className="size-12 rounded-xl border border-border-subtle bg-surface-soft font-bold text-ink sm:size-14"
                             />
                           )}
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <h2 className="truncate text-sm font-semibold text-ink transition-colors group-hover:text-white sm:text-base">
+                          <h2 className="truncate text-sm font-semibold text-ink transition-colors group-hover:text-(--tenant-accent) sm:text-base">
                             {client.name}
                           </h2>
                           {client.parent?.name && (
@@ -453,7 +439,7 @@ export default function ClientsPage() {
                           )}
                           <div className="mt-1 flex flex-wrap items-center gap-2">
                             <Badge color={typeMeta.color}>{typeMeta.singularLabel}</Badge>
-                            <span className="rounded-full border border-white/8 bg-white/[0.025] px-2 py-0.5 text-[10px] font-medium text-ink-secondary">
+                            <span className="rounded-full border border-border-subtle bg-surface-soft px-2 py-0.5 text-[10px] font-medium text-ink-secondary">
                               {isInheritedRole
                                 ? `${role?.label ?? 'Acceso'} heredado`
                                 : (role?.label ?? 'Sin acceso directo')}
@@ -484,7 +470,7 @@ export default function ClientsPage() {
                         </div>
                       </div>
 
-                      <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 border-t border-white/6 pt-3 sm:w-auto sm:flex-nowrap sm:border-0 sm:pt-0">
+                      <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border-subtle pt-3 sm:w-auto sm:flex-nowrap sm:border-0 sm:pt-0">
                         <Button
                           outline
                           onClick={() => handleSwitchClient(client)}
@@ -512,7 +498,7 @@ export default function ClientsPage() {
                               onPointerEnter={preloadClientActions}
                               onPointerDown={preloadClientActions}
                               onFocus={preloadClientActions}
-                              className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+                              className="flex size-11 cursor-pointer list-none items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-interactive hover:text-ink focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:outline-none [&::-webkit-details-marker]:hidden"
                             >
                               <EllipsisVerticalIcon className="size-5" aria-hidden="true" />
                             </summary>
@@ -545,7 +531,7 @@ export default function ClientsPage() {
                           </details>
                         )}
                       </div>
-                    </motion.li>
+                    </li>
                   )
                 })}
               </ul>

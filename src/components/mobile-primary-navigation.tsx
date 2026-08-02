@@ -1,6 +1,7 @@
 'use client'
 
 import { Link } from '@/components/link'
+import type { ApplicationRoute } from '@/lib/application-navigation'
 import {
   BuildingOfficeIcon,
   ChartBarSquareIcon,
@@ -10,7 +11,7 @@ import {
 } from '@heroicons/react/20/solid'
 import clsx from 'clsx'
 
-type PrimaryHref = '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients'
+type PrimaryHref = Exclude<ApplicationRoute, '/audit'>
 
 interface MobilePrimaryNavigationProps {
   pathname: string

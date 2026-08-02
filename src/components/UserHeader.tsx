@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useStore } from "@/store/useStore";
+import { endSession } from '@/lib/end-session'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"; // Asumiendo que usas shadcn/ui
 
 export function UserHeader() {
-    const { user } = useStore();
+    const { user, clearSession } = useStore();
 
     if (!user) return null;
 
@@ -50,7 +51,7 @@ export function UserHeader() {
                     <DropdownMenuItem onClick={() => window.location.href = "/profile"}>
                         Perfil
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="text-red-600" onClick={() => window.location.href = "/auth/logout"}>
+                    <DropdownMenuItem className="text-red-600" onClick={() => { void endSession(clearSession) }}>
                         Cerrar Sesión
                     </DropdownMenuItem>
                 </DropdownMenuContent>

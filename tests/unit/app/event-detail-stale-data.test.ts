@@ -13,6 +13,8 @@ describe('event detail stale-data policy', () => {
   })
 
   it('does not refetch a recently preloaded authoritative detail on mount', () => {
-    expect(page).toContain('revalidateOnMount: id ? !eventWorkspaceCache.hasAuthoritative(id) : true')
+    expect(page).toContain(
+      'revalidateOnMount: eventRequestKey ? !eventWorkspaceCache.hasAuthoritative(eventRequestKey) : true'
+    )
   })
 })

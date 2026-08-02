@@ -2,16 +2,12 @@
 
 import { api } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { fetcher } from '@/lib/fetcher'
-import type { Event } from '@/models/Event'
 import type { EventConfig } from '@/models/EventConfig'
-import type { EventCapabilities } from '@/models/EventMember'
-import type { EventSection } from '@/models/EventSection'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import useSWR, { mutate as globalMutate } from 'swr'
+import { mutate as globalMutate } from 'swr'
 
 import {
   ArrowPathIcon,
@@ -31,15 +27,16 @@ import { StudioPanelTabs } from '@/components/studio/studio-panel-tabs'
 import { useStudioSections } from '@/components/studio/use-studio-sections'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { usePreviewToken } from '@/hooks/usePreviewToken'
+import { useEventCapabilities } from '@/features/events/use-event-capabilities'
+import { useStudioWorkspace } from '@/features/events/studio/use-studio-workspace'
 import { readApiData } from '@/lib/api-envelope'
-import { eventCapabilitiesPath, eventConfigPath, studioWorkspacePath } from '@/lib/api-paths'
+import { eventConfigPath } from '@/lib/api-paths'
 import {
   hasEventConfigCacheIdentity,
   isEventConfigBackedEventCacheKey,
   patchEventConfigIntoEventCacheValue,
 } from '@/lib/event-config-cache'
 import { getEventPreviewUrl, getEventPublicUrl } from '@/lib/public-urls'
-import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 
@@ -96,12 +93,6 @@ function StudioPreviewPending({ showPreview }: { showPreview: boolean }) {
   )
 }
 
-interface StudioWorkspace {
-  event: Event
-  config: EventConfig
-  sections: EventSection[]
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StudioPage() {
@@ -118,7 +109,7 @@ export default function StudioPage() {
     data: capabilities,
     error: capabilitiesError,
     isLoading: capabilitiesLoading,
-  } = useSWR<EventCapabilities>(id ? eventCapabilitiesPath(id) : null, fetcher, responsiveListSwrOptions)
+  } = useEventCapabilities(id)
   const canManageEvent = capabilities?.['event:manage'] === true
 
   const {
@@ -127,7 +118,7 @@ export default function StudioPage() {
     isLoading: workspaceBootstrapLoading,
     isValidating: workspaceBootstrapValidating,
     mutate: mutateWorkspace,
-  } = useSWR<StudioWorkspace>(id && canManageEvent ? studioWorkspacePath(id) : null, fetcher, responsiveListSwrOptions)
+  } = useStudioWorkspace(id, canManageEvent)
 
   const handlePanelIntent = useCallback((panel: PanelId) => {
     void preloadStudioPanel(panel).catch(() => undefined)

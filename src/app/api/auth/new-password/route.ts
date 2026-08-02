@@ -1,5 +1,5 @@
 import { RespondToAuthChallengeCommand } from '@aws-sdk/client-cognito-identity-provider'
-import { AUTH_COOKIE_NAMES, PRIVATE_NO_STORE_HEADERS, REFRESH_TOKEN_MAX_AGE_SECONDS, authCookieOptions, sessionMaxAge } from '@/lib/auth-session'
+import { AUTH_COOKIE_NAMES, PRIVATE_NO_STORE_HEADERS, REFRESH_TOKEN_MAX_AGE_SECONDS, authCookieOptions, refreshCookieOptions, sessionMaxAge } from '@/lib/auth-session'
 import { authRequestIsSameOrigin, getCognitoClient } from '@/lib/cognito-direct'
 import { verifyApplicationAccess } from '@/lib/application-access'
 import { tenantForRequest } from '@/lib/tenant-config'
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
     const response = NextResponse.json({ ok: true, session: access.session }, { headers: PRIVATE_NO_STORE_HEADERS })
     response.cookies.set(AUTH_COOKIE_NAMES.session, auth.IdToken, { ...authCookieOptions(), maxAge: sessionMaxAge(auth.ExpiresIn) })
-    if (auth.RefreshToken) response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, auth.RefreshToken, { ...authCookieOptions(), maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS })
+    if (auth.RefreshToken) response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, auth.RefreshToken, { ...refreshCookieOptions(), maxAge: REFRESH_TOKEN_MAX_AGE_SECONDS })
     response.cookies.set(AUTH_COOKIE_NAMES.challengeSession, '', { path: '/', maxAge: 0 })
     response.cookies.set(AUTH_COOKIE_NAMES.challengeUsername, '', { path: '/', maxAge: 0 })
     response.cookies.set(AUTH_COOKIE_NAMES.challengeName, '', { path: '/', maxAge: 0 })

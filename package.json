@@ -4,13 +4,13 @@
   "private": true,
   "packageManager": "npm@10.8.2",
   "engines": {
-    "node": ">=20.19.0 <21",
+    "node": ">=22.12.0 <23",
     "npm": ">=10 <11"
   },
   "overrides": {
     "flatted": "3.4.2",
-    "minimatch@3.1.5": {
-      "brace-expansion": "1.1.13"
+    "next": {
+      "sharp": "0.35.3"
     },
     "postcss": "8.5.19",
     "serialize-javascript": "7.0.7",
@@ -21,10 +21,12 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "next build --webpack",
+    "build:budget": "node scripts/build-with-budgets.mjs",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
+    "contract:check": "node scripts/verify-product-contract.mjs",
     "analyze": "node scripts/analyze.mjs",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
@@ -39,7 +41,6 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@ducanh2912/next-pwa": "^10.2.9",
     "@headlessui/react": "^2.2.6",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.2",
@@ -57,7 +58,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "motion": "^12.23.11",
-    "next": "15.5.22",
+    "next": "16.2.12",
     "qrcode.react": "^4.2.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
@@ -72,7 +73,9 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
-    "@next/bundle-analyzer": "^16.1.6",
+    "@eslint/eslintrc": "3.3.6",
+    "@next/bundle-analyzer": "16.2.12",
+    "@ducanh2912/next-pwa": "^10.2.9",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.1.15",
     "@testing-library/jest-dom": "^6.9.1",
@@ -86,7 +89,7 @@
     "@vitest/ui": "4.1.10",
     "dotenv": "^17.3.1",
     "eslint": "9.39.5",
-    "eslint-config-next": "15.5.20",
+    "eslint-config-next": "16.2.12",
     "happy-dom": "20.10.6",
     "jsdom": "^27.0.1",
     "postcss": "8.5.19",

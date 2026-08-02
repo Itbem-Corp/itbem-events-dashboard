@@ -30,6 +30,12 @@ describe('isEventGuestsCacheKey', () => {
     expect(isEventGuestsCacheKey('/guests/page:evt-1?page=2&page_size=50', 'evt-1')).toBe(true)
     expect(isEventGuestsCacheKey('/guests/checkin:evt-1?page=1&page_size=60', 'evt-1')).toBe(true)
     expect(isEventGuestsCacheKey('/guests/invitations:evt-1?page=1&page_size=25', 'evt-1')).toBe(true)
+    expect(
+      isEventGuestsCacheKey(
+        ['/guests/checkin:evt-1?page=1&page_size=60', 'eventiapp', 'organization', 'client-1'],
+        'evt-1'
+      )
+    ).toBe(true)
     expect(isEventGuestsCacheKey('/guests/all:evt-2', 'evt-1')).toBe(false)
     expect(isEventGuestsCacheKey('/guests/guest-1', 'evt-1')).toBe(false)
   })

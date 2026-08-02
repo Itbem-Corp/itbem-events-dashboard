@@ -212,6 +212,18 @@
   :where(input, select, textarea):focus-visible {
     border-color: var(--app-border-strong);
   }
+
+  /* Keep browser autofill from introducing a foreign blue surface in either theme. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--app-text-primary);
+    -webkit-box-shadow: 0 0 0 1000px var(--app-surface-raised) inset;
+    box-shadow: 0 0 0 1000px var(--app-surface-raised) inset;
+    caret-color: var(--app-brand);
+  }
 }
 
 @layer components {
@@ -521,7 +533,7 @@
 
   .skeleton {
     animation: none;
-    background: rgb(39 39 42);
+    background: var(--app-surface-soft);
   }
 
   .premium-surface-interactive {

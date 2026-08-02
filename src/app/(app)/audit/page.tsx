@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/product/page-header'
 import { Pagination } from '@/components/ui/pagination'
 import { PageTransition } from '@/components/ui/page-transition'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
+import { useScopedFetcherKey } from '@/hooks/useScopedFetcherKey'
 import { readApiData } from '@/lib/api-envelope'
 import { auditLogsPath } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
@@ -35,8 +36,9 @@ export default function AuditPage() {
     status: statusCode,
     succeeded: status === 'failed' ? false : undefined,
   })
+  const scopedKey = useScopedFetcherKey(key)
   const { data: raw, error, isLoading, isValidating, mutate } = useSWR<AuditLogPage>(
-    key,
+    scopedKey,
     fetcher,
     responsiveListSwrOptions
   )
@@ -78,7 +80,7 @@ export default function AuditPage() {
         <div className="premium-surface mt-8 flex min-h-72 flex-col items-center justify-center rounded-3xl px-6 text-center">
           <ExclamationTriangleIcon className="size-8 text-amber-300" />
           <p className="mt-4 text-sm font-medium text-ink">No pudimos cargar la auditoría</p>
-          <button className="mt-4 text-sm font-semibold text-indigo-300" onClick={() => void mutate()}>
+          <button className="mt-4 text-sm font-semibold text-(--tenant-accent) transition-colors hover:text-ink" onClick={() => void mutate()}>
             Reintentar
           </button>
         </div>

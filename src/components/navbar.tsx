@@ -11,7 +11,7 @@ export function Navbar({ className, ...props }: React.ComponentPropsWithoutRef<'
 }
 
 export function NavbarDivider({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
-  return <div aria-hidden="true" {...props} className={clsx(className, 'h-6 w-px bg-canvas/10 dark:bg-white/10')} />
+  return <div aria-hidden="true" {...props} className={clsx(className, 'h-6 w-px bg-border-subtle')} />
 }
 
 export function NavbarSection({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) {
@@ -44,20 +44,17 @@ export const NavbarItem = forwardRef(function NavbarItem(
     // Avatar
     '*:data-[slot=avatar]:-m-0.5 *:data-[slot=avatar]:size-7 *:data-[slot=avatar]:[--avatar-radius:var(--radius-md)] sm:*:data-[slot=avatar]:size-6',
     // Hover
-    'data-hover:bg-canvas/5 data-hover:*:data-[slot=icon]:fill-ink',
+    'data-hover:bg-surface-interactive data-hover:*:data-[slot=icon]:fill-ink',
     // Active
-    'data-active:bg-canvas/5 data-active:*:data-[slot=icon]:fill-ink',
-    // Dark mode
-    'dark:text-white dark:*:data-[slot=icon]:fill-ink-secondary',
-    'dark:data-hover:bg-white/5 dark:data-hover:*:data-[slot=icon]:fill-white',
-    'dark:data-active:bg-white/5 dark:data-active:*:data-[slot=icon]:fill-white'
+    'data-active:bg-surface-interactive data-active:*:data-[slot=icon]:fill-ink',
+    'data-current:text-ink data-current:*:data-[slot=icon]:fill-(--tenant-accent)'
   )
 
   return (
     <span className={clsx(className, 'relative')}>
       {current && (
         <span
-          className="absolute inset-x-2 -bottom-2.5 h-0.5 rounded-full bg-canvas dark:bg-white"
+          className="absolute inset-x-2 -bottom-2.5 h-0.5 rounded-full bg-(--tenant-accent)"
         />
       )}
       {typeof props.href === 'string' ? (
