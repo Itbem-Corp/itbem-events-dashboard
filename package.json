@@ -21,7 +21,7 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "next build --webpack",
     "build:budget": "node scripts/build-with-budgets.mjs",
     "start": "next start",
     "lint": "eslint src",
