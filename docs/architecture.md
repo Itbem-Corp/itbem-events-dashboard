@@ -8,6 +8,11 @@ Keep page-specific composition in `app`, reusable workflow UI in `components/<fe
 
 Feature-owned server state belongs under `src/features/<domain>`. Route pages consume feature hooks and should not assemble endpoint paths for composed workspaces such as check-in or Studio. Feature data modules may depend on shared `lib`, models, and hooks, but never on `app` route composition or another concrete product.
 
+`src/products/core` is the only product-neutral package. It may depend on
+contracts and shared primitives, but it must not import a concrete product.
+Concrete product manifests may select features and route exposure, but they do
+not own transport code. Architecture tests enforce both directions in CI.
+
 Paginated list features own both their query hook and their path builder. Rendering and URL filter state remain in the route, while request parameters, response normalization, SWR policy, and tenant-scoped keys remain together in the feature. This keeps visible page behavior editable without duplicating backend integration details.
 
 ## Project Scope
@@ -27,7 +32,7 @@ Cross-project tasks → `docs/frontend-integrator.md`
 
 - **GitHub**: `git@github.com:Itbem-Corp/itbem-events-backend.git`
 - **Local**: `C:\Users\AndBe\Desktop\Projects\EventiApp\itbem-events-backend`
-- **Stack**: Go 1.24 + Echo v4 + GORM + PostgreSQL + Redis + AWS S3 + Cognito
+- **Stack**: Go 1.25 + Echo v4 + GORM + PostgreSQL + Redis + AWS S3 + Cognito
 - **Pattern**: Controller → Service → Repository (3-layer clean architecture)
 - Full route list and contracts → `docs/backend-agent.md`
 

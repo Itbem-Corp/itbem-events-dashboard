@@ -22,7 +22,7 @@ function withTenantSecurityPolicy(req: NextRequest, response: NextResponse, nonc
   return response
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const nonce = securityNonce()
   // Start-Local uses this localhost-only development request to compile page
   // shells before handing the app to the user. APIs remain outside this
