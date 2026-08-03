@@ -11,6 +11,7 @@ import { ConfirmAlert } from '@/components/ui/confirm-alert'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useLazyVisible } from '@/hooks/useLazyVisible'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { usePageActivity } from '@/hooks/usePageActivity'
 import { usePreviewToken } from '@/hooks/usePreviewToken'
 import { useVideoThumbnail } from '@/hooks/useVideoThumbnail'
@@ -142,40 +143,6 @@ function resolveMomentThumbnailUrl(moment: Moment): string {
 }
 
 // ─── Focus trap ──────────────────────────────────────────────────────────────
-
-function useFocusTrap(containerRef: React.RefObject<HTMLElement | null>, active: boolean) {
-  useEffect(() => {
-    if (!active || !containerRef.current) return
-    const container = containerRef.current
-    const focusable = container.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input, textarea, select, [tabindex]:not([tabindex="-1"])'
-    )
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    const previouslyFocused = document.activeElement as HTMLElement | null
-    first?.focus()
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault()
-          last?.focus()
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault()
-          first?.focus()
-        }
-      }
-    }
-    container.addEventListener('keydown', handleKeyDown)
-    return () => {
-      container.removeEventListener('keydown', handleKeyDown)
-      previouslyFocused?.focus()
-    }
-  }, [active, containerRef])
-}
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
