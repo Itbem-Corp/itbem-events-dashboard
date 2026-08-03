@@ -1,5 +1,12 @@
 import '@testing-library/jest-dom'
 
+// Headless UI reads the Web Animations API to coordinate transitions. happy-dom
+// intentionally omits it, so provide the inert test-double rather than letting
+// the library install a noisy fallback during individual tests.
+if (!Element.prototype.getAnimations) {
+  Element.prototype.getAnimations = () => []
+}
+
 // Replace the happy-dom IntersectionObserver stub (which has a no-op observe())
 // with one that immediately fires isIntersecting:true, so lazy-loaded components
 // render their media content in unit tests without needing real scroll events.
