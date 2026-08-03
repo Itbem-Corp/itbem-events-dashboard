@@ -30,11 +30,13 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.23.1
+          node-version: 24.18.1
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm install --global npm@12.0.2
+          npm ci
 
       - name: TypeScript check
         run: npx tsc --noEmit
@@ -88,11 +90,13 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.23.1
+          node-version: 24.18.1
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm install --global npm@12.0.2
+          npm ci
 
       - name: Verify pinned Vercel CLI
         run: test "$(npx --yes vercel@${VERCEL_CLI_VERSION} --version)" = "${VERCEL_CLI_VERSION}"
@@ -253,11 +257,13 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.23.1
+          node-version: 24.18.1
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm install --global npm@12.0.2
+          npm ci
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -291,11 +297,13 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.23.1
+          node-version: 24.18.1
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm install --global npm@12.0.2
+          npm ci
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
