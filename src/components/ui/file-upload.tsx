@@ -100,13 +100,13 @@ export function FileUpload({
     accept,
     maxSize,
     multiple: false,
-    preventDropOnDocument: true, // Mejora UX en móviles
+    preventDropOnDocument: true, // Mejora UX en mÃ³viles
     disabled,
     validator: (file) =>
       file.size <= 0
         ? {
             code: 'file-empty',
-            message: 'El archivo está vacío',
+            message: 'El archivo estÃ¡ vacÃ­o',
           }
         : null,
   })
@@ -226,7 +226,7 @@ export function FileUpload({
               </div>
             )}
 
-            {/* Botón eliminar (Touch target optimizado para móvil) */}
+            {/* BotÃ³n eliminar (Touch target optimizado para mÃ³vil) */}
             <button
               type="button"
               onClick={removeFile}
@@ -249,7 +249,7 @@ export function FileUpload({
                 {isDragActive ? 'Suelta el archivo' : `Cargar ${uploadKind}`}
               </p>
               <p className="mx-auto max-w-[260px] text-xs text-ink-muted">
-                {description || `JPG, PNG, WebP, HEIC, MP4, MOV · Hasta ${maxSizeLabel}`}
+                {description || `JPG, PNG, WebP, HEIC, MP4, MOV Â· Hasta ${maxSizeLabel}`}
               </p>
             </div>
           </div>
@@ -265,10 +265,10 @@ export function FileUpload({
           {fileRejections.map(({ errors }, idx) => (
             <p key={idx} className="text-xs font-medium text-red-400">
               {errors[0].code === 'file-too-large'
-                ? `El archivo supera el límite de ${maxSizeLabel}`
+                ? `El archivo supera el lÃ­mite de ${maxSizeLabel}`
                 : errors[0].code === 'file-empty'
-                  ? 'El archivo está vacío o no se pudo leer'
-                  : 'Este formato de archivo no está permitido'}
+                  ? 'El archivo estÃ¡ vacÃ­o o no se pudo leer'
+                  : 'Este formato de archivo no estÃ¡ permitido'}
             </p>
           ))}
         </div>
