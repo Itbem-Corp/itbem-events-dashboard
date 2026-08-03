@@ -169,6 +169,13 @@ async function installPersonaSession(context: BrowserContext, page: Page, person
     capabilities: persona.capabilities,
   }
 
+  // Production verifies the browser cookie through the same-origin BFF before
+  // making any backend request.  The cookie above only satisfies middleware;
+  // mock the BFF contract as well so this remains a deterministic UI matrix
+  // rather than attempting to validate a synthetic Cognito token.
+  await page.route(/\/api\/auth\/token(?:\?.*)?$/, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ token: `persona-token-${persona.name}`, session }) })
+  )
   await page.route(/\/session(?:\?.*)?$/, (route) => route.fulfill(response(session)))
   await page.route(/\/users(?:\?.*)?$/, (route) => route.fulfill(response(user)))
   await page.route(/\/clients(?:\?.*)?$/, (route) =>
