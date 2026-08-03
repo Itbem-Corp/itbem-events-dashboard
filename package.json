@@ -9,7 +9,7 @@
   },
   "overrides": {
     "minimatch@3": {
-      "brace-expansion": "1.1.17"
+      "brace-expansion": "1.1.18"
     },
     "flatted": "3.4.2",
     "next": {
@@ -62,7 +62,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^1.28.0",
     "motion": "^12.23.11",
-    "next": "16.2.12",
+    "next": "16.3.0",
     "qrcode.react": "^4.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -79,7 +79,7 @@
   "devDependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
     "@eslint/eslintrc": "3.3.6",
-    "@next/bundle-analyzer": "16.2.12",
+    "@next/bundle-analyzer": "16.3.0",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.1.15",
     "@testing-library/jest-dom": "^7.0.0",
@@ -93,7 +93,7 @@
     "@vitest/ui": "4.1.10",
     "dotenv": "^17.3.1",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.2.12",
+    "eslint-config-next": "16.3.0",
     "happy-dom": "20.11.1",
     "postcss": "8.5.25",
     "prettier": "^3.6.2",
