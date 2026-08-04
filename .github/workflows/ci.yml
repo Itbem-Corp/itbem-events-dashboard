@@ -52,8 +52,8 @@ jobs:
         # files run concurrently; keep CI deterministic.
         run: npm run test:unit -- --maxWorkers=1
 
-      - name: Build
-        run: npm run build
+      - name: Build and verify initial client-asset budgets
+        run: npm run build:budget
         env:
           NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080' }}
 

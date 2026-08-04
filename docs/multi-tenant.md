@@ -58,7 +58,7 @@ The backend CORS policy must allow these three headers on dashboard origins. Oth
 
 ## Performance guardrails
 
-Run `npm run build:budget` in CI. It performs a production build and fails when the home, organizations, users, event-detail, or shared first-load bundles exceed their checked-in budgets. Intent-only modals and secondary panels must remain dynamically imported.
+Run `npm run build:budget` in CI. It performs a production build and fails when the home, organizations, users, or event-detail initial client assets exceed their checked-in gzip budgets. The measurement reads Next's emitted client-reference manifests, so it remains valid after Next 16 removed terminal bundle-size reporting. Intent-only modals and secondary panels must remain dynamically imported.
 
 ## Adding a product
 
