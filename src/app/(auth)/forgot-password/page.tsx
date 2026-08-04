@@ -12,9 +12,11 @@ import {
   EyeSlashIcon,
 } from '@heroicons/react/20/solid'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { FormEvent, useEffect, useRef, useState } from 'react'
 
 export default function ForgotPasswordPage() {
+  const router = useRouter()
   const errorRef = useRef<HTMLDivElement>(null)
   const [tenant, setTenant] = useState(() => tenantPresentationForHostname('dashboard.eventiapp.com.mx'))
   const [email, setEmail] = useState('')
@@ -52,7 +54,7 @@ export default function ForgotPasswordPage() {
       const result = (await response.json().catch(() => ({}))) as { error?: string }
       if (!response.ok) throw new Error(result.error || 'No pudimos procesar la solicitud.')
       if (!sent) setSent(true)
-      else window.location.assign('/login')
+      else router.replace('/login')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'No pudimos procesar la solicitud.')
     } finally {

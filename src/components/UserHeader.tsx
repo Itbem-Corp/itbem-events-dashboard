@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import { useStore } from "@/store/useStore";
 import { endSession } from '@/lib/end-session'
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"; // Asumiendo que usas shadcn/ui
 
 export function UserHeader() {
+    const router = useRouter();
     const { user, clearSession } = useStore();
 
     if (!user) return null;
@@ -48,10 +50,10 @@ export function UserHeader() {
                 <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => window.location.href = "/profile"}>
+                    <DropdownMenuItem onClick={() => router.push('/profile')}>
                         Perfil
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="text-red-600" onClick={() => { void endSession(clearSession) }}>
+                    <DropdownMenuItem className="text-red-600" onClick={() => { void endSession(clearSession, router.replace) }}>
                         Cerrar Sesión
                     </DropdownMenuItem>
                 </DropdownMenuContent>

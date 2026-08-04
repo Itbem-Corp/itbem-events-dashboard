@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   setApplicationSession: vi.fn(),
   clearSession: vi.fn(),
   refreshApplicationSession: vi.fn().mockResolvedValue(undefined),
+  replace: vi.fn(),
   swrKeys: [] as Array<string | null>,
 }))
 
@@ -38,6 +39,10 @@ vi.mock('swr', () => ({
   },
 }))
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: mocks.replace }),
+}))
+
 describe('SessionBootstrap hydration ordering', () => {
   beforeEach(() => {
     mocks.hydrated = false
@@ -45,6 +50,7 @@ describe('SessionBootstrap hydration ordering', () => {
     mocks.setApplicationSession.mockClear()
     mocks.clearSession.mockClear()
     mocks.refreshApplicationSession.mockClear()
+    mocks.replace.mockClear()
     mocks.swrKeys = []
   })
 
@@ -89,5 +95,6 @@ describe('SessionBootstrap hydration ordering', () => {
     window.dispatchEvent(event)
 
     expect(mocks.clearSession).toHaveBeenCalledTimes(1)
+    expect(mocks.replace).toHaveBeenCalledWith('/login')
   })
 })

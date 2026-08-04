@@ -1,4 +1,5 @@
 export const SESSION_SYNC_STORAGE_KEY = 'eventi:session-sync'
+export type SessionNavigator = (destination: string) => void
 
 /**
  * Ends the browser session through the same-origin logout endpoint.
@@ -23,7 +24,7 @@ export function notifyOtherTabsOfSessionEnd() {
   } catch {}
 }
 
-export async function endSession(clearLocalState?: () => void) {
+export async function endSession(clearLocalState?: () => void, navigate?: SessionNavigator) {
   clearLocalState?.()
 
   if (typeof window === 'undefined') return
@@ -36,6 +37,15 @@ export async function endSession(clearLocalState?: () => void) {
     })
     if (response.ok) notifyOtherTabsOfSessionEnd()
   } finally {
+    if (navigate) {
+      navigate('/login')
+      return
+    }
+
+    // Axios interceptors can run outside a React tree, where a Next router is
+    // unavailable. A document navigation is the safe fallback after revoking
+    // the browser session in that context.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.assign('/login')
   }
 }
