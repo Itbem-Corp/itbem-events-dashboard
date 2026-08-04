@@ -21,7 +21,7 @@ import {
   sectionResourcesMediaRefreshKey,
   upsertResourceCacheValue,
 } from '@/lib/resource-cache'
-import { readResourceMediaUrl } from '@/lib/resource-media'
+import { readResourceMediaUrl, safeResourceImageUrl } from '@/lib/resource-media'
 import {
   SECTION_IMAGE_UPLOAD_ACCEPT,
   SECTION_IMAGE_UPLOAD_LIMIT_HELP_TEXT,
@@ -212,7 +212,7 @@ function ImageSlot({ slot, resource, sectionId, resourceTypeId, onCreated, onRep
     }
   }
 
-  const imgSrc = preview ?? readResourceMediaUrl(resource)
+  const imgSrc = safeResourceImageUrl(preview ?? readResourceMediaUrl(resource))
   const isFilled = Boolean(imgSrc)
 
   return (
