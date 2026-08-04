@@ -106,12 +106,16 @@ import { api } from '@/lib/api'
 import useSWR, { mutate as globalMutate } from 'swr'
 import useSWRInfinite from 'swr/infinite'
 
-function mockSWR(data: Moment[] = [], isLoading = false) {
+function mockSWR(
+  data: Moment[] = [],
+  isLoading = false,
+  activity: { in_flight: Moment[]; reoptimizing: Moment[] } = { in_flight: [], reoptimizing: [] }
+) {
   const empty = { data: [], isLoading: false, error: undefined, isValidating: false, mutate: vi.fn() }
   vi.mocked(useSWR).mockImplementation((key) => {
     const k = typeof key === 'function' ? key() : key
     if (typeof k === 'string' && (k.includes('/moments/activity') || k.includes('/moments/summary')))
-      return { ...empty, data: { in_flight: [], reoptimizing: [] } } as ReturnType<typeof useSWR>
+      return { ...empty, data: activity } as ReturnType<typeof useSWR>
     return { data, isLoading, error: undefined, isValidating: false, mutate: vi.fn() } as ReturnType<typeof useSWR>
   })
   const counts = {
@@ -138,7 +142,7 @@ function mockSWR(data: Moment[] = [], isLoading = false) {
   vi.mocked(useSWRInfinite).mockReturnValue({
     data: isLoading
       ? undefined
-      : [{ data, total: data.length, page: 1, page_size: 40, total_pages: data.length ? 1 : 0, counts }],
+      : [{ data, total: data.length, page: 1, page_size: 40, total_pages: data.length ? 1 : 0, counts, ...activity }],
     isLoading,
     isValidating: false,
     error: undefined,
@@ -186,6 +190,23 @@ describe('MomentsWall - live refresh policy', () => {
 
     const options = vi.mocked(useSWRInfinite).mock.calls.at(-1)?.[2]
     expect(options?.refreshInterval).toBe(15_000)
+  })
+
+  it('does not poll media activity for an inactive or past event', async () => {
+    mockSWR([], false, { in_flight: [makeMoment({ processing_status: 'processing' })], reoptimizing: [] })
+    const { MomentsWall } = await import('@/components/events/moments-wall')
+    render(
+      <MomentsWall
+        eventId="evt-001"
+        eventIdentifier="evento-test"
+        eventName="Evento Test"
+        liveRefreshEnabled={false}
+      />
+    )
+
+    const [key, , options] = vi.mocked(useSWR).mock.calls.at(-1) ?? []
+    expect(key).toBeNull()
+    expect(options?.refreshInterval).toBe(0)
   })
 })
 
