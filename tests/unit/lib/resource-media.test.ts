@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { readResourceMediaUrl, safeResourceImageUrl } from '@/lib/resource-media'
 import { describe, expect, it } from 'vitest'
 

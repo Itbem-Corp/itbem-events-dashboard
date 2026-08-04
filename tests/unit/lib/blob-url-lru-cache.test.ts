@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it, vi } from 'vitest'
 import { BlobUrlLruCache } from '@/lib/blob-url-lru-cache'
 

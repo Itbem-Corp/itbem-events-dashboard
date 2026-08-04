@@ -8,17 +8,13 @@ import { Link } from '@/components/link'
 import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
-import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
+import { useEventsDashboard } from '@/features/events/use-events-dashboard'
+import { organizationWorkspaceCopy } from '@/features/workspace/workspace-copy'
 import { accessCan, createAccessProfile, type AccessProfile } from '@/lib/access-profile'
-import { readApiData } from '@/lib/api-envelope'
-import { scopedEventsDashboardPath } from '@/lib/api-paths'
 import { getCalendarDaysUntil } from '@/lib/date-time'
 import { eventTypeLabel } from '@/lib/event-type-label'
-import { fetcher } from '@/lib/fetcher'
-import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
-import { getDataErrorState } from '@/lib/swr-data-state'
 import type { TenantCode } from '@/lib/tenant-config'
-import type { Event, EventDashboardOverview } from '@/models/Event'
+import type { Event } from '@/models/Event'
 import { productSupportsFeature } from '@/products/core/product-manifest'
 import { getProductManifest } from '@/products/registry'
 import { useStore } from '@/store/useStore'
@@ -40,18 +36,8 @@ import {
 import { useRouter } from 'next/navigation'
 import type { ComponentType, SVGProps } from 'react'
 import { useCallback, useMemo } from 'react'
-import useSWR from 'swr'
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>
-const EMPTY_EVENTS: Event[] = []
-const EMPTY_METRICS: EventDashboardOverview['metrics'] = {
-  total: 0,
-  active: 0,
-  upcoming: 0,
-  past_active: 0,
-  total_capacity: 0,
-}
-
 function getDaysUntil(dateString: string, timeZone?: string | null): number | null {
   return getCalendarDaysUntil(dateString, timeZone)
 }
@@ -110,74 +96,6 @@ function DashboardSkeleton() {
       </div>
     </div>
   )
-}
-
-function organizationWorkspaceCopy(accessProfile: AccessProfile, organizationName?: string) {
-  const role = (accessProfile.organizationRole ?? '').replace('INHERITED_', '').toUpperCase()
-  if (accessProfile.platformLevel === 'root_1') {
-    return {
-      eyebrow: 'Supervisión de organización',
-      title: organizationName || 'Organización',
-      description: 'Gobierno, operación y resultados del espacio seleccionado.',
-    }
-  }
-  if (accessProfile.platformLevel === 'root_2') {
-    return {
-      eyebrow: 'Soporte operativo',
-      title: organizationName || 'Organización',
-      description: 'Asistencia a invitados, check-in y analítica sin cambios estructurales.',
-    }
-  }
-  switch (role) {
-    case 'OWNER':
-      return {
-        eyebrow: 'Dirección de organización',
-        title: organizationName || 'Tu organización',
-        description: 'Equipo, eventos y resultados bajo una sola operación.',
-      }
-    case 'ADMIN':
-      return {
-        eyebrow: 'Administración',
-        title: organizationName || 'Tu organización',
-        description: 'Coordina el equipo y mantiene la operación lista para crecer.',
-      }
-    case 'EVENT_MANAGER':
-      return {
-        eyebrow: 'Centro de eventos',
-        title: 'Operación y producción',
-        description: 'Planea eventos, coordina invitados y sigue cada resultado.',
-      }
-    case 'EDITOR':
-      return {
-        eyebrow: 'Contenido y experiencia',
-        title: 'Eventos listos para publicar',
-        description: 'Edita estructura, contenido e invitados sin acciones destructivas.',
-      }
-    case 'CHECKIN':
-      return {
-        eyebrow: 'Operación de acceso',
-        title: 'Check-in sin fricción',
-        description: 'Consulta próximos eventos y mantén ágil la llegada de invitados.',
-      }
-    case 'ANALYST':
-      return {
-        eyebrow: 'Resultados',
-        title: 'Lectura de operación',
-        description: 'Analiza actividad, capacidad y desempeño sin modificar la experiencia.',
-      }
-    case 'MEMBER':
-      return {
-        eyebrow: 'Colaboración',
-        title: 'Tus eventos asignados',
-        description: 'Apoya la gestión de invitados dentro de un espacio controlado.',
-      }
-    default:
-      return {
-        eyebrow: 'Vista de consulta',
-        title: organizationName || 'Eventos',
-        description: 'Consulta agenda y estado sin permisos de modificación.',
-      }
-  }
 }
 
 function ControlPlaneHome({
@@ -375,7 +293,6 @@ function ControlPlaneHome({
 }
 
 export default function Home() {
-  const scopeFetcherKey = useScopedFetcherScope()
   const router = useRouter()
   const currentClient = useStore((state) => state.currentClient)
   const user = useStore((state) => state.user)
@@ -391,25 +308,22 @@ export default function Home() {
   const canEditEvents = accessCan(accessProfile, 'events:manage')
   const organizationRole = (accessProfile.organizationRole ?? '').replace('INHERITED_', '').toUpperCase()
   const workspaceCopy = organizationWorkspaceCopy(accessProfile, currentClient?.name)
-  const eventsKey =
-    hasEvents && !accessProfile.isPlatformContext ? scopedEventsDashboardPath(currentClient?.id, isRoot) : null
-  const scopedEventsKey = useScopedFetcherKey(eventsKey)
   const {
-    data: rawEvents,
-    isLoading: eventsLoading,
-    isValidating: eventsValidating,
-    error: eventsError,
-    mutate: mutateEvents,
-  } = useSWR<EventDashboardOverview>(scopedEventsKey, fetcher, responsiveListSwrOptions)
-  const isLoading = Boolean(!eventsKey || eventsLoading)
-  const overview = useMemo(() => readApiData<EventDashboardOverview | undefined>(rawEvents), [rawEvents])
-  const eventsErrorState = getDataErrorState(eventsError, rawEvents)
-
-  const activeEvents = overview?.active_events ?? EMPTY_EVENTS
-  const nextEvent = overview?.next_event ?? undefined
-  const metrics = overview?.metrics ?? EMPTY_METRICS
-
-  const nextGuestSummary = overview?.next_event_guest_summary
+    scopeFetcherKey,
+    isLoading,
+    eventsValidating,
+    mutateEvents,
+    eventsErrorState,
+    activeEvents,
+    nextEvent,
+    metrics,
+    nextGuestSummary,
+  } = useEventsDashboard({
+    canViewEvents: hasEvents,
+    isPlatformContext: accessProfile.isPlatformContext,
+    organizationId: currentClient?.id,
+    isRoot,
+  })
   const primaryEventHref = nextEvent
     ? organizationRole === 'CHECKIN'
       ? `/events/${nextEvent.id}/checkin`

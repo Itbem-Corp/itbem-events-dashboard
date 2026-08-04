@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { hasEventSectionConfig, readEventSectionConfig } from '@/lib/event-section-config'
 import type { EventSection } from '@/models/EventSection'
 import { describe, expect, it } from 'vitest'

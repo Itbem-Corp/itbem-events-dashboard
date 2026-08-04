@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { authRequestIsSameOrigin } from '@/lib/cognito-direct'
 import { describe, expect, it } from 'vitest'
 

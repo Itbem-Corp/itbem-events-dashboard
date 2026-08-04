@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { hasAnyEventConfigVisibilityFlag, withEventConfigVisibilityDefaults } from '@/lib/event-config-visibility'
 import type { EventConfig } from '@/models/EventConfig'
 import { describe, expect, it } from 'vitest'

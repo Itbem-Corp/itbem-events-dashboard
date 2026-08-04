@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { normalizeGuestSummary } from '@/lib/guest-summary'
 import { describe, expect, it } from 'vitest'
 

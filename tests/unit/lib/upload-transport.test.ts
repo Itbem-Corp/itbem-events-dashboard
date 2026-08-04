@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it, vi } from 'vitest'
 
 import { getUploadErrorMessage, UPLOAD_TIMEOUT_MS, uploadRequestConfig } from '@/lib/upload-transport'

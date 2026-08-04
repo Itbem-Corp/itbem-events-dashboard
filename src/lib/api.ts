@@ -1,7 +1,7 @@
 ﻿import axios from "axios";
 import { useStore } from "@/store/useStore";
 import { readApiData } from "@/lib/api-envelope";
-import { normalizeBackendBaseUrl } from "@/lib/base-url";
+import { dashboardBackendBaseUrl } from "@/lib/base-url";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { backendBaseUrlForHostname, tenantCodeForHostname } from "@/lib/tenant-config";
 import { releaseMutationKey, reserveMutationKey } from "@/lib/idempotency-key";
@@ -14,7 +14,7 @@ import type { ApplicationSession } from '@/models/ApplicationSession'
 
 // 1. Leemos la URL base pública y le pegamos "/api" al final.
 // Si no existe la variable, usamos localhost como fallback.
-const configuredBaseUrl = normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, "http://localhost:8080");
+const configuredBaseUrl = dashboardBackendBaseUrl();
 const BASE_URL = typeof window === "undefined"
     ? configuredBaseUrl
     : backendBaseUrlForHostname(window.location.hostname, configuredBaseUrl);

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { patchEventCacheValue } from '@/lib/event-cache'
 import { replaceEventConfigCacheValue } from '@/lib/event-config-cache'
 import { reorderEventSectionsCacheValue, upsertEventSectionCacheValue } from '@/lib/event-section-cache'

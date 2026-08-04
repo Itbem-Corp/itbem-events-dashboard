@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { patchCheckinGuestsValue, patchCheckinWorkspaceValue } from '@/lib/checkin-cache'
 import type { Guest } from '@/models/Guest'
 import { describe, expect, it } from 'vitest'

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getSharedUploadStatus, isSharedUploadConfigured } from '@/lib/shared-upload-access'
 import { describe, expect, it } from 'vitest'
 

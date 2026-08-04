@@ -89,6 +89,7 @@ import clsx from 'clsx'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { toast } from 'sonner'
+import { dashboardBackendBaseUrl } from '@/lib/base-url'
 
 const REFRESH_INTERVAL = 15_000
 const VISIBLE_PAGE = 40
@@ -97,7 +98,6 @@ const STATUS_SECTION_PAGE = 24
 
 const OVERSIZED_PHOTO_BYTES = 100_000 // 100 KB
 const OVERSIZED_VIDEO_BYTES = 5_000_000 // 5 MB
-const BACKEND_MEDIA_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL
 
 const BrandedQR = dynamic(() => import('@/components/ui/branded-qr').then((module) => module.BrandedQR), {
   ssr: false,
@@ -131,7 +131,7 @@ function isOversized(m: Moment): boolean {
 }
 
 function resolveMomentMediaUrl(mediaPath: string | null | undefined): string {
-  return resolveBackendMediaUrl(mediaPath, BACKEND_MEDIA_BASE_URL)
+  return resolveBackendMediaUrl(mediaPath, dashboardBackendBaseUrl())
 }
 
 function resolveMomentContentUrl(moment: Moment): string {

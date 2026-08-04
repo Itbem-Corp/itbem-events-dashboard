@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   DEFAULT_SESSION_MAX_AGE_SECONDS,
   PRIVATE_NO_STORE_HEADERS,

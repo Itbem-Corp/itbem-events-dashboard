@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { normalizeEventMutationPayload } from '@/lib/event-payload'
 import { describe, expect, it } from 'vitest'
 

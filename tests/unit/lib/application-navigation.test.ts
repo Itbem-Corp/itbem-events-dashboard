@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { createAccessProfile } from '@/lib/access-profile'
 import { applicationRoutePreloadPath, createApplicationNavigation } from '@/lib/application-navigation'
 import type { ApplicationSession } from '@/models/ApplicationSession'
