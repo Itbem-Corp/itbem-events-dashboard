@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   PUBLIC_ACCESS_DISPLAY_QUERY_KEYS,
   PUBLIC_EVENT_ACCESS_HEADER_NAME,

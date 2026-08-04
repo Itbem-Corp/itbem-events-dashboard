@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getEventConfigMomentWallState, resolveEventConfigMomentWallPublished } from '@/lib/event-config-moment-wall'
 import { describe, expect, it } from 'vitest'
 

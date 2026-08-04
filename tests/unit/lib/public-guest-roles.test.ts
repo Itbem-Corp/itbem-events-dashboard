@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest'
 
 import { PUBLIC_GUEST_ROLES, isHostGuestRole, normalizePublicGuestRole } from '@/lib/public-guest-roles'

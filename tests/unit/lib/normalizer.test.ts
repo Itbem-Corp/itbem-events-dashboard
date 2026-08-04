@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { normalizeKeys, toSnakeCase } from '@/lib/normalizer'
 import { describe, expect, it } from 'vitest'
 

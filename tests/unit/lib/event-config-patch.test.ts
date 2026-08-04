@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { normalizeEventConfigPatch } from '@/lib/event-config-patch'
 import { describe, expect, it } from 'vitest'
 

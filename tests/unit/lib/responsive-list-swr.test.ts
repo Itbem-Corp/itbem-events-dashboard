@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   RESPONSIVE_LIST_DEDUPING_INTERVAL_MS,
   responsiveListSwrOptions,

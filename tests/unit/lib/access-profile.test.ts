@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { accessCan, createAccessProfile } from '@/lib/access-profile'
 import type { ApplicationSession } from '@/models/ApplicationSession'
 import { describe, expect, it } from 'vitest'

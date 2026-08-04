@@ -7,6 +7,7 @@ import { UploadStatus } from '@/components/ui/upload-status'
 import { useUploadTask } from '@/hooks/use-upload-task'
 import { api } from '@/lib/api'
 import { readApiData } from '@/lib/api-envelope'
+import { dashboardBackendBaseUrl } from '@/lib/base-url'
 import { eventCoverDeletePath, eventCoverPath } from '@/lib/api-paths'
 import { isEventCacheKey, patchEventCacheValue } from '@/lib/event-cache'
 import {
@@ -106,7 +107,7 @@ export function EventCoverUpload({ event, onChanged }: Props) {
         setCoverOverride(
           pendingViewUrl || resolveEventCoverUrl(
             { cover_image_url: coverImageUrl, cover_view_url: viewUrl },
-            process.env.NEXT_PUBLIC_BACKEND_URL
+            dashboardBackendBaseUrl()
           ) || undefined
         )
         onChanged?.()
@@ -178,7 +179,7 @@ export function EventCoverUpload({ event, onChanged }: Props) {
     }
   }
 
-  const coverImageUrl = coverOverride ?? resolveEventCoverUrl(event, process.env.NEXT_PUBLIC_BACKEND_URL)
+  const coverImageUrl = coverOverride ?? resolveEventCoverUrl(event, dashboardBackendBaseUrl())
   const hasCover = Boolean(coverImageUrl)
   const isProcessing = ['pending', 'processing'].includes(event.cover_processing_status || '')
 

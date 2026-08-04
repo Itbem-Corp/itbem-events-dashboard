@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   apiPath,
   batchGuestsPath,

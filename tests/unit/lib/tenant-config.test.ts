@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { backendBaseUrlForHostname, tenantCodeForHostname, tenantForHostname, tenantPresentationForHostname } from '@/lib/tenant-config'
 import { describe, expect, it } from 'vitest'
 

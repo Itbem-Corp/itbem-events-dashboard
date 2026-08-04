@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { mapSettledWithConcurrency } from '@/lib/map-settled-with-concurrency'
 import { describe, expect, it } from 'vitest'
 
