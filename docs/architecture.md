@@ -100,7 +100,7 @@ Browser → middleware.ts (session cookie check)
 - Command palette and notification state live in isolated controllers; opening either tool does not update the application shell.
 - Product manifests own route exposure and preload policy; product core cannot depend on a concrete product.
 - Tenant-sensitive SWR keys include application, workspace mode, and organization. The same context is forwarded to the API as auditable headers, while backend authorization remains authoritative.
-- `npm run build:budget` enforces route-level first-load limits for the heaviest dashboard surfaces.
+- `npm run build:budget` measures the emitted Next client-reference manifests and enforces gzip limits for the initial client assets of the heaviest dashboard surfaces.
 - `currentClient` (Zustand) = active organization
 - API calls scoped by client context (backend enforces ownership)
 - Root users (`is_root`) can see/manage all clients; non-root see their client(s)
