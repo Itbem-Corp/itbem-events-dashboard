@@ -9,7 +9,10 @@ import {
     truncateOgAddress,
 } from '@/lib/og-route-params'
 
-export const runtime = 'edge'
+// ImageResponse is supported in Route Handlers under Node.js. Keeping this
+// explicit prevents an accidental return to the deprecated Edge Runtime and
+// preserves access to the full Node.js ecosystem for image generation.
+export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl
