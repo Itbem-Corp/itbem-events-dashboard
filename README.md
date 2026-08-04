@@ -30,12 +30,13 @@ el backend y Cognito para iniciar sesión contra un entorno real.
 ```bash
 npm run check:fast  # contrato de producto + TypeScript
 npm run check       # lint + TypeScript + pruebas unitarias + build
+npm run test:unit:serial # suite unitaria determinista, igual que CI
 npm run build:budget
 npm run test:e2e    # E2E autenticado: requiere configuración de entorno
 ```
 
-La suite unitaria se ejecuta con `--maxWorkers=1` en CI porque los globals de
-DOM y fake timers compartidos requieren ejecución determinista.
+La suite unitaria serial usa `npm run test:unit:serial` en CI porque los
+globals de DOM y fake timers compartidos requieren ejecución determinista.
 
 ## Límites de arquitectura
 
