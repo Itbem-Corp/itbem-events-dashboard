@@ -1,4 +1,4 @@
-import { readResourceMediaUrl } from '@/lib/resource-media'
+import { readResourceMediaUrl, safeResourceImageUrl } from '@/lib/resource-media'
 import { describe, expect, it } from 'vitest'
 
 describe('readResourceMediaUrl', () => {
@@ -84,5 +84,22 @@ describe('readResourceMediaUrl', () => {
   it('returns an empty string for missing resources', () => {
     expect(readResourceMediaUrl(null, backendUrl)).toBe('')
     expect(readResourceMediaUrl({}, backendUrl)).toBe('')
+  })
+})
+
+describe('safeResourceImageUrl', () => {
+  it('allows persisted HTTP(S) media and local upload previews', () => {
+    expect(safeResourceImageUrl('https://signed.example.com/photo.webp')).toBe(
+      'https://signed.example.com/photo.webp'
+    )
+    expect(safeResourceImageUrl('blob:https://dashboard.example/preview')).toBe(
+      'blob:https://dashboard.example/preview'
+    )
+  })
+
+  it('rejects executable and opaque API-provided URL schemes', () => {
+    expect(safeResourceImageUrl('javascript:alert(1)')).toBe('')
+    expect(safeResourceImageUrl('data:image/svg+xml,<svg onload=alert(1)>')).toBe('')
+    expect(safeResourceImageUrl('not a URL')).toBe('')
   })
 })

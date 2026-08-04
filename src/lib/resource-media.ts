@@ -25,6 +25,26 @@ function firstNonEmptyString(...values: Array<unknown>): string {
   return ''
 }
 
+/**
+ * Returns a URL that is safe to bind to an image `src` attribute.
+ *
+ * Resource payloads are API input, including legacy aliases, so they must not
+ * be allowed to select an executable URI scheme. Upload previews use a local
+ * object URL; persisted media is served through HTTP(S).
+ */
+export function safeResourceImageUrl(value: string | null | undefined): string {
+  const candidate = value?.trim() ?? ''
+  if (!candidate) return ''
+  if (candidate.startsWith('blob:')) return candidate
+
+  try {
+    const url = new URL(candidate.startsWith('//') ? `https:${candidate}` : candidate)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? candidate : ''
+  } catch {
+    return ''
+  }
+}
+
 export function readResourceMediaUrl(
   resource: ResourceMediaSource | null | undefined,
   backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL
