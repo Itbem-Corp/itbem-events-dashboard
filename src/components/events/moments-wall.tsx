@@ -1700,14 +1700,14 @@ export function MomentsWall({
     return [...byId.values()]
   }, [eventId, momentPageCount, moments, totalMomentPages])
   const mediaRefreshDelay = useMemo(
-    () => (isPageActive && !dragMode ? getMomentsRefreshDelay(moments) : null),
-    [dragMode, isPageActive, moments]
+    () => (isPageActive && liveRefreshEnabled && !dragMode ? getMomentsRefreshDelay(moments) : null),
+    [dragMode, isPageActive, liveRefreshEnabled, moments]
   )
   const mediaRefreshKey = useMemo(() => momentsMediaRefreshKey(moments), [moments])
   const lastMediaRefreshKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!eventId || !isPageActive || dragMode || mediaRefreshDelay === null || !mediaRefreshKey) return
+    if (!eventId || !isPageActive || !liveRefreshEnabled || dragMode || mediaRefreshDelay === null || !mediaRefreshKey) return
 
     const refreshMoments = () => {
       lastMediaRefreshKeyRef.current = mediaRefreshKey
@@ -1722,7 +1722,7 @@ export function MomentsWall({
 
     const timer = window.setTimeout(refreshMoments, mediaRefreshDelay)
     return () => window.clearTimeout(timer)
-  }, [dragMode, eventId, isPageActive, mediaRefreshDelay, mediaRefreshKey, mutateMomentPages])
+  }, [dragMode, eventId, isPageActive, liveRefreshEnabled, mediaRefreshDelay, mediaRefreshKey, mutateMomentPages])
 
   // ─── In-flight re-optimization (separate 5s hook) ────────────────────────
   const embeddedMomentActivity = useMemo(
@@ -1734,7 +1734,7 @@ export function MomentsWall({
   )
   const hasActiveMomentJobs =
     embeddedMomentActivity.in_flight.length > 0 || embeddedMomentActivity.reoptimizing.length > 0
-  const activitySwrKey = eventId && hasActiveMomentJobs ? momentActivityPath(eventId) : null
+  const activitySwrKey = eventId && liveRefreshEnabled && hasActiveMomentJobs ? momentActivityPath(eventId) : null
   const { data: liveMomentActivity } = useSWR<{ in_flight: Moment[]; reoptimizing: Moment[] }>(
     activitySwrKey,
     fetcher,
@@ -1742,7 +1742,7 @@ export function MomentsWall({
       fallbackData: embeddedMomentActivity,
       revalidateOnMount: false,
       revalidateOnFocus: false,
-      refreshInterval: isPageActive ? 5_000 : 0,
+      refreshInterval: isPageActive && liveRefreshEnabled ? 5_000 : 0,
     }
   )
   const momentActivity = activitySwrKey ? (liveMomentActivity ?? embeddedMomentActivity) : embeddedMomentActivity
