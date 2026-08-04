@@ -11,9 +11,11 @@ import { useStoreHydration } from '@/hooks/useStoreHydration'
 import type { ApplicationSession } from '@/models/ApplicationSession'
 import { useStore } from '@/store/useStore'
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 
 export default function SessionBootstrap() {
+  const router = useRouter()
   const hydrated = useStoreHydration()
   const profileLoaded = useStore((s) => s.profileLoaded)
   const setApplicationSession = useStore((s) => s.setApplicationSession)
@@ -36,9 +38,9 @@ export default function SessionBootstrap() {
   useEffect(() => {
     const status = (error as { response?: { status?: number } })?.response?.status
     if (status === 401 || status === 403) {
-      void endSession(clearSession)
+      void endSession(clearSession, router.replace)
     }
-  }, [clearSession, error])
+  }, [clearSession, error, router])
 
   useEffect(() => {
     if (!hydrated || !profileLoaded) return
@@ -49,7 +51,7 @@ export default function SessionBootstrap() {
         await refreshApplicationSession(minAgeMs)
       } catch (reason) {
         const status = (reason as { status?: number })?.status
-        if (active && (status === 401 || status === 403)) void endSession(clearSession)
+        if (active && (status === 401 || status === 403)) void endSession(clearSession, router.replace)
       }
     }
     const intervalId = window.setInterval(() => { void revalidate() }, SESSION_REVALIDATE_INTERVAL_MS)
@@ -63,14 +65,14 @@ export default function SessionBootstrap() {
       window.clearInterval(intervalId)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [clearSession, hydrated, profileLoaded])
+  }, [clearSession, hydrated, profileLoaded, router])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
 
     const leaveLocally = () => {
       clearSession()
-      window.location.assign('/login')
+      router.replace('/login')
     }
     const onStorage = (event: StorageEvent) => {
       if (event.key === SESSION_SYNC_STORAGE_KEY && event.newValue) leaveLocally()
@@ -87,7 +89,7 @@ export default function SessionBootstrap() {
       window.removeEventListener('storage', onStorage)
       channel?.close()
     }
-  }, [clearSession])
+  }, [clearSession, router])
 
   return null
 }
