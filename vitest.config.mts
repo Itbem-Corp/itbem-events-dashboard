@@ -8,7 +8,9 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./tests/unit/setup.ts'],
-    exclude: ['tests/e2e/**', 'node_modules/**'],
+    // The product contract is validated by its own Node test runner. Keep its
+    // checkout out of the dashboard's Vitest discovery and coverage scope.
+    exclude: ['tests/e2e/**', 'node_modules/**', '.contracts/**'],
     coverage: {
       enabled: false,
       provider: 'v8',
@@ -16,6 +18,7 @@ export default defineConfig({
       reportsDirectory: './coverage',
       exclude: [
         'node_modules/**',
+        '.contracts/**',
         'tests/e2e/**',
         '*.config.*',
         'src/app/**',
