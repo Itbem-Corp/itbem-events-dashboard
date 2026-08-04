@@ -12,20 +12,16 @@ import { PageDataError } from '@/components/ui/page-data-error'
 import { PageTransition } from '@/components/ui/page-transition'
 import { Pagination } from '@/components/ui/pagination'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
-import { useDebounce } from '@/hooks/useDebounce'
-import { useListViewState } from '@/hooks/useListViewState'
-import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
+import {
+  EVENT_LIST_PAGE_SIZE,
+  type EventListFilter,
+  useEventsList,
+} from '@/features/events/use-events-list'
 import { accessCan, createAccessProfile } from '@/lib/access-profile'
-import { readApiData } from '@/lib/api-envelope'
-import { scopedEventsPagePath } from '@/lib/api-paths'
 import { getCalendarDaysUntil } from '@/lib/date-time'
-import { removeEventCacheValue, upsertEventCacheValue } from '@/lib/event-cache'
-import { eventCoversMediaRefreshKey, getEventCoversRefreshDelay, resolveEventCoverUrl } from '@/lib/event-media'
+import { resolveEventCoverUrl } from '@/lib/event-media'
 import { eventTypeLabel } from '@/lib/event-type-label'
-import { fetcher } from '@/lib/fetcher'
-import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
-import { getDataErrorState } from '@/lib/swr-data-state'
-import type { Event, EventListPage } from '@/models/Event'
+import type { Event } from '@/models/Event'
 import { useStore } from '@/store/useStore'
 import {
   ArrowRightIcon,
@@ -40,8 +36,7 @@ import {
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import useSWR, { preload } from 'swr'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 // Lazy-loaded modals
 const loadEventDuplicateModal = () => import('@/components/events/event-duplicate-modal')
@@ -99,12 +94,6 @@ function CountdownBadge({ dateString, timeZone }: { dateString: string; timeZone
   return <Badge color="zinc">En {days}d</Badge>
 }
 
-type FilterType = 'all' | 'upcoming' | 'past' | 'today'
-const EVENT_FILTERS = ['all', 'upcoming', 'today', 'past'] as const satisfies readonly FilterType[]
-const EVENTS_PAGE_SIZE = 12
-const EMPTY_EVENTS: Event[] = []
-const EMPTY_COUNTS: EventListPage['counts'] = { all: 0, upcoming: 0, today: 0, past: 0 }
-
 // ─── Pending moments badge ────────────────────────────────────────────────────
 
 function EventMomentsBadge({ pending }: { pending: number }) {
@@ -119,7 +108,6 @@ function EventMomentsBadge({ pending }: { pending: number }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EventsPage() {
-  const scopeFetcherKey = useScopedFetcherScope()
   const router = useRouter()
   const currentClient = useStore((s) => s.currentClient)
   const user = useStore((s) => s.user)
@@ -134,6 +122,28 @@ export default function EventsPage() {
   const canEditEvents = accessCan(accessProfile, 'events:manage')
   const canDeleteEvents = accessCan(accessProfile, 'events:delete')
   const hasEventActions = canEditEvents || canCreateEvents || canDeleteEvents
+  const {
+    counts,
+    dataErrorState,
+    debouncedSearch,
+    events,
+    eventsPage,
+    filter,
+    isLoading,
+    isValidating,
+    mutateEvents,
+    page,
+    preloadEventsPage,
+    removeEventFromCurrentPage,
+    restoreEventToCurrentPage,
+    saveEventInCurrentPage,
+    scopeFetcherKey,
+    setFilter,
+    setPage,
+    setSearch,
+    search,
+    swrKey,
+  } = useEventsList({ clientId: currentClient?.id, isRoot })
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
@@ -141,37 +151,6 @@ export default function EventsPage() {
   const [eventToDuplicate, setEventToDuplicate] = useState<Event | null>(null)
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null)
   const [openActionEventId, setOpenActionEventId] = useState<string | null>(null)
-  const { search, setSearch, filter, setFilter, page, setPage } = useListViewState<FilterType>({
-    defaultFilter: 'all',
-    filterParam: 'filter',
-    pagination: true,
-    validFilters: EVENT_FILTERS,
-  })
-
-  const debouncedSearch = useDebounce(search, 200)
-  const swrKey = scopedEventsPagePath(currentClient?.id, isRoot, {
-    page,
-    page_size: EVENTS_PAGE_SIZE,
-    search: debouncedSearch,
-    filter,
-  })
-  const scopedSWRKey = useScopedFetcherKey(swrKey)
-  const {
-    data: rawEvents,
-    isLoading,
-    isValidating,
-    error,
-    mutate: mutateEvents,
-  } = useSWR<EventListPage>(scopedSWRKey, fetcher, {
-    ...responsiveListSwrOptions,
-    keepPreviousData: true,
-  })
-  const eventsPage = useMemo(() => readApiData<EventListPage | undefined>(rawEvents), [rawEvents])
-  const events = eventsPage?.data ?? EMPTY_EVENTS
-  const counts = eventsPage?.counts ?? EMPTY_COUNTS
-  const dataErrorState = getDataErrorState(error, rawEvents)
-  const lastCoverRefreshKey = useRef<string | null>(null)
-
   const openNewEventModal = useCallback(() => {
     setSelectedEvent(null)
     setIsFormOpen(true)
@@ -212,88 +191,6 @@ export default function EventsPage() {
     [router, scopeFetcherKey]
   )
 
-  useEffect(() => {
-    if (isLoading || !eventsPage) return
-    const lastPage = Math.max(eventsPage.total_pages, 1)
-    if (page > lastPage) setPage(lastPage, 'replace')
-  }, [eventsPage, isLoading, page, setPage])
-
-  const preloadEventsPage = useCallback(
-    (nextPage: number) => {
-      const nextPath = scopedEventsPagePath(currentClient?.id, isRoot, {
-        page: nextPage,
-        page_size: EVENTS_PAGE_SIZE,
-        search: debouncedSearch,
-        filter,
-      })
-      if (!nextPath) return
-      void Promise.resolve(preload(scopeFetcherKey(nextPath), fetcher))
-        .then(() => undefined)
-        .catch(() => undefined)
-    },
-    [currentClient?.id, debouncedSearch, filter, isRoot, scopeFetcherKey]
-  )
-
-  const saveEventInCurrentPage = useCallback(
-    async (savedEvent: Event | null) => {
-      if (!savedEvent) {
-        void mutateEvents()
-        return
-      }
-      const alreadyVisible = events.some((event) => event.id === savedEvent.id)
-      const matchesSearch = `${savedEvent.name} ${savedEvent.identifier ?? ''}`
-        .toLowerCase()
-        .includes(debouncedSearch.toLowerCase())
-      if (!alreadyVisible && (page !== 1 || filter !== 'all' || !matchesSearch)) {
-        void mutateEvents()
-        return
-      }
-      await mutateEvents((current) => upsertEventCacheValue(current ?? rawEvents, savedEvent) as EventListPage, {
-        revalidate: false,
-      })
-    },
-    [debouncedSearch, events, filter, mutateEvents, page, rawEvents]
-  )
-
-  const removeEventFromCurrentPage = useCallback(
-    async (event: Event) => {
-      await mutateEvents((current) => removeEventCacheValue(current ?? rawEvents, event.id) as EventListPage, {
-        revalidate: false,
-      })
-    },
-    [mutateEvents, rawEvents]
-  )
-
-  const restoreEventToCurrentPage = useCallback(
-    async (event: Event) => {
-      await mutateEvents((current) => upsertEventCacheValue(current ?? rawEvents, event) as EventListPage, {
-        revalidate: false,
-      })
-    },
-    [mutateEvents, rawEvents]
-  )
-
-  const coverRefreshDelay = useMemo(() => getEventCoversRefreshDelay(events), [events])
-  const coverRefreshKey = useMemo(() => eventCoversMediaRefreshKey(events), [events])
-
-  useEffect(() => {
-    if (coverRefreshDelay === null || !coverRefreshKey) return
-
-    const refreshCovers = () => {
-      lastCoverRefreshKey.current = coverRefreshKey
-      void mutateEvents()
-    }
-
-    if (coverRefreshDelay <= 0) {
-      if (lastCoverRefreshKey.current === coverRefreshKey) return
-      refreshCovers()
-      return
-    }
-
-    const timer = window.setTimeout(refreshCovers, coverRefreshDelay)
-    return () => window.clearTimeout(timer)
-  }, [coverRefreshDelay, coverRefreshKey, mutateEvents])
-
   if (!swrKey && !isRoot) {
     return (
       <PageTransition>
@@ -320,7 +217,7 @@ export default function EventsPage() {
     )
   }
 
-  const FILTER_TABS: { id: FilterType; label: string; count: number }[] = [
+  const FILTER_TABS: { id: EventListFilter; label: string; count: number }[] = [
     { id: 'all', label: 'Todos', count: counts.all },
     { id: 'upcoming', label: 'Próximos', count: counts.upcoming },
     { id: 'today', label: 'Hoy', count: counts.today },
@@ -614,11 +511,11 @@ export default function EventsPage() {
         </ul>
       )}
 
-      {!isLoading && (eventsPage?.total ?? 0) > EVENTS_PAGE_SIZE && (
+      {!isLoading && (eventsPage?.total ?? 0) > EVENT_LIST_PAGE_SIZE && (
         <Pagination
           total={eventsPage?.total ?? 0}
           page={page}
-          pageSize={EVENTS_PAGE_SIZE}
+          pageSize={EVENT_LIST_PAGE_SIZE}
           onPageChange={setPage}
           onPageIntent={preloadEventsPage}
         />
