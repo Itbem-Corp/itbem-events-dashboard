@@ -32,6 +32,7 @@ import { getUploadErrorMessage } from '@/lib/upload-transport'
 import type { EventSection } from '@/models/EventSection'
 import type { Resource, ResourceFileMutationResponse } from '@/models/Resource'
 import { AnimatePresence, motion } from 'motion/react'
+import Image from 'next/image'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import useSWR from 'swr'
@@ -240,8 +241,15 @@ function ImageSlot({ slot, resource, sectionId, resourceTypeId, onCreated, onRep
       {/* Image preview / upload area */}
       <div className="group relative">
         {imgSrc ? (
-          <div className="relative overflow-hidden rounded-lg border border-white/10">
-            <img src={imgSrc} alt={slot.label} className="h-32 w-full object-cover" />
+          <div className="relative h-32 overflow-hidden rounded-lg border border-white/10">
+            <Image
+              src={imgSrc}
+              alt={slot.label}
+              fill
+              unoptimized
+              sizes="(max-width: 768px) 100vw, 320px"
+              className="object-cover"
+            />
             {/* Overlay actions */}
             <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
               <button
