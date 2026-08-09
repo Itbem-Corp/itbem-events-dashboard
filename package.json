@@ -15,7 +15,7 @@
     "next": {
       "sharp": "0.35.3"
     },
-    "postcss": "8.5.25",
+    "postcss": "8.5.26",
     "serialize-javascript": "7.0.7",
     "vite": "6.4.3",
     "webpack-bundle-analyzer": {
@@ -96,7 +96,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.0",
     "happy-dom": "20.11.1",
-    "postcss": "8.5.25",
+    "postcss": "8.5.26",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.2.0",
     "prettier-plugin-tailwindcss": "^0.8.1",
