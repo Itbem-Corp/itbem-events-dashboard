@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { buildCheckinGuestIndex, filterCheckinGuests } from '@/lib/checkin-guest-index'
 import type { Guest } from '@/models/Guest'
 import { describe, expect, it } from 'vitest'

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   GO_ZERO_RFC3339,
   addDaysToLocalDateTime,

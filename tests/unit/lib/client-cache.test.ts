@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { isClientsCacheKey, removeClientsCacheValue, upsertClientCacheValue } from '@/lib/client-cache'
 import type { Client } from '@/models/Client'
 import { describe, expect, it } from 'vitest'

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { findGuestByCheckinQr, parseCheckinQrPayload } from '@/lib/checkin-qr'
 import { getGuestRsvpUrl } from '@/lib/public-urls'
 import type { Guest } from '@/models/Guest'

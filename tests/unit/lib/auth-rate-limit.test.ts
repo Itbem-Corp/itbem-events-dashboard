@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { clearAuthAttempts, consumeAuthAttempt } from '@/lib/auth-rate-limit'
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'

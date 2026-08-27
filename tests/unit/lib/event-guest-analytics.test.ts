@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { buildEventGuestAnalytics } from '@/lib/event-guest-analytics'
 import type { Guest } from '@/models/Guest'
 import { describe, expect, it } from 'vitest'

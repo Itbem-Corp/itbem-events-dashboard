@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { filterUserClients, summarizeUserClients } from '@/lib/user-client-memberships'
 import type { Client } from '@/models/Client'
 import { describe, expect, it } from 'vitest'

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { productSupportsFeature, productSupportsPath } from '@/products/core/product-manifest'
 import { assertProductManifestContract } from '@/products/core/product-contract'
 import { getProductManifest } from '@/products/registry'

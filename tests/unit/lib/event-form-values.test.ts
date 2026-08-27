@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { emptyEventFormValues, eventFormValuesFromEvent } from '@/lib/event-form-values'
 import type { Event } from '@/models/Event'
 import { describe, expect, it } from 'vitest'

@@ -1,6 +1,9 @@
 import bundleAnalyzer from '@next/bundle-analyzer'
 import withPWAInit from '@ducanh2912/next-pwa'
+import { fileURLToPath } from 'node:url'
 import { dashboardRuntimeCaching } from './src/lib/pwa-runtime-caching.mjs'
+
+const projectRoot = fileURLToPath(new URL('.', import.meta.url))
 
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
@@ -45,6 +48,9 @@ function backendRemotePattern() {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Keep tracing scoped to this checkout. Without an explicit root, Next can
+  // select a sibling worktree's lockfile and produce non-reproducible traces.
+  outputFileTracingRoot: projectRoot,
   // Allows CI/validation builds to coexist with a local `next dev` process on
   // Windows, where the development trace keeps the default .next directory locked.
   distDir: process.env.NEXT_DIST_DIR?.trim() || '.next',

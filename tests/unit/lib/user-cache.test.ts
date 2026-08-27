@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { isUsersAllCacheKey, patchUserCacheValue, removeUsersCacheValue, upsertUserCacheValue } from '@/lib/user-cache'
 import type { AdminUserListItemResponse, AdminUserResponse } from '@/models/User'
 import { describe, expect, it } from 'vitest'

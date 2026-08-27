@@ -22,7 +22,7 @@ function withTenantSecurityPolicy(req: NextRequest, response: NextResponse, nonc
   return response
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const nonce = securityNonce()
   // Start-Local uses this localhost-only development request to compile page
   // shells before handing the app to the user. APIs remain outside this
@@ -42,9 +42,13 @@ export function middleware(req: NextRequest) {
   }
 
   // A cookie proves only that the browser once held a session; its audience,
-  // expiry and application access are verified by the BFF. Keep login and
-  // OAuth callback routes reachable so a stale cookie can always recover
-  // instead of being redirected into a protected-route loop.
+  // expiry and application access are verified by the BFF. Redirect only the
+  // login/OAuth entrypoints so a stale cookie never creates a protected loop.
+  if (session && isPublicRoute && req.nextUrl.pathname !== '/' && req.nextUrl.pathname !== '/logout') {
+    if (req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/auth')) {
+      return withTenantSecurityPolicy(req, NextResponse.redirect(new URL('/', req.url)), nonce)
+    }
+  }
 
   const requestHeaders = new Headers(req.headers)
   requestHeaders.set('x-nonce', nonce)

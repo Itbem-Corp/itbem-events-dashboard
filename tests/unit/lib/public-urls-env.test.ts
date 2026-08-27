@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import type { Guest } from '@/models/Guest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 

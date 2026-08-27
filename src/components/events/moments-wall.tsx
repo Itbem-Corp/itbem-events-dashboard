@@ -11,6 +11,7 @@ import { ConfirmAlert } from '@/components/ui/confirm-alert'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useLazyVisible } from '@/hooks/useLazyVisible'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { usePageActivity } from '@/hooks/usePageActivity'
 import { usePreviewToken } from '@/hooks/usePreviewToken'
 import { useVideoThumbnail } from '@/hooks/useVideoThumbnail'
@@ -88,6 +89,7 @@ import clsx from 'clsx'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { toast } from 'sonner'
+import { dashboardBackendBaseUrl } from '@/lib/base-url'
 
 const REFRESH_INTERVAL = 15_000
 const VISIBLE_PAGE = 40
@@ -96,7 +98,6 @@ const STATUS_SECTION_PAGE = 24
 
 const OVERSIZED_PHOTO_BYTES = 100_000 // 100 KB
 const OVERSIZED_VIDEO_BYTES = 5_000_000 // 5 MB
-const BACKEND_MEDIA_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL
 
 const BrandedQR = dynamic(() => import('@/components/ui/branded-qr').then((module) => module.BrandedQR), {
   ssr: false,
@@ -130,7 +131,7 @@ function isOversized(m: Moment): boolean {
 }
 
 function resolveMomentMediaUrl(mediaPath: string | null | undefined): string {
-  return resolveBackendMediaUrl(mediaPath, BACKEND_MEDIA_BASE_URL)
+  return resolveBackendMediaUrl(mediaPath, dashboardBackendBaseUrl())
 }
 
 function resolveMomentContentUrl(moment: Moment): string {
@@ -142,40 +143,6 @@ function resolveMomentThumbnailUrl(moment: Moment): string {
 }
 
 // ─── Focus trap ──────────────────────────────────────────────────────────────
-
-function useFocusTrap(containerRef: React.RefObject<HTMLElement | null>, active: boolean) {
-  useEffect(() => {
-    if (!active || !containerRef.current) return
-    const container = containerRef.current
-    const focusable = container.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input, textarea, select, [tabindex]:not([tabindex="-1"])'
-    )
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-    const previouslyFocused = document.activeElement as HTMLElement | null
-    first?.focus()
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault()
-          last?.focus()
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault()
-          first?.focus()
-        }
-      }
-    }
-    container.addEventListener('keydown', handleKeyDown)
-    return () => {
-      container.removeEventListener('keydown', handleKeyDown)
-      previouslyFocused?.focus()
-    }
-  }, [active, containerRef])
-}
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -1733,14 +1700,14 @@ export function MomentsWall({
     return [...byId.values()]
   }, [eventId, momentPageCount, moments, totalMomentPages])
   const mediaRefreshDelay = useMemo(
-    () => (isPageActive && !dragMode ? getMomentsRefreshDelay(moments) : null),
-    [dragMode, isPageActive, moments]
+    () => (isPageActive && liveRefreshEnabled && !dragMode ? getMomentsRefreshDelay(moments) : null),
+    [dragMode, isPageActive, liveRefreshEnabled, moments]
   )
   const mediaRefreshKey = useMemo(() => momentsMediaRefreshKey(moments), [moments])
   const lastMediaRefreshKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!eventId || !isPageActive || dragMode || mediaRefreshDelay === null || !mediaRefreshKey) return
+    if (!eventId || !isPageActive || !liveRefreshEnabled || dragMode || mediaRefreshDelay === null || !mediaRefreshKey) return
 
     const refreshMoments = () => {
       lastMediaRefreshKeyRef.current = mediaRefreshKey
@@ -1755,7 +1722,7 @@ export function MomentsWall({
 
     const timer = window.setTimeout(refreshMoments, mediaRefreshDelay)
     return () => window.clearTimeout(timer)
-  }, [dragMode, eventId, isPageActive, mediaRefreshDelay, mediaRefreshKey, mutateMomentPages])
+  }, [dragMode, eventId, isPageActive, liveRefreshEnabled, mediaRefreshDelay, mediaRefreshKey, mutateMomentPages])
 
   // ─── In-flight re-optimization (separate 5s hook) ────────────────────────
   const embeddedMomentActivity = useMemo(
@@ -1767,7 +1734,7 @@ export function MomentsWall({
   )
   const hasActiveMomentJobs =
     embeddedMomentActivity.in_flight.length > 0 || embeddedMomentActivity.reoptimizing.length > 0
-  const activitySwrKey = eventId && hasActiveMomentJobs ? momentActivityPath(eventId) : null
+  const activitySwrKey = eventId && liveRefreshEnabled && hasActiveMomentJobs ? momentActivityPath(eventId) : null
   const { data: liveMomentActivity } = useSWR<{ in_flight: Moment[]; reoptimizing: Moment[] }>(
     activitySwrKey,
     fetcher,
@@ -1775,7 +1742,7 @@ export function MomentsWall({
       fallbackData: embeddedMomentActivity,
       revalidateOnMount: false,
       revalidateOnFocus: false,
-      refreshInterval: isPageActive ? 5_000 : 0,
+      refreshInterval: isPageActive && liveRefreshEnabled ? 5_000 : 0,
     }
   )
   const momentActivity = activitySwrKey ? (liveMomentActivity ?? embeddedMomentActivity) : embeddedMomentActivity

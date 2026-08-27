@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest'
 import { localSessionRecoveryMessage, normalizeApiResponseData } from '@/lib/api'
 import type { MomentSummary } from '@/models/MomentSummary'

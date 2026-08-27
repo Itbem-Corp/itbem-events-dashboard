@@ -1,16 +1,7 @@
 'use client'
 
-import { api } from '@/lib/api'
-import { readApiData } from '@/lib/api-envelope'
-import { getApiErrorMessage } from '@/lib/api-error'
-import { usersPath } from '@/lib/api-paths'
-import { fetcher } from '@/lib/fetcher'
-import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
-import { getDataErrorState } from '@/lib/swr-data-state'
-import type { UserProfileResponse } from '@/models/User'
-import { useStore } from '@/store/useStore'
-import { useEffect, useMemo, useState } from 'react'
-import { toast } from 'sonner'
+import { useUserProfile } from '@/features/users/use-user-profile'
+import { useState } from 'react'
 
 import { Avatar } from '@/components/avatar'
 import { Badge } from '@/components/badge'
@@ -30,28 +21,11 @@ import {
   UserIcon,
 } from '@heroicons/react/20/solid'
 import dynamic from 'next/dynamic'
-import useSWR from 'swr'
 
 const loadProfileAvatarModal = () => import('@/components/profile/profile-avatar-modal')
 const ProfileAvatarModal = dynamic(() => loadProfileAvatarModal().then((module) => module.ProfileAvatarModal), {
   ssr: false,
 })
-
-type ComparableProfile = Pick<UserProfileResponse, 'id' | 'email' | 'first_name' | 'last_name'> &
-  Partial<Pick<UserProfileResponse, 'profile_image' | 'is_active' | 'is_root'>>
-
-function isSameProfile(current: ComparableProfile | null, next: UserProfileResponse): boolean {
-  return Boolean(
-    current &&
-      current.id === next.id &&
-      current.email === next.email &&
-      current.first_name === next.first_name &&
-      current.last_name === next.last_name &&
-      (current.profile_image ?? '') === (next.profile_image ?? '') &&
-      current.is_active === next.is_active &&
-      current.is_root === next.is_root
-  )
-}
 
 function preloadProfileAvatarModal() {
   void loadProfileAvatarModal().catch(() => undefined)
@@ -80,51 +54,22 @@ function SectionCard({
 }
 
 export default function ProfilePage() {
-  const storedUser = useStore((s) => s.user)
-  const setProfile = useStore((s) => s.setProfile)
-  const persistedProfile = useMemo<UserProfileResponse | undefined>(
-    () =>
-      storedUser
-        ? {
-            id: storedUser.id,
-            email: storedUser.email,
-            first_name: storedUser.first_name,
-            last_name: storedUser.last_name,
-            profile_image: storedUser.profile_image ?? '',
-            is_active: storedUser.is_active ?? true,
-            is_root: storedUser.is_root ?? false,
-          }
-        : undefined,
-    [storedUser]
-  )
   const {
-    data: freshProfile,
-    error: profileError,
-    isValidating: profileRetrying,
-    mutate: retryProfile,
-  } = useSWR<UserProfileResponse>(usersPath(), fetcher, {
-    ...responsiveListSwrOptions,
-    fallbackData: persistedProfile,
-  })
-  const user = freshProfile ?? persistedProfile
-  const profileErrorState = getDataErrorState(profileError, user)
-
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [isDirty, setIsDirty] = useState(false)
+    user,
+    profileErrorState,
+    profileRetrying,
+    retryProfile,
+    firstName,
+    lastName,
+    loading,
+    isDirty,
+    hasValidName,
+    updateFirstName,
+    updateLastName,
+    updateAvatar,
+    saveProfile,
+  } = useUserProfile()
   const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false)
-
-  useEffect(() => {
-    if (!user || isDirty || loading) return
-    setFirstName(user.first_name || '')
-    setLastName(user.last_name || '')
-    setIsDirty(false)
-  }, [isDirty, loading, user])
-
-  useEffect(() => {
-    if (freshProfile && !isSameProfile(storedUser, freshProfile)) setProfile(freshProfile)
-  }, [freshProfile, setProfile, storedUser])
 
   if (profileErrorState === 'fatal') {
     return (
@@ -140,42 +85,7 @@ export default function ProfilePage() {
 
   if (!user) return <ProfilePageSkeleton />
 
-  async function handleSave() {
-    if (!user) return
-    const normalizedFirstName = firstName.trim()
-    const normalizedLastName = lastName.trim()
-    if (!normalizedFirstName || !normalizedLastName) return
-
-    const snapshot = user
-    const optimisticProfile: UserProfileResponse = {
-      ...snapshot,
-      first_name: normalizedFirstName,
-      last_name: normalizedLastName,
-    }
-    setLoading(true)
-    setProfile(optimisticProfile)
-    await retryProfile(optimisticProfile, { revalidate: false })
-    try {
-      const res = await api.put<UserProfileResponse>(usersPath(), {
-        first_name: normalizedFirstName,
-        last_name: normalizedLastName,
-      })
-      const nextProfile = readApiData<UserProfileResponse>(res.data)
-      setProfile(nextProfile)
-      await retryProfile(nextProfile, { revalidate: false })
-      setIsDirty(false)
-      toast.success('Perfil guardado correctamente')
-    } catch (err) {
-      setProfile(snapshot)
-      await retryProfile(snapshot, { revalidate: false })
-      toast.error(getApiErrorMessage(err, 'Error al guardar el perfil'))
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const initials = `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase()
-  const hasValidName = firstName.trim().length > 0 && lastName.trim().length > 0
 
   return (
     <PageTransition>
@@ -247,8 +157,7 @@ export default function ProfilePage() {
                   value={firstName}
                   disabled={loading}
                   onChange={(e) => {
-                    setFirstName(e.target.value)
-                    setIsDirty(true)
+                    updateFirstName(e.target.value)
                   }}
                   placeholder="Tu nombre"
                 />
@@ -259,8 +168,7 @@ export default function ProfilePage() {
                   value={lastName}
                   disabled={loading}
                   onChange={(e) => {
-                    setLastName(e.target.value)
-                    setIsDirty(true)
+                    updateLastName(e.target.value)
                   }}
                   placeholder="Tus apellidos"
                 />
@@ -280,7 +188,7 @@ export default function ProfilePage() {
 
             <div className="mt-6 flex justify-end">
               <Button
-                onClick={handleSave}
+                onClick={saveProfile}
                 disabled={loading || !isDirty || !hasValidName}
                 className="w-full sm:w-auto"
               >
@@ -340,9 +248,7 @@ export default function ProfilePage() {
           value={user.profile_image}
           onClose={() => setIsAvatarEditorOpen(false)}
           onAvatarChange={(profileImage) => {
-            const nextProfile = { ...user, profile_image: profileImage ?? '' }
-            setProfile(nextProfile)
-            void retryProfile(nextProfile, { revalidate: false })
+            updateAvatar(profileImage)
           }}
         />
       )}

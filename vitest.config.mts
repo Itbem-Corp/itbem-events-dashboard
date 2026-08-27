@@ -8,11 +8,9 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./tests/unit/setup.ts'],
-    exclude: ['tests/e2e/**', 'node_modules/**', '.worktrees/**'],
-    // A full dashboard run initializes several Happy DOM workers at once.
-    // Ten seconds still catches stalled unit tests quickly while avoiding
-    // false failures from CPU contention during parallel CI collection.
-    testTimeout: 10_000,
+    // The product contract is validated by its own Node test runner. Keep its
+    // checkout out of the dashboard's Vitest discovery and coverage scope.
+    exclude: ['tests/e2e/**', 'node_modules/**', '.contracts/**'],
     coverage: {
       enabled: false,
       provider: 'v8',
@@ -20,6 +18,7 @@ export default defineConfig({
       reportsDirectory: './coverage',
       exclude: [
         'node_modules/**',
+        '.contracts/**',
         'tests/e2e/**',
         '*.config.*',
         'src/app/**',

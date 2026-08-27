@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -28,13 +28,15 @@ jobs:
           EXPECTED_SHA: ${{ github.sha }}
         run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.23.1
+          node-version: 24.18.1
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm install --global npm@12.0.2
+          npm ci
 
       - name: TypeScript check
         run: npx tsc --noEmit
@@ -50,8 +52,8 @@ jobs:
         # files run concurrently; keep CI deterministic.
         run: npm run test:unit -- --maxWorkers=1
 
-      - name: Build
-        run: npm run build
+      - name: Build and verify initial client-asset budgets
+        run: npm run build:budget
         env:
           NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080' }}
 
@@ -76,7 +78,7 @@ jobs:
       PRODUCTION_SMOKE_URL: ${{ vars.PRODUCTION_SMOKE_URL || 'https://dashboard.eventiapp.com.mx' }}
 
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
@@ -86,13 +88,15 @@ jobs:
           EXPECTED_SHA: ${{ github.sha }}
         run: test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
 
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.23.1
+          node-version: 24.18.1
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm install --global npm@12.0.2
+          npm ci
 
       - name: Verify pinned Vercel CLI
         run: test "$(npx --yes vercel@${VERCEL_CLI_VERSION} --version)" = "${VERCEL_CLI_VERSION}"
@@ -246,18 +250,20 @@ jobs:
     timeout-minutes: 12
 
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.23.1
+          node-version: 24.18.1
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm install --global npm@12.0.2
+          npm ci
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -287,15 +293,17 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
 
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.23.1
+          node-version: 24.18.1
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm install --global npm@12.0.2
+          npm ci
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

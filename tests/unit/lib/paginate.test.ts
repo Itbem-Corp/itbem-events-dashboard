@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { paginateItems } from '@/lib/paginate'
 import { describe, expect, it } from 'vitest'
 
