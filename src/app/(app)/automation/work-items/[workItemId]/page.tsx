@@ -1289,7 +1289,7 @@ export default function DeliveryWorkItemPage() {
     reviewedPublicationChange?.branch && reviewedBaseSHA && reviewedGitHubRepository && reviewedDiffSHA256
   )
   const activePublicationGrants = (item?.publication_grants ?? []).filter(
-    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
+    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > publicationTime
   )
   const activePublicationGrantForReviewedChange = reviewedPublicationChange
     ? activePublicationGrants.find(
