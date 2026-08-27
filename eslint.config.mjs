@@ -1,7 +1,5 @@
-import { FlatCompat } from '@eslint/eslintrc'
 import { defineConfig, globalIgnores } from 'eslint/config'
-
-const compat = new FlatCompat({ baseDirectory: import.meta.dirname })
+import nextCoreWebVitals from 'eslint-config-next/core-web-vitals'
 
 export default defineConfig([
   globalIgnores([
@@ -12,10 +10,18 @@ export default defineConfig([
     'public/sw.js',
     'test-results/**',
   ]),
-  ...compat.extends('next/core-web-vitals'),
+  ...nextCoreWebVitals,
   {
     rules: {
       '@next/next/no-img-element': 'off',
+      // These checks enforce React Compiler invariants. Keep them disabled
+      // until the compiler is explicitly enabled and the existing hooks are
+      // migrated as a dedicated performance change.
+      'react-hooks/preserve-manual-memoization': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/incompatible-library': 'off',
+      'react-hooks/refs': 'off',
     },
   },
 ])
