@@ -509,7 +509,6 @@ function DeliveryPipeline({
   onOpenControl: () => void
   onRefresh?: () => void
 }) {
-  const [publicationTime] = useState(() => Date.now())
   const tasks = item.automation_tasks ?? []
   const activeTask = [...tasks]
     .filter(isActiveTask)
@@ -904,6 +903,7 @@ function AutomationTaskRow({
 }
 
 export default function DeliveryWorkItemPage() {
+  const [publicationTime] = useState(() => Date.now())
   const params = useParams<{ workItemId: string }>()
   const router = useRouter()
   const searchParams = useSearchParams()
