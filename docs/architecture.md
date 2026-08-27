@@ -8,6 +8,14 @@ Keep page-specific composition in `app`, reusable workflow UI in `components/<fe
 
 Feature-owned server state belongs under `src/features/<domain>`. Route pages consume feature hooks and should not assemble endpoint paths for composed workspaces such as check-in or Studio. Feature data modules may depend on shared `lib`, models, and hooks, but never on `app` route composition or another concrete product.
 
+Live product surfaces use the shared `useAuthenticatedSSE` transport for
+authorized Server-Sent Events. It consumes a small invalidation event and then
+revalidates the existing SWR resource, rather than maintaining a duplicate
+client-side data model. Feature adapters (for example
+`useDeliveryWorkItemStream`) own endpoint and payload validation; the transport
+owns auth/context headers, visibility-aware connection lifecycle, backoff, and
+bounded token refresh.
+
 Paginated list features own both their query hook and their path builder. Rendering and URL filter state remain in the route, while request parameters, response normalization, SWR policy, and tenant-scoped keys remain together in the feature. This keeps visible page behavior editable without duplicating backend integration details.
 
 ## Project Scope

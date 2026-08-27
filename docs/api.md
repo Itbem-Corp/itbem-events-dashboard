@@ -217,6 +217,21 @@ Response: `Moment[]` (unwrapped by fetcher).
 | DELETE | `/resources/:id` | Delete a resource |
 | GET | `/catalogs/resource-types` | Get resource type codes (IMAGE, VIDEO, etc.) |
 
+### Delivery live stream
+
+`GET /automation/work-items/:id/stream` is an authenticated Server-Sent Events
+invalidation feed for execution graphs and other delivery views. Use the
+reusable `useDeliveryWorkItemStream()` adapter, which transports SSE with
+`fetch` so it can attach the same in-memory Bearer token and workspace headers
+as Axios. Do not use browser `EventSource`: it cannot attach those headers.
+
+The feed sends a small `snapshot` event after connection and `update` events
+only when the authoritative backend revision changes. `onUpdate` should call
+the existing SWR `mutate()` for `/automation/work-items/:id`; it should not try
+to merge a second work-item representation. The stream pauses while the page is
+not active, reconnects with bounded backoff, and intentionally refreshes its
+authorization every 55 seconds.
+
 ## EventSection - SDUI fields
 When creating/updating sections, always send:
 - `component_type`: SDUI type string (CountdownHeader, GraduationHero, EventVenue, etc.)

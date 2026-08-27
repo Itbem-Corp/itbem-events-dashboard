@@ -1,6 +1,9 @@
 import { accessCan, type AccessProfile } from '@/lib/access-profile'
 import {
   auditLogsPath,
+  automationCostsPath,
+  automationPortfolioPath,
+  deliveryClientsPath,
   clientMembersPagePath,
   clientsPagePath,
   eventsPagePath,
@@ -10,7 +13,7 @@ import {
 } from '@/lib/api-paths'
 import { productSupportsFeature, type ProductManifest, type TenantModule } from '@/products/core/product-manifest'
 
-export type ApplicationRoute = '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients' | '/audit'
+export type ApplicationRoute = '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients' | '/audit' | '/automation' | '/automation/costs' | '/automation/clients' | '/automation/projects'
 
 export type ApplicationNavigation = {
   hasEvents: boolean
@@ -19,6 +22,7 @@ export type ApplicationNavigation = {
   canManageMembers: boolean
   canViewMetrics: boolean
   canViewAudit: boolean
+  canUseAutomation: boolean
   canSwitchOrganizations: boolean
 }
 
@@ -68,6 +72,10 @@ export function createApplicationNavigation({
       productSupportsFeature(product, 'audit') &&
       accessProfile.isPlatformContext &&
       accessCan(accessProfile, 'audit:view'),
+    canUseAutomation:
+      productSupportsFeature(product, 'automation') &&
+      accessProfile.isPlatformContext &&
+      (accessCan(accessProfile, 'automation:view') || accessCan(accessProfile, 'automation:manage')),
     canSwitchOrganizations: hasApplicationSession ? accessProfile.canSwitchOrganizations : isRoot,
   }
 }
@@ -96,5 +104,12 @@ export function applicationRoutePreloadPath({
       return auditLogsPath({ page: 1, page_size: 30 })
     case '/clients':
       return clientsPagePath({ page: 1, page_size: 12 })
+    case '/automation':
+    case '/automation/projects':
+      return automationPortfolioPath()
+    case '/automation/costs':
+      return automationCostsPath()
+    case '/automation/clients':
+      return deliveryClientsPath()
   }
 }

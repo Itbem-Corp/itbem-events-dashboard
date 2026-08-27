@@ -1,5 +1,6 @@
 import {
   apiPath,
+  automationTaskRetryCodeReviewPath,
   batchGuestsPath,
   bulkGuestsPath,
   bulkGuestStatusPath,
@@ -17,6 +18,7 @@ import {
   colorPalettesPath,
   designTemplatePath,
   designTemplatesPath,
+  deliveryWorkItemStreamPath,
   eventAnalyticsGuestsPath,
   eventAnalyticsPath,
   eventCheckinGuestsPath,
@@ -88,6 +90,10 @@ import {
 import { describe, expect, it } from 'vitest'
 
 describe('api-paths', () => {
+  it('builds the explicit code-review retry path without accepting a raw identifier', () => {
+    expect(automationTaskRetryCodeReviewPath('task / 1')).toBe('/automation/tasks/task%20%2F%201/retry-code-review')
+  })
+
   it('builds relative API paths with encoded query params', () => {
     expect(apiPath('/clients/members', { client_id: 'client 1', empty: '', page: 2 })).toBe(
       '/clients/members?client_id=client+1&page=2'
@@ -262,6 +268,10 @@ describe('api-paths', () => {
     expect(fontUploadPath()).toBe('/fonts/upload')
     expect(eventTypesPath()).toBe('/event-types')
     expect(invitationResendPath('invite/1')).toBe('/invitations/invite%2F1/resend')
+  })
+
+  it('builds a scoped delivery stream path without exposing query credentials', () => {
+    expect(deliveryWorkItemStreamPath('work item/1')).toBe('/automation/work-items/work%20item%2F1/stream')
   })
 
   it('builds root-only cache utility paths', () => {

@@ -82,6 +82,18 @@ export function backendBaseUrlForHostname(hostname: string, localFallback: strin
   return `https://${tenant.apiHostname}`
 }
 
-export function tenantForRequest(request: NextRequest): TenantConfig {
-  return tenantForHostname(request.nextUrl.hostname)
+export function hostnameForRequest(request: NextRequest): string {
+  // In local Next.js development and behind a deployment proxy, nextUrl can
+  // represent the internal origin (localhost) while the request headers still
+  // carry the product hostname selected by the user. Use the same precedence
+  // as the app layout so pages and route handlers cannot pick different apps.
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+  return normalizedHostname(forwardedHost || request.headers.get('host') || request.nextUrl.hostname)
+}
+
+export function tenantForRequest(
+  request: NextRequest,
+  env: Readonly<Record<string, string | undefined>> = process.env
+): TenantConfig {
+  return tenantForHostname(hostnameForRequest(request), env)
 }

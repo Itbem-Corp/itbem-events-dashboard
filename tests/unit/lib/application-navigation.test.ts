@@ -68,6 +68,28 @@ describe('application navigation contract', () => {
     expect(navigation.hasEvents).toBe(false)
     expect(navigation.canViewUsers).toBe(true)
     expect(navigation.canViewOrganizations).toBe(true)
+    expect(navigation.canUseAutomation).toBe(false)
+  })
+
+  it('exposes automation only to authorized ITBEM platform users', () => {
+    const appSession = session({
+      application: {
+        ...session().application,
+        code: 'itbem',
+        modules: ['home', 'users', 'organizations', 'metrics', 'automation'],
+      },
+      capabilities: [...session().capabilities, 'automation:view'],
+    })
+    const navigation = createApplicationNavigation({
+      accessProfile: createAccessProfile(appSession, 'platform'),
+      hasApplicationSession: true,
+      isRoot: true,
+      modules: appSession.application.modules,
+      product: getProductManifest('itbem'),
+    })
+
+    expect(navigation.canUseAutomation).toBe(true)
+    expect(applicationRoutePreloadPath({ href: '/automation', isRoot: true })).toBe('/automation/portfolio')
   })
 
   it('maps route intent to a bounded first request', () => {
@@ -76,5 +98,8 @@ describe('application navigation contract', () => {
     )
     expect(applicationRoutePreloadPath({ href: '/team', isRoot: false })).toBeNull()
     expect(applicationRoutePreloadPath({ href: '/audit', isRoot: true })).toContain('page_size=30')
+    expect(applicationRoutePreloadPath({ href: '/automation/projects', isRoot: true })).toBe('/automation/portfolio')
+    expect(applicationRoutePreloadPath({ href: '/automation/clients', isRoot: true })).toBe('/automation/clients')
+    expect(applicationRoutePreloadPath({ href: '/automation/costs', isRoot: true })).toContain('/automation/costs')
   })
 })

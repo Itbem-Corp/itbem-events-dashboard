@@ -14,7 +14,7 @@ export function PageHeader({
 }: {
   eyebrow: string
   title: ReactNode
-  description: ReactNode
+  description?: ReactNode
   icon?: Icon
   actions?: ReactNode
   className?: string
@@ -33,7 +33,9 @@ export function PageHeader({
           {eyebrow}
         </p>
         <Heading className="mt-3 text-[2rem]/9 tracking-[-0.04em] sm:text-4xl/10">{title}</Heading>
-        <p className="mt-3 max-w-2xl text-sm/6 text-ink-secondary sm:text-[15px]/7">{description}</p>
+        {description && (
+          <p className="mt-3 max-w-2xl text-sm/6 text-ink-secondary sm:text-[15px]/7">{description}</p>
+        )}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2.5">{actions}</div>}
     </header>

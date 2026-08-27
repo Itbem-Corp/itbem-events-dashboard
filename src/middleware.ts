@@ -41,11 +41,10 @@ export function middleware(req: NextRequest) {
     return withTenantSecurityPolicy(req, NextResponse.redirect(new URL('/login', req.url)), nonce)
   }
 
-  if (session && isPublicRoute && req.nextUrl.pathname !== '/' && req.nextUrl.pathname !== '/logout') {
-    if (req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/auth')) {
-      return withTenantSecurityPolicy(req, NextResponse.redirect(new URL('/', req.url)), nonce)
-    }
-  }
+  // A cookie proves only that the browser once held a session; its audience,
+  // expiry and application access are verified by the BFF. Keep login and
+  // OAuth callback routes reachable so a stale cookie can always recover
+  // instead of being redirected into a protected-route loop.
 
   const requestHeaders = new Headers(req.headers)
   requestHeaders.set('x-nonce', nonce)
@@ -53,5 +52,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|eventiapp-icon.svg|images).*)'],
+  matcher: ['/((?!api|automation-bridge|_next/static|_next/image|favicon.ico|eventiapp-icon.svg|images).*)'],
 }

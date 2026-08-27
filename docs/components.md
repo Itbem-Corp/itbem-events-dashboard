@@ -30,8 +30,10 @@ export default function FeaturePage() {
     currentClient ? `/features?client_id=${currentClient.id}` : null,
     fetcher
   )
-  const [modal, setModal] = useState<{ type: 'create'|'edit'|'delete'|null; target: Feature|null }>
-    ({ type: null, target: null })
+  const [modal, setModal] = useState<{ type: 'create' | 'edit' | 'delete' | null; target: Feature | null }>({
+    type: null,
+    target: null,
+  })
 
   if (isLoading) return <Skeleton />
 
@@ -60,83 +62,121 @@ const [modal, setModal] = useState<{
 All live in `src/components/` (Headless UI based unless noted).
 
 ### Button (`button.tsx`)
+
 ```tsx
 <Button color="indigo">Primary</Button>   // solid (default)
 <Button outline>Secondary</Button>
 <Button plain href="/path">← Link</Button>
 ```
+
 Colors: `indigo zinc green pink red orange amber yellow lime emerald teal sky blue violet purple fuchsia rose white dark`
 
 ### Input (`input.tsx`)
+
 ```tsx
-<InputGroup><SearchIcon /><Input type="search" placeholder="Search..." /></InputGroup>
+<InputGroup>
+  <SearchIcon />
+  <Input type="search" placeholder="Search..." />
+</InputGroup>
 ```
+
 Types: `email number password search tel text url date datetime-local month week time`
 
 ### Textarea (`textarea.tsx`)
+
 ```tsx
 <Textarea resizable rows={4} />
 ```
 
 ### Select (`select.tsx`) — native HTML select, custom styled
+
 ```tsx
-<Select name="type"><option value="AGENCY">Agency</option></Select>
+<Select name="type">
+  <option value="AGENCY">Agency</option>
+</Select>
 ```
 
 ### Listbox (`listbox.tsx`) — styled single-select dropdown
+
 ```tsx
 <Listbox value={val} onChange={setVal}>
-  <ListboxOption value="WEDDING"><ListboxLabel>Wedding</ListboxLabel></ListboxOption>
+  <ListboxOption value="WEDDING">
+    <ListboxLabel>Wedding</ListboxLabel>
+  </ListboxOption>
 </Listbox>
 ```
 
 ### Combobox (`combobox.tsx`) — searchable select, supports virtual scroll
+
 ```tsx
 <Combobox options={options} value={val} onChange={setVal} displayValue={(o) => o.name} />
 ```
 
 ### Checkbox (`checkbox.tsx`)
+
 ```tsx
-<CheckboxField><Checkbox name="active" /><Label>Active</Label></CheckboxField>
+<CheckboxField>
+  <Checkbox name="active" />
+  <Label>Active</Label>
+</CheckboxField>
 ```
 
 ### Radio (`radio.tsx`)
+
 ```tsx
 <RadioGroup value={val} onChange={setVal}>
-  <RadioField><Radio value="A" /><Label>Option A</Label></RadioField>
+  <RadioField>
+    <Radio value="A" />
+    <Label>Option A</Label>
+  </RadioField>
 </RadioGroup>
 ```
 
 ### Switch (`switch.tsx`) — toggle
+
 ```tsx
-<SwitchField><Switch checked={val} onChange={setVal} /><Label>Enable</Label></SwitchField>
+<SwitchField>
+  <Switch checked={val} onChange={setVal} />
+  <Label>Enable</Label>
+</SwitchField>
 ```
 
 ### Dialog (`dialog.tsx`) — modal, sizes: `xs sm md lg xl 2xl 3xl 4xl 5xl`
+
 ```tsx
 <Dialog open={open} onClose={setOpen} size="lg">
   <DialogTitle>Title</DialogTitle>
   <DialogBody>{/* fields */}</DialogBody>
   <DialogActions>
-    <Button plain onClick={() => setOpen(false)}>Cancel</Button>
-    <Button color="indigo" type="submit">Save</Button>
+    <Button plain onClick={() => setOpen(false)}>
+      Cancel
+    </Button>
+    <Button color="indigo" type="submit">
+      Save
+    </Button>
   </DialogActions>
 </Dialog>
 ```
 
 ### Alert (`alert.tsx`) — **use for delete confirmations, not Dialog**
+
 ```tsx
 <Alert open={open} onClose={setOpen}>
   <AlertTitle>Delete Client?</AlertTitle>
   <AlertDescription>This action cannot be undone.</AlertDescription>
   <AlertActions>
-    <Button plain onClick={() => setOpen(false)}>Cancel</Button>
-    <Button color="red" onClick={handleDelete}>Delete</Button>
+    <Button plain onClick={() => setOpen(false)}>
+      Cancel
+    </Button>
+    <Button color="red" onClick={handleDelete}>
+      Delete
+    </Button>
   </AlertActions>
 </Alert>
 ```
 
 ### Dropdown (Headless UI) (`dropdown.tsx`) — rich menu with sections, shortcuts, submenus
+
 ```tsx
 <Dropdown>
   <DropdownButton outline>Options</DropdownButton>
@@ -149,9 +189,12 @@ Types: `email number password search tel text url date datetime-local month week
 ```
 
 ### DropdownMenu (Radix UI) (`ui/dropdown-menu.tsx`) — used in shadcn/ui style components
+
 ```tsx
 <DropdownMenu>
-  <DropdownMenuTrigger asChild><Button>...</Button></DropdownMenuTrigger>
+  <DropdownMenuTrigger asChild>
+    <Button>...</Button>
+  </DropdownMenuTrigger>
   <DropdownMenuContent>
     <DropdownMenuItem>Item</DropdownMenuItem>
   </DropdownMenuContent>
@@ -161,45 +204,60 @@ Types: `email number password search tel text url date datetime-local month week
 **Use `dropdown.tsx` (Headless UI) for table row action menus. Use `ui/dropdown-menu.tsx` (Radix) only for shadcn-style components.**
 
 ### Badge (`badge.tsx`)
+
 ```tsx
 <Badge color="green">Active</Badge>
 <Badge color="pink">Inactive</Badge>
 <Badge color="indigo">ROOT</Badge>
 <Badge color="zinc">Closed</Badge>
 ```
+
 Colors: all Tailwind color names supported.
 
 ### Avatar (`avatar.tsx`) — image or initials fallback, square or circular
+
 ```tsx
 <Avatar src={user.profile_image} initials="JD" className="size-8" />
 ```
 
 ### UserAvatar (`ui/UserAvatar.tsx`) — wraps Avatar for User model
+
 ```tsx
-<UserAvatar user={user} size="md" />  // sizes: sm md lg xl
+<UserAvatar user={user} size="md" /> // sizes: sm md lg xl
 ```
 
 ### Table (`table.tsx`)
+
 ```tsx
 <Table>
-  <TableHead><TableRow><TableHeader>Name</TableHeader></TableRow></TableHead>
+  <TableHead>
+    <TableRow>
+      <TableHeader>Name</TableHeader>
+    </TableRow>
+  </TableHead>
   <TableBody>
-    {items.map(i => (
-      <TableRow key={i.id} href={`/items/${i.id}`}>  {/* href = clickable row */}
+    {items.map((i) => (
+      <TableRow key={i.id} href={`/items/${i.id}`}>
+        {' '}
+        {/* href = clickable row */}
         <TableCell>{i.name}</TableCell>
       </TableRow>
     ))}
   </TableBody>
 </Table>
 ```
+
 Props: `bleed` `dense` `grid` `striped`
 
 ### Pagination (`pagination.tsx`)
+
 ```tsx
 <Pagination>
   <PaginationPrevious href="?page=1" />
   <PaginationList>
-    <PaginationPage href="?page=1" current>1</PaginationPage>
+    <PaginationPage href="?page=1" current>
+      1
+    </PaginationPage>
     <PaginationGap />
     <PaginationPage href="?page=5">5</PaginationPage>
   </PaginationList>
@@ -208,6 +266,7 @@ Props: `bleed` `dense` `grid` `striped`
 ```
 
 ### Fieldset + Field (`fieldset.tsx`) — form layout structure
+
 ```tsx
 <Fieldset>
   <Legend>Section Title</Legend>
@@ -222,12 +281,14 @@ Props: `bleed` `dense` `grid` `striped`
 ```
 
 ### Heading (`heading.tsx`)
+
 ```tsx
 <Heading level={1}>Page Title</Heading>   // h1-h6
 <Subheading level={2}>Section</Subheading>
 ```
 
 ### Text (`text.tsx`)
+
 ```tsx
 <Text>Body paragraph</Text>
 <TextLink href="/link">Styled link</TextLink>
@@ -236,6 +297,7 @@ Props: `bleed` `dense` `grid` `striped`
 ```
 
 ### DescriptionList (`description-list.tsx`) — metadata display
+
 ```tsx
 <DescriptionList>
   <DescriptionTerm>Created</DescriptionTerm>
@@ -244,12 +306,14 @@ Props: `bleed` `dense` `grid` `striped`
 ```
 
 ### Divider (`divider.tsx`)
+
 ```tsx
 <Divider />        // solid
 <Divider soft />   // subtle
 ```
 
 ### Link (`link.tsx`) — wraps Next.js Link with Headless UI data attributes
+
 ```tsx
 <Link href="/events">Events</Link>
 ```
@@ -263,41 +327,50 @@ announces slower transitions through an accessible status. Cancelled
 ## Feature-Specific Components
 
 ### FileUpload (`ui/file-upload.tsx`)
+
 ```tsx
 <FileUpload
-  preview="avatar"               // avatar | user-avatar | image | video | file
+  preview="avatar" // avatar | user-avatar | image | video | file
   onDrop={(files) => handle(files[0])}
   accept={ACCEPT_PRESETS.images} // or .videos | .docs
-  maxSize={25 * 1024 * 1024}     // 25MB default
+  maxSize={25 * 1024 * 1024} // 25MB default
 />
 ```
+
 Used in settings/profile (avatar) and client form (logo). Sends as `FormData`.
 
 ### UserActiveToggle (`users/UserActiveToggle.tsx`)
+
 ```tsx
 <UserActiveToggle user={user} onToggle={mutate} />
 // Calls PUT /users/{id}/activate or PUT /users/{id}/deactivate
 ```
 
 ### ClientFormModal (`clients/forms/client-form-modal.tsx`)
+
 - Create or edit client — name, client_type (dropdown), logo (FileUpload)
 - Sends as `FormData` (multipart, for logo upload)
 - `POST /clients` create · `PUT /clients/:id` edit
 
 ### DeleteClientModal (`clients/forms/delete-client-modal.tsx`)
+
 - Alert-based confirmation. Calls `DELETE /clients/:id`.
 
 ### UserFormModal (`users/forms/user-form-modal.tsx`)
+
 - Create (invite): email + first_name + last_name
 - Edit: first_name + last_name only (email disabled)
 
 ### DeleteUserModal (`users/delete-user-modal.tsx`)
+
 - Alert-based confirmation. Calls `DELETE /users/:id`.
 
 ### Stat (`src/app/stat.tsx`) — KPI card
+
 - `change` prop: positive → `lime` badge · negative → `pink` badge
 
 ### UserHeader (`components/UserHeader.tsx`)
+
 - Profile dropdown in navbar. Shows name/email, links to profile + logout.
 
 ---
@@ -326,7 +399,7 @@ Dialog modal for creating or editing a single guest. Validated with Zod + React 
   setIsOpen={setOpen}
   eventId={event.id}
   eventIdentifier={event.identifier}
-  guest={guestToEdit}   // null/undefined for create
+  guest={guestToEdit} // null/undefined for create
 />
 ```
 
@@ -340,7 +413,7 @@ Alert-based confirmation for deleting a guest. Controlled by passing the `guest`
 
 ```tsx
 <GuestDeleteModal
-  guest={guestToDelete}   // null = closed
+  guest={guestToDelete} // null = closed
   eventIdentifier={event.identifier}
   onClose={() => setGuestToDelete(null)}
 />
@@ -353,12 +426,7 @@ Calls `DELETE /guests/:id` then `mutate('/guests/:eventIdentifier')`.
 Large Dialog (`size="4xl"`) for bulk-importing multiple guests at once via a spreadsheet-style row editor.
 
 ```tsx
-<GuestBatchModal
-  isOpen={open}
-  setIsOpen={setOpen}
-  eventId={event.id}
-  eventIdentifier={event.identifier}
-/>
+<GuestBatchModal isOpen={open} setIsOpen={setOpen} eventId={event.id} eventIdentifier={event.identifier} />
 ```
 
 - Rows are added/removed dynamically with Motion `AnimatePresence` animations
@@ -390,11 +458,7 @@ Masonry-style photo/text wall for guest-submitted moments. Fetches via SWR with 
 RSVP status dashboard with animated progress bar and a full guest table. Receives pre-fetched guests (from the parent page's SWR call) — does NOT fetch independently.
 
 ```tsx
-<RSVPTracker
-  eventIdentifier={event.identifier}
-  guests={guests}
-  isLoading={isLoading}
-/>
+<RSVPTracker eventIdentifier={event.identifier} guests={guests} isLoading={isLoading} />
 ```
 
 - Displays response rate (confirmed + declined / total) as an animated Motion progress bar
@@ -490,12 +554,7 @@ KPI dashboard with recharts charts for event analytics. Fetches `GET /events/:id
 Dialog for managing client team members (invite, change role, remove). Fetches `GET /clients/members?client_id=:id` only when open.
 
 ```tsx
-<ClientMembersModal
-  isOpen={open}
-  onClose={() => setOpen(false)}
-  clientId={client.id}
-  clientName={client.name}
-/>
+<ClientMembersModal isOpen={open} onClose={() => setOpen(false)} clientId={client.id} clientName={client.name} />
 ```
 
 - **Invite form** (`InviteForm` sub-component): toggled inline; email + role select → `POST /clients/invite`
@@ -512,7 +571,9 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 ## New SDUI & Event Features (added)
 
 ### EventSectionsManager (redesigned)
+
 `src/components/events/event-sections-manager.tsx`
+
 - **SDUI section types** aligned with public frontend: CountdownHeader, GraduationHero, EventVenue, Reception, GraduatesList, PhotoGrid, RSVPConfirmation, Agenda + classic HERO/TEXT/GALLERY/MAP/SCHEDULE/MUSIC
 - **Config editor per type** — inline form that expands per section row (⚙ button)
 - **Media manager per section** — image upload slots per SDUI type (📷 button), shows expected positions with progress
@@ -520,7 +581,9 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 - Adds SDUI tab (components aligned with public frontend registry) vs Classic tab in add panel
 
 ### EventSectionResources
+
 `src/components/events/event-section-resources.tsx`
+
 - Per-section image upload with expected position slots per SDUI component_type
 - Progress bar showing filled/total slots
 - Inline preview, replace, delete per slot
@@ -528,7 +591,9 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 - Fetches existing resources via protected `GET /admin/resources/section/:sectionId`
 
 ### InvitationTracker
+
 `src/components/events/invitation-tracker.tsx`
+
 - New tab "Invitaciones" in event detail page
 - Per-guest RSVP tracking: status, responded_at, method (web/app/host), guest_count
 - Response rate progress bar + stat grid
@@ -540,7 +605,9 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 - Pending badge counter on tab
 
 ### EventConfigPanel (expanded)
+
 `src/components/events/event-config-panel.tsx`
+
 - Now exposes ALL backend config fields:
   - Guest interaction: allow_uploads, allow_messages, notify_on_moment_upload
   - Scheduling: active_from, active_until (`active_until` must be after `active_from`; blank end means no close date)
@@ -548,13 +615,17 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
   - Section visibility toggles: show_countdown, show_rsvp, show_location, show_gallery, show_wall, show_contact, show_schedule
 
 ### Event Form (expanded)
+
 `src/components/events/forms/event-form-modal.tsx`
+
 - Added fields: second_address, music_url (URL validated)
 - Description changed to textarea
 - Address split into primary + secondary
 
 ### Event Detail Page
+
 `src/app/(app)/events/[id]/page.tsx`
+
 - New **"Invitaciones"** tab with InvitationTracker (pending count badge)
 - **Vista previa** button — opens public frontend
 - TABS: Resumen, Invitados, Invitaciones, RSVP, Momentos, Analíticas, Config
@@ -562,6 +633,7 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 ## Studio & Special Modes
 
 ### Event Studio (`/events/[id]/studio`)
+
 - **File**: `src/app/(app)/events/[id]/studio/page.tsx`
 - Full-screen editor (`fixed inset-0 z-50`) overlays the sidebar layout
 - Split: 288px left sidebar (Secciones/Ajustes/Diseño panels) + iframe preview right
@@ -589,6 +661,7 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 - Publish button: sets `is_public: true` via PUT `/events/:id/config`; shows live URL chip + copy button
 
 ### Check-in Mode (`/events/[id]/checkin`)
+
 - **File**: `src/app/(app)/events/[id]/checkin/page.tsx`
 - Full-screen overlay (`fixed inset-0 z-50`) optimized for phone/tablet
 - Auto-refreshes guest list every 10 seconds
@@ -602,10 +675,7 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 Full-screen camera overlay for scanning guest QR codes at check-in.
 
 ```tsx
-<QRScanner
-  onScan={(token) => handleQRScan(token)}
-  onClose={() => setShowScanner(false)}
-/>
+<QRScanner onScan={(token) => handleQRScan(token)} onClose={() => setShowScanner(false)} />
 ```
 
 - Renders at `z-[60]` (above the check-in page's `z-50` overlay)
@@ -618,24 +688,28 @@ Full-screen camera overlay for scanning guest QR codes at check-in.
 
 ## New Event Components
 
-| Component | File | Description |
-|---|---|---|
-| `SeatingPlan` | `components/events/seating-plan.tsx` | Table-based guest seating view, inline table assignment |
-| `EventDesignPicker` | `components/events/event-design-picker.tsx` | Design template, color palette, font set selector |
-| `InvitationTracker` | `components/events/invitation-tracker.tsx` | Full invitation tracking with bulk WhatsApp, CSV export |
+| Component           | File                                        | Description                                             |
+| ------------------- | ------------------------------------------- | ------------------------------------------------------- |
+| `SeatingPlan`       | `components/events/seating-plan.tsx`        | Table-based guest seating view, inline table assignment |
+| `EventDesignPicker` | `components/events/event-design-picker.tsx` | Design template, color palette, font set selector       |
+| `InvitationTracker` | `components/events/invitation-tracker.tsx`  | Full invitation tracking with bulk WhatsApp, CSV export |
 
 ## Self-Healing Components
 
 ### sanitizeEvent (`lib/sanitize-event.ts`)
+
 In-memory event sanitizer applied before render. Sets defaults for timezone (`America/Mexico_City`), language (`es`), and identifier (falls back to `event.id`).
 
 ### detectEventIssues (`lib/sanitize-event.ts`)
+
 Returns an array of `EventIssue` objects for: empty identifier, missing timezone, zero/missing `event_date_time`, missing language, FK present but relation not loaded (`event_type`), missing `config`.
 
 ### useEventHealthCheck (`hooks/useEventHealthCheck.ts`)
+
 Hook that runs once per event load (useRef guard). Calls `detectEventIssues()`, and if issues found, calls `POST /events/:id/repair`. On success, revalidates SWR keys (`/events/:id`, `/events/:id/config`, `/events/:id/analytics`, `/moments?event_id=:id`) and shows a toast: "Datos del evento optimizados (N correcciones)".
 
 ### EventErrorBoundary (`events/event-error-boundary.tsx`)
+
 React class component Error Boundary. Wraps the event detail page. Catches render crashes and shows a retry button that reloads the page.
 
 ---
@@ -666,8 +740,8 @@ Reusable tappable row for use inside a `BottomSheet`.
   icon={<SomeIcon className="size-5" />}
   label="Label text"
   onClick={handler}
-  variant="default"   // "default" | "danger"
-  trailing={<Badge>3</Badge>}  // optional right slot
+  variant="default" // "default" | "danger"
+  trailing={<Badge>3</Badge>} // optional right slot
   disabled={false}
 />
 ```
@@ -678,8 +752,24 @@ Reusable tappable row for use inside a `BottomSheet`.
 ---
 
 ## Guest Form Enhancements
+
 - Added fields: `role` (graduate/guest/host/vip/speaker/staff), `is_host` (boolean), `notes` (textarea), `max_guests` (number)
 - **Perfil público** collapsible section (auto-opens on edit when data exists): `headline` (role/title), `bio` (short profile text), `signature` (dedication/closing phrase)
   - These fields feed the `GraduatesList` SDUI section on the public event page
   - Section auto-expands when editing a guest who already has profile data
 - Uses `Controller` from react-hook-form for the Headless UI Checkbox
+
+---
+
+## Automation Operations Surface
+
+`src/app/(app)/automation/page.tsx` is the live operational entry point for Delivery. It refreshes task activity every three seconds and keeps the primary path focused on project delivery; the one-off agent form remains collapsed as a secondary action.
+
+- The hero shows the current task, its inferred delivery phase, and a motion-backed progress indicator.
+- Activity rows animate as jobs arrive or change status and visibly pulse while queued or running.
+- Each job retains its direct link to the related Delivery work item, so system activity always has project context.
+- `src/app/(app)/automation/work-items/[workItemId]/page.tsx` turns the task detail into a live Delivery run: it refreshes every three seconds while an agent task is active, then reduces the task refresh cadence to ten seconds while idle and stops background-tab polling. Its Live Steps log retains only the latest three movements and routes technical diagnostics to Ejecuciones. The console navigation is placed before its content: `Live Steps` owns the live pipeline and log; Ejecuciones keeps the compact AI-consumption ledger and results; Evidencia is agent-generated and has a concise automatic empty state; Decisiones is the only place for active human control, gates and publication permissions. Optional context, the manual plan fallback and gate notes stay collapsed until an operator needs to intervene.
+- Private Delivery plan results expose the agent's goal interpretation, confidence, autonomy boundary, context gaps, human decisions, and rollback plan alongside the repository impact matrix. This makes the reasoning reviewable before any implementation gate is opened.
+- Every open request in a project exposes its own `Proponer plan` action. The dashboard snapshots only ready project context, starts the bounded planning run, and moves the operator directly to the resulting work item; no manual task form is required for the normal path.
+- The secondary quick-agent console includes a non-mutating `Producto` mode. It produces alternatives, trade-offs, risks, a measurable signal, and a recommended first experiment without creating tasks or modifying a project.
+- Product briefs are contract-validated by the worker and render as a comparison of directions plus a clearly marked human recommendation, so the result remains actionable even when the agent is not allowed to act on it.

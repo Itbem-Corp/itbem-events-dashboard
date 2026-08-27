@@ -8,7 +8,11 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./tests/unit/setup.ts'],
-    exclude: ['tests/e2e/**', 'node_modules/**'],
+    exclude: ['tests/e2e/**', 'node_modules/**', '.worktrees/**'],
+    // A full dashboard run initializes several Happy DOM workers at once.
+    // Ten seconds still catches stalled unit tests quickly while avoiding
+    // false failures from CPU contention during parallel CI collection.
+    testTimeout: 10_000,
     coverage: {
       enabled: false,
       provider: 'v8',

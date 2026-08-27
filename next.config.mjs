@@ -30,8 +30,12 @@ function normalizeBackendBaseUrl(value, fallback) {
   return normalizeBaseUrl(value, fallback).replace(/\/api$/i, '')
 }
 
+function localBackendBaseUrl() {
+  return normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, 'http://localhost:8080')
+}
+
 function backendRemotePattern() {
-  const backendUrl = new URL(normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, 'http://localhost:8080'))
+  const backendUrl = new URL(localBackendBaseUrl())
   return {
     protocol: backendUrl.protocol.replace(':', ''),
     hostname: backendUrl.hostname,

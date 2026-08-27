@@ -1,4 +1,5 @@
-import { backendBaseUrlForHostname, tenantCodeForHostname, tenantForHostname, tenantPresentationForHostname } from '@/lib/tenant-config'
+import { backendBaseUrlForHostname, hostnameForRequest, tenantCodeForHostname, tenantForHostname, tenantForRequest, tenantPresentationForHostname } from '@/lib/tenant-config'
+import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 
 describe('tenant configuration', () => {
@@ -20,6 +21,7 @@ describe('tenant configuration', () => {
       'users',
       'organizations',
       'metrics',
+      'automation',
     ])
   })
 
@@ -37,6 +39,20 @@ describe('tenant configuration', () => {
     expect(tenantCodeForHostname('dashboard.eventiapp.localhost:3000')).toBe('eventiapp')
     expect(tenantCodeForHostname('dashboard.itbem.localhost:3000')).toBe('itbem')
     expect(tenantCodeForHostname('dashboard.cafettonhouse.localhost:3000')).toBe('cafettonhouse')
+  })
+
+  it('uses the original request host when a local route handler is normalized to localhost', () => {
+    const request = new NextRequest('http://localhost:3000/api/auth/sign-in', {
+      headers: {
+        host: 'localhost:3000',
+        'x-forwarded-host': 'dashboard.itbem.localhost:3000, localhost:3000',
+      },
+    })
+    const env = { COGNITO_ITBEM_CLIENT_ID: 'itbem-client' }
+
+    expect(hostnameForRequest(request)).toBe('dashboard.itbem.localhost')
+    expect(tenantForRequest(request, env).code).toBe('itbem')
+    expect(tenantForRequest(request, env).clientId).toBe(tenantForHostname('dashboard.itbem.localhost', env).clientId)
   })
 
   it('fails closed for unknown custom domains', () => {

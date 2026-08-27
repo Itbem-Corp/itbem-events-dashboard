@@ -28,18 +28,18 @@ export function Dialog({
     <Headless.Dialog {...props} className="relative z-50">
       <Headless.DialogBackdrop
         transition
-        className="fixed inset-0 flex w-screen justify-center overflow-y-auto bg-[rgb(15_23_42_/_24%)] px-2 py-2 backdrop-blur-[2px] transition duration-100 focus:outline-0 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:px-6 sm:py-8 lg:px-8 lg:py-16 dark:bg-[rgb(2_6_12_/_58%)]"
+        className="fixed inset-0 flex w-screen justify-center overflow-y-auto bg-[rgb(15_23_42_/_24%)] px-2 py-2 backdrop-blur-[2px] transition duration-100 focus:outline-0 motion-reduce:transition-none data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:px-6 sm:py-8 lg:px-8 lg:py-16 dark:bg-[rgb(2_6_12_/_58%)]"
       />
 
-      <div className="fixed inset-0 w-screen overflow-y-auto pt-6 sm:pt-0">
+      <div className="fixed inset-0 w-screen overflow-y-auto overscroll-contain px-2 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-0 sm:pt-0 sm:pb-0">
         <div className="grid min-h-full grid-rows-[1fr_auto] justify-items-center sm:grid-rows-[1fr_auto_3fr] sm:p-4">
           <Headless.DialogPanel
             transition
             className={clsx(
               className,
               sizes[size],
-              'row-start-2 w-full min-w-0 rounded-t-3xl bg-[var(--app-surface-raised)] p-(--gutter) shadow-[0_24px_80px_var(--app-shadow-strong)] ring-1 ring-[var(--app-border-subtle)] [--gutter:--spacing(8)] sm:mb-auto sm:rounded-2xl forced-colors:outline',
-              'transition duration-100 will-change-transform data-closed:translate-y-12 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:data-closed:translate-y-0 sm:data-closed:data-enter:scale-95'
+              'row-start-2 max-h-[calc(100dvh-1.5rem)] w-full min-w-0 overflow-y-auto overscroll-contain rounded-t-3xl bg-[var(--app-surface-raised)] p-(--gutter) shadow-[0_24px_80px_var(--app-shadow-strong)] ring-1 ring-[var(--app-border-subtle)] [--gutter:--spacing(8)] sm:mb-auto sm:max-h-[calc(100dvh-4rem)] sm:rounded-2xl forced-colors:outline',
+              'transition duration-100 will-change-transform motion-reduce:transition-none motion-reduce:data-closed:translate-y-0 motion-reduce:data-closed:scale-100 motion-reduce:data-closed:opacity-100 data-closed:translate-y-12 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:data-closed:translate-y-0 sm:data-closed:data-enter:scale-95'
             )}
           >
             {children}

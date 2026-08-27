@@ -5,8 +5,8 @@ import { itbemRoutes } from '@/products/itbem/routes'
 export const itbemManifest = {
   code: 'itbem',
   ...productCatalogEntry('itbem'),
-  backendModules: ['home', 'users', 'organizations', 'metrics'],
-  features: ['home', 'users', 'organizations', 'metrics', 'team', 'audit', 'profile'],
+  backendModules: ['home', 'users', 'organizations', 'metrics', 'automation'],
+  features: ['home', 'users', 'organizations', 'metrics', 'automation', 'team', 'audit', 'profile'],
   routes: itbemRoutes,
   login: {
     index: 'IB / 01',

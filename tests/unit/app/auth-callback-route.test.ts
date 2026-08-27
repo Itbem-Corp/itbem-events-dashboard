@@ -1,3 +1,9 @@
+const applicationAccessMocks = vi.hoisted(() => ({ verifyApplicationAccess: vi.fn() }))
+
+vi.mock('@/lib/application-access', () => ({
+  verifyApplicationAccess: applicationAccessMocks.verifyApplicationAccess,
+}))
+
 import { GET } from '@/app/auth/callback/route'
 import { AUTH_COOKIE_NAMES } from '@/lib/auth-session'
 import { NextRequest } from 'next/server'
@@ -19,6 +25,10 @@ describe('Cognito callback route', () => {
     vi.stubEnv('COGNITO_DOMAIN', 'https://auth.example.com')
     vi.stubEnv('COGNITO_REDIRECT_URI', 'https://dashboard.eventiapp.com.mx/auth/callback')
     vi.stubEnv('NODE_ENV', 'production')
+    applicationAccessMocks.verifyApplicationAccess.mockResolvedValue({
+      ok: true,
+      session: { application: { code: 'eventiapp' }, user: { id: 'user-1' }, organizations: [], capabilities: [] },
+    })
   })
 
   afterEach(() => {
@@ -82,5 +92,28 @@ describe('Cognito callback route', () => {
     })
     expect(response.cookies.get(AUTH_COOKIE_NAMES.oauthState)?.value).toBe('')
     expect(response.headers.get('cache-control')).toContain('no-store')
+  })
+
+  it('does not write credentials when the token belongs to another product', async () => {
+    applicationAccessMocks.verifyApplicationAccess.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      error: 'Tu sesión pertenece a otro producto.',
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ id_token: 'wrong-product-token', refresh_token: 'refresh-token' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+
+    const response = await GET(callbackRequest(`code=auth-code&state=${state}`))
+
+    expect(new URL(response.headers.get('location')!).searchParams.get('error')).toBe('application_access_denied')
+    expect(response.cookies.get(AUTH_COOKIE_NAMES.session)).toBeUndefined()
+    expect(response.cookies.get(AUTH_COOKIE_NAMES.refreshToken)).toBeUndefined()
   })
 })

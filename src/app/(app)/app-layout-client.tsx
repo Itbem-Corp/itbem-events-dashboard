@@ -60,6 +60,10 @@ export function AppLayoutClient({
     productSupportsFeature(product, 'audit') &&
     accessProfile.isPlatformContext &&
     accessCan(accessProfile, 'audit:view')
+  const canUseAutomation =
+    productSupportsFeature(product, 'automation') &&
+    accessProfile.isPlatformContext &&
+    (accessCan(accessProfile, 'automation:view') || accessCan(accessProfile, 'automation:manage'))
 
   useEffect(() => {
     // ⛔ NO VALIDAR NADA hasta que el perfil esté listo
@@ -98,6 +102,11 @@ export function AppLayoutClient({
       return
     }
 
+    if (pathname.startsWith('/automation') && !canUseAutomation) {
+      router.replace('/')
+      return
+    }
+
     // 🔒 RUTAS SOLO CLIENT
     if (pathname.startsWith('/team') && !organizationContextPending && !canManageMembers) {
       router.replace('/')
@@ -117,6 +126,7 @@ export function AppLayoutClient({
     canManageMembers,
     canViewMetrics,
     canViewAudit,
+    canUseAutomation,
     currentClient,
     pathname,
     profileLoaded,

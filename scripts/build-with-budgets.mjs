@@ -11,7 +11,12 @@ const budgets = {
   shared: 110,
 }
 
-const child = spawn(process.execPath, [nextCli, 'build'], { env: process.env, stdio: ['inherit', 'pipe', 'pipe'] })
+const buildEnv = {
+  ...process.env,
+  // Production builds must never share Next's mutable output folder with `next dev`.
+  NEXT_DIST_DIR: process.env.NEXT_DIST_DIR?.trim() || '.next-build',
+}
+const child = spawn(process.execPath, [nextCli, 'build'], { env: buildEnv, stdio: ['inherit', 'pipe', 'pipe'] })
 let output = ''
 
 for (const stream of [child.stdout, child.stderr]) {

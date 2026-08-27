@@ -13,6 +13,16 @@ import { useStore } from '@/store/useStore'
 import { useEffect } from 'react'
 import useSWR from 'swr'
 
+type RequestStatusError = {
+  status?: number
+  response?: { status?: number }
+}
+
+function requestStatus(error: unknown): number | undefined {
+  const candidate = error as RequestStatusError | undefined
+  return candidate?.status ?? candidate?.response?.status
+}
+
 export default function SessionBootstrap() {
   const hydrated = useStoreHydration()
   const profileLoaded = useStore((s) => s.profileLoaded)
@@ -24,8 +34,10 @@ export default function SessionBootstrap() {
     getApplicationSession,
     {
       revalidateOnFocus: false,
-      shouldRetryOnError: (requestError) =>
-        (requestError as { response?: { status?: number } })?.response?.status !== 403,
+      shouldRetryOnError: (requestError) => {
+        const status = requestStatus(requestError)
+        return status !== 401 && status !== 403
+      },
     }
   )
 
@@ -34,7 +46,7 @@ export default function SessionBootstrap() {
   }, [session, setApplicationSession])
 
   useEffect(() => {
-    const status = (error as { response?: { status?: number } })?.response?.status
+    const status = requestStatus(error)
     if (status === 401 || status === 403) {
       void endSession(clearSession)
     }
@@ -48,10 +60,13 @@ export default function SessionBootstrap() {
       try {
         await refreshApplicationSession(minAgeMs)
       } catch (reason) {
-        const status = (reason as { status?: number })?.status
+        const status = requestStatus(reason)
         if (active && (status === 401 || status === 403)) void endSession(clearSession)
       }
     }
+    // The Zustand state can survive Fast Refresh and client navigations. Treat
+    // it as a cache and verify it once before it can drive a workspace request.
+    void revalidate(0)
     const intervalId = window.setInterval(() => { void revalidate() }, SESSION_REVALIDATE_INTERVAL_MS)
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') void revalidate(SESSION_FOCUS_REVALIDATE_AFTER_MS)

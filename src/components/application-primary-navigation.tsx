@@ -1,5 +1,6 @@
 import {
   SidebarBody,
+  SidebarHeading,
   SidebarItem,
   SidebarLabel,
   SidebarSection,
@@ -10,7 +11,9 @@ import {
   BuildingOfficeIcon,
   ChartBarSquareIcon,
   ClipboardDocumentCheckIcon,
+  FolderOpenIcon,
   HomeIcon,
+  SparklesIcon,
   Square2StackIcon,
   UsersIcon,
 } from '@heroicons/react/20/solid'
@@ -18,7 +21,13 @@ import { memo } from 'react'
 
 type ApplicationPrimaryNavigationProps = Pick<
   ApplicationNavigation,
-  'hasEvents' | 'canViewMetrics' | 'canViewUsers' | 'canViewAudit' | 'canManageMembers' | 'canViewOrganizations'
+  | 'hasEvents'
+  | 'canViewMetrics'
+  | 'canViewUsers'
+  | 'canViewAudit'
+  | 'canUseAutomation'
+  | 'canManageMembers'
+  | 'canViewOrganizations'
 > & {
   pathname: string
   onIntent: (href: ApplicationRoute) => void
@@ -30,6 +39,7 @@ export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavi
   canViewMetrics,
   canViewUsers,
   canViewAudit,
+  canUseAutomation,
   canManageMembers,
   canViewOrganizations,
   onIntent,
@@ -85,6 +95,32 @@ export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavi
           </SidebarItem>
         )}
       </SidebarSection>
+
+      {canUseAutomation && (
+        <SidebarSection>
+          <SidebarHeading>Automatización</SidebarHeading>
+          <SidebarItem
+            href="/automation"
+            current={pathname === '/automation' || pathname.startsWith('/automation/work-items')}
+            {...intentProps('/automation')}
+          >
+            <SparklesIcon />
+            <SidebarLabel>Centro de automatización</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem href="/automation/projects" current={pathname.startsWith('/automation/projects')} {...intentProps('/automation/projects')}>
+            <FolderOpenIcon />
+            <SidebarLabel>Resultados</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem href="/automation/clients" current={pathname.startsWith('/automation/clients')} {...intentProps('/automation/clients')}>
+            <BuildingOfficeIcon />
+            <SidebarLabel>Portafolio</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem href="/automation/costs" current={pathname.startsWith('/automation/costs')} {...intentProps('/automation/costs')}>
+            <ChartBarSquareIcon />
+            <SidebarLabel>Uso y costos</SidebarLabel>
+          </SidebarItem>
+        </SidebarSection>
+      )}
 
       <SidebarSpacer />
 

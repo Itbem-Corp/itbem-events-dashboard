@@ -16,6 +16,14 @@ describe('product manifests', () => {
     expect(productSupportsPath(getProductManifest('cafettonhouse'), '/events/wedding-1')).toBe(false)
   })
 
+  it('matches privileged product routes on URL segment boundaries only', () => {
+    expect(productSupportsPath(getProductManifest('itbem'), '/automation/projects/project-1')).toBe(true)
+    expect(productSupportsPath(getProductManifest('eventiapp'), '/automation/projects/project-1')).toBe(false)
+    // This is not an Automation route family. It must not inherit the
+    // Automation product policy merely because its text begins alike.
+    expect(productSupportsPath(getProductManifest('eventiapp'), '/automation-export')).toBe(true)
+  })
+
   it('keeps shared organization features available only where declared', () => {
     expect(productSupportsPath(getProductManifest('itbem'), '/clients')).toBe(true)
     expect(productSupportsPath(getProductManifest('cafettonhouse'), '/users')).toBe(true)
@@ -24,7 +32,7 @@ describe('product manifests', () => {
 
   it('uses each manifest as the backend module source of truth', () => {
     expect(getProductManifest('eventiapp').backendModules).toEqual(['home', 'events', 'metrics'])
-    expect(getProductManifest('itbem').backendModules).toEqual(['home', 'users', 'organizations', 'metrics'])
+    expect(getProductManifest('itbem').backendModules).toEqual(['home', 'users', 'organizations', 'metrics', 'automation'])
     expect(getProductManifest('cafettonhouse').backendModules).toEqual(['home', 'users', 'organizations', 'metrics'])
   })
 
