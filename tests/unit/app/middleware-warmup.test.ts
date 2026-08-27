@@ -51,7 +51,7 @@ describe('public authentication routes', () => {
     const staleSessionRequest = request('https://dashboard.itbem.com.mx/login', false)
     staleSessionRequest.cookies.set('session', 'stale-or-other-product-token')
 
-    const response = middleware(staleSessionRequest)
+    const response = proxy(staleSessionRequest)
 
     expect(response.status).toBe(200)
     expect(response.headers.get('x-middleware-next')).toBe('1')
