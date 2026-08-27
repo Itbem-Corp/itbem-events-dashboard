@@ -509,6 +509,7 @@ function DeliveryPipeline({
   onOpenControl: () => void
   onRefresh?: () => void
 }) {
+  const [publicationTime] = useState(() => Date.now())
   const tasks = item.automation_tasks ?? []
   const activeTask = [...tasks]
     .filter(isActiveTask)
@@ -3721,14 +3722,14 @@ export default function DeliveryWorkItemPage() {
                 <Badge
                   color={
                     item.publication_grants?.some(
-                      (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
+                      (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > publicationTime
                     )
                       ? 'emerald'
                       : 'amber'
                   }
                 >
                   {item.publication_grants?.some(
-                    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
+                    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > publicationTime
                   )
                       ? 'Vigente'
                       : item.state === 'preview_pending'
@@ -3919,7 +3920,7 @@ export default function DeliveryWorkItemPage() {
               ) : (
                 <ol className="mt-4 space-y-3">
                   {item.publication_grants?.map((grant) => {
-                    const active = !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
+                    const active = !grant.revoked_at && new Date(grant.expires_at).getTime() > publicationTime
                     return (
                       <li key={grant.id} className="rounded-2xl border border-border-subtle bg-surface-soft p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
