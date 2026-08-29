@@ -3,7 +3,7 @@ import type { ProductFeature, ProductManifest, TenantCode } from '@/products/cor
 type ProductManifestRegistry = Readonly<Record<TenantCode, ProductManifest>>
 
 const PRODUCT_CODES: readonly TenantCode[] = ['eventiapp', 'itbem', 'cafettonhouse']
-const MODULE_FEATURES = new Set<ProductFeature>(['home', 'events', 'users', 'organizations', 'metrics'])
+const MODULE_FEATURES = new Set<ProductFeature>(['home', 'events', 'users', 'organizations', 'metrics', 'automation'])
 
 /**
  * Fails fast when a new product definition is internally inconsistent. This
@@ -65,6 +65,9 @@ export function assertProductManifestContract(manifests: ProductManifestRegistry
     // EventiApp surface merely by receiving a broad backend capability.
     if (code !== 'eventiapp' && (manifest.features.includes('events') || manifest.backendModules.includes('events'))) {
       throw new Error(`${code} cannot expose the EventiApp event module`)
+    }
+    if (code !== 'itbem' && (manifest.features.includes('automation') || manifest.backendModules.includes('automation'))) {
+      throw new Error(`${code} cannot expose the ITBEM automation module`)
     }
   }
 }

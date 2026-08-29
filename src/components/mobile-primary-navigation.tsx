@@ -6,6 +6,7 @@ import {
   BuildingOfficeIcon,
   ChartBarSquareIcon,
   HomeIcon,
+  SparklesIcon,
   Square2StackIcon,
   UsersIcon,
 } from '@heroicons/react/20/solid'
@@ -20,6 +21,7 @@ interface MobilePrimaryNavigationProps {
   showTeam: boolean
   showUsers: boolean
   showOrganizations: boolean
+  showAutomation: boolean
   onIntent: (href: PrimaryHref) => void
 }
 
@@ -30,6 +32,7 @@ const PRIMARY_ITEMS = [
   { href: '/team', label: 'Equipo', icon: UsersIcon, rootOnly: false },
   { href: '/users', label: 'Usuarios', icon: UsersIcon, rootOnly: true },
   { href: '/clients', label: 'Clientes', icon: BuildingOfficeIcon, rootOnly: true },
+  { href: '/automation', label: 'Centro', icon: SparklesIcon, rootOnly: true },
 ] as const
 
 export function MobilePrimaryNavigation({
@@ -39,6 +42,7 @@ export function MobilePrimaryNavigation({
   showTeam,
   showUsers,
   showOrganizations,
+  showAutomation,
   onIntent,
 }: MobilePrimaryNavigationProps) {
   const items = PRIMARY_ITEMS.filter((item) =>
@@ -52,7 +56,9 @@ export function MobilePrimaryNavigation({
             ? showTeam
             : item.href === '/users'
               ? showUsers
-              : showOrganizations
+              : item.href === '/clients'
+                ? showOrganizations
+                : showAutomation
   )
 
   return (
@@ -63,17 +69,19 @@ export function MobilePrimaryNavigation({
     >
       {items.map(({ href, label, icon: Icon }) => {
         const current = href === '/' ? pathname === '/' : pathname.startsWith(href)
+        const accessibleLabel = href === '/automation' ? 'Centro de automatización' : label
 
         return (
           <Link
             key={href}
             href={href}
+            aria-label={accessibleLabel}
             aria-current={current ? 'page' : undefined}
             onPointerEnter={() => onIntent(href)}
             onPointerDown={() => onIntent(href)}
             onFocus={() => onIntent(href)}
             className={clsx(
-              'group relative flex min-h-13 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-2xl px-1 text-[11px] font-medium transition-[color,background-color,box-shadow,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) active:scale-[0.98] motion-reduce:transition-none',
+              'group relative flex min-h-13 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-2xl px-1 text-[11px] font-medium transition-[color,background-color,box-shadow,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) active:scale-[0.98] motion-reduce:transition-none max-[359px]:gap-0',
               current
                 ? 'bg-(--tenant-accent)/10 text-[var(--app-text-primary)] ring-1 ring-(--tenant-accent)/18'
                 : 'text-[var(--app-text-secondary)] hover:bg-(--tenant-accent)/7 hover:text-[var(--app-text-primary)]'
@@ -95,7 +103,9 @@ export function MobilePrimaryNavigation({
             >
               <Icon aria-hidden="true" className="size-[1.15rem]" />
             </span>
-            <span className="max-w-full truncate leading-none">{label}</span>
+            <span aria-hidden className="max-w-full truncate leading-none max-[359px]:sr-only">
+              {label}
+            </span>
           </Link>
         )
       })}

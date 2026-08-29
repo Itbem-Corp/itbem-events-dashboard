@@ -479,6 +479,7 @@ export default function UsersPage() {
                         <UserListActionsMenu
                           user={user}
                           canDelete={isPrimaryRoot}
+                          canManageAccess={isPrimaryRoot}
                           onEditIntent={preloadUserForm}
                           onDeleteIntent={preloadDeleteUser}
                           onEdit={(selected) => {

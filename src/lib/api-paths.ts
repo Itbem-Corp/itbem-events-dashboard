@@ -97,6 +97,210 @@ export function organizationContextPath(): string {
   return '/session/organization-context'
 }
 
+export function automationTasksPath(): string {
+  return '/automation/tasks'
+}
+
+export function automationHealthPath(): string {
+  return '/automation/health'
+}
+
+/**
+ * Compact, authorization-scoped read model for the automation console.
+ * Keep detail endpoints separate; this is intentionally safe to refresh often.
+ */
+export function automationPortfolioPath(): string {
+  return '/automation/portfolio'
+}
+
+export function automationCostsPath(days = 30, page = 1, pageSize = 40): string {
+  return apiPath('/automation/costs', { days, page, page_size: pageSize })
+}
+
+export function automationTaskInputPath(taskId: string | number): string {
+  return `/automation/tasks/${encodePathSegment(taskId)}/input`
+}
+
+export function automationTaskTracePath(taskId: string | number): string {
+  return `/automation/tasks/${encodePathSegment(taskId)}/trace`
+}
+
+export function automationInputUploadPath(): string {
+  return '/automation/input-upload'
+}
+
+export function automationTaskOutputPath(taskId: string | number): string {
+  return `/automation/tasks/${encodePathSegment(taskId)}/output`
+}
+
+export function automationTaskResultPath(taskId: string | number): string {
+  return `/automation/tasks/${encodePathSegment(taskId)}/result`
+}
+
+export function automationExecutionInputPath(executionId: string | number): string {
+  return `/automation/executions/${encodePathSegment(executionId)}/input`
+}
+
+export function automationExecutionInputDownloadPath(executionId: string | number): string {
+  return `/automation/executions/${encodePathSegment(executionId)}/input/download`
+}
+
+export function automationExecutionResultPath(executionId: string | number): string {
+  return `/automation/executions/${encodePathSegment(executionId)}/result`
+}
+
+export function automationExecutionResultDownloadPath(executionId: string | number): string {
+  return `/automation/executions/${encodePathSegment(executionId)}/result/download`
+}
+
+export function automationToolExecutionReportPath(executionId: string | number): string {
+  return `/automation/tool-executions/${encodePathSegment(executionId)}/report`
+}
+
+export function automationToolExecutionReportDownloadPath(executionId: string | number): string {
+  return `/automation/tool-executions/${encodePathSegment(executionId)}/report/download`
+}
+
+export function automationTaskArtifactPath(taskId: string | number, name: string): string {
+  return `/automation/tasks/${encodePathSegment(taskId)}/artifacts/${encodePathSegment(name)}`
+}
+
+export function deliveryProjectsPath(): string {
+	return '/automation/projects'
+}
+
+export function deliveryClientsPath(): string {
+  return '/automation/clients'
+}
+
+export function deliveryClientProfilePath(clientId: string | number): string {
+  return `${deliveryClientsPath()}/${encodePathSegment(clientId)}/profile`
+}
+
+export function deliveryProjectPath(projectId: string | number): string {
+  return `/automation/projects/${encodePathSegment(projectId)}`
+}
+
+export function deliveryProjectPublicationReadinessPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/publication-readiness`
+}
+
+export function deliveryProjectPublicationReadinessVerifyPath(projectId: string | number): string {
+  return `${deliveryProjectPublicationReadinessPath(projectId)}/verify`
+}
+
+export function deliveryProjectBudgetPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/budget`
+}
+
+export function deliveryProjectCostsPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/costs`
+}
+
+export function deliveryProjectContextPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/context`
+}
+
+export function deliveryProjectContextMetadataPath(projectId: string | number, sourceId: string | number): string {
+  return `${deliveryProjectContextPath(projectId)}/${encodePathSegment(sourceId)}`
+}
+
+export function deliveryProjectContextRefreshPath(projectId: string | number, sourceId: string | number): string {
+  return `${deliveryProjectContextPath(projectId)}/${encodePathSegment(sourceId)}/refresh`
+}
+
+export function deliveryProjectLocalContextRefreshPath(projectId: string | number, sourceId: string | number): string {
+  return `${deliveryProjectContextPath(projectId)}/${encodePathSegment(sourceId)}/refresh-local`
+}
+
+export function deliveryProjectLocalRemoteFetchPath(projectId: string | number, sourceId: string | number): string {
+  return `${deliveryProjectContextPath(projectId)}/${encodePathSegment(sourceId)}/fetch-local-remote`
+}
+
+export function deliveryProjectRequestsPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/requests`
+}
+
+export function deliveryProjectMembersPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/members`
+}
+
+export function deliveryProjectWorkItemsPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/work-items`
+}
+
+export function deliveryWorkItemPath(workItemId: string | number): string {
+  return `/automation/work-items/${encodePathSegment(workItemId)}`
+}
+
+export function deliveryWorkItemStreamPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/stream`
+}
+
+export function deliveryWorkItemExecutionGraphPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/execution-graph`
+}
+
+export function deliveryWorkItemBudgetPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/budget`
+}
+
+export function deliveryWorkItemTransitionPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/transitions`
+}
+
+export function deliveryWorkItemPlansPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/plans`
+}
+
+export function deliveryWorkItemPromoteAgentPlanPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPlansPath(workItemId)}/promote-agent`
+}
+
+export function deliveryWorkItemChangeSetsPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/change-sets`
+}
+
+export function deliveryWorkItemReleasePath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/release`
+}
+
+export function deliveryWorkItemReleaseReportPath(workItemId: string | number): string {
+  return `${deliveryWorkItemReleasePath(workItemId)}/report`
+}
+
+export function deliveryWorkItemAgentRunsPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/agent-runs`
+}
+
+export function automationTaskCancelPath(taskId: string | number): string {
+  return `/automation/tasks/${encodePathSegment(taskId)}/cancel`
+}
+
+export function automationTaskRetryCodeReviewPath(taskId: string | number): string {
+  return `/automation/tasks/${encodePathSegment(taskId)}/retry-code-review`
+}
+
+export function deliveryWorkItemPublicationGrantsPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/publication-grants`
+}
+
+export function deliveryWorkItemPublicationGrantRevokePath(workItemId: string | number, grantId: string | number): string {
+  return `${deliveryWorkItemPublicationGrantsPath(workItemId)}/${encodePathSegment(grantId)}/revoke`
+}
+
+export function deliveryWorkItemEvidencePath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/evidence`
+}
+
+export function deliveryWorkItemEvidenceAssetPath(workItemId: string | number, evidenceId: string | number): string {
+  return `${deliveryWorkItemEvidencePath(workItemId)}/${encodePathSegment(evidenceId)}/asset`
+}
+
+export function deliveryWorkItemMessagesPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/messages`
+}
+
 export function auditLogsPath(query?: {
   page?: number
   page_size?: number
@@ -342,6 +546,10 @@ export function userDeactivatePath(userId: string | number): string {
 
 export function userRootLevelPath(userId: string | number): string {
   return `/users/${encodePathSegment(userId)}/root-level`
+}
+
+export function userAccessPolicyPath(userId: string | number, applicationCode: string): string {
+  return `/access-policies/${encodePathSegment(userId)}/${encodePathSegment(applicationCode)}`
 }
 
 export function momentsPath(eventId: string | number): string {
