@@ -494,7 +494,7 @@ function workItemPhase(state: string) {
 function taskPulseTone(status: string) {
   if (status === 'completed') return 'bg-emerald-500'
   if (status === 'failed' || status === 'dispatch_failed') return 'bg-rose-500'
-  if (status === 'cancelled' || status === 'cancel_requested') return 'bg-zinc-400'
+  if (status === 'cancelled' || status === 'cancel_requested') return 'bg-ink-muted/60'
   if (status === 'running') return 'bg-indigo-500'
   return 'bg-amber-400'
 }
@@ -1096,7 +1096,7 @@ export default function DeliveryProjectDetailPage() {
     projectRunningTasks.length > 0
       ? `${projectRunningTasks.length} ejecución${projectRunningTasks.length === 1 ? '' : 'es'} en curso`
       : stoppingWorkItems.length > 0
-        ? `${stoppingWorkItems.length} ejecuciÃ³n${stoppingWorkItems.length === 1 ? '' : 'es'} cerrÃ¡ndose`
+        ? `${stoppingWorkItems.length} ejecución${stoppingWorkItems.length === 1 ? '' : 'es'} cerrándose`
       : decisionWorkItems.some(workItemNeedsAttention)
         ? 'Una ejecución necesita atención'
       : activePlanReady
@@ -1138,9 +1138,9 @@ export default function DeliveryProjectDetailPage() {
             <div className="flex min-w-0 items-center gap-3">
               <span className="relative flex size-3 shrink-0" aria-hidden="true">
                 <span
-                  className={`absolute inline-flex size-full rounded-full opacity-50 ${streamUnavailable ? 'bg-rose-400' : streamReconnecting ? 'animate-ping motion-reduce:animate-none bg-amber-400' : projectRunningTasks.length > 0 ? 'animate-ping motion-reduce:animate-none bg-indigo-400' : stoppingWorkItems.length > 0 ? 'bg-zinc-300' : 'bg-emerald-400'}`}
+                  className={`absolute inline-flex size-full rounded-full opacity-50 ${streamUnavailable ? 'bg-rose-400' : streamReconnecting ? 'animate-ping motion-reduce:animate-none bg-amber-400' : projectRunningTasks.length > 0 ? 'animate-ping motion-reduce:animate-none bg-indigo-400' : stoppingWorkItems.length > 0 ? 'bg-ink-muted/50' : 'bg-emerald-400'}`}
                 />
-                <span className={`relative inline-flex size-3 rounded-full ${streamUnavailable ? 'bg-rose-500' : streamReconnecting ? 'bg-amber-500' : projectRunningTasks.length > 0 ? 'bg-indigo-500' : stoppingWorkItems.length > 0 ? 'bg-zinc-400' : 'bg-emerald-500'}`} />
+                <span className={`relative inline-flex size-3 rounded-full ${streamUnavailable ? 'bg-rose-500' : streamReconnecting ? 'bg-amber-500' : projectRunningTasks.length > 0 ? 'bg-indigo-500' : stoppingWorkItems.length > 0 ? 'bg-ink-muted/60' : 'bg-emerald-500'}`} />
               </span>
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold tracking-[.14em] text-ink-muted uppercase">Pulso del resultado</p>
@@ -1243,7 +1243,7 @@ export default function DeliveryProjectDetailPage() {
                               />
                             )}
                             <span
-                              className={`relative mx-auto flex size-6 items-center justify-center rounded-full border text-[10px] font-bold ${passed ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : isStopping && current ? 'border-zinc-300 bg-zinc-100 text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300' : isDecision ? 'border-amber-300 bg-amber-50 text-amber-700' : current ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-border-subtle bg-surface-raised text-ink-muted'}`}
+                              className={`relative mx-auto flex size-6 items-center justify-center rounded-full border text-[10px] font-bold ${passed ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : isStopping && current ? 'border-border-subtle bg-surface-soft text-ink-muted' : isDecision ? 'border-amber-300 bg-amber-50 text-amber-700' : current ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-border-subtle bg-surface-raised text-ink-muted'}`}
                             >
                               {passed ? <CheckCircleIcon className="size-3" /> : index + 1}
                             </span>

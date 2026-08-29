@@ -41,6 +41,7 @@ vi.mock('@/components/dialog', () => ({
 
 vi.mock('swr', () => ({
   default: mocks.useSWR,
+  preload: vi.fn(() => Promise.resolve(undefined)),
 }))
 
 vi.mock('@/lib/api', () => ({

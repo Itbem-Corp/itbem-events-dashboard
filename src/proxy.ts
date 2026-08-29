@@ -7,7 +7,7 @@ const LOCAL_WARMUP_VALUE = 'route-shell'
 
 function isLocalWarmup(req: NextRequest) {
   return (
-    process.env.NODE_ENV === 'development' &&
+    process.env['NODE_ENV'] === 'development' &&
     req.headers.get(LOCAL_WARMUP_HEADER) === LOCAL_WARMUP_VALUE &&
     (req.nextUrl.hostname === 'localhost' || req.nextUrl.hostname === '127.0.0.1')
   )
@@ -41,14 +41,9 @@ export function proxy(req: NextRequest) {
     return withTenantSecurityPolicy(req, NextResponse.redirect(new URL('/login', req.url)), nonce)
   }
 
-  // A cookie proves only that the browser once held a session; its audience,
-  // expiry and application access are verified by the BFF. Redirect only the
-  // login/OAuth entrypoints so a stale cookie never creates a protected loop.
-  if (session && isPublicRoute && req.nextUrl.pathname !== '/' && req.nextUrl.pathname !== '/logout') {
-    if (req.nextUrl.pathname.startsWith('/login') || req.nextUrl.pathname.startsWith('/auth')) {
-      return withTenantSecurityPolicy(req, NextResponse.redirect(new URL('/', req.url)), nonce)
-    }
-  }
+  // A cookie only proves that the browser once held a session. The BFF
+  // verifies audience, expiry and product access, so login stays reachable
+  // when the cookie is stale or belongs to another product.
 
   const requestHeaders = new Headers(req.headers)
   requestHeaders.set('x-nonce', nonce)

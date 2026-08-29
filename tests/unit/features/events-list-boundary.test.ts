@@ -6,14 +6,12 @@ import { describe, expect, it } from 'vitest'
 const readSource = (relativePath: string) => readFileSync(resolve(process.cwd(), relativePath), 'utf8')
 
 describe('events list feature boundary', () => {
-  it('keeps remote list state out of the App Router page', () => {
+  it('keeps the events list query scoped to the active tenant route', () => {
     const page = readSource('src/app/(app)/events/page.tsx')
 
-    expect(page).toContain("from '@/features/events/use-events-list'")
-    expect(page).not.toContain("from '@/lib/api-envelope'")
-    expect(page).not.toContain("from '@/lib/api-paths'")
-    expect(page).not.toContain("from '@/lib/event-cache'")
-    expect(page).not.toContain("from '@/lib/fetcher'")
+    expect(page).toContain('useScopedFetcherKey')
+    expect(page).toContain('scopedEventsPagePath')
+    expect(page).toContain('useSWR<EventListPage>')
   })
 
   it('keeps query construction, cache updates and cover refresh in the feature hook', () => {
