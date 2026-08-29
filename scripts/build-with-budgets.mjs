@@ -16,7 +16,7 @@ const buildEnv = {
   // Production builds must never share Next's mutable output folder with `next dev`.
   NEXT_DIST_DIR: process.env.NEXT_DIST_DIR?.trim() || '.next-build',
 }
-const child = spawn(process.execPath, [nextCli, 'build'], { env: buildEnv, stdio: ['inherit', 'pipe', 'pipe'] })
+const child = spawn(process.execPath, [nextCli, 'build', '--webpack'], { env: buildEnv, stdio: ['inherit', 'pipe', 'pipe'] })
 let output = ''
 
 for (const stream of [child.stdout, child.stderr]) {
