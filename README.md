@@ -1,56 +1,42 @@
 # EventiApp Dashboard
 
-Dashboard autenticado para operación de eventos, organizaciones, invitados,
-check-in, Studio y analítica. Es una aplicación Next.js 16 multi-producto:
-la UI, la experiencia de sesión y las proyecciones del contrato viven aquí;
-las reglas de dominio y autorización permanecen en `itbem-events-backend`.
+Authenticated dashboard for organizers, agencies, venues and platform admins.
+It owns dashboard UX, session integration and its projection of the shared
+product contract; the Go API remains the canonical source of domain state.
 
-## Inicio rápido
+## Local development
 
-El repositorio usa Node 22 y npm 10. Desde el workspace coordinado, primero
-valida el entorno:
+From the workspace root, prefer the shared Node.js toolchain and orchestration:
 
 ```powershell
 .\eventiapp.ps1 doctor
-.\eventiapp.ps1 check -Target dashboard -Fast
+.\eventiapp.ps1 check -Target products -Fast
+.\eventiapp.ps1 up
 ```
 
-Para trabajar únicamente en este repositorio:
+For standalone dashboard work:
 
 ```bash
 npm ci
 npm run dev
+npm run contract:check
+npm run lint
+npm run typecheck
+npm run test:unit -- --maxWorkers=1
+npm run build
 ```
 
-Abre `http://localhost:3000`. Copia `.env.example` a `.env.local` y configura
-el backend y Cognito para iniciar sesión contra un entorno real.
+The local dashboard is available at `http://localhost:3000`; tenant hostnames
+are documented in the workspace local-development guide. Copy `.env.example`
+to `.env.local` and provide the required Cognito and backend values before
+starting standalone development.
 
-## Comandos de calidad
+## Boundaries
 
-```bash
-npm run check:fast  # contrato de producto + TypeScript
-npm run check       # lint + TypeScript + pruebas unitarias + build
-npm run test:unit:serial # suite unitaria determinista, igual que CI
-npm run build:budget
-npm run test:e2e    # E2E autenticado: requiere configuración de entorno
-```
+- Keep dashboard-only components, routes and interaction state in this repo.
+- Keep language-neutral product identity and request headers in
+  `itbem-product-contract` and update the pinned projection deliberately.
+- Keep authorization and event domain rules in `itbem-events-backend`.
 
-La suite unitaria serial usa `npm run test:unit:serial` en CI porque los
-globals de DOM y fake timers compartidos requieren ejecución determinista.
-
-## Límites de arquitectura
-
-- `src/products/core` contiene contratos y abstracciones independientes de
-  productos; nunca importa EventiApp, ITBEM ni Cafetton House.
-- Cada producto declara marca, rutas y capacidades en `src/products/<producto>`.
-- `src/features` encapsula transporte, cache y estado remoto por dominio; las
-  rutas de `src/app` solo componen la experiencia.
-- `src/contracts` proyecta la revisión fijada de `itbem-product-contract`.
-  No redefinas aquí encabezados de contexto ni capacidades compartidas.
-- El BFF same-origin `POST /api/auth/token` valida la cookie y entrega el
-  token y la sesión normalizada antes de que la UI llame al backend.
-- `src/proxy.ts` aplica el límite de sesión y CSP antes de las rutas privadas.
-
-Las pruebas de arquitectura en `tests/unit/architecture` protegen estos
-límites. Consulta [docs/architecture.md](docs/architecture.md) para el flujo
-detallado y el checklist al agregar un producto.
+See [the workspace workflow](../DEVELOPER_WORKFLOW.md) for the full
+cross-repository validation and release model.

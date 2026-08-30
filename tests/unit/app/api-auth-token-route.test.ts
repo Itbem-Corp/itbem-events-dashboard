@@ -1,14 +1,14 @@
 const cognitoMocks = vi.hoisted(() => ({ send: vi.fn() }))
+const applicationAccessMocks = vi.hoisted(() => ({
+  verifyApplicationAccess: vi.fn(),
+}))
 
 vi.mock('@/lib/cognito-direct', () => ({
   getCognitoClient: () => ({ send: cognitoMocks.send }),
   authRequestIsSameOrigin: vi.fn().mockReturnValue(true),
 }))
 vi.mock('@/lib/application-access', () => ({
-  verifyApplicationAccess: vi.fn().mockResolvedValue({
-    ok: true,
-    session: { application: { code: 'eventiapp' }, user: { id: 'user-1' }, organizations: [], capabilities: [] },
-  }),
+  verifyApplicationAccess: applicationAccessMocks.verifyApplicationAccess,
 }))
 
 import { GET, POST, dynamic, revalidate } from '@/app/api/auth/token/route'
@@ -33,6 +33,8 @@ const expectedSession = { application: { code: 'eventiapp' }, user: { id: 'user-
 describe('/api/auth/token', () => {
   beforeEach(() => {
     cognitoMocks.send.mockReset()
+    applicationAccessMocks.verifyApplicationAccess.mockReset()
+    applicationAccessMocks.verifyApplicationAccess.mockResolvedValue({ ok: true, session: expectedSession })
     vi.stubEnv('COGNITO_EVENTIAPP_CLIENT_ID', 'dashboard-client')
     vi.stubEnv('NODE_ENV', 'production')
   })
@@ -55,6 +57,24 @@ describe('/api/auth/token', () => {
     expect(command.input.AuthParameters.REFRESH_TOKEN).toBe('refresh-secret')
     expect(await response.json()).toEqual({ token: 'new-id-token', session: expectedSession })
     expect(response.cookies.get(AUTH_COOKIE_NAMES.session)).toMatchObject({ value: 'new-id-token', maxAge: 900, httpOnly: true, secure: true })
+  })
+
+  it('recovers a locally rejected cached session through the refresh cookie', async () => {
+    const existingToken = unexpiredToken()
+    applicationAccessMocks.verifyApplicationAccess
+      .mockResolvedValueOnce({ ok: false, status: 503, error: 'Local API rejected the cached token' })
+      .mockResolvedValueOnce({ ok: true, session: expectedSession })
+    cognitoMocks.send.mockResolvedValue({ AuthenticationResult: { IdToken: 'refreshed-id-token', ExpiresIn: 900 } })
+
+    const response = await POST(request({
+      [AUTH_COOKIE_NAMES.session]: existingToken,
+      [AUTH_COOKIE_NAMES.refreshToken]: 'refresh-secret',
+    }))
+
+    expect(cognitoMocks.send).toHaveBeenCalledTimes(1)
+    expect(applicationAccessMocks.verifyApplicationAccess).toHaveBeenNthCalledWith(1, expect.anything(), existingToken)
+    expect(applicationAccessMocks.verifyApplicationAccess).toHaveBeenNthCalledWith(2, expect.anything(), 'refreshed-id-token')
+    expect(await response.json()).toEqual({ token: 'refreshed-id-token', session: expectedSession })
   })
 
   it('never consumes a refresh token from a GET request', async () => {

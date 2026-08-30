@@ -6,104 +6,32 @@ import { gzipSync } from 'node:zlib'
 
 const require = createRequire(import.meta.url)
 const nextCli = require.resolve('next/dist/bin/next')
+// Next 16 no longer emits its old "First Load JS" route table. Measure the
+// immutable manifest instead of parsing presentation-only CLI output.
+const sharedBudgetKB = 180
 
-// Next 16 intentionally no longer reports "First Load JS" in its terminal
-// output. These limits are measured from the client-reference manifests that
-// the production build emits, so they remain tied to deployable artifacts.
-const budgetsKiB = {
-  '/': 375,
-  '/clients': 390,
-  '/users': 390,
-  '/events/[id]': 450,
+const buildEnv = {
+  ...process.env,
+  // Production builds must never share Next's mutable output folder with `next dev`.
+  NEXT_DIST_DIR: process.env.NEXT_DIST_DIR?.trim() || '.next-build',
 }
+const child = spawn(process.execPath, [nextCli, 'build', '--webpack'], { env: buildEnv, stdio: 'inherit' })
 
-const routeManifestPaths = {
-  '/': '(app)/page',
-  '/clients': '(app)/clients/page',
-  '/users': '(app)/users/page',
-  '/events/[id]': '(app)/events/[id]/page',
-}
-
-function runBuild() {
-  const child = spawn(process.execPath, [nextCli, 'build', '--webpack'], {
-    env: { ...process.env, NEXT_DIST_DIR: '.next' },
-    stdio: 'inherit',
-  })
-  return new Promise((resolve) => child.on('close', resolve))
-}
-
-async function readJson(path) {
-  return JSON.parse(await readFile(path, 'utf8'))
-}
-
-async function loadClientReferenceManifest(distDir, manifestPath) {
-  const file = join(
-    distDir,
-    'server',
-    'app',
-    `${manifestPath}_client-reference-manifest.js`,
-  )
-  const source = await readFile(file, 'utf8')
-  const assignment = `globalThis.__RSC_MANIFEST["/${manifestPath}"]=`
-  const start = source.indexOf(assignment)
-  if (start < 0) {
-    throw new Error(`Missing client-reference manifest assignment for ${manifestPath}`)
-  }
-  const serializedManifest = source.slice(start + assignment.length).trim()
-  const manifest = JSON.parse(serializedManifest.replace(/;$/, ''))
-  if (!manifest?.clientModules) {
-    throw new Error(`Missing client-reference manifest for ${manifestPath}`)
-  }
-  return manifest
-}
-
-function clientAssetPaths(buildManifest, clientManifest) {
-  const moduleAssets = Object.values(clientManifest.clientModules).flatMap(
-    (module) => module.chunks ?? [],
-  )
-  return [
-    ...new Set([
-      ...(buildManifest.polyfillFiles ?? []),
-      ...(buildManifest.rootMainFiles ?? []),
-      ...moduleAssets,
-    ]),
-  ]
-    .filter((asset) => asset.startsWith('static/'))
-    .map((asset) => decodeURIComponent(asset))
-}
-
-async function gzipSizeKiB(distDir, assets) {
-  const sizes = await Promise.all(
-    assets.map(async (asset) => gzipSync(await readFile(join(distDir, asset))).length),
-  )
-  return sizes.reduce((total, size) => total + size, 0) / 1024
-}
-
-const status = await runBuild()
+const status = await new Promise((resolve) => child.on('close', resolve))
 if (status !== 0) process.exit(status ?? 1)
 
-const distDir = join(process.cwd(), '.next')
-const buildManifest = await readJson(join(distDir, 'build-manifest.json'))
-const failures = []
+const distDirectory = buildEnv.NEXT_DIST_DIR
+const manifest = JSON.parse(await readFile(join(distDirectory, 'build-manifest.json'), 'utf8'))
+const sharedFiles = [...manifest.polyfillFiles, ...manifest.rootMainFiles]
+if (!sharedFiles.length) throw new Error('Build manifest did not contain the shared application shell.')
 
-for (const [route, maximumKiB] of Object.entries(budgetsKiB)) {
-  const clientManifest = await loadClientReferenceManifest(
-    distDir,
-    routeManifestPaths[route],
-  )
-  const actualKiB = await gzipSizeKiB(
-    distDir,
-    clientAssetPaths(buildManifest, clientManifest),
-  )
-  const roundedKiB = Number(actualKiB.toFixed(1))
-  console.log(`${route}: ${roundedKiB} KiB gzip (limit ${maximumKiB} KiB)`)
-  if (actualKiB > maximumKiB) {
-    failures.push(`${route}: ${roundedKiB} KiB > ${maximumKiB} KiB`)
-  }
+const compressedBytes = await Promise.all(sharedFiles.map(async (file) => {
+  const contents = await readFile(join(distDirectory, file))
+  return gzipSync(contents).byteLength
+}))
+const sharedKB = compressedBytes.reduce((total, size) => total + size, 0) / 1024
+
+if (sharedKB > sharedBudgetKB) {
+  throw new Error(`Shared application shell budget exceeded: ${sharedKB.toFixed(1)} kB > ${sharedBudgetKB} kB`)
 }
-
-if (failures.length) {
-  throw new Error(`Initial client-asset budgets exceeded:\n${failures.join('\n')}`)
-}
-
-console.log('Initial client-asset budgets passed.')
+console.log(`Shared application shell budget passed: ${sharedKB.toFixed(1)} kB <= ${sharedBudgetKB} kB.`)

@@ -17,8 +17,8 @@ import { sessionCan } from '@/lib/session-capabilities'
 import { useStore } from '@/store/useStore'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { preload } from 'swr'
 
 // UI Components
@@ -113,6 +113,7 @@ const ROLE_META: Record<string, { label: string; description: string }> = {
 
 export default function ClientsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const scopeFetcherKey = useScopedFetcherScope()
   const setCurrentClient = useStore((s) => s.setCurrentClient)
   const user = useStore((s) => s.user)
@@ -132,6 +133,7 @@ export default function ClientsPage() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [subClientParent, setSubClientParent] = useState<Client | null>(null)
   const [openActionClientId, setOpenActionClientId] = useState<string | null>(null)
+  const returnToAutomationRef = useRef(false)
 
   const debouncedSearch = useDebounce(search, 200)
   const {
@@ -168,6 +170,15 @@ export default function ClientsPage() {
     setSubClientParent(null)
     setIsFormOpen(true)
   }, [])
+
+  useEffect(() => {
+    if (searchParams.get('return_to') !== 'automation_create' || !canCreatePlatform) return
+    returnToAutomationRef.current = true
+    openNewClientModal()
+    // Consume the one-shot handoff. Closing the form is a valid choice and
+    // should not make it reopen on a later render or cache revalidation.
+    router.replace('/clients', { scroll: false })
+  }, [canCreatePlatform, openNewClientModal, router, searchParams])
 
   const openSubClientModal = useCallback((parent: Client) => {
     setSelectedClient(null)
@@ -248,6 +259,22 @@ export default function ClientsPage() {
     },
     [mutate, rawClients]
   )
+
+  const saveClientAndReturnToAutomation = useCallback(
+    async (savedClient: Client | null) => {
+      await saveClientInCurrentPage(savedClient)
+      if (!selectedClient && savedClient && returnToAutomationRef.current) {
+        returnToAutomationRef.current = false
+        router.push('/automation/projects?create=1')
+      }
+    },
+    [router, saveClientInCurrentPage, selectedClient],
+  )
+
+  const setClientFormOpen = useCallback((open: boolean) => {
+    setIsFormOpen(open)
+    if (!open) returnToAutomationRef.current = false
+  }, [])
 
   if (dataErrorState === 'fatal') {
     return (
@@ -552,13 +579,13 @@ export default function ClientsPage() {
         {isFormOpen && (
           <ClientFormModal
             isOpen
-            setIsOpen={setIsFormOpen}
+            setIsOpen={setClientFormOpen}
             client={selectedClient}
             parentId={subClientParent?.id}
             restrictTypeCode={
               subClientParent ? SUB_TYPE[(subClientParent.client_type?.code ?? '').toUpperCase()] : undefined
             }
-            onSaved={saveClientInCurrentPage}
+            onSaved={saveClientAndReturnToAutomation}
           />
         )}
         {isDeleteOpen && (

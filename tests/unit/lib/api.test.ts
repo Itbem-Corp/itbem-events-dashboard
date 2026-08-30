@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from 'vitest'
-import { normalizeApiResponseData } from '@/lib/api'
+import { localSessionRecoveryMessage, normalizeApiResponseData } from '@/lib/api'
 import type { MomentSummary } from '@/models/MomentSummary'
 
 describe('normalizeApiResponseData', () => {
@@ -74,5 +74,19 @@ describe('normalizeApiResponseData', () => {
     const payload = { Status: 200, Data: { ID: 'file-1' } }
 
     expect(normalizeApiResponseData(payload, 'blob')).toBe(payload)
+  })
+})
+
+describe('localSessionRecoveryMessage', () => {
+  it.each([
+    [401, 'No se pudo validar tu sesión local. Inicia sesión de nuevo.'],
+    [403, 'No se pudo validar tu sesión local. Inicia sesión de nuevo.'],
+    [503, 'La sesión local todavía se está preparando. Actualiza en unos segundos.'],
+  ])('explains local session status %s', (status, expected) => {
+    expect(localSessionRecoveryMessage({ status })).toBe(expected)
+  })
+
+  it('leaves transport failures to the API connectivity recovery', () => {
+    expect(localSessionRecoveryMessage(new Error('network failed'))).toBeNull()
   })
 })

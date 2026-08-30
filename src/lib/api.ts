@@ -1,7 +1,7 @@
 ﻿import axios from "axios";
 import { useStore } from "@/store/useStore";
 import { readApiData } from "@/lib/api-envelope";
-import { dashboardBackendBaseUrl } from "@/lib/base-url";
+import { normalizeBackendBaseUrl } from "@/lib/base-url";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { backendBaseUrlForHostname, tenantCodeForHostname } from "@/lib/tenant-config";
 import { releaseMutationKey, reserveMutationKey } from "@/lib/idempotency-key";
@@ -14,15 +14,32 @@ import type { ApplicationSession } from '@/models/ApplicationSession'
 
 // 1. Leemos la URL base pública y le pegamos "/api" al final.
 // Si no existe la variable, usamos localhost como fallback.
-const configuredBaseUrl = dashboardBackendBaseUrl();
+const configuredBaseUrl = normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, "http://localhost:8080");
+const isLocalDashboardHost = typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname.endsWith('.localhost'))
 const BASE_URL = typeof window === "undefined"
     ? configuredBaseUrl
-    : backendBaseUrlForHostname(window.location.hostname, configuredBaseUrl);
-const API_URL = `${BASE_URL}/api`;
+    : isLocalDashboardHost
+        ? `${window.location.origin}/automation-bridge`
+        : backendBaseUrlForHostname(window.location.hostname, configuredBaseUrl);
+// The local gateway already targets the backend's `/api` prefix. Keeping the
+// browser-facing route free of an `/api` segment avoids embedded-browser
+// content blockers while preserving the normal public backend contract.
+const API_URL = isLocalDashboardHost ? BASE_URL : `${BASE_URL}/api`;
 
 export const api = axios.create({
     baseURL: API_URL
 });
+
+// Streaming reads use fetch instead of Axios so the response body can remain
+// open as an SSE stream. Keep their URL and auth/context headers on the same
+// transport boundary as ordinary API calls; a live subscription must never
+// silently drop tenant or organization scoping.
+export function apiUrl(path: string): string {
+    return `${API_URL}${path.startsWith('/') ? path : `/${path}`}`
+}
 
 const MUTATION_METHODS = new Set(["post", "put", "patch", "delete"])
 
@@ -45,9 +62,32 @@ export function normalizeApiResponseData(data: unknown, responseType?: string): 
 let tokenPromise: Promise<string | null> | null = null;
 let sessionRefreshPromise: Promise<ApplicationSession> | null = null
 let lastSessionValidationAt = 0
+let lastNetworkErrorToastAt = 0
+let lastSessionRecoveryToastAt = 0
+
+// Background SWR refreshes can fail together when a local API is starting or
+// a connection briefly drops. A toast per request hides the useful UI, so
+// communicate actionable authentication failures once and let each screen
+// render its own persistent retry state for a still-starting local session.
+const NETWORK_ERROR_TOAST_COOLDOWN_MS = 8_000
+const SESSION_RECOVERY_TOAST_COOLDOWN_MS = 8_000
 
 export const SESSION_REVALIDATE_INTERVAL_MS = 5 * 60 * 1000
 export const SESSION_FOCUS_REVALIDATE_AFTER_MS = 60 * 1000
+
+// Requests made by the local dashboard first ask its BFF for a short-lived
+// application token. That rejection happens before Axios has an HTTP
+// `response`, so it must not be presented as if the Automation API were down.
+export function localSessionRecoveryMessage(error: unknown): string | null {
+    const status = (error as { status?: unknown } | null)?.status
+    if (status === 401 || status === 403) {
+        return 'No se pudo validar tu sesión local. Inicia sesión de nuevo.'
+    }
+    if (status === 503) {
+        return 'La sesión local todavía se está preparando. Actualiza en unos segundos.'
+    }
+    return null
+}
 
 export const getAuthToken = async (forceRefresh = false) => {
     const { token, setToken } = useStore.getState();
@@ -82,6 +122,25 @@ export const getAuthToken = async (forceRefresh = false) => {
 
     return tokenPromise;
 };
+
+export async function apiRequestHeaders(forceRefresh = false): Promise<Record<string, string>> {
+    const token = await getAuthToken(forceRefresh)
+    const state = useStore.getState()
+    const sessionTenant = state.applicationSession?.application.code as TenantCode | undefined
+    const hostnameTenant = typeof window === 'undefined' ? undefined : tenantCodeForHostname(window.location.hostname)
+    const tenantCode = hostnameTenant ?? state.activeTenantCode ?? sessionTenant ?? 'eventiapp'
+    const requestContext = {
+        tenantCode,
+        workspaceMode: state.workspaceMode,
+        organizationId: state.currentClient?.id ?? null,
+    }
+
+    return {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...requestContextHeaders(requestContext, { sessionResolved: Boolean(state.applicationSession) }),
+        ...organizationContextHeaders(requestContext, state.organizationContext),
+    }
+}
 
 // The token endpoint verifies product access and returns the normalized
 // application session in the same response. Reusing it avoids a second
@@ -139,26 +198,8 @@ export async function refreshApplicationSession(minAgeMs = 0): Promise<Applicati
 // --- INTERCEPTOR DE REQUEST ---
 api.interceptors.request.use(async (config) => {
     const idempotentConfig = config as typeof config & IdempotentRequestConfig
-    const token = await getAuthToken();
-
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-
-    const state = useStore.getState()
-    const sessionTenant = state.applicationSession?.application.code as TenantCode | undefined
-    const hostnameTenant = typeof window === 'undefined' ? undefined : tenantCodeForHostname(window.location.hostname)
-    const tenantCode = hostnameTenant ?? state.activeTenantCode ?? sessionTenant ?? 'eventiapp'
-    const requestContext = {
-        tenantCode,
-        workspaceMode: state.workspaceMode,
-        organizationId: state.currentClient?.id ?? null,
-    }
-    const contextHeaders = {
-        ...requestContextHeaders(requestContext, { sessionResolved: Boolean(state.applicationSession) }),
-        ...organizationContextHeaders(requestContext, state.organizationContext),
-    }
-    for (const [name, value] of Object.entries(contextHeaders)) {
+    const requestHeaders = await apiRequestHeaders()
+    for (const [name, value] of Object.entries(requestHeaders)) {
         config.headers[name] = value
     }
 
@@ -212,10 +253,63 @@ api.interceptors.response.use(
             useStore.getState().clearSession()
             void endSession()
         } else if (status === 403) {
-            toast.error(getApiErrorMessage(error, 'Sin permisos para realizar esta acción'))
+            const state = useStore.getState()
+            const sessionTenant = state.applicationSession?.application.code
+            const hostTenant = typeof window === 'undefined' ? undefined : tenantCodeForHostname(window.location.hostname)
+            if (sessionTenant && hostTenant && sessionTenant !== hostTenant) {
+                toast.error('La sesión corresponde a otro producto. Inicia sesión nuevamente en este dashboard.')
+                state.clearSession()
+                void endSession()
+                return Promise.reject(error)
+            }
+            const responseBody = JSON.stringify(error?.response?.data ?? '').toLowerCase()
+            if (responseBody.includes('application context denied')) {
+                // This is a product boundary violation, not an expired
+                // organization credential. Retrying the workspace renewal
+                // would only keep a mismatched token in a visible loop.
+                toast.error('La sesión no corresponde a este producto. Redirigiendo al acceso correcto.')
+                state.clearSession()
+                void endSession()
+            } else if (
+                responseBody.includes('organization context token is required') ||
+                responseBody.includes('organization context token is invalid or expired')
+            ) {
+                // Context credentials are intentionally short-lived. Clear a stale
+                // credential so the renewal hook can mint a fresh, session-bound one
+                // instead of leaving the workspace stuck behind repeated 403s.
+                state.setOrganizationContextCredential(null)
+                toast.info('El contexto del espacio se renovará automáticamente.')
+            } else {
+                toast.error(getApiErrorMessage(error, 'Sin permisos para realizar esta acción'))
+            }
         } else if (!error?.response) {
+            const sessionMessage = localSessionRecoveryMessage(error)
+            if (sessionMessage) {
+                const sessionStatus = (error as { status?: unknown }).status
+                // A 503 means the local session is still warming up. Every
+                // Automation surface already renders a precise inline state
+                // with a retry action; a floating error duplicates it and
+                // covers the live header. Invalid sessions remain actionable
+                // globally, so they retain the rate-limited toast.
+                if (sessionStatus !== 503) {
+                    const now = Date.now()
+                    if (now - lastSessionRecoveryToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
+                        lastSessionRecoveryToastAt = now
+                        toast.error(sessionMessage)
+                    }
+                }
+                if (sessionStatus === 401 || sessionStatus === 403) {
+                    useStore.getState().clearSession()
+                    void endSession()
+                }
+                return Promise.reject(error)
+            }
             // Network error (no response from server at all)
-            toast.error('Sin conexión. Verifica tu red e intenta de nuevo')
+            const now = Date.now()
+            if (now - lastNetworkErrorToastAt >= NETWORK_ERROR_TOAST_COOLDOWN_MS) {
+                lastNetworkErrorToastAt = now
+                toast.error('No se pudo conectar con el backend. Revisa que la API local esté activa.')
+            }
         }
 
         // A network failure is ambiguous: retain the key so a manual retry can

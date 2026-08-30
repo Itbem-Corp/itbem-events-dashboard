@@ -26,6 +26,7 @@ import { useStoreHydration } from '@/hooks/useStoreHydration'
 import { useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import { issueOrganizationContext } from '@/features/workspace/issue-organization-context'
 import { useOrganizationContextRenewal } from '@/features/workspace/use-organization-context-renewal'
+import { AutomationSectionNavigation } from '@/features/automation/automation-section-navigation'
 import { createAccessProfile } from '@/lib/access-profile'
 import { applicationRoutePreloadPath, createApplicationNavigation, type ApplicationRoute } from '@/lib/application-navigation'
 import { readApiData } from '@/lib/api-envelope'
@@ -121,6 +122,7 @@ export function ApplicationLayout({
     canManageMembers,
     canViewMetrics,
     canViewAudit,
+    canUseAutomation,
     canSwitchOrganizations,
   } = navigation
   // On a cold login, resolve the first organization in parallel with the profile.
@@ -287,6 +289,7 @@ export function ApplicationLayout({
               canViewMetrics={canViewMetrics}
               canViewUsers={canViewUsers}
               canViewAudit={canViewAudit}
+              canUseAutomation={canUseAutomation}
               canManageMembers={canManageMembers}
               canViewOrganizations={canViewOrganizations}
               onIntent={preloadRoute}
@@ -325,6 +328,9 @@ export function ApplicationLayout({
             </button>
           </div>
         )}
+        {canUseAutomation && pathname.startsWith('/automation') && (
+          <AutomationSectionNavigation pathname={pathname} onIntent={preloadRoute} />
+        )}
         {children}
         <MobilePrimaryNavigation
           pathname={pathname}
@@ -333,6 +339,7 @@ export function ApplicationLayout({
           showTeam={canManageMembers && !canViewUsers}
           showUsers={canViewUsers}
           showOrganizations={canViewOrganizations}
+          showAutomation={canUseAutomation}
           onIntent={preloadRoute}
         />
       </SidebarLayout>

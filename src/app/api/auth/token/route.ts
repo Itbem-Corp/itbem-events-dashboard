@@ -23,8 +23,13 @@ async function issueToken(request: NextRequest) {
   const forceRefresh = request.nextUrl.searchParams.get('refresh') === '1'
   if (session && !forceRefresh && !sessionTokenNeedsRefresh(session)) {
     const access = await verifyApplicationAccess(request, session)
-    if (!access.ok) return clearSession(privateJson({ error: access.error }, access.status))
-    return privateJson({ token: session, session: access.session })
+    if (access.ok) return privateJson({ token: session, session: access.session })
+
+    // A local control plane can restart while a still-valid browser session
+    // carries a token issued by an earlier client configuration. Keep a real
+    // authorization denial fail-closed, but use the opaque refresh cookie to
+    // obtain a fresh ID token before declaring the session unavailable.
+    if (access.status === 403) return clearSession(privateJson({ error: access.error }, access.status))
   }
   if (!refreshToken) return clearSession(privateJson({ error: 'No session' }, 401))
 
@@ -57,11 +62,15 @@ async function issueToken(request: NextRequest) {
 }
 
 // Compatibility reads are safe only while the ID token is still usable. A
-// refresh token is never consumed by GET, so a cross-site navigation cannot
-// mutate an authenticated session.
+// refresh token is never consumed by GET, and the ID token is checked against
+// the current hostname before it is ever returned.
 export async function GET(request: NextRequest) {
   const session = request.cookies.get(AUTH_COOKIE_NAMES.session)?.value
-  if (session && !sessionTokenNeedsRefresh(session)) return privateJson({ token: session })
+  if (session && !sessionTokenNeedsRefresh(session)) {
+    const access = await verifyApplicationAccess(request, session)
+    if (!access.ok) return privateJson({ error: access.error }, access.status)
+    return privateJson({ token: session })
+  }
   return privateJson({ error: 'Refresh requires POST' }, 401)
 }
 

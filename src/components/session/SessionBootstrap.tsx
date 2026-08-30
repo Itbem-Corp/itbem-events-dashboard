@@ -11,11 +11,19 @@ import { useStoreHydration } from '@/hooks/useStoreHydration'
 import type { ApplicationSession } from '@/models/ApplicationSession'
 import { useStore } from '@/store/useStore'
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 
+type RequestStatusError = {
+  status?: number
+  response?: { status?: number }
+}
+
+function requestStatus(error: unknown): number | undefined {
+  const candidate = error as RequestStatusError | undefined
+  return candidate?.status ?? candidate?.response?.status
+}
+
 export default function SessionBootstrap() {
-  const router = useRouter()
   const hydrated = useStoreHydration()
   const profileLoaded = useStore((s) => s.profileLoaded)
   const setApplicationSession = useStore((s) => s.setApplicationSession)
@@ -26,8 +34,10 @@ export default function SessionBootstrap() {
     getApplicationSession,
     {
       revalidateOnFocus: false,
-      shouldRetryOnError: (requestError) =>
-        (requestError as { response?: { status?: number } })?.response?.status !== 403,
+      shouldRetryOnError: (requestError) => {
+        const status = requestStatus(requestError)
+        return status !== 401 && status !== 403
+      },
     }
   )
 
@@ -36,11 +46,11 @@ export default function SessionBootstrap() {
   }, [session, setApplicationSession])
 
   useEffect(() => {
-    const status = (error as { response?: { status?: number } })?.response?.status
+    const status = requestStatus(error)
     if (status === 401 || status === 403) {
-      void endSession(clearSession, router.replace)
+      void endSession(clearSession)
     }
-  }, [clearSession, error, router])
+  }, [clearSession, error])
 
   useEffect(() => {
     if (!hydrated || !profileLoaded) return
@@ -50,10 +60,13 @@ export default function SessionBootstrap() {
       try {
         await refreshApplicationSession(minAgeMs)
       } catch (reason) {
-        const status = (reason as { status?: number })?.status
-        if (active && (status === 401 || status === 403)) void endSession(clearSession, router.replace)
+        const status = requestStatus(reason)
+        if (active && (status === 401 || status === 403)) void endSession(clearSession)
       }
     }
+    // The Zustand state can survive Fast Refresh and client navigations. Treat
+    // it as a cache and verify it once before it can drive a workspace request.
+    void revalidate(0)
     const intervalId = window.setInterval(() => { void revalidate() }, SESSION_REVALIDATE_INTERVAL_MS)
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') void revalidate(SESSION_FOCUS_REVALIDATE_AFTER_MS)
@@ -65,14 +78,14 @@ export default function SessionBootstrap() {
       window.clearInterval(intervalId)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [clearSession, hydrated, profileLoaded, router])
+  }, [clearSession, hydrated, profileLoaded])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
 
     const leaveLocally = () => {
       clearSession()
-      router.replace('/login')
+      window.location.assign('/login')
     }
     const onStorage = (event: StorageEvent) => {
       if (event.key === SESSION_SYNC_STORAGE_KEY && event.newValue) leaveLocally()
@@ -89,7 +102,7 @@ export default function SessionBootstrap() {
       window.removeEventListener('storage', onStorage)
       channel?.close()
     }
-  }, [clearSession, router])
+  }, [clearSession])
 
   return null
 }

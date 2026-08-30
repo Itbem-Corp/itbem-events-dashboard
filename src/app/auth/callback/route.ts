@@ -11,6 +11,7 @@ import {
   cognitoTokenUrl,
   oauthValuesMatch,
 } from '@/lib/cognito-oauth'
+import { verifyApplicationAccess } from '@/lib/application-access'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -65,6 +66,15 @@ export async function GET(req: NextRequest) {
     const tokens = (await tokenRes.json()) as CognitoTokenResponse
     if (typeof tokens.id_token !== 'string' || !tokens.id_token) {
       return callbackError(req, 'invalid_token')
+    }
+
+    // This legacy OAuth callback uses a compatibility client configuration.
+    // Do not write its tokens until the backend has confirmed that the token
+    // belongs to the product selected by this host.
+    const access = await verifyApplicationAccess(req, tokens.id_token)
+    if (!access.ok) {
+      console.warn('Cognito callback application access was denied', { status: access.status })
+      return callbackError(req, access.status === 403 ? 'application_access_denied' : 'application_access_unavailable')
     }
 
     const response = clearOAuthTransaction(

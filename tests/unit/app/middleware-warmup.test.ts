@@ -46,4 +46,14 @@ describe('public authentication routes', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('x-middleware-next')).toBe('1')
   })
+
+  it('keeps login reachable when a browser has a stale session cookie', () => {
+    const staleSessionRequest = request('https://dashboard.itbem.com.mx/login', false)
+    staleSessionRequest.cookies.set('session', 'stale-or-other-product-token')
+
+    const response = proxy(staleSessionRequest)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-middleware-next')).toBe('1')
+  })
 })
