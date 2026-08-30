@@ -31,6 +31,7 @@ import {
   latestVaultByRepository,
   onboardingIsApprovable,
   shortRevision,
+  vaultManifestDiff,
 } from './repository-onboarding'
 
 type RepositoryOnboardingPanelProps = {
@@ -64,6 +65,7 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
   const [repositoryURL, setRepositoryURL] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [feedback, setFeedback] = useState('')
+  const [approvalConfirmed, setApprovalConfirmed] = useState<Record<string, boolean>>({})
 
   const values = onboardings.data ?? []
   const latestVault = latestVaultByRepository(vault.data ?? [])
@@ -98,6 +100,7 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
         expected_revision: onboarding.revision,
       })
       await Promise.all([onboardings.mutate(), vault.mutate(), onContextPublished()])
+      setApprovalConfirmed((current) => ({ ...current, [onboarding.id]: false }))
       setFeedback(
         `Vault v${latestVersionFor(onboarding.repository_reference, vault.data ?? []) + 1} publicado para ${onboarding.repository_reference}.`
       )
@@ -197,6 +200,10 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
           {values.map((onboarding) => {
             const proposal = onboarding.proposal
             const approvable = onboardingIsApprovable(onboarding)
+            const currentVault = latestVault.find(
+              (revision) => revision.repository_reference === onboarding.repository_reference
+            )
+            const vaultDiff = vaultManifestDiff(proposal.vault, currentVault?.manifest)
             return (
               <details key={onboarding.id} className="group px-4 py-4 [content-visibility:auto] sm:px-5">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 marker:hidden focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:outline-none">
@@ -273,6 +280,56 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
                         </p>
                       </div>
                     </div>
+                    <div>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[10px] font-semibold tracking-[0.12em] text-ink-muted uppercase">
+                          Diff aprobable del Vault
+                        </p>
+                        <span className="text-[10px] text-ink-muted">
+                          Base: {currentVault ? `v${currentVault.version}` : 'Vault vacío'}
+                        </span>
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {vaultDiff.map(({ status, entry, previous }) => (
+                          <details
+                            key={`${status}:${entry.key}`}
+                            className="rounded-xl border border-border-subtle bg-surface-soft px-3 py-2.5"
+                          >
+                            <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 marker:hidden focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:outline-none">
+                              <span className="min-w-0 truncate font-mono text-xs font-semibold text-ink">
+                                {entry.key}
+                              </span>
+                              <Badge color={vaultDiffTone(status)}>{vaultDiffLabel(status)}</Badge>
+                            </summary>
+                            <div className="mt-2 grid gap-3 border-t border-border-subtle pt-3 lg:grid-cols-2">
+                              {previous && status === 'changed' ? (
+                                <VaultEntryValue label="Antes" value={previous.value} />
+                              ) : null}
+                              <VaultEntryValue
+                                label={status === 'removed' ? 'Valor retirado' : 'Propuesta'}
+                                value={entry.value}
+                              />
+                            </div>
+                            <div className="mt-3">
+                              <p className="text-[10px] font-semibold tracking-[0.1em] text-ink-muted uppercase">
+                                Provenance
+                              </p>
+                              <ul className="mt-1 space-y-1 text-[10px] text-ink-muted">
+                                {entry.provenance.map((proof, index) => (
+                                  <li
+                                    key={`${proof.source}:${proof.path}:${proof.revision}:${index}`}
+                                    className="font-mono break-all"
+                                  >
+                                    {proof.source} · {proof.path} · {shortRevision(proof.revision)} ·{' '}
+                                    {Math.round(proof.confidence * 100)}%
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </details>
+                        ))}
+                      </div>
+                    </div>
                     {proposal.commands.length > 0 ? (
                       <div>
                         <p className="text-[10px] font-semibold tracking-[0.12em] text-ink-muted uppercase">
@@ -321,20 +378,36 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
                       </div>
                     </dl>
                     {approvable ? (
-                      <Button
-                        color="indigo"
-                        type="button"
-                        className="mt-4 w-full"
-                        disabled={busy !== null}
-                        onClick={() => void approve(onboarding)}
-                      >
-                        {busy === onboarding.id ? (
-                          <ArrowPathIcon data-slot="icon" className="animate-spin motion-reduce:animate-none" />
-                        ) : (
-                          <CheckCircleIcon data-slot="icon" />
-                        )}
-                        {busy === onboarding.id ? 'Publicando…' : `Aprobar ${shortRevision(onboarding.revision)}`}
-                      </Button>
+                      <>
+                        <label className="mt-4 flex items-start gap-2 text-xs leading-5 text-ink-secondary">
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={Boolean(approvalConfirmed[onboarding.id])}
+                            onChange={(event) =>
+                              setApprovalConfirmed((current) => ({
+                                ...current,
+                                [onboarding.id]: event.target.checked,
+                              }))
+                            }
+                          />
+                          Confirmo que revisé el SHA, el diff, los valores y su provenance.
+                        </label>
+                        <Button
+                          color="indigo"
+                          type="button"
+                          className="mt-3 w-full"
+                          disabled={busy !== null || !approvalConfirmed[onboarding.id]}
+                          onClick={() => void approve(onboarding)}
+                        >
+                          {busy === onboarding.id ? (
+                            <ArrowPathIcon data-slot="icon" className="animate-spin motion-reduce:animate-none" />
+                          ) : (
+                            <CheckCircleIcon data-slot="icon" />
+                          )}
+                          {busy === onboarding.id ? 'Publicando…' : `Aprobar ${shortRevision(onboarding.revision)}`}
+                        </Button>
+                      </>
                     ) : (
                       <div className="mt-4 flex items-center gap-2 rounded-lg bg-surface-raised px-3 py-2 text-xs text-ink-muted">
                         <LockClosedIcon className="size-4" aria-hidden="true" />
@@ -385,4 +458,26 @@ function latestVersionFor(repository: string, revisions: DeliveryProjectVaultRev
     if (revision.repository_reference === repository && revision.version > version) version = revision.version
   }
   return version
+}
+
+function vaultDiffTone(status: 'added' | 'changed' | 'unchanged' | 'removed') {
+  if (status === 'added') return 'emerald' as const
+  if (status === 'changed') return 'amber' as const
+  if (status === 'removed') return 'rose' as const
+  return 'zinc' as const
+}
+
+function vaultDiffLabel(status: 'added' | 'changed' | 'unchanged' | 'removed') {
+  return { added: 'Agregada', changed: 'Modificada', unchanged: 'Sin cambio', removed: 'Eliminada' }[status]
+}
+
+function VaultEntryValue({ label, value }: { label: string; value: Record<string, unknown> }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-semibold text-ink-muted">{label}</p>
+      <pre className="mt-1 max-h-52 overflow-auto rounded-lg border border-border-subtle bg-surface-raised p-2 font-mono text-[10px] leading-4 whitespace-pre-wrap text-ink-secondary">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    </div>
+  )
 }
