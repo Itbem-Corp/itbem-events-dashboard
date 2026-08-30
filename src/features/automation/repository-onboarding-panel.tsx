@@ -30,7 +30,9 @@ import {
   capabilityTone,
   latestVaultByRepository,
   onboardingIsApprovable,
+  repositoryInspectionPayload,
   shortRevision,
+  validOptionalGitRevision,
   vaultManifestDiff,
 } from './repository-onboarding'
 
@@ -63,6 +65,7 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
     revalidateOnFocus: true,
   })
   const [repositoryURL, setRepositoryURL] = useState('')
+  const [revision, setRevision] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [feedback, setFeedback] = useState('')
   const [approvalConfirmed, setApprovalConfirmed] = useState<Record<string, boolean>>({})
@@ -75,12 +78,16 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
   async function inspect(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const normalized = repositoryURL.trim()
-    if (!normalized) return
+    if (!normalized || !validOptionalGitRevision(revision)) return
     setBusy('inspect')
     setFeedback('')
     try {
-      await api.post(deliveryProjectRepositoryOnboardingInspectPath(projectId), { repository_url: normalized })
+      await api.post(
+        deliveryProjectRepositoryOnboardingInspectPath(projectId),
+        repositoryInspectionPayload(normalized, revision)
+      )
       setRepositoryURL('')
+      setRevision('')
       await onboardings.mutate()
       setFeedback('Inspección estática terminada. Revisa el SHA, las capacidades y el diff del Vault antes de aprobar.')
     } catch (error) {
@@ -142,21 +149,45 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
             </Badge>
           </div>
         </div>
-        <form onSubmit={inspect} className="mt-4 flex flex-col gap-2 sm:flex-row">
-          <label htmlFor="repository-onboarding-url" className="sr-only">
-            URL del repositorio GitHub
-          </label>
-          <input
-            id="repository-onboarding-url"
-            type="url"
-            inputMode="url"
-            required
-            value={repositoryURL}
-            onChange={(event) => setRepositoryURL(event.target.value)}
-            placeholder="https://github.com/organizacion/repositorio"
-            className="h-11 min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface-soft px-3 font-mono text-xs text-ink outline-none focus:border-(--tenant-accent)"
-          />
-          <Button color="indigo" type="submit" disabled={busy !== null || repositoryURL.trim() === ''}>
+        <form onSubmit={inspect} className="mt-4 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)_auto]">
+          <div className="min-w-0">
+            <label htmlFor="repository-onboarding-url" className="sr-only">
+              URL del repositorio GitHub
+            </label>
+            <input
+              id="repository-onboarding-url"
+              type="url"
+              inputMode="url"
+              required
+              value={repositoryURL}
+              onChange={(event) => setRepositoryURL(event.target.value)}
+              placeholder="https://github.com/organizacion/repositorio"
+              className="h-11 w-full min-w-0 rounded-xl border border-border-subtle bg-surface-soft px-3 font-mono text-xs text-ink outline-none focus:border-(--tenant-accent)"
+            />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor="repository-onboarding-revision" className="sr-only">
+              Head SHA completo opcional
+            </label>
+            <input
+              id="repository-onboarding-revision"
+              type="text"
+              inputMode="text"
+              spellCheck={false}
+              autoComplete="off"
+              aria-describedby="repository-onboarding-revision-help"
+              aria-invalid={!validOptionalGitRevision(revision)}
+              value={revision}
+              onChange={(event) => setRevision(event.target.value)}
+              placeholder="Head SHA completo (opcional)"
+              className="h-11 w-full min-w-0 rounded-xl border border-border-subtle bg-surface-soft px-3 font-mono text-xs text-ink outline-none focus:border-(--tenant-accent) aria-invalid:border-rose-500"
+            />
+          </div>
+          <Button
+            color="indigo"
+            type="submit"
+            disabled={busy !== null || repositoryURL.trim() === '' || !validOptionalGitRevision(revision)}
+          >
             {busy === 'inspect' ? (
               <ArrowPathIcon data-slot="icon" className="animate-spin motion-reduce:animate-none" />
             ) : (
@@ -164,6 +195,10 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
             )}
             {busy === 'inspect' ? 'Inspeccionando…' : 'Inspeccionar'}
           </Button>
+          <p id="repository-onboarding-revision-help" className="text-[10px] leading-4 text-ink-muted lg:col-span-3">
+            Vacío inspecciona la branch principal. Para reconciliar un PR pega sus 40 caracteres; nombres de branch y
+            SHAs cortos fallan cerrados.
+          </p>
         </form>
       </div>
 
@@ -204,6 +239,12 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
               (revision) => revision.repository_reference === onboarding.repository_reference
             )
             const vaultDiff = vaultManifestDiff(proposal.vault, currentVault?.manifest)
+            const vaultSummary = proposal.vault_diff ?? {
+              added: vaultDiff.filter(({ status }) => status === 'added').map(({ entry }) => entry.key),
+              modified: vaultDiff.filter(({ status }) => status === 'changed').map(({ entry }) => entry.key),
+              unchanged: vaultDiff.filter(({ status }) => status === 'unchanged').map(({ entry }) => entry.key),
+              removed: vaultDiff.filter(({ status }) => status === 'removed').map(({ entry }) => entry.key),
+            }
             return (
               <details key={onboarding.id} className="group px-4 py-4 [content-visibility:auto] sm:px-5">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 marker:hidden focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:outline-none">
@@ -278,6 +319,12 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
                         <p className="mt-1 truncate font-mono text-[10px] text-ink-muted" title={proposal.vault_sha256}>
                           sha256:{proposal.vault_sha256}
                         </p>
+                        {proposal.previous_revision ? (
+                          <p className="mt-1 text-[10px] text-ink-muted">
+                            Reconciliado desde {shortRevision(proposal.previous_revision)} · +
+                            {vaultSummary.added.length} ~{vaultSummary.modified.length} −{vaultSummary.removed.length}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <div>
@@ -311,6 +358,17 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
                               />
                             </div>
                             <div className="mt-3">
+                              <div className="mb-2 flex flex-wrap gap-1.5">
+                                <Badge color={vaultLifecycleTone(entry.lifecycle)}>{entry.lifecycle}</Badge>
+                                {entry.valid_from_sha && entry.valid_through_sha ? (
+                                  <Badge color="zinc">
+                                    {shortRevision(entry.valid_from_sha)} → {shortRevision(entry.valid_through_sha)}
+                                  </Badge>
+                                ) : null}
+                                {entry.history?.length ? (
+                                  <Badge color="indigo">{entry.history.length} históricas</Badge>
+                                ) : null}
+                              </div>
                               <p className="text-[10px] font-semibold tracking-[0.1em] text-ink-muted uppercase">
                                 Provenance
                               </p>
@@ -469,6 +527,12 @@ function vaultDiffTone(status: 'added' | 'changed' | 'unchanged' | 'removed') {
 
 function vaultDiffLabel(status: 'added' | 'changed' | 'unchanged' | 'removed') {
   return { added: 'Agregada', changed: 'Modificada', unchanged: 'Sin cambio', removed: 'Eliminada' }[status]
+}
+
+function vaultLifecycleTone(lifecycle: 'active' | 'deprecated' | 'removed') {
+  if (lifecycle === 'active') return 'emerald' as const
+  if (lifecycle === 'deprecated') return 'amber' as const
+  return 'rose' as const
 }
 
 function VaultEntryValue({ label, value }: { label: string; value: Record<string, unknown> }) {
