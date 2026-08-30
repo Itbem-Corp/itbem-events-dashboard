@@ -3,6 +3,7 @@ import type { DeliveryPolicyPatch, DeliveryPolicyRevision } from './delivery-typ
 const digestPattern = /^[a-f0-9]{64}$/
 const repositoryPattern = /^github:\/\/[A-Za-z0-9][A-Za-z0-9_.-]{0,38}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/
 const workflowPattern = /^\.github\/workflows\/[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\.ya?ml$/
+const environmentReferencePattern = /^[A-Z_][A-Z0-9_]{0,127}$/
 const levels = new Set(['project', 'repository', 'override'])
 const statuses = new Set(['pending', 'approved', 'revoked'])
 const modes = new Set(['review_only', 'merge', 'release'])
@@ -11,7 +12,7 @@ const recoveries = new Set(['rollback', 'roll_forward', 'expand_contract', 'irre
 const privateIdentityKeys = new Set(['approved_by', 'proposed_by', 'actor_cognito_sub'])
 const revisionKeys = new Set(['id', 'schema_version', 'level', 'project_id', 'repository', 'change_set_id', 'patch', 'reason', 'expires_at', 'content_sha256', 'created_at', 'status', 'latest_decision'])
 const decisionKeys = new Set(['id', 'action', 'reason', 'occurred_at'])
-const patchKeys = new Set(['mode', 'required_test_kinds', 'allowed_target_branches', 'merge_method', 'deployment_workflow', 'deployment_environment', 'required_health_checks', 'required_post_merge_checks', 'recovery_default'])
+const patchKeys = new Set(['mode', 'required_test_kinds', 'allowed_target_branches', 'merge_method', 'deployment_workflow', 'deployment_environment', 'required_secret_references', 'required_variable_references', 'required_health_checks', 'required_post_merge_checks', 'recovery_default'])
 
 export type PolicyProposalDraft = {
   scope: 'project' | 'repository' | 'override'
@@ -25,6 +26,8 @@ export type PolicyProposalDraft = {
   mergeMethod: '' | 'merge' | 'squash' | 'rebase'
   deploymentWorkflow: string
   deploymentEnvironment: string
+  requiredSecretReferences: string
+  requiredVariableReferences: string
   requiredHealthChecks: string
   requiredPostMergeChecks: string
   recoveryDefault: '' | 'rollback' | 'roll_forward' | 'expand_contract' | 'irreversible'
@@ -33,7 +36,7 @@ export type PolicyProposalDraft = {
 export const emptyPolicyProposalDraft: PolicyProposalDraft = {
   scope: 'repository', overrideScope: 'repository', changeSetId: '', expiresAt: '', reason: '', mode: '',
   requiredTestKinds: '', allowedTargetBranches: '', mergeMethod: '', deploymentWorkflow: '', deploymentEnvironment: '',
-  requiredHealthChecks: '', requiredPostMergeChecks: '', recoveryDefault: '',
+  requiredSecretReferences: '', requiredVariableReferences: '', requiredHealthChecks: '', requiredPostMergeChecks: '', recoveryDefault: '',
 }
 
 export function buildPolicyProposal(draft: PolicyProposalDraft, repository: string, now = new Date()) {
@@ -52,6 +55,8 @@ export function buildPolicyProposal(draft: PolicyProposalDraft, repository: stri
     patch.deployment_workflow = workflow
   }
   if (draft.deploymentEnvironment.trim()) patch.deployment_environment = draft.deploymentEnvironment.trim()
+  addEnvironmentReferenceList(patch, 'required_secret_references', draft.requiredSecretReferences, draft.mode === 'release')
+  addEnvironmentReferenceList(patch, 'required_variable_references', draft.requiredVariableReferences, draft.mode === 'release')
   addList(patch, 'required_health_checks', draft.requiredHealthChecks)
   addList(patch, 'required_post_merge_checks', draft.requiredPostMergeChecks)
   if (draft.recoveryDefault) patch.recovery_default = draft.recoveryDefault
@@ -113,11 +118,19 @@ function addList<Key extends 'required_test_kinds' | 'allowed_target_branches' |
   if (values.length > 0) patch[key] = values
 }
 
-function uniqueList(raw: string) {
+function addEnvironmentReferenceList(patch: DeliveryPolicyPatch, key: 'required_secret_references' | 'required_variable_references', raw: string, explicitWhenEmpty: boolean) {
+  const values = uniqueList(raw, true)
+  if (values.length > 64) throw new Error('Cada lista de referencias admite máximo 64 nombres.')
+  if (values.some((value) => !environmentReferencePattern.test(value) || value.startsWith('GITHUB_'))) throw new Error('Las referencias deben ser nombres válidos en mayúsculas y no pueden usar el prefijo GITHUB_.')
+  if (values.length > 0 || explicitWhenEmpty) patch[key] = values
+}
+
+function uniqueList(raw: string, canonicalUppercase = false) {
   const values: string[] = []
   const seen = new Set<string>()
-  for (const candidate of raw.split(',')) {
-    const value = candidate.trim()
+  for (const candidate of raw.split(/[\n,]/)) {
+    const trimmed = candidate.trim()
+    const value = canonicalUppercase ? trimmed.toUpperCase() : trimmed
     if (value && !seen.has(value)) {
       seen.add(value)
       values.push(value)
@@ -133,6 +146,9 @@ function validPatch(input: unknown): input is DeliveryPolicyPatch {
   if (input.recovery_default !== undefined && (!nonEmpty(input.recovery_default) || !recoveries.has(input.recovery_default))) return false
   for (const value of [input.required_test_kinds, input.allowed_target_branches, input.required_health_checks, input.required_post_merge_checks]) {
     if (value !== undefined && !stringList(value)) return false
+  }
+  for (const value of [input.required_secret_references, input.required_variable_references]) {
+    if (value !== undefined && !environmentReferenceList(value)) return false
   }
   if (input.deployment_workflow !== undefined && (!nonEmpty(input.deployment_workflow) || !workflowPattern.test(input.deployment_workflow))) return false
   if (input.deployment_environment !== undefined && !nonEmpty(input.deployment_environment)) return false
@@ -167,4 +183,13 @@ function nonEmpty(input: unknown): input is string {
 
 function stringValue(input: unknown) { return typeof input === 'string' ? input : '' }
 function stringList(input: unknown): input is string[] { return Array.isArray(input) && input.every(nonEmpty) }
+function environmentReferenceList(input: unknown): input is string[] {
+  if (!Array.isArray(input) || input.length > 64) return false
+  const seen = new Set<string>()
+  for (const value of input) {
+    if (!nonEmpty(value) || !environmentReferencePattern.test(value) || value.startsWith('GITHUB_') || seen.has(value)) return false
+    seen.add(value)
+  }
+  return true
+}
 function validDate(input: unknown) { return nonEmpty(input) && !Number.isNaN(Date.parse(input)) }

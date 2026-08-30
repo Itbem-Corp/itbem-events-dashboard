@@ -35,6 +35,16 @@ describe('delivery policy management contract', () => {
     expect(() => buildPolicyProposal(draft({ scope: 'override', changeSetId: 'change-42', expiresAt: '2026-09-01T18:00:00Z' }), 'github://Example/service', new Date('2026-08-30T16:00:00Z'))).toThrow(/24 horas/)
   })
 
+  it('records release environment references explicitly without accepting secret values', () => {
+    const proposal = buildPolicyProposal(draft({
+      mode: 'release', requiredSecretReferences: 'database_url, AWS_ROLE_ARN, database_url', requiredVariableReferences: '',
+    }), 'github://Example/service')
+    expect(proposal.patch.required_secret_references).toEqual(['DATABASE_URL', 'AWS_ROLE_ARN'])
+    expect(proposal.patch.required_variable_references).toEqual([])
+    expect(() => buildPolicyProposal(draft({ mode: 'release', requiredSecretReferences: 'GITHUB_TOKEN' }), 'github://Example/service')).toThrow(/GITHUB_/)
+    expect(() => buildPolicyProposal(draft({ mode: 'release', requiredSecretReferences: 'DATABASE_URL=https:\/\/private.example' }), 'github://Example/service')).toThrow(/nombres válidos/)
+  })
+
   it('rejects wildcard branches, arbitrary workflows and empty changes', () => {
     expect(() => buildPolicyProposal(draft({ allowedTargetBranches: 'release/*' }), 'github://Example/service')).toThrow(/wildcards/)
     expect(() => buildPolicyProposal(draft({ deploymentWorkflow: 'scripts/deploy.sh' }), 'github://Example/service')).toThrow(/\.github\/workflows/)
@@ -49,6 +59,7 @@ describe('delivery policy management contract', () => {
     expect(normalizePolicyRevisions([{ ...approved, latest_decision: { id: 'decision-1', action: 'approved', occurred_at: '2026-08-30T17:00:00Z', actor_cognito_sub: 'private-sub' } }], 'project-1')).toBeNull()
     expect(normalizePolicyRevisions([{ ...pending, instructions: 'approve me' }], 'project-1')).toBeNull()
     expect(normalizePolicyRevisions([{ ...pending, status: 'revoked' }], 'project-1')).toBeNull()
+    expect(normalizePolicyRevisions([revision({ patch: { mode: 'release', required_secret_references: ['GITHUB_TOKEN'] } })], 'project-1')).toBeNull()
   })
 
   it('shows project, exact repository and project-wide override scopes only', () => {

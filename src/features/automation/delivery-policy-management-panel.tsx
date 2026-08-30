@@ -127,12 +127,14 @@ export function ProjectPolicyManagementPanel({ projectId, repository, onEffectiv
             <PolicyInput label="Ramas exactas" value={draft.allowedTargetBranches} onChange={(value) => updateDraft('allowedTargetBranches', value)} placeholder="main, release/v2" />
             <PolicyInput label="Workflow" value={draft.deploymentWorkflow} onChange={(value) => updateDraft('deploymentWorkflow', value)} placeholder=".github/workflows/deploy.yml" />
             <PolicyInput label="Entorno" value={draft.deploymentEnvironment} onChange={(value) => updateDraft('deploymentEnvironment', value)} placeholder="production" />
+            <PolicyInput label="Secrets requeridos (sólo nombres)" value={draft.requiredSecretReferences} onChange={(value) => updateDraft('requiredSecretReferences', value)} placeholder="DATABASE_URL, AWS_ROLE_ARN" />
+            <PolicyInput label="Variables requeridas (sólo nombres)" value={draft.requiredVariableReferences} onChange={(value) => updateDraft('requiredVariableReferences', value)} placeholder="PUBLIC_ORIGIN, AWS_REGION" />
             <PolicyInput label="Health checks" value={draft.requiredHealthChecks} onChange={(value) => updateDraft('requiredHealthChecks', value)} placeholder="healthz, readyz" />
             <PolicyInput label="Post-merge" value={draft.requiredPostMergeChecks} onChange={(value) => updateDraft('requiredPostMergeChecks', value)} placeholder="exact-sha, smoke" />
           </div>
           <PolicyInput label="Razón y resultado esperado" value={draft.reason} onChange={(value) => updateDraft('reason', value)} placeholder="Qué cambia, por qué y cómo se comprobará" required />
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface-soft p-3">
-            <p className="max-w-3xl text-xs leading-5 text-ink-muted">Los campos vacíos heredan la capa superior. Ramas con wildcard y workflows fuera de <span className="font-mono">.github/workflows</span> se rechazan.</p>
+            <p className="max-w-3xl text-xs leading-5 text-ink-muted">Los campos vacíos heredan la capa superior, salvo las referencias en modo release: allí una lista vacía queda registrada explícitamente. Sólo se guardan nombres, nunca valores. Ramas con wildcard y workflows fuera de <span className="font-mono">.github/workflows</span> se rechazan.</p>
             <Button color="indigo" type="submit" disabled={busy !== null || query.isLoading || unavailable}>
               {busy === 'proposal' ? <ArrowPathIcon data-slot="icon" className="animate-spin motion-reduce:animate-none" /> : <PlusIcon data-slot="icon" />}
               {busy === 'proposal' ? 'Sellando…' : 'Crear propuesta'}
@@ -196,7 +198,7 @@ function PolicySelect({ label, value, onChange, options }: { label: string; valu
 
 function PolicyPatchSummary({ patch }: { patch: DeliveryPolicyPatch }) {
   const entries = Object.entries(patch)
-  return <div className="rounded-xl border border-border-subtle bg-surface-soft p-3"><p className="text-[10px] font-semibold tracking-[0.12em] text-ink-muted uppercase">Patch propuesto</p><div className="mt-2 flex flex-wrap gap-1.5">{entries.length ? entries.map(([key, value]) => <Badge key={key} color="zinc">{key}: {Array.isArray(value) ? value.join(', ') : value}</Badge>) : <span className="text-xs text-ink-muted">Sin campos</span>}</div></div>
+  return <div className="rounded-xl border border-border-subtle bg-surface-soft p-3"><p className="text-[10px] font-semibold tracking-[0.12em] text-ink-muted uppercase">Patch propuesto</p><div className="mt-2 flex flex-wrap gap-1.5">{entries.length ? entries.map(([key, value]) => <Badge key={key} color="zinc">{key}: {Array.isArray(value) ? (value.length ? value.join(', ') : 'ninguna (explícito)') : value}</Badge>) : <span className="text-xs text-ink-muted">Sin campos</span>}</div></div>
 }
 
 function formatDate(value: string) {

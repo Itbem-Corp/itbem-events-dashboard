@@ -232,6 +232,20 @@ to merge a second work-item representation. The stream pauses while the page is
 not active, reconnects with bounded backoff, and intentionally refreshes its
 authorization every 55 seconds.
 
+### Delivery release environment policy
+
+Policy revision patches may include `required_secret_references` and
+`required_variable_references`. These are arrays of GitHub Environment reference
+names, never secret or variable values. Release proposals send both arrays
+explicitly, including `[]`, and the effective-policy projection always returns
+both arrays. The dashboard accepts at most 64 unique canonical names per list,
+using `^[A-Z_][A-Z0-9_]{0,127}$`, and rejects the reserved `GITHUB_` prefix.
+
+The effective policy remains fail-closed if either field is absent or malformed.
+The worker later proves only whether those names exist for the configured
+repository, workflow, environment and exact commit SHA; this API never exposes
+the provider values or its complete environment inventory.
+
 ## EventSection - SDUI fields
 When creating/updating sections, always send:
 - `component_type`: SDUI type string (CountdownHeader, GraduationHero, EventVenue, etc.)

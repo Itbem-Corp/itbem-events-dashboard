@@ -125,6 +125,8 @@ export function EffectivePolicyPanel({ repository, repositories, snapshot, loadi
             <PolicyValue label="Merge" values={policy.merge_method ? [policy.merge_method] : []} />
             <PolicyValue label="Entorno" values={policy.deployment_environment ? [policy.deployment_environment] : []} />
             <PolicyValue label="Workflow" values={policy.deployment_workflow ? [policy.deployment_workflow] : []} />
+            <PolicyValue label="Secrets requeridos" values={policy.required_secret_references} emptyLabel="Ninguno (explícito)" />
+            <PolicyValue label="Variables requeridas" values={policy.required_variable_references} emptyLabel="Ninguna (explícito)" />
             <PolicyValue label="Health checks" values={policy.required_health_checks} />
             <PolicyValue label="Post-merge" values={policy.required_post_merge_checks} />
             <PolicyValue label="Recuperación" values={policy.recovery_default ? [policy.recovery_default] : []} />
@@ -159,6 +161,6 @@ export function EffectivePolicyPanel({ repository, repositories, snapshot, loadi
   )
 }
 
-function PolicyValue({ label, values }: { label: string; values: string[] }) {
-  return <div className="rounded-2xl border border-border-subtle bg-surface-soft p-3"><p className="text-[10px] font-semibold tracking-[0.12em] text-ink-muted uppercase">{label}</p><div className="mt-2 flex flex-wrap gap-1.5">{values.length ? values.map((value) => <Badge key={value} color="zinc">{value}</Badge>) : <span className="text-xs text-ink-muted">No configurado</span>}</div></div>
+function PolicyValue({ label, values, emptyLabel = 'No configurado' }: { label: string; values: string[]; emptyLabel?: string }) {
+  return <div className="rounded-2xl border border-border-subtle bg-surface-soft p-3"><p className="text-[10px] font-semibold tracking-[0.12em] text-ink-muted uppercase">{label}</p><div className="mt-2 flex flex-wrap gap-1.5">{values.length ? values.map((value) => <Badge key={value} color="zinc">{value}</Badge>) : <span className="text-xs text-ink-muted">{emptyLabel}</span>}</div></div>
 }

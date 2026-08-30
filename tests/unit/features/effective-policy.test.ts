@@ -15,6 +15,8 @@ function snapshot() {
       required_test_kinds: ['unit'],
       allowed_target_branches: ['trunk'],
       merge_method: 'squash',
+      required_secret_references: ['DATABASE_URL'],
+      required_variable_references: [],
       required_health_checks: [],
       required_post_merge_checks: [],
       safety: {
@@ -48,5 +50,9 @@ describe('effective policy contract', () => {
     const actorLeak = snapshot() as any
     actorLeak.policy.sources[0].approved_by = 'private-subject'
     expect(normalizeEffectivePolicySnapshot(actorLeak, 'project-1', 'github://example/service')).toBeNull()
+
+    const reservedReference = snapshot()
+    reservedReference.policy.required_secret_references = ['GITHUB_TOKEN']
+    expect(normalizeEffectivePolicySnapshot(reservedReference, 'project-1', 'github://example/service')).toBeNull()
   })
 })

@@ -145,6 +145,8 @@ export type DeliveryPolicyPatch = {
   merge_method?: 'merge' | 'squash' | 'rebase'
   deployment_workflow?: string
   deployment_environment?: string
+  required_secret_references?: string[]
+  required_variable_references?: string[]
   required_health_checks?: string[]
   required_post_merge_checks?: string[]
   recovery_default?: 'rollback' | 'roll_forward' | 'expand_contract' | 'irreversible'
@@ -192,6 +194,8 @@ export type DeliveryEffectivePolicySnapshot = {
     merge_method?: 'merge' | 'squash' | 'rebase'
     deployment_workflow?: string
     deployment_environment?: string
+    required_secret_references: string[]
+    required_variable_references: string[]
     required_health_checks: string[]
     required_post_merge_checks: string[]
     recovery_default?: 'rollback' | 'roll_forward' | 'expand_contract' | 'irreversible'

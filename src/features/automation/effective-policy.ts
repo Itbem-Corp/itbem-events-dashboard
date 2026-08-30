@@ -14,6 +14,8 @@ export const effectivePolicyMissingLabels: Record<string, string> = {
   merge_method: 'Método de merge',
   deployment_workflow: 'Workflow de despliegue',
   deployment_environment: 'Entorno de despliegue',
+  required_secret_references: 'Referencias de secrets',
+  required_variable_references: 'Referencias de variables',
   required_health_checks: 'Health checks',
   recovery_default: 'Estrategia de recuperación',
 }
@@ -37,7 +39,7 @@ export function normalizeEffectivePolicySnapshot(
   if (!nonEmpty(vault.revision_id) || !positiveInteger(vault.version) || !commitPattern.test(stringValue(vault.repository_sha)) || !digestPattern.test(stringValue(vault.content_sha256))) return null
   const policy = input.policy
   if (policy.schema_version !== 1 || typeof policy.resolved !== 'boolean' || !digestPattern.test(stringValue(policy.digest))) return null
-  if (!stringList(policy.required_test_kinds) || !stringList(policy.allowed_target_branches) || !stringList(policy.required_health_checks) || !stringList(policy.required_post_merge_checks) || !stringList(policy.missing)) return null
+  if (!stringList(policy.required_test_kinds) || !stringList(policy.allowed_target_branches) || !environmentReferenceList(policy.required_secret_references) || !environmentReferenceList(policy.required_variable_references) || !stringList(policy.required_health_checks) || !stringList(policy.required_post_merge_checks) || !stringList(policy.missing)) return null
   if (policy.mode !== undefined && (!nonEmpty(policy.mode) || !modes.has(policy.mode))) return null
   if (policy.merge_method !== undefined && (!nonEmpty(policy.merge_method) || !mergeMethods.has(policy.merge_method))) return null
   if (policy.recovery_default !== undefined && (!nonEmpty(policy.recovery_default) || !recoveries.has(policy.recovery_default))) return null
@@ -74,6 +76,16 @@ function stringValue(input: unknown) {
 
 function stringList(input: unknown): input is string[] {
   return Array.isArray(input) && input.every(nonEmpty)
+}
+
+function environmentReferenceList(input: unknown): input is string[] {
+  if (!Array.isArray(input) || input.length > 64) return false
+  const seen = new Set<string>()
+  for (const value of input) {
+    if (!nonEmpty(value) || !/^[A-Z_][A-Z0-9_]{0,127}$/.test(value) || value.startsWith('GITHUB_') || seen.has(value)) return false
+    seen.add(value)
+  }
+  return true
 }
 
 function positiveInteger(input: unknown) {

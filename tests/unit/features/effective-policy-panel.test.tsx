@@ -16,6 +16,8 @@ const resolvedSnapshot: DeliveryEffectivePolicySnapshot = {
     required_test_kinds: ['unit', 'contract'],
     allowed_target_branches: ['trunk'],
     merge_method: 'squash',
+    required_secret_references: ['DATABASE_URL'],
+    required_variable_references: [],
     required_health_checks: [],
     required_post_merge_checks: [],
     safety: {
@@ -36,6 +38,8 @@ describe('EffectivePolicyPanel', () => {
 
     expect(screen.getByText('Merge controlado')).toBeInTheDocument()
     expect(screen.getByText('trunk')).toBeInTheDocument()
+    expect(screen.getByText('DATABASE_URL')).toBeInTheDocument()
+    expect(screen.getByText('Ninguna (explícito)')).toBeInTheDocument()
     expect(screen.getByText('Revisión independiente')).toBeInTheDocument()
     expect(screen.getByText(/no ejecuta merge ni deploy/i)).toBeInTheDocument()
     expect(screen.getByText('Sin overrides')).toBeInTheDocument()
