@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { deliveryPortfolioRefreshInterval, normalizeDeliveryPortfolio } from './delivery-portfolio'
 
+const idleReviewTotals = { reviewTasks: 0, queuedReviews: 0, runningReviews: 0, attentionReviews: 0, publishedReviews: 0 }
+
 describe('normalizeDeliveryPortfolio', () => {
   it('normalizes the compact snake_case portfolio read model', () => {
     const snapshot = normalizeDeliveryPortfolio({
@@ -51,8 +53,8 @@ describe('normalizeDeliveryPortfolio', () => {
 
   it('polls more quickly only while the portfolio has live work', () => {
     expect(deliveryPortfolioRefreshInterval(null)).toBe(15_000)
-    expect(deliveryPortfolioRefreshInterval({ schemaVersion: 1, generatedAt: '', revision: '', projects: [], totals: { projects: 0, workItems: 0, activeWorkItems: 0, decisionsRequired: 0, blockedWorkItems: 0, automationTasks: 0, queuedTasks: 0, runningTasks: 1, attentionTasks: 0 } })).toBe(6_000)
-    expect(deliveryPortfolioRefreshInterval({ schemaVersion: 1, generatedAt: '', revision: '', projects: [], totals: { projects: 0, workItems: 1, activeWorkItems: 1, decisionsRequired: 0, blockedWorkItems: 0, automationTasks: 1, queuedTasks: 0, runningTasks: 0, attentionTasks: 0 } })).toBe(12_000)
-    expect(deliveryPortfolioRefreshInterval({ schemaVersion: 1, generatedAt: '', revision: '', projects: [], totals: { projects: 0, workItems: 0, activeWorkItems: 0, decisionsRequired: 0, blockedWorkItems: 0, automationTasks: 0, queuedTasks: 0, runningTasks: 0, attentionTasks: 0 } })).toBe(30_000)
+    expect(deliveryPortfolioRefreshInterval({ schemaVersion: 1, generatedAt: '', revision: '', projects: [], reviewQueue: [], totals: { projects: 0, workItems: 0, activeWorkItems: 0, decisionsRequired: 0, blockedWorkItems: 0, automationTasks: 0, queuedTasks: 0, runningTasks: 1, attentionTasks: 0, ...idleReviewTotals } })).toBe(6_000)
+    expect(deliveryPortfolioRefreshInterval({ schemaVersion: 1, generatedAt: '', revision: '', projects: [], reviewQueue: [], totals: { projects: 0, workItems: 1, activeWorkItems: 1, decisionsRequired: 0, blockedWorkItems: 0, automationTasks: 1, queuedTasks: 0, runningTasks: 0, attentionTasks: 0, ...idleReviewTotals } })).toBe(12_000)
+    expect(deliveryPortfolioRefreshInterval({ schemaVersion: 1, generatedAt: '', revision: '', projects: [], reviewQueue: [], totals: { projects: 0, workItems: 0, activeWorkItems: 0, decisionsRequired: 0, blockedWorkItems: 0, automationTasks: 0, queuedTasks: 0, runningTasks: 0, attentionTasks: 0, ...idleReviewTotals } })).toBe(30_000)
   })
 })

@@ -59,6 +59,28 @@ export type DeliveryPortfolioTotals = {
   queuedTasks: number
   runningTasks: number
   attentionTasks: number
+  reviewTasks: number
+  queuedReviews: number
+  runningReviews: number
+  attentionReviews: number
+  publishedReviews: number
+}
+
+export type DeliveryPortfolioReview = {
+  taskId: string
+  repository: string
+  pullRequest: number
+  headSha: string
+  status: DeliveryTaskStatus
+  attemptCount: number
+  verdict?: 'approve' | 'comment' | 'request_changes' | 'blocked'
+  event?: 'APPROVE' | 'COMMENT' | 'REQUEST_CHANGES'
+  reviewUrl?: string
+  reviewerActor?: string
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+  publishedAt?: string
 }
 
 export type DeliveryPortfolioSnapshot = {
@@ -67,6 +89,7 @@ export type DeliveryPortfolioSnapshot = {
   revision: string
   totals: DeliveryPortfolioTotals
   projects: DeliveryPortfolioProject[]
+  reviewQueue: DeliveryPortfolioReview[]
 }
 
 // The portfolio is the broad, low-cost read model used outside an individual
@@ -75,19 +98,26 @@ export type DeliveryPortfolioSnapshot = {
 // into a polling loop.
 export function deliveryPortfolioRefreshInterval(snapshot: DeliveryPortfolioSnapshot | null | undefined) {
   if (!snapshot) return 15_000
-  if (snapshot.totals.runningTasks > 0) return 6_000
-  if (snapshot.totals.queuedTasks > 0 || snapshot.totals.activeWorkItems > 0) return 12_000
+  if (snapshot.totals.runningTasks > 0 || snapshot.totals.runningReviews > 0) return 6_000
+  if (snapshot.totals.queuedTasks > 0 || snapshot.totals.queuedReviews > 0 || snapshot.totals.activeWorkItems > 0)
+    return 12_000
   return 30_000
 }
 
 type RecordLike = Record<string, unknown>
 
 const taskStatuses = new Set<DeliveryTaskStatus>([
-  'queued', 'running', 'cancel_requested', 'cancelled', 'completed', 'failed', 'dispatch_failed',
+  'queued',
+  'running',
+  'cancel_requested',
+  'cancelled',
+  'completed',
+  'failed',
+  'dispatch_failed',
 ])
 
 function asRecord(value: unknown): RecordLike | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as RecordLike : null
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as RecordLike) : null
 }
 
 function text(value: unknown, fallback = ''): string {
@@ -147,7 +177,9 @@ function portfolioWorkItem(value: unknown): DeliveryPortfolioWorkItem | null {
   const updatedAt = text(snakeOrCamel(record, 'updated_at', 'updatedAt'))
   if (!id || !projectId || !title || !state || !createdAt || !updatedAt) return null
   const tasks = Array.isArray(snakeOrCamel(record, 'automation_tasks', 'automationTasks'))
-    ? (snakeOrCamel(record, 'automation_tasks', 'automationTasks') as unknown[]).map(portfolioTask).filter((task): task is DeliveryPortfolioTask => task !== null)
+    ? (snakeOrCamel(record, 'automation_tasks', 'automationTasks') as unknown[])
+        .map(portfolioTask)
+        .filter((task): task is DeliveryPortfolioTask => task !== null)
     : []
   return {
     id,
@@ -212,6 +244,91 @@ function portfolioTotals(value: unknown): DeliveryPortfolioTotals {
     queuedTasks: count(snakeOrCamel(record, 'queued_tasks', 'queuedTasks')),
     runningTasks: count(snakeOrCamel(record, 'running_tasks', 'runningTasks')),
     attentionTasks: count(snakeOrCamel(record, 'attention_tasks', 'attentionTasks')),
+    reviewTasks: count(snakeOrCamel(record, 'review_tasks', 'reviewTasks')),
+    queuedReviews: count(snakeOrCamel(record, 'queued_reviews', 'queuedReviews')),
+    runningReviews: count(snakeOrCamel(record, 'running_reviews', 'runningReviews')),
+    attentionReviews: count(snakeOrCamel(record, 'attention_reviews', 'attentionReviews')),
+    publishedReviews: count(snakeOrCamel(record, 'published_reviews', 'publishedReviews')),
+  }
+}
+
+function portfolioReview(value: unknown): DeliveryPortfolioReview | null {
+  const record = asRecord(value)
+  if (!record) return null
+  const taskId = text(snakeOrCamel(record, 'task_id', 'taskId'))
+  const repository = text(record.repository).toLowerCase()
+  const pullRequest = count(snakeOrCamel(record, 'pull_request', 'pullRequest'))
+  const headSha = text(snakeOrCamel(record, 'head_sha', 'headSha')).toLowerCase()
+  const rawStatus = text(record.status)
+  const createdAt = text(snakeOrCamel(record, 'created_at', 'createdAt'))
+  const updatedAt = text(snakeOrCamel(record, 'updated_at', 'updatedAt'))
+  if (
+    !taskId ||
+    !/^[a-z0-9][a-z0-9_.-]*\/[a-z0-9][a-z0-9_.-]*$/.test(repository) ||
+    !Number.isInteger(pullRequest) ||
+    pullRequest < 1 ||
+    !/^[a-f0-9]{40}$/.test(headSha) ||
+    !taskStatuses.has(rawStatus as DeliveryTaskStatus) ||
+    !createdAt ||
+    !updatedAt
+  )
+    return null
+
+  const completedAt = text(snakeOrCamel(record, 'completed_at', 'completedAt'))
+  const verdict = text(record.verdict).toLowerCase()
+  const event = text(record.event).toUpperCase()
+  const reviewUrl = text(snakeOrCamel(record, 'review_url', 'reviewUrl'))
+  const reviewerActor = text(snakeOrCamel(record, 'reviewer_actor', 'reviewerActor')).toLowerCase()
+  const publishedAt = text(snakeOrCamel(record, 'published_at', 'publishedAt'))
+  const hasPublication = Boolean(verdict || event || reviewUrl || reviewerActor || publishedAt)
+  if (hasPublication) {
+    const validVerdictEvent =
+      (verdict === 'approve' && (event === 'APPROVE' || event === 'COMMENT')) ||
+      (verdict === 'request_changes' && event === 'REQUEST_CHANGES') ||
+      ((verdict === 'comment' || verdict === 'blocked') && event === 'COMMENT')
+    let parsedURL: URL
+    try {
+      parsedURL = new URL(reviewUrl)
+    } catch {
+      return null
+    }
+    const parts = parsedURL.pathname.replace(/^\/+|\/+$/g, '').split('/')
+    if (
+      !validVerdictEvent ||
+      !reviewerActor ||
+      !publishedAt ||
+      parsedURL.protocol !== 'https:' ||
+      parsedURL.hostname.toLowerCase() !== 'github.com' ||
+      parsedURL.username ||
+      parsedURL.password ||
+      parsedURL.search ||
+      parts.length !== 4 ||
+      `${parts[0]}/${parts[1]}`.toLowerCase() !== repository ||
+      parts[2] !== 'pull' ||
+      parts[3] !== String(pullRequest) ||
+      !/^#pullrequestreview-[1-9][0-9]*$/.test(parsedURL.hash)
+    )
+      return null
+  }
+  return {
+    taskId,
+    repository,
+    pullRequest,
+    headSha,
+    status: rawStatus as DeliveryTaskStatus,
+    attemptCount: count(snakeOrCamel(record, 'attempt_count', 'attemptCount')),
+    ...(completedAt ? { completedAt } : {}),
+    createdAt,
+    updatedAt,
+    ...(hasPublication
+      ? {
+          verdict: verdict as DeliveryPortfolioReview['verdict'],
+          event: event as DeliveryPortfolioReview['event'],
+          reviewUrl,
+          reviewerActor,
+          publishedAt,
+        }
+      : {}),
   }
 }
 
@@ -226,12 +343,22 @@ export function normalizeDeliveryPortfolio(value: unknown): DeliveryPortfolioSna
   const generatedAt = text(snakeOrCamel(record, 'generated_at', 'generatedAt'))
   const revision = text(record.revision)
   const projectsValue = record.projects
-  if (!schemaVersion || !generatedAt || !revision || !Array.isArray(projectsValue)) return null
+  // Schema v2 did not expose standalone webhook reviews. Accept an absent
+  // queue as empty while backend and dashboard roll independently; malformed
+  // queue values still invalidate the snapshot instead of being trusted.
+  const reviewQueueValue = snakeOrCamel(record, 'review_queue', 'reviewQueue') ?? []
+  if (!schemaVersion || !generatedAt || !revision || !Array.isArray(projectsValue) || !Array.isArray(reviewQueueValue))
+    return null
   return {
     schemaVersion,
     generatedAt,
     revision,
     totals: portfolioTotals(record.totals),
-    projects: projectsValue.map(portfolioProject).filter((project): project is DeliveryPortfolioProject => project !== null),
+    projects: projectsValue
+      .map(portfolioProject)
+      .filter((project): project is DeliveryPortfolioProject => project !== null),
+    reviewQueue: reviewQueueValue
+      .map(portfolioReview)
+      .filter((review): review is DeliveryPortfolioReview => review !== null),
   }
 }
