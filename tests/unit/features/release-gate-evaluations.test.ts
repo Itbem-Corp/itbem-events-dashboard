@@ -42,6 +42,18 @@ describe('release Gatekeeper evaluation projection', () => {
     expect(releaseGateReasonLabel({ code: 'branch_unprotected', repository: 'Example/api' })).toBe(
       'El branch destino no está protegido. (Example/api)',
     )
+    expect(releaseGateReasonLabel({ code: 'repository_policy_missing', repository: 'Example/api' })).toBe(
+      'Falta una política aplicable para este repositorio. (Example/api)',
+    )
+    expect(releaseGateReasonLabel({ code: 'policy_action_not_allowed', repository: 'Example/api', evidence: 'release' })).toBe(
+      'La política de este repositorio no permite esta acción. (Example/api · release)',
+    )
+    expect(releaseGateReasonLabel({ code: 'target_branch_not_allowed', repository: 'Example/api', evidence: 'production' })).toBe(
+      'La política de este repositorio no permite el branch destino. (Example/api · production)',
+    )
+    expect(releaseGateReasonLabel({ code: 'repository_policy_evidence_duplicate', repository: 'Example/api' })).toBe(
+      'Existe evidencia de política duplicada para este repositorio. (Example/api)',
+    )
     expect(releaseGateReasonLabel({ code: 'future_gate' })).toBe('Bloqueo determinista: future_gate')
   })
 })
