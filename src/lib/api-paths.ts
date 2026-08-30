@@ -201,6 +201,25 @@ export function deliveryProjectContextPath(projectId: string | number): string {
   return `${deliveryProjectPath(projectId)}/context`
 }
 
+export function deliveryProjectRepositoryOnboardingsPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/repository-onboardings`
+}
+
+export function deliveryProjectRepositoryOnboardingInspectPath(projectId: string | number): string {
+  return `${deliveryProjectRepositoryOnboardingsPath(projectId)}/inspect`
+}
+
+export function deliveryProjectRepositoryOnboardingApprovePath(
+  projectId: string | number,
+  onboardingId: string | number
+): string {
+  return `${deliveryProjectRepositoryOnboardingsPath(projectId)}/${encodePathSegment(onboardingId)}/approve`
+}
+
+export function deliveryProjectVaultRevisionsPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/vault/revisions`
+}
+
 export function deliveryProjectContextMetadataPath(projectId: string | number, sourceId: string | number): string {
   return `${deliveryProjectContextPath(projectId)}/${encodePathSegment(sourceId)}`
 }

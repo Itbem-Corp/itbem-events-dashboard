@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { deliveryWorkItemStreamEnabled, useDeliveryWorkItemStream } from '@/features/automation/use-delivery-work-item-stream'
 import { hasCancellationRequest, hasUnresolvedTaskFailure } from '@/features/automation/delivery-task-status'
+import { RepositoryOnboardingPanel } from '@/features/automation/repository-onboarding-panel'
 import type {
   DeliveryContextSource,
   DeliveryProject,
@@ -1776,6 +1777,7 @@ export default function DeliveryProjectDetailPage() {
                 Un workspace local fija su SHA actual al registrarse. Un repositorio <code>github://owner/repo</code>{' '}
                 sin revisión queda pendiente hasta sincronizarlo con la GitHub App.
               </p>
+              <RepositoryOnboardingPanel projectId={projectId} onContextPublished={() => project.mutate()} />
               <div className="mt-4 rounded-2xl border border-border-subtle bg-surface-soft p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
