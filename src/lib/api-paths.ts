@@ -216,6 +216,13 @@ export function deliveryProjectRepositoryOnboardingApprovePath(
   return `${deliveryProjectRepositoryOnboardingsPath(projectId)}/${encodePathSegment(onboardingId)}/approve`
 }
 
+export function deliveryProjectRepositoryOnboardingProbesPath(
+  projectId: string | number,
+  onboardingId: string | number
+): string {
+  return `${deliveryProjectRepositoryOnboardingsPath(projectId)}/${encodePathSegment(onboardingId)}/probes`
+}
+
 export function deliveryProjectVaultRevisionsPath(projectId: string | number): string {
   return `${deliveryProjectPath(projectId)}/vault/revisions`
 }

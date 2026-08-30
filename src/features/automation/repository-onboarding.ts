@@ -44,6 +44,23 @@ export function shortRevision(revision: string) {
   return revision.length >= 12 ? revision.slice(0, 12) : revision
 }
 
+const fullGitSHA = /^[0-9a-f]{40}$/i
+
+export function validOptionalGitRevision(revision: string) {
+  const normalized = revision.trim()
+  return normalized === '' || fullGitSHA.test(normalized)
+}
+
+export function repositoryInspectionPayload(repositoryURL: string, revision: string) {
+  const repository_url = repositoryURL.trim()
+  const normalizedRevision = revision.trim().toLowerCase()
+  if (!repository_url) throw new Error('repository URL is required')
+  if (normalizedRevision && !fullGitSHA.test(normalizedRevision)) {
+    throw new Error('revision must be a full Git SHA')
+  }
+  return normalizedRevision ? { repository_url, revision: normalizedRevision } : { repository_url }
+}
+
 export function latestVaultByRepository(revisions: DeliveryProjectVaultRevision[]) {
   const latest = new Map<string, DeliveryProjectVaultRevision>()
   for (const revision of revisions) {
@@ -66,9 +83,14 @@ export function vaultManifestDiff(
   const result: DeliveryVaultEntryDiff[] = proposed.entries.map((entry) => {
     const prior = previous.get(entry.key)
     previous.delete(entry.key)
+    if (entry.lifecycle === 'removed') return { status: 'removed', entry, previous: prior ?? entry }
     if (!prior) return { status: 'added', entry }
     return {
-      status: canonicalJSON(prior) === canonicalJSON(entry) ? 'unchanged' : 'changed',
+      status:
+        canonicalJSON({ kind: prior.kind, value: prior.value }) ===
+        canonicalJSON({ kind: entry.kind, value: entry.value })
+          ? 'unchanged'
+          : 'changed',
       entry,
       previous: prior,
     }

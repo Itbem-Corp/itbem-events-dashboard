@@ -1,4 +1,5 @@
-export type DeliveryTaskStatus = 'queued' | 'running' | 'cancel_requested' | 'cancelled' | 'completed' | 'failed' | 'dispatch_failed'
+export type DeliveryTaskStatus =
+  'queued' | 'running' | 'cancel_requested' | 'cancelled' | 'completed' | 'failed' | 'dispatch_failed'
 
 export type DeliveryAutomationTask = {
   id: string
@@ -57,8 +58,23 @@ export type DeliveryVaultEntry = {
   key: string
   kind: string
   lifecycle: 'active' | 'deprecated' | 'removed'
+  lifecycle_sha?: string
+  valid_from_sha?: string
+  valid_through_sha?: string
   value: Record<string, unknown>
   provenance: DeliveryVaultProvenance[]
+  history?: DeliveryVaultHistoryEntry[]
+  history_truncated?: boolean
+}
+
+export type DeliveryVaultHistoryEntry = {
+  kind: string
+  lifecycle: 'deprecated' | 'removed'
+  value: Record<string, unknown>
+  provenance: DeliveryVaultProvenance[]
+  valid_from_sha: string
+  valid_through_sha: string
+  transition_sha: string
 }
 
 export type DeliveryVaultManifest = {
@@ -66,6 +82,14 @@ export type DeliveryVaultManifest = {
   scope: 'repository' | 'project'
   repository: { reference: string; default_branch: string; revision: string }
   entries: DeliveryVaultEntry[]
+  history_truncated?: boolean
+}
+
+export type DeliveryVaultDiff = {
+  added: string[]
+  modified: string[]
+  unchanged: string[]
+  removed: string[]
 }
 
 export type DeliveryRepositoryOnboardingProposal = {
@@ -86,6 +110,9 @@ export type DeliveryRepositoryOnboardingProposal = {
   capabilities: DeliveryRepositoryCapability[]
   vault: DeliveryVaultManifest
   vault_sha256: string
+  previous_revision?: string
+  previous_vault_sha256?: string
+  vault_diff?: DeliveryVaultDiff
 }
 
 export type DeliveryRepositoryOnboarding = {
@@ -105,6 +132,36 @@ export type DeliveryRepositoryOnboarding = {
   updated_at: string
   proposal: DeliveryRepositoryOnboardingProposal
   capability_matrix: DeliveryRepositoryCapability[]
+}
+
+export type DeliveryRepositoryCapabilityProbe = {
+  id: string
+  project_id: string
+  onboarding_id: string
+  automation_task_id: string
+  repository_reference: string
+  revision: string
+  capability: 'unit' | 'integration' | 'contract' | 'e2e' | 'preview' | 'staging' | 'health' | 'recovery'
+  state: 'ready' | 'blocked'
+  executor_role: 'qa' | 'release' | 'orchestrator'
+  evidence_sha256: string
+  subject_sha256: string
+  reason: string
+  observed_at: string
+  created_at: string
+}
+
+export type DeliveryRepositoryCapabilityProbeTask = {
+  id: string
+  status: DeliveryTaskStatus
+  attempt_count: number
+  completed_at?: string
+  created_at: string
+}
+
+export type DeliveryRepositoryCapabilityProbeFeed = {
+  probes: DeliveryRepositoryCapabilityProbe[]
+  tasks: DeliveryRepositoryCapabilityProbeTask[]
 }
 
 export type DeliveryProjectVaultRevision = {

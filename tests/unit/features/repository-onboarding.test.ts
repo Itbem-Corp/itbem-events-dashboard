@@ -3,7 +3,9 @@ import {
   capabilityTone,
   latestVaultByRepository,
   onboardingIsApprovable,
+  repositoryInspectionPayload,
   shortRevision,
+  validOptionalGitRevision,
   vaultManifestDiff,
 } from '@/features/automation/repository-onboarding'
 import { describe, expect, it } from 'vitest'
@@ -31,6 +33,22 @@ describe('repository onboarding view model', () => {
     ] as DeliveryProjectVaultRevision[]
     expect(latestVaultByRepository(revisions).map(({ id }) => id)).toEqual(['a2', 'w1'])
     expect(shortRevision('0123456789abcdef')).toBe('0123456789ab')
+  })
+
+  it('sends only an optional immutable full SHA for reconciliation', () => {
+    const revision = 'ABCDEF0123456789ABCDEF0123456789ABCDEF01'
+    expect(validOptionalGitRevision('')).toBe(true)
+    expect(validOptionalGitRevision(revision)).toBe(true)
+    expect(validOptionalGitRevision('main')).toBe(false)
+    expect(validOptionalGitRevision('abcdef0')).toBe(false)
+    expect(repositoryInspectionPayload(' https://github.com/acme/api ', revision)).toEqual({
+      repository_url: 'https://github.com/acme/api',
+      revision: revision.toLowerCase(),
+    })
+    expect(repositoryInspectionPayload('https://github.com/acme/api', '')).toEqual({
+      repository_url: 'https://github.com/acme/api',
+    })
+    expect(() => repositoryInspectionPayload('https://github.com/acme/api', 'main')).toThrow()
   })
 
   it('builds an exact Vault diff including removed entries and provenance changes', () => {
