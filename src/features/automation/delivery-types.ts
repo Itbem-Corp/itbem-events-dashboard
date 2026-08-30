@@ -122,6 +122,59 @@ export type DeliveryProjectVaultRevision = {
   manifest: DeliveryVaultManifest
 }
 
+export type DeliveryPolicySafetyFloor = {
+  independent_review: boolean
+  exact_sha_evidence: boolean
+  vault_reconciliation: boolean
+  secret_scan: boolean
+  maximum_high_findings: number
+  maximum_critical_findings: number
+  compatibility: boolean
+  migrations: boolean
+  dependency_order: boolean
+  environment: boolean
+  recovery: boolean
+  human_approval: boolean
+  force_merge_allowed: boolean
+}
+
+export type DeliveryEffectivePolicySnapshot = {
+  schema_version: 1
+  project_id: string
+  repository: string
+  change_set_id?: string
+  overrides_considered: boolean
+  evaluated_at: string
+  vault: {
+    revision_id: string
+    version: number
+    repository_sha: string
+    content_sha256: string
+  }
+  policy: {
+    schema_version: 1
+    mode?: 'review_only' | 'merge' | 'release'
+    required_test_kinds: string[]
+    allowed_target_branches: string[]
+    merge_method?: 'merge' | 'squash' | 'rebase'
+    deployment_workflow?: string
+    deployment_environment?: string
+    required_health_checks: string[]
+    required_post_merge_checks: string[]
+    recovery_default?: 'rollback' | 'roll_forward' | 'expand_contract' | 'irreversible'
+    safety: DeliveryPolicySafetyFloor
+    sources: Array<{
+      level: 'platform' | 'organization' | 'project' | 'repository' | 'override'
+      revision_id: string
+      digest: string
+      approved_at: string
+    }>
+    resolved: boolean
+    missing: string[]
+    digest: string
+  }
+}
+
 export type DeliveryGate = {
   id: string
   kind: 'plan' | 'code_review' | 'qa_review' | 'release'

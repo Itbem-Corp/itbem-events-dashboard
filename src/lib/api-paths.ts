@@ -220,6 +220,16 @@ export function deliveryProjectVaultRevisionsPath(projectId: string | number): s
   return `${deliveryProjectPath(projectId)}/vault/revisions`
 }
 
+export function deliveryProjectEffectivePolicyPath(
+  projectId: string | number,
+  repository: string,
+  changeSetId?: string
+): string {
+  const query = new URLSearchParams({ repository })
+  if (changeSetId?.trim()) query.set('change_set_id', changeSetId.trim())
+  return `${deliveryProjectPath(projectId)}/delivery-policy/effective?${query.toString()}`
+}
+
 export function deliveryProjectContextMetadataPath(projectId: string | number, sourceId: string | number): string {
   return `${deliveryProjectContextPath(projectId)}/${encodePathSegment(sourceId)}`
 }

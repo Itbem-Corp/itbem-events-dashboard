@@ -24,6 +24,7 @@ import type { FormEvent } from 'react'
 import { useState } from 'react'
 import useSWR from 'swr'
 import type { DeliveryProjectVaultRevision, DeliveryRepositoryOnboarding } from './delivery-types'
+import { ProjectEffectivePolicyPanel } from './effective-policy-panel'
 import {
   capabilityLabels,
   capabilityTone,
@@ -371,6 +372,7 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
               </div>
             ))}
           </div>
+          <ProjectEffectivePolicyPanel projectId={projectId} vaultRevisions={latestVault} />
         </div>
       ) : null}
     </section>
