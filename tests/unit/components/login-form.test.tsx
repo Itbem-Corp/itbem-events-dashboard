@@ -69,6 +69,21 @@ const tenant: Omit<TenantConfig, 'clientId'> = {
   apiHostname: 'api.eventiapp.com.mx',
   modules: ['home', 'events'],
   accent: '#818cf8',
+  ownedDomains: ['eventiapp.com.mx'],
+  publicExperience: {
+    enabled: true,
+    canonicalHostname: 'www.eventiapp.com.mx',
+    hostnames: ['eventiapp.com.mx', 'www.eventiapp.com.mx'],
+    deploymentTarget: 'cloudflare-workers',
+    branding: {
+      name: 'EventiApp',
+      shortName: 'EventiApp',
+      description: 'Tu invitación digital',
+      locale: 'es-MX',
+      themeColor: '#dd2284',
+      backgroundColor: '#07293a',
+    },
+  },
 }
 
 async function fillCredentials() {

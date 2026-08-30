@@ -1,5 +1,5 @@
 import { PRODUCT_MANIFESTS } from '@/products/registry'
-import type { ProductManifest, TenantCode, TenantModule } from '@/products/core/product-manifest'
+import type { ProductManifest, PublicExperience, TenantCode, TenantModule } from '@/products/core/product-manifest'
 import type { NextRequest } from 'next/server'
 
 export type { TenantCode, TenantModule } from '@/products/core/product-manifest'
@@ -16,6 +16,8 @@ export type TenantConfig = {
   clientId: string
   modules: readonly TenantModule[]
   accent: string
+  ownedDomains: readonly string[]
+  publicExperience: PublicExperience
 }
 
 type TenantDefinition = Omit<TenantConfig, 'clientId'> & { clientIdEnv: string }
@@ -32,6 +34,8 @@ function tenantDefinition(manifest: ProductManifest): TenantDefinition {
     localHostnames: manifest.deployment.localHostnames,
     apiHostname: manifest.deployment.apiHostname,
     clientIdEnv: manifest.deployment.clientIdEnv,
+    ownedDomains: manifest.deployment.ownedDomains,
+    publicExperience: manifest.deployment.publicExperience,
     modules: manifest.backendModules,
   }
 }
@@ -80,6 +84,11 @@ export function backendBaseUrlForHostname(hostname: string, localFallback: strin
   const host = normalizedHostname(hostname)
   if (tenant.localHostnames.includes(host)) return localFallback.replace(/\/+$/, '')
   return `https://${tenant.apiHostname}`
+}
+
+export function publicExperienceUrlForHostname(hostname: string): string | null {
+  const publicExperience = tenantPresentationForHostname(hostname).publicExperience
+  return publicExperience.enabled ? `https://${publicExperience.canonicalHostname}` : null
 }
 
 export function hostnameForRequest(request: NextRequest): string {

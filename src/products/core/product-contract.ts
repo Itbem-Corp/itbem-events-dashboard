@@ -14,6 +14,13 @@ export function assertProductManifestContract(manifests: ProductManifestRegistry
   const hostnames = new Set<string>()
   const localHostnames = new Set<string>()
   const apiHostnames = new Set<string>()
+  const ownedDomains = new Set<string>()
+  const publicHostnames = new Set<string>()
+
+  const belongsToOwnedDomain = (hostname: string, domains: readonly string[]): boolean =>
+    domains.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`))
+  const domainsOverlap = (left: string, right: string): boolean =>
+    left === right || left.endsWith(`.${right}`) || right.endsWith(`.${left}`)
 
   for (const code of PRODUCT_CODES) {
     const manifest = manifests[code]
@@ -25,6 +32,13 @@ export function assertProductManifestContract(manifests: ProductManifestRegistry
     if (!manifest.deployment.hostname || !manifest.deployment.apiHostname || !manifest.deployment.clientIdEnv) {
       throw new Error(`${code} must define a hostname, API hostname, and Cognito client environment key`)
     }
+    if (manifest.deployment.ownedDomains.length === 0) throw new Error(`${code} must define at least one owned domain`)
+    for (const domain of manifest.deployment.ownedDomains) {
+      if ([...ownedDomains].some((existing) => domainsOverlap(domain, existing))) {
+        throw new Error(`Owned domain ${domain} overlaps another product boundary`)
+      }
+      ownedDomains.add(domain)
+    }
     if (!manifest.deployment.hostnames.includes(manifest.deployment.hostname)) {
       throw new Error(`${code} primary hostname must be listed in hostnames`)
     }
@@ -33,6 +47,9 @@ export function assertProductManifestContract(manifests: ProductManifestRegistry
     }
 
     for (const hostname of manifest.deployment.hostnames) {
+      if (!belongsToOwnedDomain(hostname, manifest.deployment.ownedDomains)) {
+        throw new Error(`${code} dashboard hostname ${hostname} is outside its owned domains`)
+      }
       if (hostnames.has(hostname)) throw new Error(`Production hostname ${hostname} belongs to more than one product`)
       hostnames.add(hostname)
     }
@@ -44,6 +61,25 @@ export function assertProductManifestContract(manifests: ProductManifestRegistry
       throw new Error(`API hostname ${manifest.deployment.apiHostname} belongs to more than one product`)
     }
     apiHostnames.add(manifest.deployment.apiHostname)
+    if (!belongsToOwnedDomain(manifest.deployment.apiHostname, manifest.deployment.ownedDomains)) {
+      throw new Error(`${code} API hostname is outside its owned domains`)
+    }
+
+    const publicExperience = manifest.deployment.publicExperience
+    if (publicExperience.enabled) {
+      if (!publicExperience.hostnames.includes(publicExperience.canonicalHostname)) {
+        throw new Error(`${code} public canonical hostname must be declared`)
+      }
+      for (const hostname of publicExperience.hostnames) {
+        if (!belongsToOwnedDomain(hostname, manifest.deployment.ownedDomains)) {
+          throw new Error(`${code} public hostname ${hostname} is outside its owned domains`)
+        }
+        if (hostnames.has(hostname) || apiHostnames.has(hostname) || publicHostnames.has(hostname)) {
+          throw new Error(`Public hostname ${hostname} collides with another product surface`)
+        }
+        publicHostnames.add(hostname)
+      }
+    }
 
     if (!manifest.features.includes('home') || !manifest.backendModules.includes('home')) {
       throw new Error(`${code} must include the home module`)

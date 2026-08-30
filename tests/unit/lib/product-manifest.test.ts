@@ -46,6 +46,12 @@ describe('product manifests', () => {
     expect(eventiapp.deployment.apiHostname).toBe('api.eventiapp.com.mx')
     expect(itbem.identity.accent).toBe('#22d3ee')
     expect(itbem.deployment.clientIdEnv).toBe('COGNITO_ITBEM_CLIENT_ID')
+    expect(itbem.deployment.ownedDomains).toEqual(['itbem.com.mx', 'itbem.com'])
+    expect(eventiapp.deployment.publicExperience).toMatchObject({
+      enabled: true,
+      canonicalHostname: 'www.eventiapp.com.mx',
+      deploymentTarget: 'cloudflare-workers',
+    })
   })
 
   it('rejects a deployment contract that would merge product entry points', () => {
@@ -57,6 +63,17 @@ describe('product manifests', () => {
     manifests.itbem.deployment.hostname = manifests.eventiapp.deployment.hostname
     manifests.itbem.deployment.hostnames = [manifests.eventiapp.deployment.hostname]
 
-    expect(() => assertProductManifestContract(manifests)).toThrow(/belongs to more than one product/)
+    expect(() => assertProductManifestContract(manifests)).toThrow(/outside its owned domains|belongs to more than one product/)
+  })
+
+  it('rejects a product that claims a delegated domain owned by another product', () => {
+    const manifests = structuredClone({
+      eventiapp: getProductManifest('eventiapp'),
+      itbem: getProductManifest('itbem'),
+      cafettonhouse: getProductManifest('cafettonhouse'),
+    })
+    manifests.itbem.deployment.ownedDomains = ['admin.eventiapp.com.mx']
+
+    expect(() => assertProductManifestContract(manifests)).toThrow(/overlaps another product boundary/)
   })
 })
