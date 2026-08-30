@@ -13,6 +13,8 @@ import {
 import type { DeliveryBrowserQAFormCase } from '@/features/automation/delivery-form-payloads'
 import { deliveryWorkItemStreamEnabled, useDeliveryWorkItemStream } from '@/features/automation/use-delivery-work-item-stream'
 import { deliveryTraceRefreshInterval } from '@/features/automation/delivery-trace-refresh'
+import { ReleaseGateEvaluationPanel } from '@/features/automation/release-gate-evaluation-panel'
+import type { ReleaseGateEvaluationSnapshot } from '@/features/automation/release-gate-evaluations'
 import type { DeliveryReleaseDraft } from '@/features/automation/delivery-result-data'
 import type {
   DeliveryAutomationTask,
@@ -44,6 +46,7 @@ import {
   deliveryWorkItemPublicationGrantRevokePath,
   deliveryWorkItemPublicationGrantsPath,
   deliveryWorkItemReleasePath,
+  deliveryWorkItemReleaseGateEvaluationsPath,
   deliveryWorkItemReleaseReportPath,
   deliveryWorkItemTransitionPath,
 } from '@/lib/api-paths'
@@ -949,6 +952,18 @@ export default function DeliveryWorkItemPage() {
       dedupingInterval: 2_000,
     },
   )
+  const releaseGateEvaluations = useSWR<ReleaseGateEvaluationSnapshot>(
+    params.workItemId && consoleView === 'control' ? deliveryWorkItemReleaseGateEvaluationsPath(params.workItemId) : null,
+    fetcher,
+    {
+      refreshInterval: 60_000,
+      refreshWhenHidden: false,
+      revalidateOnFocus: true,
+      revalidateIfStale: true,
+      keepPreviousData: true,
+      dedupingInterval: 2_000,
+    },
+  )
   const graphStream = useDeliveryWorkItemStream(params.workItemId, {
     // Keep one subscription for the task across every console surface. An
     // operator can inspect evidence or a decision while the agent advances;
@@ -961,11 +976,13 @@ export default function DeliveryWorkItemPage() {
     onSnapshot: () => {
       void workItem.mutate()
       if (consoleView === 'overview') void executionGraph.mutate()
+      if (consoleView === 'control') void releaseGateEvaluations.mutate()
       if (selectedResultIsActive) void trace.mutate()
     },
     onUpdate: () => {
       void workItem.mutate()
       if (consoleView === 'overview') void executionGraph.mutate()
+      if (consoleView === 'control') void releaseGateEvaluations.mutate()
       if (selectedResultIsActive) void trace.mutate()
     },
   })
@@ -3681,6 +3698,14 @@ export default function DeliveryWorkItemPage() {
                 )
               })}
             </section>
+            <ReleaseGateEvaluationPanel
+              workItemId={item.id}
+              snapshot={releaseGateEvaluations.data}
+              loading={releaseGateEvaluations.isLoading}
+              validating={releaseGateEvaluations.isValidating}
+              unavailable={Boolean(releaseGateEvaluations.error)}
+              onRefresh={() => void releaseGateEvaluations.mutate()}
+            />
             <details className={`premium-surface group rounded-3xl ${consoleView === 'control' ? '' : 'hidden'}`}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
                 <span>

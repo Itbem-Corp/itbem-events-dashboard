@@ -25,6 +25,193 @@ export type DeliveryContextSource = {
   synced_at?: string
 }
 
+export type DeliveryVaultProvenance = {
+  source: 'github_api' | 'static_inventory' | 'structured_manifest' | string
+  path: string
+  revision: string
+  confidence: number
+}
+
+export type DeliveryRepositoryCapability = {
+  name:
+    | 'source'
+    | 'branch_write'
+    | 'pr_write'
+    | 'review'
+    | 'unit'
+    | 'integration'
+    | 'contract'
+    | 'e2e'
+    | 'preview'
+    | 'staging'
+    | 'release'
+    | 'health'
+    | 'recovery'
+    | 'vault'
+  state: 'ready' | 'proposed' | 'unknown' | 'blocked' | 'unavailable'
+  reason: string
+  evidence?: DeliveryVaultProvenance[]
+}
+
+export type DeliveryVaultEntry = {
+  key: string
+  kind: string
+  lifecycle: 'active' | 'deprecated' | 'removed'
+  value: Record<string, unknown>
+  provenance: DeliveryVaultProvenance[]
+}
+
+export type DeliveryVaultManifest = {
+  schema_version: number
+  scope: 'repository' | 'project'
+  repository: { reference: string; default_branch: string; revision: string }
+  entries: DeliveryVaultEntry[]
+}
+
+export type DeliveryRepositoryOnboardingProposal = {
+  schema_version: number
+  repository: { reference: string; default_branch: string; revision: string }
+  readiness: 'ready' | 'partially_ready' | 'blocked'
+  trust_boundary: 'repository_content_is_untrusted_data'
+  inventory_file_count: number
+  inventory_truncated: boolean
+  stacks: Array<{ name: string; confidence: number; provenance: DeliveryVaultProvenance[] }>
+  commands: Array<{
+    capability: string
+    working_directory: string
+    command: string[]
+    status: 'proposed_not_executed'
+    provenance: DeliveryVaultProvenance
+  }>
+  capabilities: DeliveryRepositoryCapability[]
+  vault: DeliveryVaultManifest
+  vault_sha256: string
+}
+
+export type DeliveryRepositoryOnboarding = {
+  id: string
+  project_id: string
+  repository_reference: string
+  default_branch: string
+  revision: string
+  status: 'proposed' | 'approved' | 'blocked' | 'superseded'
+  readiness: 'ready' | 'partially_ready' | 'blocked'
+  proposal_sha256: string
+  vault_sha256: string
+  proposed_by: string
+  approved_by?: string
+  approved_at?: string
+  created_at: string
+  updated_at: string
+  proposal: DeliveryRepositoryOnboardingProposal
+  capability_matrix: DeliveryRepositoryCapability[]
+}
+
+export type DeliveryProjectVaultRevision = {
+  id: string
+  project_id: string
+  repository_reference: string
+  version: number
+  revision: string
+  schema_version: number
+  content_sha256: string
+  source_onboarding_id: string
+  published_by: string
+  published_at: string
+  created_at: string
+  manifest: DeliveryVaultManifest
+}
+
+export type DeliveryPolicySafetyFloor = {
+  independent_review: boolean
+  exact_sha_evidence: boolean
+  vault_reconciliation: boolean
+  secret_scan: boolean
+  maximum_high_findings: number
+  maximum_critical_findings: number
+  compatibility: boolean
+  migrations: boolean
+  dependency_order: boolean
+  environment: boolean
+  recovery: boolean
+  human_approval: boolean
+  force_merge_allowed: boolean
+}
+
+export type DeliveryPolicyPatch = {
+  mode?: 'review_only' | 'merge' | 'release'
+  required_test_kinds?: string[]
+  allowed_target_branches?: string[]
+  merge_method?: 'merge' | 'squash' | 'rebase'
+  deployment_workflow?: string
+  deployment_environment?: string
+  required_secret_references?: string[]
+  required_variable_references?: string[]
+  required_health_checks?: string[]
+  required_post_merge_checks?: string[]
+  recovery_default?: 'rollback' | 'roll_forward' | 'expand_contract' | 'irreversible'
+}
+
+export type DeliveryPolicyRevision = {
+  id: string
+  schema_version: 1
+  level: 'project' | 'repository' | 'override'
+  project_id: string
+  repository?: string
+  change_set_id?: string
+  patch: DeliveryPolicyPatch
+  reason?: string
+  expires_at?: string
+  content_sha256: string
+  created_at: string
+  status: 'pending' | 'approved' | 'revoked'
+  latest_decision?: {
+    id: string
+    action: 'approved' | 'revoked'
+    reason?: string
+    occurred_at: string
+  }
+}
+
+export type DeliveryEffectivePolicySnapshot = {
+  schema_version: 1
+  project_id: string
+  repository: string
+  change_set_id?: string
+  overrides_considered: boolean
+  evaluated_at: string
+  vault: {
+    revision_id: string
+    version: number
+    repository_sha: string
+    content_sha256: string
+  }
+  policy: {
+    schema_version: 1
+    mode?: 'review_only' | 'merge' | 'release'
+    required_test_kinds: string[]
+    allowed_target_branches: string[]
+    merge_method?: 'merge' | 'squash' | 'rebase'
+    deployment_workflow?: string
+    deployment_environment?: string
+    required_secret_references: string[]
+    required_variable_references: string[]
+    required_health_checks: string[]
+    required_post_merge_checks: string[]
+    recovery_default?: 'rollback' | 'roll_forward' | 'expand_contract' | 'irreversible'
+    safety: DeliveryPolicySafetyFloor
+    sources: Array<{
+      level: 'platform' | 'organization' | 'project' | 'repository' | 'override'
+      revision_id: string
+      digest: string
+      approved_at: string
+    }>
+    resolved: boolean
+    missing: string[]
+    digest: string
+  }
+}
+
 export type DeliveryGate = {
   id: string
   kind: 'plan' | 'code_review' | 'qa_review' | 'release'

@@ -201,6 +201,46 @@ export function deliveryProjectContextPath(projectId: string | number): string {
   return `${deliveryProjectPath(projectId)}/context`
 }
 
+export function deliveryProjectRepositoryOnboardingsPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/repository-onboardings`
+}
+
+export function deliveryProjectRepositoryOnboardingInspectPath(projectId: string | number): string {
+  return `${deliveryProjectRepositoryOnboardingsPath(projectId)}/inspect`
+}
+
+export function deliveryProjectRepositoryOnboardingApprovePath(
+  projectId: string | number,
+  onboardingId: string | number
+): string {
+  return `${deliveryProjectRepositoryOnboardingsPath(projectId)}/${encodePathSegment(onboardingId)}/approve`
+}
+
+export function deliveryProjectVaultRevisionsPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/vault/revisions`
+}
+
+export function deliveryProjectEffectivePolicyPath(
+  projectId: string | number,
+  repository: string,
+  changeSetId?: string
+): string {
+  const query = new URLSearchParams({ repository })
+  if (changeSetId?.trim()) query.set('change_set_id', changeSetId.trim())
+  return `${deliveryProjectPath(projectId)}/delivery-policy/effective?${query.toString()}`
+}
+
+export function deliveryProjectPolicyRevisionsPath(projectId: string | number): string {
+  return `${deliveryProjectPath(projectId)}/delivery-policy/revisions`
+}
+
+export function deliveryProjectPolicyDecisionPath(
+  projectId: string | number,
+  revisionId: string | number
+): string {
+  return `${deliveryProjectPolicyRevisionsPath(projectId)}/${encodePathSegment(revisionId)}/decisions`
+}
+
 export function deliveryProjectContextMetadataPath(projectId: string | number, sourceId: string | number): string {
   return `${deliveryProjectContextPath(projectId)}/${encodePathSegment(sourceId)}`
 }
@@ -239,6 +279,10 @@ export function deliveryWorkItemStreamPath(workItemId: string | number): string 
 
 export function deliveryWorkItemExecutionGraphPath(workItemId: string | number): string {
   return `${deliveryWorkItemPath(workItemId)}/execution-graph`
+}
+
+export function deliveryWorkItemReleaseGateEvaluationsPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/release-gate/evaluations`
 }
 
 export function deliveryWorkItemBudgetPath(workItemId: string | number): string {

@@ -5,6 +5,8 @@ import { Button } from '@/components/button'
 import { Dialog, DialogActions, DialogBody, DialogTitle } from '@/components/dialog'
 import { PageTransition } from '@/components/ui/page-transition'
 import { deliveryPortfolioRefreshInterval, normalizeDeliveryPortfolio, type DeliveryPortfolioSnapshot } from '@/features/automation/delivery-portfolio'
+import { AgentLaneHealthPanel } from '@/features/automation/agent-lane-health-panel'
+import type { AutomationHealth } from '@/features/automation/agent-lane-health'
 import type { DeliveryProject } from '@/features/automation/delivery-types'
 import { deliveryExecutionGraphBelongsTo, executionGraphEventsFromDelivery, type DeliveryExecutionGraphSnapshot } from '@/features/automation/delivery-execution-graph'
 import { hasCancellationRequest, hasUnresolvedTaskFailure } from '@/features/automation/delivery-task-status'
@@ -71,18 +73,6 @@ type AutomationTask = {
   usage?: { total_tokens?: number }
   error_message?: string
   created_at: string
-}
-
-type AutomationHealth = {
-  queued: number
-  running: number
-  failed_last_day: number
-  expired_leases: number
-  spend_last_day_microusd: number
-  active_workers: number
-  worker_capacity: number
-  last_worker_seen_at?: string
-  workers?: Array<{ provider: string; model: string; last_seen_at: string }>
 }
 
 type PortfolioItem = {
@@ -662,6 +652,13 @@ export default function AutomationPage() {
           </section>
 
           {!hasPortfolioLoadFailure && <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+            <AgentLaneHealthPanel
+              health={health.data}
+              loading={health.isLoading}
+              validating={health.isValidating}
+              unavailable={Boolean(health.error && !health.data)}
+              onRefresh={() => { void health.mutate() }}
+            />
             <section className="premium-surface overflow-hidden rounded-3xl">
               <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3.5">
                 <p className="text-xs font-bold tracking-[.14em] text-ink-muted uppercase">Bandeja de decisiones</p>
