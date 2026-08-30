@@ -134,6 +134,36 @@ export type DeliveryRepositoryOnboarding = {
   capability_matrix: DeliveryRepositoryCapability[]
 }
 
+export type DeliveryRepositoryCapabilityProbe = {
+  id: string
+  project_id: string
+  onboarding_id: string
+  automation_task_id: string
+  repository_reference: string
+  revision: string
+  capability: 'unit' | 'integration' | 'contract' | 'e2e' | 'preview' | 'staging' | 'health' | 'recovery'
+  state: 'ready' | 'blocked'
+  executor_role: 'qa' | 'release' | 'orchestrator'
+  evidence_sha256: string
+  subject_sha256: string
+  reason: string
+  observed_at: string
+  created_at: string
+}
+
+export type DeliveryRepositoryCapabilityProbeTask = {
+  id: string
+  status: DeliveryTaskStatus
+  attempt_count: number
+  completed_at?: string
+  created_at: string
+}
+
+export type DeliveryRepositoryCapabilityProbeFeed = {
+  probes: DeliveryRepositoryCapabilityProbe[]
+  tasks: DeliveryRepositoryCapabilityProbeTask[]
+}
+
 export type DeliveryProjectVaultRevision = {
   id: string
   project_id: string
