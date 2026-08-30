@@ -68,6 +68,7 @@ const reasonLabels: Record<string, string> = {
   branch_evidence_missing: 'Falta evidencia del branch protegido.',
   branch_evidence_stale: 'El commit del branch cambió después de recopilar la evidencia.',
   branch_protection_unknown: 'No se pudo comprobar la protección del branch.',
+  branch_unprotected: 'El branch destino no está protegido.',
   branch_requirements_digest_invalid: 'Los requisitos protegidos del branch no tienen una identidad canónica válida.',
   branch_not_mergeable: 'El branch tiene conflictos o no es mergeable.',
   required_check_missing: 'Falta un check obligatorio.',

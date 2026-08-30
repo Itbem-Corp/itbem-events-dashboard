@@ -39,6 +39,9 @@ describe('release Gatekeeper evaluation projection', () => {
     expect(releaseGateReasonLabel(snapshot.evaluations[0].reasons[0])).toBe(
       'Un check obligatorio falló. (Example/api · ci)',
     )
+    expect(releaseGateReasonLabel({ code: 'branch_unprotected', repository: 'Example/api' })).toBe(
+      'El branch destino no está protegido. (Example/api)',
+    )
     expect(releaseGateReasonLabel({ code: 'future_gate' })).toBe('Bloqueo determinista: future_gate')
   })
 })
