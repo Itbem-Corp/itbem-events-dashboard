@@ -10,6 +10,8 @@ export type ReleaseGateEvaluation = {
   action: 'merge' | 'release'
   change_set_id: string
   matrix_digest?: string
+  policy_digest?: string
+  vault_digest?: string
   subject_digest?: string
   state: 'allowed' | 'blocked'
   reasons: ReleaseGateReason[]
@@ -27,9 +29,11 @@ export function latestReleaseGateEvaluation(
   snapshot: ReleaseGateEvaluationSnapshot | undefined,
   workItemId: string,
 ): ReleaseGateEvaluation | null {
-  if (!snapshot || snapshot.schema_version !== 1 || snapshot.work_item_id !== workItemId || !Array.isArray(snapshot.evaluations)) {
+  if (!snapshot || snapshot.schema_version !== 1 || snapshot.work_item_id !== workItemId || !Array.isArray(snapshot.evaluations) || typeof snapshot.truncated !== 'boolean') {
     return null
   }
+  const digestPattern = /^[a-f0-9]{64}$/
+  const validOptionalDigest = (value: unknown) => value === undefined || (typeof value === 'string' && digestPattern.test(value))
   const valid = snapshot.evaluations.filter((evaluation) => (
     Boolean(evaluation.event_id) &&
     Boolean(evaluation.change_set_id) &&
@@ -39,6 +43,16 @@ export function latestReleaseGateEvaluation(
     (evaluation.state === 'allowed' || evaluation.state === 'blocked') &&
     Array.isArray(evaluation.reasons) &&
     ((evaluation.state === 'allowed' && evaluation.reasons.length === 0) || (evaluation.state === 'blocked' && evaluation.reasons.length > 0)) &&
+    validOptionalDigest(evaluation.matrix_digest) &&
+    validOptionalDigest(evaluation.policy_digest) &&
+    validOptionalDigest(evaluation.vault_digest) &&
+    validOptionalDigest(evaluation.subject_digest) &&
+    (evaluation.state !== 'allowed' || (
+      digestPattern.test(evaluation.matrix_digest ?? '') &&
+      digestPattern.test(evaluation.policy_digest ?? '') &&
+      digestPattern.test(evaluation.vault_digest ?? '') &&
+      digestPattern.test(evaluation.subject_digest ?? '')
+    )) &&
     Number.isFinite(Date.parse(evaluation.occurred_at))
   ))
   return valid.sort((left, right) => right.sequence - left.sequence)[0] ?? null
@@ -60,6 +74,7 @@ const reasonLabels: Record<string, string> = {
   review_not_independent: 'La revisión no es independiente del autor.',
   review_changes_requested: 'Existe una solicitud de cambios sin resolver.',
   vault_evidence_missing: 'Falta una revisión aprobada del Vault para este commit.',
+  vault_evidence_digest_invalid: 'La evidencia del Vault no tiene una identidad canónica válida.',
   vault_not_reconciled: 'El Vault no está reconciliado con el commit exacto.',
   secret_scan_failed: 'El escaneo de secretos no pasó.',
   high_or_critical_security_findings: 'Existen hallazgos de seguridad altos o críticos.',

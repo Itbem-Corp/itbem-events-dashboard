@@ -114,7 +114,7 @@ export function ReleaseGateEvaluationPanel({
             </div>
           ) : (
             <p className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.05] p-3 text-xs leading-5 text-ink-secondary">
-              La evidencia coincidía con el commit, política y matriz exactos al evaluarse. Cualquier cambio exige una evaluación nueva.
+              La evidencia coincidía con el commit, la política, el Vault y la matriz exactos al evaluarse. Cualquier cambio exige una evaluación nueva.
             </p>
           )}
 
@@ -122,6 +122,8 @@ export function ReleaseGateEvaluationPanel({
             <summary className="min-h-9 cursor-pointer py-1 text-xs font-semibold text-ink-secondary">Ver identidad verificable</summary>
             <dl className="grid gap-2 border-t border-border-subtle pt-3 text-xs sm:grid-cols-2">
               <div><dt className="text-ink-muted">Matriz</dt><dd className="mt-0.5 font-mono text-ink-secondary">{shortDigest(latest.matrix_digest)}</dd></div>
+              <div><dt className="text-ink-muted">Política</dt><dd className="mt-0.5 font-mono text-ink-secondary">{shortDigest(latest.policy_digest)}</dd></div>
+              <div><dt className="text-ink-muted">Vault</dt><dd className="mt-0.5 font-mono text-ink-secondary">{shortDigest(latest.vault_digest)}</dd></div>
               <div><dt className="text-ink-muted">Sujeto aprobado</dt><dd className="mt-0.5 font-mono text-ink-secondary">{shortDigest(latest.subject_digest)}</dd></div>
               <div><dt className="text-ink-muted">Evaluaciones visibles</dt><dd className="mt-0.5 text-ink-secondary">{evaluationCount}{snapshot?.truncated ? '+' : ''}</dd></div>
             </dl>

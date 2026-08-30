@@ -16,7 +16,7 @@ const snapshot: ReleaseGateEvaluationSnapshot = {
     },
     {
       event_id: 'event-2', sequence: 2, action: 'merge', change_set_id: 'change-1', state: 'allowed',
-      reasons: [], matrix_digest: 'a'.repeat(64), subject_digest: 'b'.repeat(64), occurred_at: '2026-08-30T12:01:00Z',
+      reasons: [], matrix_digest: 'a'.repeat(64), policy_digest: 'b'.repeat(64), vault_digest: 'c'.repeat(64), subject_digest: 'd'.repeat(64), occurred_at: '2026-08-30T12:01:00Z',
     },
   ],
 }
@@ -30,6 +30,8 @@ describe('release Gatekeeper evaluation projection', () => {
     expect(latestReleaseGateEvaluation(snapshot, 'work-2')).toBeNull()
     expect(latestReleaseGateEvaluation({ ...snapshot, schema_version: 2 }, 'work-1')).toBeNull()
     expect(latestReleaseGateEvaluation({ ...snapshot, evaluations: [{ ...snapshot.evaluations[0], sequence: 0 }] }, 'work-1')).toBeNull()
+    expect(latestReleaseGateEvaluation({ ...snapshot, evaluations: [{ ...snapshot.evaluations[1], vault_digest: undefined }] }, 'work-1')).toBeNull()
+    expect(latestReleaseGateEvaluation({ ...snapshot, evaluations: [{ ...snapshot.evaluations[1], policy_digest: 'not-a-digest' }] }, 'work-1')).toBeNull()
   })
 
   it('turns stable reason codes into operator-facing evidence without hiding scope', () => {
