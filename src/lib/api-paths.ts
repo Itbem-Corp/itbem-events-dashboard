@@ -260,6 +260,10 @@ export function deliveryWorkItemExecutionGraphPath(workItemId: string | number):
   return `${deliveryWorkItemPath(workItemId)}/execution-graph`
 }
 
+export function deliveryWorkItemReleaseGateEvaluationsPath(workItemId: string | number): string {
+  return `${deliveryWorkItemPath(workItemId)}/release-gate/evaluations`
+}
+
 export function deliveryWorkItemBudgetPath(workItemId: string | number): string {
   return `${deliveryWorkItemPath(workItemId)}/budget`
 }

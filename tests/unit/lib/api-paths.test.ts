@@ -21,6 +21,7 @@ import {
   designTemplatePath,
   designTemplatesPath,
   deliveryWorkItemStreamPath,
+  deliveryWorkItemReleaseGateEvaluationsPath,
   eventAnalyticsGuestsPath,
   eventAnalyticsPath,
   eventCheckinGuestsPath,
@@ -94,6 +95,10 @@ import { describe, expect, it } from 'vitest'
 describe('api-paths', () => {
   it('builds the explicit code-review retry path without accepting a raw identifier', () => {
     expect(automationTaskRetryCodeReviewPath('task / 1')).toBe('/automation/tasks/task%20%2F%201/retry-code-review')
+  })
+
+  it('builds the release Gatekeeper read-model path with an encoded work item', () => {
+    expect(deliveryWorkItemReleaseGateEvaluationsPath('work / 1')).toBe('/automation/work-items/work%20%2F%201/release-gate/evaluations')
   })
 
   it('builds relative API paths with encoded query params', () => {
