@@ -7,6 +7,7 @@ import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, ShieldCheckIco
 import { useState } from 'react'
 import useSWR from 'swr'
 import type { DeliveryEffectivePolicySnapshot, DeliveryProjectVaultRevision } from './delivery-types'
+import { ProjectPolicyManagementPanel } from './delivery-policy-management-panel'
 import { effectivePolicyMissingLabels, effectivePolicyModeLabel, normalizeEffectivePolicySnapshot } from './effective-policy'
 
 type ProjectEffectivePolicyPanelProps = {
@@ -49,7 +50,7 @@ export function ProjectEffectivePolicyPanel({ projectId, vaultRevisions }: Proje
     ? normalizeEffectivePolicySnapshot(query.data, projectId, repository) ?? undefined
     : undefined
   if (!repository) return null
-  return (
+  return <>
     <EffectivePolicyPanel
       repository={repository}
       repositories={repositories}
@@ -60,7 +61,8 @@ export function ProjectEffectivePolicyPanel({ projectId, vaultRevisions }: Proje
       onRepositoryChange={setRequestedRepository}
       onRefresh={() => { void query.mutate() }}
     />
-  )
+    <ProjectPolicyManagementPanel projectId={projectId} repository={repository} onEffectiveRefresh={() => query.mutate()} />
+  </>
 }
 
 export function EffectivePolicyPanel({ repository, repositories, snapshot, loading = false, validating = false, unavailable = false, onRepositoryChange, onRefresh }: EffectivePolicyPanelProps) {

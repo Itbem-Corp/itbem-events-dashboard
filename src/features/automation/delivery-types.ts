@@ -138,6 +138,39 @@ export type DeliveryPolicySafetyFloor = {
   force_merge_allowed: boolean
 }
 
+export type DeliveryPolicyPatch = {
+  mode?: 'review_only' | 'merge' | 'release'
+  required_test_kinds?: string[]
+  allowed_target_branches?: string[]
+  merge_method?: 'merge' | 'squash' | 'rebase'
+  deployment_workflow?: string
+  deployment_environment?: string
+  required_health_checks?: string[]
+  required_post_merge_checks?: string[]
+  recovery_default?: 'rollback' | 'roll_forward' | 'expand_contract' | 'irreversible'
+}
+
+export type DeliveryPolicyRevision = {
+  id: string
+  schema_version: 1
+  level: 'project' | 'repository' | 'override'
+  project_id: string
+  repository?: string
+  change_set_id?: string
+  patch: DeliveryPolicyPatch
+  reason?: string
+  expires_at?: string
+  content_sha256: string
+  created_at: string
+  status: 'pending' | 'approved' | 'revoked'
+  latest_decision?: {
+    id: string
+    action: 'approved' | 'revoked'
+    reason?: string
+    occurred_at: string
+  }
+}
+
 export type DeliveryEffectivePolicySnapshot = {
   schema_version: 1
   project_id: string
