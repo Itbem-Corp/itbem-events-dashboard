@@ -4,7 +4,7 @@ import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Dialog, DialogActions, DialogBody, DialogTitle } from '@/components/dialog'
 import { PageTransition } from '@/components/ui/page-transition'
-import { deliveryPortfolioRefreshInterval, normalizeDeliveryPortfolio, type DeliveryPortfolioSnapshot } from '@/features/automation/delivery-portfolio'
+import { deliveryPortfolioRefreshInterval, normalizeDeliveryPortfolio, type DeliveryPortfolioReview, type DeliveryPortfolioSnapshot } from '@/features/automation/delivery-portfolio'
 import { AgentLaneHealthPanel } from '@/features/automation/agent-lane-health-panel'
 import type { AutomationHealth } from '@/features/automation/agent-lane-health'
 import type { DeliveryProject } from '@/features/automation/delivery-types'
@@ -62,11 +62,13 @@ const ExecutionGraph = dynamic(
 
 type AutomationTask = {
   id: string
-  job_id: string
+  job_id?: string
   operation: string
   delivery_work_item_id?: string
-  input_ref: string
+  input_ref?: string
   output_ref?: string
+  result_available?: boolean
+  has_error?: boolean
   status: 'queued' | 'running' | 'cancel_requested' | 'cancelled' | 'completed' | 'failed' | 'dispatch_failed'
   provider?: string
   model?: string
@@ -85,6 +87,7 @@ type PortfolioItem = {
   updatedAt: string
   tasks: AutomationTask[]
   tasksTruncated?: boolean
+  review?: DeliveryPortfolioReview
 }
 
 const quickOperations = [
@@ -124,6 +127,7 @@ function itemStatus(item: PortfolioItem) {
   if (activeTask) return { label: 'En curso', tone: 'sky' as const }
   if (tasks.some((task) => task.status === 'cancelled')) return { label: 'Ejecución cancelada', tone: 'zinc' as const }
   if (item.state === 'released') return { label: 'Completado', tone: 'emerald' as const }
+  if (item.review?.reviewUrl) return { label: 'Publicada', tone: 'emerald' as const }
   // A completed attempt means the autonomous workflow has already moved.
   // “Preparando” implied an untouched item even when the graph was showing
   // real history, which made the portfolio feel stale.
@@ -136,8 +140,9 @@ function nextPhase(item: PortfolioItem) {
   if (hasCancellationRequest(item.tasks)) return 'Detención segura'
   if (item.state === 'blocked') return 'Resolver bloqueo'
   if (hasUnresolvedTaskFailure(item.tasks)) return 'Revisar incidencia'
+  if (item.review?.reviewUrl) return 'Revisión publicada'
   const running = item.tasks.find((task) => task.status === 'running' || task.status === 'queued')
-  if (running) return phaseDefinitions.find((phase) => phase.operation === running.operation)?.label ?? 'Agente'
+  if (running) return running.operation === 'code.review' ? 'Revisión GitHub' : phaseDefinitions.find((phase) => phase.operation === running.operation)?.label ?? 'Agente'
   if (item.tasks.some((task) => task.status === 'cancelled')) return 'Revisar resultado'
   // Planning retains a generated proposal before it becomes a versioned
   // plan. The work-item console calls this “Propuesta preparada”; use the
@@ -155,6 +160,7 @@ function nextActionCopy(item: PortfolioItem) {
   if (hasCancellationRequest(item.tasks)) return 'La ejecución se está cerrando de forma segura.'
   if (item.state === 'blocked') return 'Requiere resolver el bloqueo.'
   if (hasUnresolvedTaskFailure(item.tasks)) return 'El agente necesita una decisión antes de reintentar.'
+  if (item.review?.reviewUrl) return `GitHub registró ${item.review.event === 'APPROVE' ? 'la aprobación' : item.review.event === 'REQUEST_CHANGES' ? 'los cambios solicitados' : 'el comentario'} sobre el SHA exacto.`
   if (item.tasks.some((task) => task.status === 'running' || task.status === 'queued')) return 'El agente sigue avanzando en las etapas disponibles.'
   if (item.tasks.some((task) => task.status === 'cancelled')) return 'Una ejecución se detuvo; el flujo conserva su historial.'
   if (item.state === 'planning' && item.tasks.some((task) => task.operation === 'delivery.plan' && task.status === 'completed')) return 'El gate verificará la propuesta antes de continuar.'
@@ -201,6 +207,10 @@ function phaseState(item: PortfolioItem, index: number): ExecutionGraphStatus {
 }
 
 function progressPhases(item: PortfolioItem) {
+  if (item.review) {
+    const latest = item.tasks[0]
+    return [{ operation: 'code.review', label: 'Revisar PR', state: taskStatus(latest.status), attempts: item.review.attemptCount, latest }]
+  }
   const observedPhaseIndexes = phaseDefinitions
     .map((phase, index) => item.tasks.some((task) => task.operation === phase.operation) ? index : -1)
     .filter((index) => index >= 0)
@@ -340,6 +350,19 @@ function workItemFromPortfolio(snapshot: DeliveryPortfolioSnapshot): PortfolioIt
   })))
 }
 
+function workItemFromReview(review: DeliveryPortfolioReview): PortfolioItem {
+  return {
+    id: `review:${review.taskId}`,
+    title: `${review.repository} · PR #${review.pullRequest}`,
+    client: `Reviewer · ${review.headSha.slice(0, 7)}`,
+    href: '',
+    state: review.status,
+    updatedAt: review.publishedAt ?? review.updatedAt,
+    review,
+    tasks: [{ id: review.taskId, operation: 'code.review', status: review.status, created_at: review.createdAt, result_available: review.status === 'completed' }],
+  }
+}
+
 function formatShortDate(value?: string) {
   if (!value) return 'sin movimiento aún'
   const parsed = new Date(value)
@@ -381,7 +404,8 @@ export default function AutomationPage() {
     const projectItems = portfolioQuery.data
       ? workItemFromPortfolio(portfolioQuery.data)
       : (projectsQuery.data ?? []).flatMap(workItemFromProject)
-    const attached = new Set(projectItems.flatMap((item) => item.tasks.map((task) => task.id)))
+    const reviewItems = (portfolioQuery.data?.reviewQueue ?? []).map(workItemFromReview)
+    const attached = new Set([...projectItems, ...reviewItems].flatMap((item) => item.tasks.map((task) => task.id)))
     const standalone: PortfolioItem[] = looseTasks
       .filter((task) => !task.delivery_work_item_id && !attached.has(task.id))
       .map((task) => ({
@@ -393,7 +417,7 @@ export default function AutomationPage() {
         updatedAt: task.created_at,
         tasks: [task],
       }))
-    return [...projectItems, ...standalone].sort((left, right) => {
+    return [...projectItems, ...reviewItems, ...standalone].sort((left, right) => {
       const priority = portfolioPriority(left) - portfolioPriority(right)
       return priority || Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
     })
@@ -457,7 +481,7 @@ export default function AutomationPage() {
   const visibleIncidents = selectedGraphIncident ? [selectedGraphIncident, ...incidents] : incidents
   const needsDecision = [...visibleIncidents, ...decisions.filter((item) => !visibleIncidents.some((incident) => incident.id === item.id))]
   const portfolioAttention = portfolioQuery.data
-    ? portfolioQuery.data.totals.decisionsRequired + portfolioQuery.data.totals.blockedWorkItems + portfolioQuery.data.totals.attentionTasks
+    ? portfolioQuery.data.totals.decisionsRequired + portfolioQuery.data.totals.blockedWorkItems + portfolioQuery.data.totals.attentionTasks + portfolioQuery.data.totals.attentionReviews
     : needsDecision.length
   // The compact portfolio total has formal gates, while the Center also
   // surfaces failed/blocked runs as human interventions. Do not show a zero
@@ -639,7 +663,7 @@ export default function AutomationPage() {
                         <div className="grid items-start gap-3.5 p-3.5 sm:p-4 md:grid-cols-[minmax(8.5rem,.72fr)_minmax(0,1.8fr)] 2xl:grid-cols-[minmax(8.5rem,.8fr)_minmax(20rem,2fr)_minmax(9.5rem,.9fr)]">
                           <div aria-label="Ruta del resultado" className="order-1 rounded-2xl border border-border-subtle bg-surface-soft/45 p-3.5"><p className="text-[10px] font-bold tracking-[.14em] text-ink-muted uppercase">Ruta</p><div className="mt-3 space-y-2.5">{progressPhases(item).map((phase) => <div key={phase.operation} className="flex gap-2"><span className={`mt-1.5 size-2 shrink-0 rounded-full ${phase.state === 'complete' ? 'bg-emerald-500' : phase.state === 'active' ? 'bg-sky-500 delivery-signal' : phase.state === 'queued' || phase.state === 'human' ? 'bg-amber-500' : phase.state === 'attention' ? 'bg-rose-500' : phase.state === 'cancelling' || phase.state === 'cancelled' ? 'bg-ink-muted/60' : 'bg-ink-muted/60'}`} /><span className="min-w-0"><span className="block truncate text-xs font-semibold text-ink">{phase.label}</span><span className="block truncate text-[11px] text-ink-muted">{progressLabel(phase.state)}</span></span></div>)}{item.tasks.length > 0 ? <p className="pt-0.5 text-[11px] font-semibold text-ink-muted">{item.tasks.length} ejecuci{item.tasks.length === 1 ? 'ón registrada' : 'ones registradas'}</p> : <p className="text-xs leading-5 text-ink-muted">Preparando el primer movimiento.</p>}</div></div>
                           <div ref={expanded ? selectedFlowRef : undefined} tabIndex={-1} aria-label={`Live steps de ${item.title}`} className="order-2 min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised md:order-2"><ExecutionGraph density="compact" events={selectedGraphEvents} eyebrow="Live steps" title="Flujo" maxEvents={8} autoFollow statusIndicator={item.workItemId ? { state: selectedStream.status, label: selectedStream.status === 'live' ? 'Canal en vivo' : undefined, tone: 'default', onRefresh: () => { void portfolioQuery.mutate(); void selectedGraphQuery.mutate() } } : undefined} grouping={{ enabled: true, mode: 'smart' }} views={[{ id: 'flow', label: 'Flujo', shortLabel: 'Flujo' }]} /></div>
-                          <div className="order-3 rounded-2xl border border-border-subtle bg-surface-raised p-3.5 md:order-3 md:col-span-2 2xl:col-span-1"><p className="text-[10px] font-bold tracking-[.14em] text-ink-muted uppercase">Siguiente</p><p className="mt-2 text-sm font-semibold text-ink">{nextPhase(item)}</p><p className="mt-1 text-xs leading-5 text-ink-muted">{nextActionCopy(item)}</p>{item.href ? <Link href={item.href} className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Abrir resultado <ArrowRightIcon className="size-3.5" /></Link> : item.tasks[0]?.output_ref ? <Button outline className="mt-3" disabled={openingTaskID === item.tasks[0].id} onClick={() => void openOutput(item.tasks[0].id)}>{openingTaskID === item.tasks[0].id ? 'Abriendo…' : 'Ver resultado'}</Button> : null}</div>
+                          <div className="order-3 rounded-2xl border border-border-subtle bg-surface-raised p-3.5 md:order-3 md:col-span-2 2xl:col-span-1"><p className="text-[10px] font-bold tracking-[.14em] text-ink-muted uppercase">Siguiente</p><p className="mt-2 text-sm font-semibold text-ink">{nextPhase(item)}</p><p className="mt-1 text-xs leading-5 text-ink-muted">{nextActionCopy(item)}</p>{item.href ? <Link href={item.href} className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Abrir resultado <ArrowRightIcon className="size-3.5" /></Link> : item.review?.reviewUrl ? <a href={item.review.reviewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Ver revisión en GitHub <ArrowRightIcon className="size-3.5" /></a> : item.tasks[0]?.result_available ? <Button outline className="mt-3" disabled={openingTaskID === item.tasks[0].id} onClick={() => void openOutput(item.tasks[0].id)}>{openingTaskID === item.tasks[0].id ? 'Abriendo…' : 'Ver resultado'}</Button> : null}</div>
                         </div>
                       </motion.div> : null}</AnimatePresence>
                     </article>
