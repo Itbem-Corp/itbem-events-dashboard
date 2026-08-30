@@ -15,7 +15,9 @@ const expected = Object.fromEntries(contract.products.map((product) => [product.
     hostnames: product.deployment.dashboardHostnames,
     localHostnames: product.deployment.localDashboardHostnames,
     apiHostname: product.deployment.apiHostname,
-    clientIdEnv: product.deployment.cognitoClientEnv
+    clientIdEnv: product.deployment.cognitoClientEnv,
+    ownedDomains: product.deployment.ownedDomains,
+    publicExperience: product.deployment.publicExperience
   }
 }]))
 assert.deepEqual(catalog, expected, 'dashboard catalog must match the pinned product contract')

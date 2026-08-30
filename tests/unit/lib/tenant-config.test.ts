@@ -1,4 +1,4 @@
-import { backendBaseUrlForHostname, hostnameForRequest, tenantCodeForHostname, tenantForHostname, tenantForRequest, tenantPresentationForHostname } from '@/lib/tenant-config'
+import { backendBaseUrlForHostname, hostnameForRequest, publicExperienceUrlForHostname, tenantCodeForHostname, tenantForHostname, tenantForRequest, tenantPresentationForHostname } from '@/lib/tenant-config'
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 
@@ -63,6 +63,12 @@ describe('tenant configuration', () => {
     expect(backendBaseUrlForHostname('dashboard.itbem.com.mx', 'http://localhost:8080')).toBe('https://api.itbem.com.mx')
     expect(backendBaseUrlForHostname('dashboard.cafettonhouse.com', 'http://localhost:8080')).toBe('https://api.cafettonhouse.com')
     expect(backendBaseUrlForHostname('dashboard.itbem.localhost', 'http://localhost:8080/')).toBe('http://localhost:8080')
+  })
+
+  it('exposes only explicitly enabled public product experiences', () => {
+    expect(publicExperienceUrlForHostname('dashboard.eventiapp.com.mx')).toBe('https://www.eventiapp.com.mx')
+    expect(publicExperienceUrlForHostname('dashboard.itbem.com.mx')).toBeNull()
+    expect(publicExperienceUrlForHostname('dashboard.cafettonhouse.com')).toBeNull()
   })
 
   it('fails closed when no app client is configured', () => {

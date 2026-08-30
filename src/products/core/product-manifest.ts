@@ -9,6 +9,23 @@ export type ProductRouteDefinition = {
   preload: 'none' | 'route' | 'route-and-data'
 }
 
+export type PublicExperience =
+  | { enabled: false }
+  | {
+      enabled: true
+      canonicalHostname: string
+      hostnames: readonly string[]
+      deploymentTarget: 'cloudflare-workers'
+      branding: {
+        name: string
+        shortName: string
+        description: string
+        locale: string
+        themeColor: string
+        backgroundColor: string
+      }
+    }
+
 export type ProductManifest = {
   code: TenantCode
   identity: {
@@ -23,6 +40,8 @@ export type ProductManifest = {
     localHostnames: readonly string[]
     apiHostname: string
     clientIdEnv: string
+    ownedDomains: readonly string[]
+    publicExperience: PublicExperience
   }
   backendModules: readonly TenantModule[]
   features: readonly ProductFeature[]

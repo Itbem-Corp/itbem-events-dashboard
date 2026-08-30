@@ -11,7 +11,22 @@
       "hostnames": ["dashboard.eventiapp.com.mx"],
       "localHostnames": ["localhost", "127.0.0.1", "dashboard.eventiapp.localhost"],
       "apiHostname": "api.eventiapp.com.mx",
-      "clientIdEnv": "COGNITO_EVENTIAPP_CLIENT_ID"
+      "clientIdEnv": "COGNITO_EVENTIAPP_CLIENT_ID",
+      "ownedDomains": ["eventiapp.com.mx"],
+      "publicExperience": {
+        "enabled": true,
+        "canonicalHostname": "www.eventiapp.com.mx",
+        "hostnames": ["eventiapp.com.mx", "www.eventiapp.com.mx"],
+        "deploymentTarget": "cloudflare-workers",
+        "branding": {
+          "name": "EventiApp",
+          "shortName": "EventiApp",
+          "description": "Tu invitación digital",
+          "locale": "es-MX",
+          "themeColor": "#dd2284",
+          "backgroundColor": "#07293a"
+        }
+      }
     }
   },
   "itbem": {
@@ -26,7 +41,9 @@
       "hostnames": ["dashboard.itbem.com.mx", "dashboard.itbem.com"],
       "localHostnames": ["dashboard.itbem.localhost"],
       "apiHostname": "api.itbem.com.mx",
-      "clientIdEnv": "COGNITO_ITBEM_CLIENT_ID"
+      "clientIdEnv": "COGNITO_ITBEM_CLIENT_ID",
+      "ownedDomains": ["itbem.com.mx", "itbem.com"],
+      "publicExperience": { "enabled": false }
     }
   },
   "cafettonhouse": {
@@ -41,7 +58,9 @@
       "hostnames": ["dashboard.cafettonhouse.com"],
       "localHostnames": ["dashboard.cafettonhouse.localhost"],
       "apiHostname": "api.cafettonhouse.com",
-      "clientIdEnv": "COGNITO_CAFETTONHOUSE_CLIENT_ID"
+      "clientIdEnv": "COGNITO_CAFETTONHOUSE_CLIENT_ID",
+      "ownedDomains": ["cafettonhouse.com"],
+      "publicExperience": { "enabled": false }
     }
   }
 }
