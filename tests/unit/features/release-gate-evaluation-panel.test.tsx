@@ -24,7 +24,7 @@ describe('ReleaseGateEvaluationPanel', () => {
           truncated: false,
           evaluations: [{
             event_id: 'event-1', sequence: 1, action: 'release', change_set_id: 'change-1', state: 'allowed', reasons: [],
-            matrix_digest: 'a'.repeat(64), policy_digest: 'b'.repeat(64), vault_digest: 'c'.repeat(64), subject_digest: 'd'.repeat(64), occurred_at: '2026-08-30T12:00:00Z',
+            matrix_digest: 'a'.repeat(64), policy_digest: 'b'.repeat(64), vault_digest: 'c'.repeat(64), requirements_digest: 'd'.repeat(64), subject_digest: 'e'.repeat(64), occurred_at: '2026-08-30T12:00:00Z',
           }],
         }}
       />,
@@ -33,6 +33,7 @@ describe('ReleaseGateEvaluationPanel', () => {
     expect(screen.getByText('Evidencia completa')).toBeInTheDocument()
     expect(screen.getByText('Política')).toBeInTheDocument()
     expect(screen.getByText('Vault')).toBeInTheDocument()
+    expect(screen.getByText('Requisitos de branch')).toBeInTheDocument()
     expect(screen.getByText(/nunca ejecuta ni sustituye la aprobación humana/i)).toBeInTheDocument()
     expect(screen.queryByText(/mergeado|desplegado/i)).not.toBeInTheDocument()
   })

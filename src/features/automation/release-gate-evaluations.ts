@@ -12,6 +12,7 @@ export type ReleaseGateEvaluation = {
   matrix_digest?: string
   policy_digest?: string
   vault_digest?: string
+  requirements_digest?: string
   subject_digest?: string
   state: 'allowed' | 'blocked'
   reasons: ReleaseGateReason[]
@@ -46,11 +47,13 @@ export function latestReleaseGateEvaluation(
     validOptionalDigest(evaluation.matrix_digest) &&
     validOptionalDigest(evaluation.policy_digest) &&
     validOptionalDigest(evaluation.vault_digest) &&
+    validOptionalDigest(evaluation.requirements_digest) &&
     validOptionalDigest(evaluation.subject_digest) &&
     (evaluation.state !== 'allowed' || (
       digestPattern.test(evaluation.matrix_digest ?? '') &&
       digestPattern.test(evaluation.policy_digest ?? '') &&
       digestPattern.test(evaluation.vault_digest ?? '') &&
+      digestPattern.test(evaluation.requirements_digest ?? '') &&
       digestPattern.test(evaluation.subject_digest ?? '')
     )) &&
     Number.isFinite(Date.parse(evaluation.occurred_at))
@@ -65,10 +68,13 @@ const reasonLabels: Record<string, string> = {
   branch_evidence_missing: 'Falta evidencia del branch protegido.',
   branch_evidence_stale: 'El commit del branch cambió después de recopilar la evidencia.',
   branch_protection_unknown: 'No se pudo comprobar la protección del branch.',
+  branch_requirements_digest_invalid: 'Los requisitos protegidos del branch no tienen una identidad canónica válida.',
   branch_not_mergeable: 'El branch tiene conflictos o no es mergeable.',
   required_check_missing: 'Falta un check obligatorio.',
   required_check_stale: 'Un check obligatorio pertenece a otro commit.',
   required_check_failed: 'Un check obligatorio falló.',
+  required_check_source_mismatch: 'El check obligatorio fue publicado por otra integración.',
+  required_check_source_ambiguous: 'Varias integraciones publicaron el mismo check sin una identidad fijada.',
   review_evidence_missing: 'Falta una revisión independiente para el commit exacto.',
   review_evidence_stale: 'La revisión pertenece a otro commit.',
   review_not_independent: 'La revisión no es independiente del autor.',

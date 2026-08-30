@@ -124,6 +124,7 @@ export function ReleaseGateEvaluationPanel({
               <div><dt className="text-ink-muted">Matriz</dt><dd className="mt-0.5 font-mono text-ink-secondary">{shortDigest(latest.matrix_digest)}</dd></div>
               <div><dt className="text-ink-muted">Política</dt><dd className="mt-0.5 font-mono text-ink-secondary">{shortDigest(latest.policy_digest)}</dd></div>
               <div><dt className="text-ink-muted">Vault</dt><dd className="mt-0.5 font-mono text-ink-secondary">{shortDigest(latest.vault_digest)}</dd></div>
+              <div><dt className="text-ink-muted">Requisitos de branch</dt><dd className="mt-0.5 font-mono text-ink-secondary">{shortDigest(latest.requirements_digest)}</dd></div>
               <div><dt className="text-ink-muted">Sujeto aprobado</dt><dd className="mt-0.5 font-mono text-ink-secondary">{shortDigest(latest.subject_digest)}</dd></div>
               <div><dt className="text-ink-muted">Evaluaciones visibles</dt><dd className="mt-0.5 text-ink-secondary">{evaluationCount}{snapshot?.truncated ? '+' : ''}</dd></div>
             </dl>
