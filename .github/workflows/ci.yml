@@ -283,8 +283,9 @@ jobs:
           retention-days: 7
 
 # ── Full authenticated E2E — manual staging trigger ──────────────────────────
-# E2E requires a real Cognito staging pool (stagingauth.eventiapp.com.mx),
-# TEST_EMAIL / TEST_PASSWORD secrets, and the full auth flow.
+# E2E requires the isolated Cognito QA account and the full auth flow. The
+# repository keeps the operator-facing TEST_* names inside Playwright while
+# mapping them from the current E2E_* GitHub secrets at this boundary.
 # Run manually when you have the staging environment ready.
   e2e:
     name: E2E Tests (Playwright)
@@ -308,13 +309,29 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
+      - name: Validate isolated E2E configuration
+        env:
+          E2E_BACKEND_URL: ${{ vars.E2E_BACKEND_URL }}
+          PRODUCTION_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
+          COGNITO_AWS_REGION: ${{ secrets.COGNITO_REGION }}
+          COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          COGNITO_EVENTIAPP_CLIENT_ID: ${{ secrets.E2E_COGNITO_CLIENT_ID }}
+          COGNITO_DOMAIN: ${{ secrets.COGNITO_DOMAIN }}
+          TEST_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          node scripts/validate-e2e-environment.mjs
+
       - name: Build app
         run: npm run build
         env:
-          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
+          NEXT_PUBLIC_BACKEND_URL: ${{ vars.E2E_BACKEND_URL }}
           COGNITO_REGION: ${{ secrets.COGNITO_REGION }}
+          COGNITO_AWS_REGION: ${{ secrets.COGNITO_REGION }}
           COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
           COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          COGNITO_EVENTIAPP_CLIENT_ID: ${{ secrets.E2E_COGNITO_CLIENT_ID }}
           COGNITO_DOMAIN: ${{ secrets.COGNITO_DOMAIN }}
           COGNITO_REDIRECT_URI: ${{ secrets.COGNITO_REDIRECT_URI }}
           COGNITO_LOGOUT_REDIRECT_URI: ${{ secrets.COGNITO_LOGOUT_REDIRECT_URI }}
@@ -322,7 +339,15 @@ jobs:
       - name: Start app
         run: npm run start &
         env:
-          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
+          NEXT_PUBLIC_BACKEND_URL: ${{ vars.E2E_BACKEND_URL }}
+          COGNITO_REGION: ${{ secrets.COGNITO_REGION }}
+          COGNITO_AWS_REGION: ${{ secrets.COGNITO_REGION }}
+          COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          COGNITO_EVENTIAPP_CLIENT_ID: ${{ secrets.E2E_COGNITO_CLIENT_ID }}
+          COGNITO_DOMAIN: ${{ secrets.COGNITO_DOMAIN }}
+          COGNITO_REDIRECT_URI: ${{ secrets.COGNITO_REDIRECT_URI }}
+          COGNITO_LOGOUT_REDIRECT_URI: ${{ secrets.COGNITO_LOGOUT_REDIRECT_URI }}
           PORT: 3000
 
       - name: Wait for app to be ready
@@ -331,9 +356,9 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
         env:
-          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
-          TEST_EMAIL: ${{ secrets.TEST_EMAIL }}
-          TEST_PASSWORD: ${{ secrets.TEST_PASSWORD }}
+          NEXT_PUBLIC_BACKEND_URL: ${{ vars.E2E_BACKEND_URL }}
+          TEST_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          TEST_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
           CI: true
 
       - name: Upload Playwright report
