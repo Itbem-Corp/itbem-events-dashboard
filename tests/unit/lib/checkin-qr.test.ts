@@ -78,7 +78,7 @@ describe('parseCheckinQrPayload', () => {
   it('keeps legacy invitation payloads compatible', () => {
     expect(parseCheckinQrPayload(' invitation_guest-99 ')).toEqual({
       raw: 'invitation_guest-99',
-      token: 'invitation_guest-99',
+      token: 'invitation_guest-99', // gitleaks:allow -- legacy opaque QR fixture
       guestId: 'guest-99',
     })
   })
