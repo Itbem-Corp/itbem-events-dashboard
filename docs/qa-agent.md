@@ -11,6 +11,21 @@ Mantiene los tests Playwright E2E del dashboard. Un archivo por feature/sección
 3. `TEST_EMAIL` y `TEST_PASSWORD` definidos en `.env.local` (usuario en Cognito staging)
 4. Sesión de auth generada: `npx playwright test tests/e2e/fixtures/auth.setup.ts`
 
+Para pruebas destructivas del control plane no se usa Cognito ni producción.
+El issuer efímero del backend entrega un ID token mediante un archivo temporal
+privado. El operador lo lee directamente al proceso Playwright como
+`E2E_ID_TOKEN` y configura `PLAYWRIGHT_BASE_URL` y `E2E_BACKEND_URL` con las
+instancias aisladas en loopback. El fixture rechaza URLs remotas, credenciales,
+query o fragment; valida la sesión contra `/api/auth/token` antes de escribir
+`storageState`. El teardown elimina ese archivo automáticamente y el modo
+efímero desactiva screenshot, trace y video para no serializar cookies en
+artifacts.
+
+El token no se guarda en `.env.local`, Vault, el repositorio, logs, screenshots,
+reportes o artifacts. Se elimina junto con el issuer y la base aislada al cerrar
+la corrida. Si `E2E_ID_TOKEN` no existe, el flujo normal de Cognito staging
+sigue siendo el comportamiento predeterminado.
+
 ---
 
 ## Comandos
@@ -34,7 +49,10 @@ tests/
       session.json          ← generado por auth.setup.ts (NO commitear)
     fixtures/
       auth.setup.ts         ← login una vez → guarda storageState
-    auth.spec.ts            ← login, logout, redirect sin sesión
+      auth.teardown.ts      ← elimina storageState del modo efímero
+      local-auth.ts         ← valida token efímero y targets loopback
+      auth.spec.ts            ← login, logout, redirect sin sesión
+    local-control-plane-auth.spec.ts ← smoke real de sesión efímera aislada
     dashboard.spec.ts       ← KPIs, tabla de eventos, sidebar org
     clients.spec.ts         ← CRUD clientes, modal, validación, delete
     users.spec.ts           ← invitación, toggle activo, badges, modal

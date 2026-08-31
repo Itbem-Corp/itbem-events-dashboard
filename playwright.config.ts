@@ -1,16 +1,19 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const ephemeralLocalAuth = !!process.env.E2E_ID_TOKEN?.trim()
+
 export default defineConfig({
   testDir: './tests/e2e',
+  globalTeardown: './tests/e2e/fixtures/auth.teardown.ts',
   fullyParallel: false, // sequential — comparten auth state
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: [['html'], ['list']],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
-    video: 'on-first-retry',
+    trace: ephemeralLocalAuth ? 'off' : 'on-first-retry',
+    screenshot: ephemeralLocalAuth ? 'off' : 'only-on-failure',
+    video: ephemeralLocalAuth ? 'off' : 'on-first-retry',
   },
   projects: [
     {
