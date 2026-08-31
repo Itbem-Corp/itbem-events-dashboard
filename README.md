@@ -31,6 +31,16 @@ are documented in the workspace local-development guide. Copy `.env.example`
 to `.env.local` and provide the required Cognito and backend values before
 starting standalone development.
 
+Authenticated destructive E2E has a separate, cost-free path for the isolated
+loopback control plane. Supply its short-lived signed token to the Playwright
+process as `E2E_ID_TOKEN`, with both `PLAYWRIGHT_BASE_URL` and
+`E2E_BACKEND_URL` pointing at the disposable loopback dashboard/API. The auth
+fixture rejects remote targets and stores only the temporary HttpOnly session
+in Playwright state. Teardown removes that state and screenshot/trace/video
+recording is disabled for this mode. Never place that token in `.env.local`, Vault, logs,
+CI artifacts, or a deployed environment. Cognito remains the only production
+identity provider; see `docs/qa-agent.md` for the qualification workflow.
+
 ## Boundaries
 
 - Keep dashboard-only components, routes and interaction state in this repo.
