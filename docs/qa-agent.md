@@ -15,7 +15,11 @@ Para pruebas destructivas del control plane no se usa Cognito ni producción.
 El issuer efímero del backend entrega un ID token mediante un archivo temporal
 privado. El operador lo lee directamente al proceso Playwright como
 `E2E_ID_TOKEN` y configura `PLAYWRIGHT_BASE_URL` y `E2E_BACKEND_URL` con las
-instancias aisladas en loopback. El fixture rechaza URLs remotas, credenciales,
+instancias aisladas en loopback. Para el workspace de automatización, el
+dashboard usa `http://dashboard.itbem.localhost:<puerto>` y debe arrancar con
+`COGNITO_ITBEM_CLIENT_ID=local-itbem`, o con el audience exacto configurado en
+el issuer y el backend; este valor es un identificador público, no una credencial.
+El fixture rechaza URLs remotas, credenciales,
 query o fragment; valida la sesión contra `/api/auth/token` antes de escribir
 `storageState`. El teardown elimina ese archivo automáticamente y el modo
 efímero desactiva screenshot, trace y video para no serializar cookies en
@@ -25,6 +29,16 @@ El token no se guarda en `.env.local`, Vault, el repositorio, logs, screenshots,
 reportes o artifacts. Se elimina junto con el issuer y la base aislada al cerrar
 la corrida. Si `E2E_ID_TOKEN` no existe, el flujo normal de Cognito staging
 sigue siendo el comportamiento predeterminado.
+
+La calificación completa de Delivery también exige un cliente desechable y
+checkpoints GitHub exactos, todos no secretos. Define `E2E_DELIVERY_CLIENT_ID`
+y `E2E_DELIVERY_REPOSITORIES_JSON` como una lista de objetos
+`{"url":"https://github.com/org/repo","revision":"<sha-completo>"}` y ejecuta
+`local-delivery-workflows.spec.ts` únicamente contra el issuer, dashboard y API
+aislados en loopback. La prueba crea proyectos locales, inspecciona y aprueba el
+Vault exacto, congela matrices single-repo y multi-repo y comprueba en navegador
+la secuencia SSE `snapshot → update`. No concede publicación, merge ni deploy y
+nunca debe apuntar a un backend remoto.
 
 ---
 
@@ -53,6 +67,7 @@ tests/
       local-auth.ts         ← valida token efímero y targets loopback
       auth.spec.ts            ← login, logout, redirect sin sesión
     local-control-plane-auth.spec.ts ← smoke real de sesión efímera aislada
+    local-delivery-workflows.spec.ts ← Vault single/multi-repo + SSE real aislado
     dashboard.spec.ts       ← KPIs, tabla de eventos, sidebar org
     clients.spec.ts         ← CRUD clientes, modal, validación, delete
     users.spec.ts           ← invitación, toggle activo, badges, modal
