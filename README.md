@@ -34,7 +34,11 @@ starting standalone development.
 Authenticated destructive E2E has a separate, cost-free path for the isolated
 loopback control plane. Supply its short-lived signed token to the Playwright
 process as `E2E_ID_TOKEN`, with both `PLAYWRIGHT_BASE_URL` and
-`E2E_BACKEND_URL` pointing at the disposable loopback dashboard/API. The auth
+`E2E_BACKEND_URL` pointing at the disposable loopback dashboard/API. For the
+ITBEM automation workspace use `http://dashboard.itbem.localhost:<port>` and
+start the dashboard with `COGNITO_ITBEM_CLIENT_ID=local-itbem` (or the exact
+audience selected for the fixture issuer), so product routing and the disposable
+audience match. The auth
 fixture rejects remote targets and stores only the temporary HttpOnly session
 in Playwright state. Teardown removes that state and screenshot/trace/video
 recording is disabled for this mode. Never place that token in `.env.local`, Vault, logs,

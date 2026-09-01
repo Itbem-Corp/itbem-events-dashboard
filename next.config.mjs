@@ -57,6 +57,9 @@ const nextConfig = {
   // The development indicator portal overlaps the fixed mobile navigation and
   // can intercept taps. Compilation state is already visible in the terminal.
   devIndicators: false,
+  // Repository-owned agent guidance is reviewed source. Do not let `next dev`
+  // append generated instructions and leave an otherwise clean worktree dirty.
+  agentRules: false,
   images: {
     remotePatterns: [
       backendRemotePattern(),

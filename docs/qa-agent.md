@@ -15,7 +15,11 @@ Para pruebas destructivas del control plane no se usa Cognito ni producción.
 El issuer efímero del backend entrega un ID token mediante un archivo temporal
 privado. El operador lo lee directamente al proceso Playwright como
 `E2E_ID_TOKEN` y configura `PLAYWRIGHT_BASE_URL` y `E2E_BACKEND_URL` con las
-instancias aisladas en loopback. El fixture rechaza URLs remotas, credenciales,
+instancias aisladas en loopback. Para el workspace de automatización, el
+dashboard usa `http://dashboard.itbem.localhost:<puerto>` y debe arrancar con
+`COGNITO_ITBEM_CLIENT_ID=local-itbem`, o con el audience exacto configurado en
+el issuer y el backend; este valor es un identificador público, no una credencial.
+El fixture rechaza URLs remotas, credenciales,
 query o fragment; valida la sesión contra `/api/auth/token` antes de escribir
 `storageState`. El teardown elimina ese archivo automáticamente y el modo
 efímero desactiva screenshot, trace y video para no serializar cookies en
