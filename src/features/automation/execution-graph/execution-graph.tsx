@@ -930,7 +930,7 @@ export function ExecutionGraph({
       ? <TimelineView items={items} onOpen={openItem} />
       : (
           <div ref={graphFrameRef} className={graphHeightClass}>
-            <ReactFlow className="live-execution-flow" nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: density === 'compact' ? 0.12 : 0.22, maxZoom: density === 'compact' ? 1.24 : 1.15 }} minZoom={graphMinZoom} maxZoom={1.4} nodesDraggable={false} nodesConnectable={false} elementsSelectable panOnDrag onMoveStart={(event) => { if (event?.isTrusted) setIsFollowingLive(false) }} onPaneClick={() => closeMenu()} proOptions={{ hideAttribution: true }}>
+            <ReactFlow className="live-execution-flow" nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: density === 'compact' ? 0.12 : 0.22, maxZoom: density === 'compact' ? 1.24 : 1.15 }} minZoom={graphMinZoom} maxZoom={1.4} nodesDraggable={false} nodesConnectable={false} elementsSelectable panOnDrag onMoveStart={(event) => { if (event?.isTrusted) setIsFollowingLive(false) }} onPaneClick={() => closeMenu()}>
               <Background gap={density === 'compact' ? 16 : 18} size={1} color="var(--app-border-subtle)" />
               <GraphInitialFit eventKey={graphInitialFitKey} compact={compact} padding={graphFitPadding} prefersReducedMotion={prefersReducedMotion} />
               {autoFollow ? <GraphAutoFollow eventKey={graphLiveKey} latestNodeId={items.at(-1)?.id} following={isFollowingLive} onFollowingChange={(following) => { setIsFollowingLive(following); if (following) setHasNewWhileExploring(false) }} prefersReducedMotion={prefersReducedMotion} compact={density === 'compact'} flowFrameRef={graphFrameRef} /> : null}
