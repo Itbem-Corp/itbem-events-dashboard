@@ -38,7 +38,12 @@ process as `E2E_ID_TOKEN`, with both `PLAYWRIGHT_BASE_URL` and
 ITBEM automation workspace use `http://dashboard.itbem.localhost:<port>` and
 start the dashboard with `COGNITO_ITBEM_CLIENT_ID=local-itbem` (or the exact
 audience selected for the fixture issuer), so product routing and the disposable
-audience match. The auth
+audience match. If a Linux worker does not resolve the configured `.localhost`
+name itself, pass an explicit loopback map such as
+`E2E_LOOPBACK_HOSTS_JSON={"dashboard.itbem.localhost":"127.0.0.1"}` to
+Playwright. It resolves the real browser hostname without forging forwarding
+headers; the runner accepts only `.localhost` names mapped to `127.0.0.1`.
+The auth
 fixture rejects remote targets and stores only the temporary HttpOnly session
 in Playwright state. Teardown removes that state and screenshot/trace/video
 recording is disabled for this mode. Never place that token in `.env.local`, Vault, logs,

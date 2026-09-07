@@ -1,6 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
+import { chromiumLoopbackHostResolverRules } from './tests/e2e/fixtures/local-auth'
 
 const ephemeralLocalAuth = !!process.env.E2E_ID_TOKEN?.trim()
+const loopbackHostResolverRules = chromiumLoopbackHostResolverRules(process.env.E2E_LOOPBACK_HOSTS_JSON)
+const chromiumLoopbackLaunchOptions = loopbackHostResolverRules
+  ? { launchOptions: { args: [`--host-resolver-rules=${loopbackHostResolverRules}`] } }
+  : {}
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -21,6 +26,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1280, height: 720 },
+        ...chromiumLoopbackLaunchOptions,
       },
       testMatch: '**/role-capability-matrix.spec.ts',
     },
@@ -33,6 +39,7 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1280, height: 720 },
+        ...chromiumLoopbackLaunchOptions,
       },
       dependencies: ['setup'],
     },

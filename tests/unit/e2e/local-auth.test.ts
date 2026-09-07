@@ -2,7 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { describe, expect, it } from 'vitest'
-import { cleanupEphemeralAuthState, localAuthTargets, requireEphemeralIDToken } from '../../e2e/fixtures/local-auth'
+import { chromiumLoopbackHostResolverRules, cleanupEphemeralAuthState, localAuthTargets, requireEphemeralIDToken } from '../../e2e/fixtures/local-auth'
 
 describe('ephemeral local E2E authentication', () => {
   it('accepts only loopback dashboard and backend URLs', () => {
@@ -28,6 +28,24 @@ describe('ephemeral local E2E authentication', () => {
   it('validates compact JWT shape without exposing its value', () => {
     expect(requireEphemeralIDToken('header.payload.signature')).toBe('header.payload.signature')
     expect(() => requireEphemeralIDToken('not-a-jwt')).toThrow('non-empty compact JWT')
+  })
+
+  it('creates deterministic Chromium resolver rules for explicitly mapped local dashboard hosts', () => {
+    expect(chromiumLoopbackHostResolverRules(JSON.stringify({
+      'dashboard.itbem.localhost': '127.0.0.1',
+      'dashboard.cafettonhouse.localhost': '127.0.0.1',
+    }))).toBe('MAP dashboard.cafettonhouse.localhost 127.0.0.1,MAP dashboard.itbem.localhost 127.0.0.1')
+  })
+
+  it.each([
+    '{not-json}',
+    '[]',
+    '{}',
+    JSON.stringify({ 'dashboard.example.com': '127.0.0.1' }),
+    JSON.stringify({ 'dashboard.itbem.localhost': '192.0.2.10' }),
+    JSON.stringify({ 'dashboard.itbem.localhost;DIRECT': '127.0.0.1' }),
+  ])('rejects unsafe Chromium resolver configuration: %s', (value) => {
+    expect(() => chromiumLoopbackHostResolverRules(value)).toThrow(/E2E_LOOPBACK_HOSTS_JSON/)
   })
 
   it('removes only ephemeral auth state during teardown', () => {
