@@ -1,5 +1,7 @@
 import fs from 'fs'
 
+const LOOPBACK_HOSTNAME = /^(?:localhost|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.localhost)$/
+
 function parsedLoopbackURL(name: string, value: string): URL {
   let parsed: URL
   try {
@@ -32,6 +34,41 @@ export function requireEphemeralIDToken(value: string | undefined): string {
     throw new Error('E2E_ID_TOKEN must be a non-empty compact JWT')
   }
   return token
+}
+
+/**
+ * Converts an explicit, loopback-only host map into Chromium resolver rules.
+ *
+ * Some Linux runners do not inherit the browser's `.localhost` resolver even
+ * though the dashboard is listening on loopback. Mapping the actual hostname
+ * (rather than forging x-forwarded-host) keeps tenant selection, cookies and
+ * browser-origin checks on the same production-like path. The value is
+ * deliberately constrained to loopback so an E2E environment variable cannot
+ * redirect a local qualification to an external service.
+ */
+export function chromiumLoopbackHostResolverRules(value: string | undefined): string | undefined {
+  const raw = value?.trim()
+  if (!raw) return undefined
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('E2E_LOOPBACK_HOSTS_JSON must be a JSON object mapping .localhost hostnames to 127.0.0.1')
+  }
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+    throw new Error('E2E_LOOPBACK_HOSTS_JSON must be a JSON object mapping .localhost hostnames to 127.0.0.1')
+  }
+
+  const mappings = Object.entries(parsed as Record<string, unknown>)
+    .map(([hostname, address]) => [hostname.trim().toLowerCase(), typeof address === 'string' ? address.trim() : ''] as const)
+    .sort(([left], [right]) => left.localeCompare(right))
+
+  if (mappings.length === 0 || mappings.some(([hostname, address]) => !LOOPBACK_HOSTNAME.test(hostname) || address !== '127.0.0.1')) {
+    throw new Error('E2E_LOOPBACK_HOSTS_JSON only permits .localhost hostnames mapped to 127.0.0.1')
+  }
+
+  return mappings.map(([hostname]) => `MAP ${hostname} 127.0.0.1`).join(',')
 }
 
 export function cleanupEphemeralAuthState(ephemeralToken: string | undefined, authFile: string): boolean {
