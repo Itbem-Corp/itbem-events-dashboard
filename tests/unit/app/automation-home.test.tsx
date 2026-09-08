@@ -412,19 +412,78 @@ describe('AutomationPage', () => {
       if (key === automationHealthPath()) return { data: { active_workers: 0 }, isLoading: false, mutate: vi.fn() }
       return { data: undefined, isLoading: false, mutate: vi.fn() }
     })
-    const confirm = vi.fn(() => true)
+    const confirm = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true)
     vi.stubGlobal('confirm', confirm)
 
     render(<AutomationPage />)
 
-    expect(screen.getByLabelText(`SHA exacto ${reviewSHA}`)).toBeInTheDocument()
+    expect(screen.getAllByLabelText(`SHA exacto ${reviewSHA}`)).toHaveLength(1)
     await user.click(screen.getByRole('button', { name: 'Reintentar revisión' }))
 
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining(reviewSHA))
+    expect(mocks.apiPost).not.toHaveBeenCalled()
+    expect(mocks.mutatePortfolio).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Reintentar revisión' }))
+
+    expect(confirm).toHaveBeenCalledTimes(2)
+    expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining(reviewSHA))
     await waitFor(() => {
       expect(mocks.apiPost).toHaveBeenCalledWith(automationTaskRetryCodeReviewPath('review-task-1'))
     })
     expect(mocks.mutatePortfolio).toHaveBeenCalled()
     expect(screen.getByRole('status')).toHaveTextContent('Reintento de revisión en cola para el mismo SHA exacto.')
+  })
+
+  it('does not offer a retry for a standalone review that is already published', () => {
+    mocks.useSWR.mockImplementation((key: string) => {
+      if (key === automationPortfolioPath()) return {
+        data: {
+          schemaVersion: 3,
+          generatedAt: '2026-09-08T08:10:00.000Z',
+          revision: 'portfolio-2',
+          totals: {
+            projects: 0,
+            workItems: 0,
+            activeWorkItems: 0,
+            decisionsRequired: 0,
+            blockedWorkItems: 0,
+            automationTasks: 0,
+            queuedTasks: 0,
+            runningTasks: 0,
+            attentionTasks: 0,
+            reviewTasks: 1,
+            queuedReviews: 0,
+            runningReviews: 0,
+            attentionReviews: 0,
+            publishedReviews: 1,
+          },
+          projects: [],
+          reviewQueue: [{
+            taskId: 'review-task-complete',
+            repository: 'itbem-corp/itbem-events-backend',
+            pullRequest: 130,
+            headSha: 'a67f3ec5ccbd9558ab97e105cb9ee68af78cb7a4',
+            status: 'completed' as const,
+            attemptCount: 1,
+            verdict: 'comment' as const,
+            event: 'COMMENT' as const,
+            reviewUrl: 'https://github.com/Itbem-Corp/itbem-events-backend/pull/130#pullrequestreview-1',
+            reviewerActor: 'bema-review-bot[bot]',
+            createdAt: '2026-09-08T08:04:52.000Z',
+            updatedAt: '2026-09-08T08:04:52.000Z',
+            completedAt: '2026-09-08T08:04:53.000Z',
+            publishedAt: '2026-09-08T08:04:52.000Z',
+          }],
+        },
+        isLoading: false,
+        mutate: mocks.mutatePortfolio,
+      }
+      if (key === automationHealthPath()) return { data: { active_workers: 0 }, isLoading: false, mutate: vi.fn() }
+      return { data: undefined, isLoading: false, mutate: vi.fn() }
+    })
+
+    render(<AutomationPage />)
+
+    expect(screen.queryByRole('button', { name: 'Reintentar revisión' })).not.toBeInTheDocument()
   })
 })
