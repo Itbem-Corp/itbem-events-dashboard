@@ -20,6 +20,7 @@ import {
   automationInputUploadPath,
   automationPortfolioPath,
   automationTaskOutputPath,
+  automationTaskRetryCodeReviewPath,
   automationTasksPath,
   deliveryProjectsPath,
   deliveryWorkItemExecutionGraphPath,
@@ -395,6 +396,7 @@ export default function AutomationPage() {
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [openingTaskID, setOpeningTaskID] = useState('')
+  const [retryingReviewID, setRetryingReviewID] = useState('')
   const [selectedFocusRequest, setSelectedFocusRequest] = useState(0)
   const selectedFlowRef = useRef<HTMLDivElement | null>(null)
   const reduceMotion = useReducedMotion()
@@ -552,6 +554,28 @@ export default function AutomationPage() {
     }
   }
 
+  async function retryStandaloneCodeReview(item: PortfolioItem) {
+    const review = item.review
+    if (!review || review.status !== 'failed') return
+    const confirmed = window.confirm(
+      `¿Crear un nuevo intento para ${review.repository} PR #${review.pullRequest} en el SHA exacto ${review.headSha}? ` +
+      'El intento fallido y su evidencia permanecerán disponibles. El reintento conserva el diff congelado y no descarga ni revisa otro commit.',
+    )
+    if (!confirmed) return
+
+    setRetryingReviewID(review.taskId)
+    setMessage('')
+    try {
+      await api.post(automationTaskRetryCodeReviewPath(review.taskId))
+      setMessage('Reintento de revisión en cola para el mismo SHA exacto. El intento anterior sigue disponible para auditoría.')
+      await portfolioQuery.mutate()
+    } catch (error) {
+      setMessage(getApiErrorMessage(error, 'No se pudo reintentar la revisión. Verifica que el intento siga fallido y que conservas permisos de Delivery.'))
+    } finally {
+      setRetryingReviewID('')
+    }
+  }
+
   function selectResult(id: string, focus = false) {
     setSelectedId(id)
     setIsDetailOpen(true)
@@ -663,7 +687,7 @@ export default function AutomationPage() {
                         <div className="grid items-start gap-3.5 p-3.5 sm:p-4 md:grid-cols-[minmax(8.5rem,.72fr)_minmax(0,1.8fr)] 2xl:grid-cols-[minmax(8.5rem,.8fr)_minmax(20rem,2fr)_minmax(9.5rem,.9fr)]">
                           <div aria-label="Ruta del resultado" className="order-1 rounded-2xl border border-border-subtle bg-surface-soft/45 p-3.5"><p className="text-[10px] font-bold tracking-[.14em] text-ink-muted uppercase">Ruta</p><div className="mt-3 space-y-2.5">{progressPhases(item).map((phase) => <div key={phase.operation} className="flex gap-2"><span className={`mt-1.5 size-2 shrink-0 rounded-full ${phase.state === 'complete' ? 'bg-emerald-500' : phase.state === 'active' ? 'bg-sky-500 delivery-signal' : phase.state === 'queued' || phase.state === 'human' ? 'bg-amber-500' : phase.state === 'attention' ? 'bg-rose-500' : phase.state === 'cancelling' || phase.state === 'cancelled' ? 'bg-ink-muted/60' : 'bg-ink-muted/60'}`} /><span className="min-w-0"><span className="block truncate text-xs font-semibold text-ink">{phase.label}</span><span className="block truncate text-[11px] text-ink-muted">{progressLabel(phase.state)}</span></span></div>)}{item.tasks.length > 0 ? <p className="pt-0.5 text-[11px] font-semibold text-ink-muted">{item.tasks.length} ejecuci{item.tasks.length === 1 ? 'ón registrada' : 'ones registradas'}</p> : <p className="text-xs leading-5 text-ink-muted">Preparando el primer movimiento.</p>}</div></div>
                           <div ref={expanded ? selectedFlowRef : undefined} tabIndex={-1} aria-label={`Live steps de ${item.title}`} className="order-2 min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised md:order-2"><ExecutionGraph density="compact" events={selectedGraphEvents} eyebrow="Live steps" title="Flujo" maxEvents={8} autoFollow statusIndicator={item.workItemId ? { state: selectedStream.status, label: selectedStream.status === 'live' ? 'Canal en vivo' : undefined, tone: 'default', onRefresh: () => { void portfolioQuery.mutate(); void selectedGraphQuery.mutate() } } : undefined} grouping={{ enabled: true, mode: 'smart' }} views={[{ id: 'flow', label: 'Flujo', shortLabel: 'Flujo' }]} /></div>
-                          <div className="order-3 rounded-2xl border border-border-subtle bg-surface-raised p-3.5 md:order-3 md:col-span-2 2xl:col-span-1"><p className="text-[10px] font-bold tracking-[.14em] text-ink-muted uppercase">Siguiente</p><p className="mt-2 text-sm font-semibold text-ink">{nextPhase(item)}</p><p className="mt-1 text-xs leading-5 text-ink-muted">{nextActionCopy(item)}</p>{item.href ? <Link href={item.href} className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Abrir resultado <ArrowRightIcon className="size-3.5" /></Link> : item.review?.reviewUrl ? <a href={item.review.reviewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Ver revisión en GitHub <ArrowRightIcon className="size-3.5" /></a> : item.tasks[0]?.result_available ? <Button outline className="mt-3" disabled={openingTaskID === item.tasks[0].id} onClick={() => void openOutput(item.tasks[0].id)}>{openingTaskID === item.tasks[0].id ? 'Abriendo…' : 'Ver resultado'}</Button> : null}</div>
+                          <div className="order-3 rounded-2xl border border-border-subtle bg-surface-raised p-3.5 md:order-3 md:col-span-2 2xl:col-span-1"><p className="text-[10px] font-bold tracking-[.14em] text-ink-muted uppercase">Siguiente</p><p className="mt-2 text-sm font-semibold text-ink">{nextPhase(item)}</p><p className="mt-1 text-xs leading-5 text-ink-muted">{nextActionCopy(item)}</p>{item.review ? <p className="mt-2 break-all font-mono text-[11px] leading-4 text-ink-muted" aria-label={`SHA exacto ${item.review.headSha}`}>SHA exacto: {item.review.headSha}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{item.href ? <Link href={item.href} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Abrir resultado <ArrowRightIcon className="size-3.5" /></Link> : item.review?.reviewUrl ? <a href={item.review.reviewUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Ver revisión en GitHub <ArrowRightIcon className="size-3.5" /></a> : item.tasks[0]?.result_available ? <Button outline disabled={openingTaskID === item.tasks[0].id} onClick={() => void openOutput(item.tasks[0].id)}>{openingTaskID === item.tasks[0].id ? 'Abriendo…' : 'Ver resultado'}</Button> : null}{item.review?.status === 'failed' ? <Button outline disabled={retryingReviewID === item.review.taskId} onClick={() => void retryStandaloneCodeReview(item)}>{retryingReviewID === item.review.taskId ? 'Reintentando…' : 'Reintentar revisión'}</Button> : null}</div></div>
                         </div>
                       </motion.div> : null}</AnimatePresence>
                     </article>

@@ -232,6 +232,16 @@ to merge a second work-item representation. The stream pauses while the page is
 not active, reconnects with bounded backoff, and intentionally refreshes its
 authorization every 55 seconds.
 
+### Standalone GitHub review retry
+
+`POST /automation/tasks/:id/retry-code-review` creates a fresh, auditable
+attempt for a terminal failed `code.review`. The Automation Center exposes it
+only for a validated standalone review from the portfolio read model, after it
+shows the repository, PR, and frozen head SHA and the operator confirms the
+retry. The prior task remains immutable evidence; the API is authoritative for
+authorization, terminal status, and exact-diff validation. A retry never
+selects a newer commit, approves a review, or bypasses a required check.
+
 ### Delivery release environment policy
 
 Policy revision patches may include `required_secret_references` and
