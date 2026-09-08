@@ -77,9 +77,11 @@ export function projectAgentLaneHealth(health?: AutomationHealth): AgentLaneStat
     for (const workspace of readinessReports) {
       const requiredReady = definition.lane === 'qa'
         ? workspace.qa_ready
-        : definition.lane === 'release'
-          ? workspace.publication_ready
-          : workspace.ready
+        // A release manager is deliberately not a code publisher. Its
+        // authority comes from the deterministic release gate and the
+        // configured deployment policy, so a read-only, executable workspace
+        // must still be able to report its preflight accurately.
+        : workspace.ready
       readinessByWorkspace.set(workspace.id, (readinessByWorkspace.get(workspace.id) ?? true) && requiredReady)
     }
     const preflight = readinessByWorkspace.size > 0
