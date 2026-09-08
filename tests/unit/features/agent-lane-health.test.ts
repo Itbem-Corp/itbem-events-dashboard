@@ -51,7 +51,7 @@ describe('agent lane health projection', () => {
     })
   })
 
-  it('fails closed when a role-specific workspace preflight is incomplete', () => {
+  it('does not require code-publication authority for a release workspace', () => {
     const health: AutomationHealth = {
       workers: [{
         role: 'release_manager',
@@ -59,6 +59,24 @@ describe('agent lane health projection', () => {
         concurrency: 1,
         last_seen_at: '2026-08-30T08:00:00Z',
         workspace_readiness: [{ id: 'repo-a', ready: true, qa_ready: true, visual_qa_ready: true, publication_ready: false, validation_command_count: 3, qa_command_count: 2 }],
+      }],
+      queue_lanes: { release: { available: true, visible: 0, in_flight: 0, delayed: 0 } },
+    }
+
+    expect(projectAgentLaneHealth(health).find((lane) => lane.lane === 'release')).toMatchObject({
+      preflight: { ready: 1, total: 1 },
+      state: 'operational',
+    })
+  })
+
+  it('fails closed when a release workspace itself is not ready', () => {
+    const health: AutomationHealth = {
+      workers: [{
+        role: 'release_manager',
+        lane: 'release',
+        concurrency: 1,
+        last_seen_at: '2026-08-30T08:00:00Z',
+        workspace_readiness: [{ id: 'repo-a', ready: false, qa_ready: true, visual_qa_ready: true, publication_ready: true, validation_command_count: 3, qa_command_count: 2 }],
       }],
       queue_lanes: { release: { available: true, visible: 0, in_flight: 0, delayed: 0 } },
     }
