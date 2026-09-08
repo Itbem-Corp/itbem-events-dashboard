@@ -1,5 +1,5 @@
 import AutomationPage from '@/app/(app)/automation/page'
-import { automationHealthPath, automationInputUploadPath, automationPortfolioPath, automationTasksPath, deliveryProjectsPath, deliveryWorkItemExecutionGraphPath } from '@/lib/api-paths'
+import { automationHealthPath, automationInputUploadPath, automationPortfolioPath, automationTaskRetryCodeReviewPath, automationTasksPath, deliveryProjectsPath, deliveryWorkItemExecutionGraphPath } from '@/lib/api-paths'
 import type { DeliveryProject } from '@/features/automation/delivery-types'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   apiPost: vi.fn(),
   mutateTasks: vi.fn(),
   mutateProjects: vi.fn(),
+  mutatePortfolio: vi.fn(),
   useSWR: vi.fn(),
 }))
 
@@ -120,7 +121,7 @@ function setDefaultSWRData() {
   mocks.useSWR.mockImplementation((key: string) => {
     if (key === automationTasksPath()) return { data: looseTasks, isLoading: false, mutate: mocks.mutateTasks }
     if (key === deliveryProjectsPath()) return { data: projects, isLoading: false, mutate: mocks.mutateProjects }
-    if (key === automationPortfolioPath()) return { data: null, isLoading: false, mutate: vi.fn() }
+    if (key === automationPortfolioPath()) return { data: null, isLoading: false, mutate: mocks.mutatePortfolio }
     if (key === deliveryWorkItemExecutionGraphPath('work-item-review')) return { data: undefined, isLoading: false, mutate: vi.fn() }
     if (key === deliveryWorkItemExecutionGraphPath('work-item-running')) return { data: undefined, isLoading: false, mutate: vi.fn() }
     if (key === automationHealthPath()) return { data: { active_workers: 2 }, isLoading: false, mutate: vi.fn() }
@@ -364,5 +365,66 @@ describe('AutomationPage', () => {
     expect(mocks.mutateTasks).toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Tu consulta ya está en movimiento.')
+  })
+
+  it('retries a failed standalone GitHub review only for its frozen exact SHA', async () => {
+    const user = userEvent.setup()
+    const reviewSHA = 'a67f3ec5ccbd9558ab97e105cb9ee68af78cb7a4'
+    const failedReviewPortfolio = {
+      schemaVersion: 3,
+      generatedAt: '2026-09-08T08:10:00.000Z',
+      revision: 'portfolio-1',
+      totals: {
+        projects: 0,
+        workItems: 0,
+        activeWorkItems: 0,
+        decisionsRequired: 0,
+        blockedWorkItems: 0,
+        automationTasks: 0,
+        queuedTasks: 0,
+        runningTasks: 0,
+        attentionTasks: 0,
+        reviewTasks: 1,
+        queuedReviews: 0,
+        runningReviews: 0,
+        attentionReviews: 1,
+        publishedReviews: 1,
+      },
+      projects: [],
+      reviewQueue: [{
+        taskId: 'review-task-1',
+        repository: 'itbem-corp/itbem-events-backend',
+        pullRequest: 130,
+        headSha: reviewSHA,
+        status: 'failed' as const,
+        attemptCount: 1,
+        verdict: 'comment' as const,
+        event: 'COMMENT' as const,
+        reviewUrl: 'https://github.com/Itbem-Corp/itbem-events-backend/pull/130#pullrequestreview-1',
+        reviewerActor: 'bema-review-bot[bot]',
+        createdAt: '2026-09-08T08:04:52.000Z',
+        updatedAt: '2026-09-08T08:04:52.000Z',
+        publishedAt: '2026-09-08T08:04:52.000Z',
+      }],
+    }
+    mocks.useSWR.mockImplementation((key: string) => {
+      if (key === automationPortfolioPath()) return { data: failedReviewPortfolio, isLoading: false, mutate: mocks.mutatePortfolio }
+      if (key === automationHealthPath()) return { data: { active_workers: 0 }, isLoading: false, mutate: vi.fn() }
+      return { data: undefined, isLoading: false, mutate: vi.fn() }
+    })
+    const confirm = vi.fn(() => true)
+    vi.stubGlobal('confirm', confirm)
+
+    render(<AutomationPage />)
+
+    expect(screen.getByLabelText(`SHA exacto ${reviewSHA}`)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Reintentar revisión' }))
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining(reviewSHA))
+    await waitFor(() => {
+      expect(mocks.apiPost).toHaveBeenCalledWith(automationTaskRetryCodeReviewPath('review-task-1'))
+    })
+    expect(mocks.mutatePortfolio).toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent('Reintento de revisión en cola para el mismo SHA exacto.')
   })
 })
