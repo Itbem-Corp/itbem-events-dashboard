@@ -14,9 +14,12 @@ type RepositoryOnboarding = {
 type RepositoryOnboardingApproval = { onboarding: RepositoryOnboarding }
 type DeliveryWorkItem = { id: string; title: string; state: string }
 type DeliveryStreamEvent = { type: 'snapshot' | 'update' | 'error'; revision?: string }
+type ClientType = { id: string; code: string }
+type DeliveryClient = { id: string }
 
-const clientId = process.env.E2E_DELIVERY_CLIENT_ID?.trim() ?? ''
+const configuredClientId = process.env.E2E_DELIVERY_CLIENT_ID?.trim() ?? ''
 const repositories = parseRepositoryCheckpoints(process.env.E2E_DELIVERY_REPOSITORIES_JSON)
+let ephemeralClientId: string | undefined
 
 test.use({ storageState: 'tests/e2e/.auth/session.json' })
 test.describe.configure({ mode: 'serial', timeout: 240_000 })
@@ -41,18 +44,18 @@ test.beforeEach(async ({ context }) => {
 
 test('qualifies a real single-repository Vault and resumable work-item stream', async ({ page }) => {
   test.skip(!process.env.E2E_ID_TOKEN, 'Only runs against the disposable loopback qualification identity')
-  test.skip(!clientId || repositories.length < 1, 'Set a disposable client ID and at least one exact repository checkpoint')
+  test.skip(repositories.length < 1, 'Set at least one exact repository checkpoint')
   await page.goto('/automation')
-  const subject = await createQualifiedSubject(page, 'single', repositories.slice(0, 1))
+  const subject = await createQualifiedSubject(page, await resolveDeliveryClientId(page), 'single', repositories.slice(0, 1))
   await verifyDeliveryUI(page, subject)
   await verifyResumableStream(page, subject.workItem.id)
 })
 
 test('qualifies a heterogeneous multi-repository Vault and frozen matrix', async ({ page }) => {
   test.skip(!process.env.E2E_ID_TOKEN, 'Only runs against the disposable loopback qualification identity')
-  test.skip(!clientId || repositories.length < 2, 'Set a disposable client ID and at least two exact repository checkpoints')
+  test.skip(repositories.length < 2, 'Set at least two exact repository checkpoints')
   await page.goto('/automation')
-  const subject = await createQualifiedSubject(page, 'multi', repositories)
+  const subject = await createQualifiedSubject(page, await resolveDeliveryClientId(page), 'multi', repositories)
   expect(subject.context).toHaveLength(repositories.length)
   expect(new Set(subject.context.map((source) => source.revision))).toEqual(
     new Set(repositories.map((repository) => repository.revision.toLowerCase()))
@@ -101,7 +104,31 @@ function parseRepositoryCheckpoints(raw: string | undefined): RepositoryCheckpoi
   })
 }
 
-async function createQualifiedSubject(page: Page, kind: 'single' | 'multi', checkpoints: RepositoryCheckpoint[]) {
+async function resolveDeliveryClientId(page: Page): Promise<string> {
+  if (configuredClientId) return configuredClientId
+  if (ephemeralClientId) return ephemeralClientId
+
+  // This fallback is deliberately impossible in normal/staging/production
+  // authentication: the exact token and both endpoints must pass the
+  // loopback-only local-auth boundary before it can mutate the disposable DB.
+  requireEphemeralIDToken(process.env.E2E_ID_TOKEN)
+  localAuthTargets(process.env.PLAYWRIGHT_BASE_URL, process.env.E2E_BACKEND_URL)
+
+  const types = await api<ClientType[]>(page, '/api/catalogs/client-types')
+  const platformTypes = types.filter((type) => type.code.toUpperCase() === 'PLATFORM' && type.id)
+  if (platformTypes.length !== 1) {
+    throw new Error('Disposable qualification requires exactly one PLATFORM client type')
+  }
+  const client = await formApi<DeliveryClient>(page, '/api/clients', 'POST', {
+    name: `Delivery QA ${Date.now()}-${Math.random().toString(16).slice(2, 10)}`,
+    client_type_id: platformTypes[0].id,
+  })
+  if (!client.id) throw new Error('Disposable qualification client was created without an ID')
+  ephemeralClientId = client.id
+  return client.id
+}
+
+async function createQualifiedSubject(page: Page, clientId: string, kind: 'single' | 'multi', checkpoints: RepositoryCheckpoint[]) {
   const nonce = `${kind}-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
   const project = await api<DeliveryProject>(page, '/api/automation/projects', 'POST', {
     client_id: clientId,
@@ -247,4 +274,27 @@ async function api<T>(page: Page, path: string, method = 'GET', body?: unknown):
     }
     return payload.data as T
   }, { path, method, body })
+}
+
+async function formApi<T>(page: Page, path: string, method: 'POST' | 'PUT', fields: Record<string, string>): Promise<T> {
+  return page.evaluate(async ({ path, method, fields }) => {
+    const tokenResponse = await fetch('/api/auth/token', { method: 'POST', cache: 'no-store' })
+    const session = await tokenResponse.json() as { token?: string }
+    if (!tokenResponse.ok || !session.token) throw new Error('Local qualification session is unavailable')
+    const response = await fetch(`/automation-bridge${path.replace(/^\/api/, '')}`, {
+      method,
+      cache: 'no-store',
+      headers: {
+        authorization: `Bearer ${session.token}`,
+        'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        'idempotency-key': crypto.randomUUID(),
+      },
+      body: new URLSearchParams(fields).toString(),
+    })
+    const payload = (await response.json()) as { data?: unknown; message?: string; error?: string }
+    if (!response.ok) {
+      throw new Error(`${method} ${path} failed (${response.status}): ${payload.message ?? payload.error ?? 'unknown'}`)
+    }
+    return payload.data as T
+  }, { path, method, fields })
 }

@@ -30,15 +30,18 @@ reportes o artifacts. Se elimina junto con el issuer y la base aislada al cerrar
 la corrida. Si `E2E_ID_TOKEN` no existe, el flujo normal de Cognito staging
 sigue siendo el comportamiento predeterminado.
 
-La calificación completa de Delivery también exige un cliente desechable y
-checkpoints GitHub exactos, todos no secretos. Define `E2E_DELIVERY_CLIENT_ID`
-y `E2E_DELIVERY_REPOSITORIES_JSON` como una lista de objetos
+La calificación completa de Delivery exige checkpoints GitHub exactos, todos no
+secretos. Define `E2E_DELIVERY_REPOSITORIES_JSON` como una lista de objetos
 `{"url":"https://github.com/org/repo","revision":"<sha-completo>"}` y ejecuta
 `local-delivery-workflows.spec.ts` únicamente contra el issuer, dashboard y API
-aislados en loopback. La prueba crea proyectos locales, inspecciona y aprueba el
-Vault exacto, congela matrices single-repo y multi-repo y comprueba en navegador
-la secuencia SSE `snapshot → update`. No concede publicación, merge ni deploy y
-nunca debe apuntar a un backend remoto.
+aislados en loopback. Cuando hay un `E2E_ID_TOKEN` efímero, ambos endpoints
+superan la validación loopback y no se definió `E2E_DELIVERY_CLIENT_ID`, la
+prueba crea una organización `PLATFORM` desechable en esa base aislada. Se puede
+definir `E2E_DELIVERY_CLIENT_ID` para usar un fixture preaprovisionado. La prueba
+crea proyectos locales, inspecciona y aprueba el Vault exacto, congela matrices
+single-repo y multi-repo y comprueba en navegador la secuencia SSE `snapshot →
+update`. No concede publicación, merge ni deploy y nunca debe apuntar a un
+backend remoto.
 
 ---
 
