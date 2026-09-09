@@ -57,6 +57,15 @@ export function isNewDeliveryWorkItemRevision(previousRevision: string | undefin
   return previousRevision !== event.revision
 }
 
+// Keep the stream endpoint and its payload bound to the same work item. The
+// backend already scopes the SSE route, but this client-side check makes a
+// malformed, replayed, or misrouted event unable to refresh a different
+// item's panels.
+export function deliveryWorkItemStreamEventMatches(event: DeliveryWorkItemStreamEvent, workItemId: string | null | undefined) {
+  const expectedWorkItemId = workItemId?.trim()
+  return Boolean(expectedWorkItemId) && event.work_item_id === expectedWorkItemId
+}
+
 export function deliveryWorkItemStreamEnabled(workItemId: string | null | undefined, state: string | null | undefined) {
   const terminal = state === 'released' || state === 'cancelled'
   return Boolean(workItemId?.trim() && !terminal)
@@ -81,6 +90,7 @@ export function useDeliveryWorkItemStream(
     parse: parseDeliveryWorkItemStreamEvent,
     onStatusChange,
     onEvent: (event, rawEvent) => {
+      if (!deliveryWorkItemStreamEventMatches(event, workItemId)) return
       // A new SSE connection always begins with a snapshot. The first
       // snapshot for a work item is authoritative; later healthy stream
       // renewals commonly carry the same revision and should not re-download
