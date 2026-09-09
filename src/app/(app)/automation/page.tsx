@@ -605,7 +605,7 @@ export default function AutomationPage() {
           <div>
             <p className="flex items-center gap-2 text-xs font-bold tracking-[.16em] text-(--tenant-accent) uppercase"><SparklesIcon className="size-4" /> Automation</p>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">Centro de automatización</h1>
-            <p className="mt-1.5 text-sm text-ink-secondary">El agente avanza; tú intervienes sólo cuando importa.</p>
+            <p className="mt-1.5 text-sm text-ink-secondary">El agente avanza con gates; la plataforma V1 sigue en validación de producción.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {!hasPortfolioLoadFailure && <span aria-label={`Pulso de agentes: ${agentPulse.state}`} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-border-subtle bg-surface-raised px-3 text-xs font-semibold text-ink-secondary"><span aria-hidden="true" className={`size-2 rounded-full ${agentPulse.tone}`} /> {agentPulse.label}</span>}
