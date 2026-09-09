@@ -144,6 +144,7 @@ describe('AutomationPage', () => {
     render(<AutomationPage />)
 
     expect(screen.getByRole('heading', { name: 'Centro de automatización' })).toBeInTheDocument()
+    expect(screen.getByText('El agente avanza con gates; la plataforma V1 sigue en validación de producción.')).toBeInTheDocument()
     expect(screen.getAllByText('Desplegar identidad')).not.toHaveLength(0)
     expect(screen.getByText('Auditar acceso')).toBeInTheDocument()
     expect(screen.getByText('Atelier Norte · Decisión humana')).toBeInTheDocument()
