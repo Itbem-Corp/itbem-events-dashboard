@@ -211,6 +211,7 @@ export type DeliveryPolicySafetyFloor = {
 
 export type DeliveryPolicyPatch = {
   mode?: 'review_only' | 'merge' | 'release'
+  gate_approval_mode?: 'human' | 'delegated'
   required_test_kinds?: string[]
   allowed_target_branches?: string[]
   merge_method?: 'merge' | 'squash' | 'rebase'
@@ -260,6 +261,7 @@ export type DeliveryEffectivePolicySnapshot = {
   policy: {
     schema_version: 1
     mode?: 'review_only' | 'merge' | 'release'
+    gate_approval_mode: 'human' | 'delegated'
     required_test_kinds: string[]
     allowed_target_branches: string[]
     merge_method?: 'merge' | 'squash' | 'rebase'

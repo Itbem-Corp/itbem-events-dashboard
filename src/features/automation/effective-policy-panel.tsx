@@ -128,6 +128,7 @@ export function EffectivePolicyPanel({ repository, repositories, snapshot, loadi
           ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <PolicyValue label="Aprobación de gates" values={[policy.gate_approval_mode === 'delegated' ? 'Roles independientes' : 'Humano por tarea']} />
             <PolicyValue label="Ramas destino" values={policy.allowed_target_branches} />
             <PolicyValue label="Pruebas obligatorias" values={policy.required_test_kinds} />
             <PolicyValue label="Merge" values={policy.merge_method ? [policy.merge_method] : []} />
@@ -152,7 +153,7 @@ export function EffectivePolicyPanel({ repository, repositories, snapshot, loadi
             <div className="rounded-2xl border border-border-subtle bg-surface-soft p-3">
               <p className="text-[10px] font-semibold tracking-[0.12em] text-ink-muted uppercase">Pisos no negociables</p>
               <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
-                {['Revisión independiente', 'Commit exacto', 'Vault reconciliado', 'Secret scan', '0 high / 0 critical', 'Aprobación humana', 'Sin force merge'].map((item) => <span key={item} className="flex items-center gap-2 text-ink-secondary"><CheckCircleIcon className="size-4 shrink-0 text-emerald-500" />{item}</span>)}
+                {['Revisión independiente', 'Commit exacto', 'Vault reconciliado', 'Secret scan', '0 high / 0 critical', 'Política aprobada', 'Sin force merge'].map((item) => <span key={item} className="flex items-center gap-2 text-ink-secondary"><CheckCircleIcon className="size-4 shrink-0 text-emerald-500" />{item}</span>)}
               </div>
             </div>
             <dl className="rounded-2xl border border-border-subtle bg-surface-soft p-3 text-xs">
@@ -164,7 +165,7 @@ export function EffectivePolicyPanel({ repository, repositories, snapshot, loadi
           </div>
         </div>
       )}
-      <p className="border-t border-border-subtle px-4 py-3 text-[11px] leading-4 text-ink-muted sm:px-5">La política resuelta limita capacidades; el Gatekeeper exact-SHA y una aprobación humana independiente siguen siendo obligatorios antes de cualquier acción.</p>
+      <p className="border-t border-border-subtle px-4 py-3 text-[11px] leading-4 text-ink-muted sm:px-5">La política resuelta limita capacidades; el Gatekeeper exact-SHA, evidencia independiente y una política durable aprobada siguen siendo obligatorios antes de cualquier acción.</p>
     </section>
   )
 }

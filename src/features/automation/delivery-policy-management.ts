@@ -9,10 +9,11 @@ const statuses = new Set(['pending', 'approved', 'revoked'])
 const modes = new Set(['review_only', 'merge', 'release'])
 const mergeMethods = new Set(['merge', 'squash', 'rebase'])
 const recoveries = new Set(['rollback', 'roll_forward', 'expand_contract', 'irreversible'])
+const gateApprovalModes = new Set(['human', 'delegated'])
 const privateIdentityKeys = new Set(['approved_by', 'proposed_by', 'actor_cognito_sub'])
 const revisionKeys = new Set(['id', 'schema_version', 'level', 'project_id', 'repository', 'change_set_id', 'patch', 'reason', 'expires_at', 'content_sha256', 'created_at', 'status', 'latest_decision'])
 const decisionKeys = new Set(['id', 'action', 'reason', 'occurred_at'])
-const patchKeys = new Set(['mode', 'required_test_kinds', 'allowed_target_branches', 'merge_method', 'deployment_workflow', 'deployment_environment', 'required_secret_references', 'required_variable_references', 'required_health_checks', 'required_post_merge_checks', 'recovery_default'])
+const patchKeys = new Set(['mode', 'gate_approval_mode', 'required_test_kinds', 'allowed_target_branches', 'merge_method', 'deployment_workflow', 'deployment_environment', 'required_secret_references', 'required_variable_references', 'required_health_checks', 'required_post_merge_checks', 'recovery_default'])
 
 export type PolicyProposalDraft = {
   scope: 'project' | 'repository' | 'override'
@@ -21,6 +22,7 @@ export type PolicyProposalDraft = {
   expiresAt: string
   reason: string
   mode: '' | 'review_only' | 'merge' | 'release'
+  gateApprovalMode: '' | 'human' | 'delegated'
   requiredTestKinds: string
   allowedTargetBranches: string
   mergeMethod: '' | 'merge' | 'squash' | 'rebase'
@@ -34,7 +36,7 @@ export type PolicyProposalDraft = {
 }
 
 export const emptyPolicyProposalDraft: PolicyProposalDraft = {
-  scope: 'repository', overrideScope: 'repository', changeSetId: '', expiresAt: '', reason: '', mode: '',
+  scope: 'repository', overrideScope: 'repository', changeSetId: '', expiresAt: '', reason: '', mode: '', gateApprovalMode: '',
   requiredTestKinds: '', allowedTargetBranches: '', mergeMethod: '', deploymentWorkflow: '', deploymentEnvironment: '',
   requiredSecretReferences: '', requiredVariableReferences: '', requiredHealthChecks: '', requiredPostMergeChecks: '', recoveryDefault: '',
 }
@@ -58,6 +60,10 @@ export function buildPolicyProposal(draft: PolicyProposalDraft, repository: stri
   if (!reason) throw new Error('Documenta la razón y el cambio esperado.')
   const patch: DeliveryPolicyPatch = {}
   if (draft.mode) patch.mode = draft.mode
+  if (draft.gateApprovalMode) {
+    if (draft.scope === 'override') throw new Error('La aprobación de gates sólo puede configurarse como política durable de proyecto o repositorio.')
+    patch.gate_approval_mode = draft.gateApprovalMode
+  }
   addList(patch, 'required_test_kinds', draft.requiredTestKinds)
   addList(patch, 'allowed_target_branches', draft.allowedTargetBranches)
   if (patch.allowed_target_branches?.some((branch) => branch.includes('*'))) throw new Error('Las ramas deben ser exactas; no se permiten wildcards.')
@@ -159,6 +165,7 @@ function exactStringList(input: unknown): input is string[] {
 function validPatch(input: unknown): input is DeliveryPolicyPatch {
   if (!isRecord(input) || !onlyKeys(input, patchKeys)) return false
   if (input.mode !== undefined && (!nonEmpty(input.mode) || !modes.has(input.mode))) return false
+  if (input.gate_approval_mode !== undefined && (!nonEmpty(input.gate_approval_mode) || !gateApprovalModes.has(input.gate_approval_mode))) return false
   if (input.merge_method !== undefined && (!nonEmpty(input.merge_method) || !mergeMethods.has(input.merge_method))) return false
   if (input.recovery_default !== undefined && (!nonEmpty(input.recovery_default) || !recoveries.has(input.recovery_default))) return false
   for (const value of [input.required_test_kinds, input.allowed_target_branches, input.required_health_checks, input.required_post_merge_checks]) {

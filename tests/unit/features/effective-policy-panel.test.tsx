@@ -13,6 +13,7 @@ const resolvedSnapshot: DeliveryEffectivePolicySnapshot = {
   policy: {
     schema_version: 1,
     mode: 'merge',
+    gate_approval_mode: 'delegated',
     required_test_kinds: ['unit', 'contract'],
     allowed_target_branches: ['trunk'],
     merge_method: 'squash',
@@ -37,10 +38,11 @@ describe('EffectivePolicyPanel', () => {
     render(<EffectivePolicyPanel repository="github://example/service" repositories={['github://example/service']} snapshot={resolvedSnapshot} onRepositoryChange={() => undefined} onRefresh={() => undefined} />)
 
     expect(screen.getByText('Merge controlado')).toBeInTheDocument()
+    expect(screen.getByText('Roles independientes')).toBeInTheDocument()
     expect(screen.getByText('trunk')).toBeInTheDocument()
     expect(screen.getByText('DATABASE_URL')).toBeInTheDocument()
     expect(screen.getByText('Ninguna (explícito)')).toBeInTheDocument()
-    expect(screen.getByText('Revisión independiente')).toBeInTheDocument()
+    expect(screen.getByText('Política aprobada')).toBeInTheDocument()
     expect(screen.getByText(/no ejecuta merge ni deploy/i)).toBeInTheDocument()
     expect(screen.getByText('Sin overrides')).toBeInTheDocument()
   })

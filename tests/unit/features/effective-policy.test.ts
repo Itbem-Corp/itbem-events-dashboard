@@ -12,6 +12,7 @@ function snapshot() {
     policy: {
       schema_version: 1,
       mode: 'merge',
+      gate_approval_mode: 'human',
       required_test_kinds: ['unit'],
       allowed_target_branches: ['trunk'],
       merge_method: 'squash',
@@ -54,5 +55,15 @@ describe('effective policy contract', () => {
     const reservedReference = snapshot()
     reservedReference.policy.required_secret_references = ['GITHUB_TOKEN']
     expect(normalizeEffectivePolicySnapshot(reservedReference, 'project-1', 'github://example/service')).toBeNull()
+  })
+
+  it('normalizes legacy projections to human approval and rejects an unknown approval mode', () => {
+    const legacy = snapshot() as any
+    delete legacy.policy.gate_approval_mode
+    expect(normalizeEffectivePolicySnapshot(legacy, 'project-1', 'github://example/service')?.policy.gate_approval_mode).toBe('human')
+
+    const invalid = snapshot() as any
+    invalid.policy.gate_approval_mode = 'self_approve'
+    expect(normalizeEffectivePolicySnapshot(invalid, 'project-1', 'github://example/service')).toBeNull()
   })
 })

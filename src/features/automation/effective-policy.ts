@@ -5,6 +5,7 @@ const commitPattern = /^[a-f0-9]{40}$/
 const modes = new Set(['review_only', 'merge', 'release'])
 const mergeMethods = new Set(['merge', 'squash', 'rebase'])
 const recoveries = new Set(['rollback', 'roll_forward', 'expand_contract', 'irreversible'])
+const gateApprovalModes = new Set(['human', 'delegated'])
 const levels = new Set(['platform', 'organization', 'project', 'repository', 'override'])
 
 export const effectivePolicyMissingLabels: Record<string, string> = {
@@ -41,6 +42,7 @@ export function normalizeEffectivePolicySnapshot(
   if (policy.schema_version !== 1 || typeof policy.resolved !== 'boolean' || !digestPattern.test(stringValue(policy.digest))) return null
   if (!stringList(policy.required_test_kinds) || !stringList(policy.allowed_target_branches) || !environmentReferenceList(policy.required_secret_references) || !environmentReferenceList(policy.required_variable_references) || !stringList(policy.required_health_checks) || !stringList(policy.required_post_merge_checks) || !stringList(policy.missing)) return null
   if (policy.mode !== undefined && (!nonEmpty(policy.mode) || !modes.has(policy.mode))) return null
+  if (policy.gate_approval_mode !== undefined && (!nonEmpty(policy.gate_approval_mode) || !gateApprovalModes.has(policy.gate_approval_mode))) return null
   if (policy.merge_method !== undefined && (!nonEmpty(policy.merge_method) || !mergeMethods.has(policy.merge_method))) return null
   if (policy.recovery_default !== undefined && (!nonEmpty(policy.recovery_default) || !recoveries.has(policy.recovery_default))) return null
   for (const optional of [policy.deployment_workflow, policy.deployment_environment]) {
@@ -51,7 +53,13 @@ export function normalizeEffectivePolicySnapshot(
     if (!isRecord(source) || !nonEmpty(source.level) || !levels.has(source.level) || !nonEmpty(source.revision_id) || !digestPattern.test(stringValue(source.digest)) || !validDate(source.approved_at)) return null
   }
   if (input.change_set_id !== undefined && !nonEmpty(input.change_set_id)) return null
-  return input as DeliveryEffectivePolicySnapshot
+  return {
+    ...input,
+    policy: {
+      ...policy,
+      gate_approval_mode: policy.gate_approval_mode ?? 'human',
+    },
+  } as DeliveryEffectivePolicySnapshot
 }
 
 function validSafety(input: unknown): input is DeliveryPolicySafetyFloor {
