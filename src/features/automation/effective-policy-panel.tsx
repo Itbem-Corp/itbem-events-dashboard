@@ -6,13 +6,14 @@ import { fetcher } from '@/lib/fetcher'
 import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, ShieldCheckIcon } from '@heroicons/react/20/solid'
 import { useState } from 'react'
 import useSWR from 'swr'
-import type { DeliveryEffectivePolicySnapshot, DeliveryProjectVaultRevision } from './delivery-types'
+import type { DeliveryEffectivePolicySnapshot, DeliveryProjectVaultRevision, DeliveryRepositoryOnboarding, DeliveryRepositoryPolicySuggestion } from './delivery-types'
 import { ProjectPolicyManagementPanel } from './delivery-policy-management-panel'
 import { effectivePolicyMissingLabels, effectivePolicyModeLabel, normalizeEffectivePolicySnapshot } from './effective-policy'
 
 type ProjectEffectivePolicyPanelProps = {
   projectId: string
   vaultRevisions: DeliveryProjectVaultRevision[]
+  onboardings: DeliveryRepositoryOnboarding[]
 }
 
 type EffectivePolicyPanelProps = {
@@ -36,10 +37,11 @@ function evaluationDate(value: string) {
   return new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' }).format(parsed)
 }
 
-export function ProjectEffectivePolicyPanel({ projectId, vaultRevisions }: ProjectEffectivePolicyPanelProps) {
+export function ProjectEffectivePolicyPanel({ projectId, vaultRevisions, onboardings }: ProjectEffectivePolicyPanelProps) {
   const repositories = vaultRevisions.map((revision) => revision.repository_reference)
   const [requestedRepository, setRequestedRepository] = useState<string | null>(null)
   const repository = requestedRepository && repositories.includes(requestedRepository) ? requestedRepository : repositories[0]
+  const onboardingSuggestion = repository ? approvedOnboardingSuggestion(repository, vaultRevisions, onboardings) : undefined
   const path = repository ? deliveryProjectEffectivePolicyPath(projectId, repository) : null
   const query = useSWR<unknown>(path, fetcher, {
     refreshInterval: 30_000,
@@ -61,8 +63,14 @@ export function ProjectEffectivePolicyPanel({ projectId, vaultRevisions }: Proje
       onRepositoryChange={setRequestedRepository}
       onRefresh={() => { void query.mutate() }}
     />
-    <ProjectPolicyManagementPanel projectId={projectId} repository={repository} onEffectiveRefresh={() => query.mutate()} />
+    <ProjectPolicyManagementPanel projectId={projectId} repository={repository} onboardingSuggestion={onboardingSuggestion} onEffectiveRefresh={() => query.mutate()} />
   </>
+}
+
+function approvedOnboardingSuggestion(repository: string, vaultRevisions: DeliveryProjectVaultRevision[], onboardings: DeliveryRepositoryOnboarding[]): DeliveryRepositoryPolicySuggestion | undefined {
+  const currentVault = vaultRevisions.find((revision) => revision.repository_reference === repository)
+  if (!currentVault) return undefined
+  return onboardings.find((onboarding) => onboarding.status === 'approved' && onboarding.repository_reference === repository && onboarding.revision === currentVault.revision && Boolean(onboarding.proposal.policy_suggestion))?.proposal.policy_suggestion
 }
 
 export function EffectivePolicyPanel({ repository, repositories, snapshot, loading = false, validating = false, unavailable = false, onRepositoryChange, onRefresh }: EffectivePolicyPanelProps) {

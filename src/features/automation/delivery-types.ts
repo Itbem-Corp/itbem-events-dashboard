@@ -92,6 +92,19 @@ export type DeliveryVaultDiff = {
   removed: string[]
 }
 
+// Advisory evidence from static onboarding. It cannot itself grant merge or
+// release; it must become an independently approved ledger revision first.
+export type DeliveryRepositoryPolicySuggestion = {
+  level: 'repository'
+  repository_reference: string
+  mode: 'review_only'
+  required_test_kinds: string[]
+  allowed_target_branches: string[]
+  reason: string
+  required_operator_decisions: string[]
+  provenance: DeliveryVaultProvenance[]
+}
+
 export type DeliveryRepositoryOnboardingProposal = {
   schema_version: number
   repository: { reference: string; default_branch: string; revision: string }
@@ -108,6 +121,7 @@ export type DeliveryRepositoryOnboardingProposal = {
     provenance: DeliveryVaultProvenance
   }>
   capabilities: DeliveryRepositoryCapability[]
+  policy_suggestion?: DeliveryRepositoryPolicySuggestion
   vault: DeliveryVaultManifest
   vault_sha256: string
   previous_revision?: string

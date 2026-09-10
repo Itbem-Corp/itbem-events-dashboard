@@ -1,4 +1,4 @@
-import type { DeliveryPolicyPatch, DeliveryPolicyRevision } from './delivery-types'
+import type { DeliveryPolicyPatch, DeliveryPolicyRevision, DeliveryRepositoryPolicySuggestion } from './delivery-types'
 
 const digestPattern = /^[a-f0-9]{64}$/
 const repositoryPattern = /^github:\/\/[A-Za-z0-9][A-Za-z0-9_.-]{0,38}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/
@@ -37,6 +37,19 @@ export const emptyPolicyProposalDraft: PolicyProposalDraft = {
   scope: 'repository', overrideScope: 'repository', changeSetId: '', expiresAt: '', reason: '', mode: '',
   requiredTestKinds: '', allowedTargetBranches: '', mergeMethod: '', deploymentWorkflow: '', deploymentEnvironment: '',
   requiredSecretReferences: '', requiredVariableReferences: '', requiredHealthChecks: '', requiredPostMergeChecks: '', recoveryDefault: '',
+}
+
+// This only pre-fills a normal ledger proposal. It cannot turn static source
+// evidence into merge or release authority, and approval remains independent.
+export function policySuggestionDraft(suggestion: DeliveryRepositoryPolicySuggestion, repository: string): PolicyProposalDraft | null {
+  if (suggestion.level !== 'repository' || suggestion.repository_reference !== repository || suggestion.mode !== 'review_only' || !repositoryPattern.test(repository) || !nonEmpty(suggestion.reason) || !exactStringList(suggestion.allowed_target_branches) || !stringList(suggestion.required_test_kinds) || !stringList(suggestion.required_operator_decisions)) return null
+  return {
+    ...emptyPolicyProposalDraft,
+    scope: 'repository', mode: 'review_only',
+    requiredTestKinds: suggestion.required_test_kinds.join(', '),
+    allowedTargetBranches: suggestion.allowed_target_branches.join(', '),
+    reason: suggestion.reason,
+  }
 }
 
 export function buildPolicyProposal(draft: PolicyProposalDraft, repository: string, now = new Date()) {
@@ -137,6 +150,10 @@ function uniqueList(raw: string, canonicalUppercase = false) {
     }
   }
   return values
+}
+
+function exactStringList(input: unknown): input is string[] {
+  return stringList(input) && input.length > 0 && new Set(input).size === input.length && input.every((value) => !value.includes('*'))
 }
 
 function validPatch(input: unknown): input is DeliveryPolicyPatch {
