@@ -602,6 +602,31 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
                         </div>
                       </div>
                     ) : null}
+                    {proposal.policy_suggestion ? (
+                      <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.05] p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-semibold tracking-[0.12em] text-amber-800 uppercase dark:text-amber-200">Configuración sugerida</p>
+                            <p className="mt-1 text-xs font-semibold text-ink">Baseline sin autoridad de publicación</p>
+                          </div>
+                          <Badge color="amber">{proposal.policy_suggestion.mode === 'review_only' ? 'Sólo revisión' : 'No verificable'}</Badge>
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-ink-secondary">{proposal.policy_suggestion.reason}</p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="text-[10px] font-semibold tracking-[0.1em] text-ink-muted uppercase">Ramas detectadas</p>
+                            <div className="mt-1 flex flex-wrap gap-1.5">{proposal.policy_suggestion.allowed_target_branches.map((branch) => <Badge key={branch} color="zinc">{branch}</Badge>)}</div>
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-semibold tracking-[0.1em] text-ink-muted uppercase">Pruebas candidatas</p>
+                            <div className="mt-1 flex flex-wrap gap-1.5">{proposal.policy_suggestion.required_test_kinds.length ? proposal.policy_suggestion.required_test_kinds.map((kind) => <Badge key={kind} color="zinc">{kind}</Badge>) : <span className="text-xs text-ink-muted">Sin comando estático; requiere decisión.</span>}</div>
+                          </div>
+                        </div>
+                        <ul className="mt-3 space-y-1 border-t border-amber-500/15 pt-3 text-[11px] leading-4 text-ink-muted">
+                          {proposal.policy_suggestion.required_operator_decisions.map((decision) => <li key={decision}>• {decision}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
                     {onboarding.status === 'proposed' ? (
                       <OnboardingCapabilityProbePanel
                         projectId={projectId}
@@ -703,7 +728,7 @@ export function RepositoryOnboardingPanel({ projectId, onContextPublished }: Rep
               </div>
             ))}
           </div>
-          <ProjectEffectivePolicyPanel projectId={projectId} vaultRevisions={latestVault} />
+          <ProjectEffectivePolicyPanel projectId={projectId} vaultRevisions={latestVault} onboardings={values} />
         </div>
       ) : null}
     </section>

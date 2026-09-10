@@ -10,13 +10,14 @@ import { ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, LockClosedIcon
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 import useSWR from 'swr'
-import type { DeliveryPolicyPatch, DeliveryPolicyRevision } from './delivery-types'
-import { buildPolicyProposal, emptyPolicyProposalDraft, normalizePolicyRevisions, policyRevisionsForRepository, type PolicyProposalDraft } from './delivery-policy-management'
+import type { DeliveryPolicyPatch, DeliveryPolicyRevision, DeliveryRepositoryPolicySuggestion } from './delivery-types'
+import { buildPolicyProposal, emptyPolicyProposalDraft, normalizePolicyRevisions, policyRevisionsForRepository, policySuggestionDraft, type PolicyProposalDraft } from './delivery-policy-management'
 
 type ProjectPolicyManagementPanelProps = {
   projectId: string
   repository: string
   onEffectiveRefresh: () => Promise<unknown>
+  onboardingSuggestion?: DeliveryRepositoryPolicySuggestion
 }
 
 const statusCopy = { pending: 'Pendiente', approved: 'Aprobada', revoked: 'Revocada' } as const
@@ -28,18 +29,20 @@ function statusTone(status: DeliveryPolicyRevision['status']) {
   return 'amber' as const
 }
 
-export function ProjectPolicyManagementPanel({ projectId, repository, onEffectiveRefresh }: ProjectPolicyManagementPanelProps) {
+export function ProjectPolicyManagementPanel({ projectId, repository, onEffectiveRefresh, onboardingSuggestion }: ProjectPolicyManagementPanelProps) {
   const path = deliveryProjectPolicyRevisionsPath(projectId)
   const query = useSWR<unknown>(path, fetcher, { refreshInterval: 20_000, revalidateOnFocus: true })
   const hasData = query.data !== undefined
   const normalized = hasData ? normalizePolicyRevisions(query.data, projectId) : []
   const revisions = normalized ? policyRevisionsForRepository(normalized, repository) : []
   const [draft, setDraft] = useState<PolicyProposalDraft>(emptyPolicyProposalDraft)
+  const [proposalOpen, setProposalOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [feedback, setFeedback] = useState('')
   const [confirmations, setConfirmations] = useState<Record<string, boolean>>({})
   const [revocationReasons, setRevocationReasons] = useState<Record<string, string>>({})
   const unavailable = !query.isLoading && Boolean(query.error || (hasData && !normalized))
+  const suggestedDraft = onboardingSuggestion ? policySuggestionDraft(onboardingSuggestion, repository) : null
 
   function updateDraft<Key extends keyof PolicyProposalDraft>(key: Key, value: PolicyProposalDraft[Key]) {
     setDraft((current) => ({ ...current, [key]: value }))
@@ -102,7 +105,19 @@ export function ProjectPolicyManagementPanel({ projectId, repository, onEffectiv
         <Badge color="zinc">{revisions.length} {revisions.length === 1 ? 'revisión' : 'revisiones'}</Badge>
       </div>
 
-      <details className="border-b border-border-subtle px-4 py-4 sm:px-5">
+      {suggestedDraft ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface-soft px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-ink">Baseline seguro detectado en onboarding</p>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-ink-muted">Sólo revisión · ramas {onboardingSuggestion?.allowed_target_branches.join(', ')}. Copiarlo abre un borrador; no crea ni aprueba una política y no habilita merge ni release.</p>
+          </div>
+          <Button color="zinc" type="button" onClick={() => { setDraft(suggestedDraft); setProposalOpen(true) }}>
+            Usar borrador seguro
+          </Button>
+        </div>
+      ) : null}
+
+      <details open={proposalOpen} onToggle={(event) => setProposalOpen(event.currentTarget.open)} className="border-b border-border-subtle px-4 py-4 sm:px-5">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-semibold text-ink marker:hidden focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:outline-none">
           <PlusIcon className="size-4 text-(--tenant-accent)" aria-hidden="true" />Nueva propuesta inmutable
         </summary>
