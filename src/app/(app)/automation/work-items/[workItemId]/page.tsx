@@ -27,6 +27,7 @@ import type {
 import { humanTransitionAwaitsAgentResult } from '@/features/automation/delivery-workflow'
 import {
   agentPhaseToQueueAfterTransition,
+  isReadOnlyAssessmentPlan,
   needsAgentFollowUpRecovery,
 } from '@/features/automation/delivery-agent-followup'
 import type { ExecutionGraphEvent } from '@/features/automation/execution-graph'
@@ -269,6 +270,7 @@ function metadataRecord(value?: Record<string, unknown> | string) {
     return {}
   }
 }
+
 type RepositoryImpact = {
   name: string
   reference: string
@@ -278,26 +280,28 @@ type RepositoryImpact = {
   notes: string
 }
 
-function repositoryImpacts(value?: string): RepositoryImpact[] {
+function repositoryImpacts(value?: unknown): RepositoryImpact[] {
+  let plan: Record<string, unknown>
   try {
-    const parsed = JSON.parse(value ?? '{}') as Record<string, unknown>
-    const entries = parsed.repository_impact
-    if (!Array.isArray(entries)) return []
-    return entries.filter((entry): entry is RepositoryImpact => {
-      if (!entry || typeof entry !== 'object') return false
-      const candidate = entry as Partial<RepositoryImpact>
-      return (
-        typeof candidate.name === 'string' &&
-        typeof candidate.reference === 'string' &&
-        typeof candidate.revision === 'string' &&
-        (candidate.role === 'primary' || candidate.role === 'supporting') &&
-        (candidate.impact === 'changes' || candidate.impact === 'consulted' || candidate.impact === 'untouched') &&
-        typeof candidate.notes === 'string'
-      )
-    })
+    plan = typeof value === 'string'
+      ? JSON.parse(value) as Record<string, unknown>
+      : value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {}
   } catch {
     return []
   }
+  const entries = plan.repository_impact
+  if (!Array.isArray(entries)) return []
+  return entries.filter((entry): entry is RepositoryImpact => {
+    if (!entry || typeof entry !== 'object') return false
+    const candidate = entry as Partial<RepositoryImpact>
+    return typeof candidate.name === 'string' && typeof candidate.reference === 'string' &&
+      typeof candidate.revision === 'string' &&
+      (candidate.role === 'primary' || candidate.role === 'supporting') &&
+      (candidate.impact === 'changes' || candidate.impact === 'consulted' || candidate.impact === 'untouched') &&
+      typeof candidate.notes === 'string'
+  })
 }
 
 function hasPassedReview(change: DeliveryChangeSet | undefined) {
@@ -1205,9 +1209,7 @@ export default function DeliveryWorkItemPage() {
   const changedRepositories = plannedRepositoryImpacts.filter((repository) => repository.impact === 'changes')
   // A valid explicit matrix with no changed repository is a review-only
   // delivery. It must run the bounded assessment phase, never a worktree.
-  const isReadOnlyAssessment = Boolean(
-    approvedPlan && plannedRepositoryImpacts.length > 0 && changedRepositories.length === 0,
-  )
+  const isReadOnlyAssessment = Boolean(approvedPlan && isReadOnlyAssessmentPlan(approvedPlan.structured_result))
   const statePhase = item ? phaseByState[item.state] : undefined
   const activePhase = isReadOnlyAssessment && item?.state === 'implementation'
     ? { phase: 'assessment' as const, label: 'Completar evaluación de solo lectura' }
