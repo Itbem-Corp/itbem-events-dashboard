@@ -289,6 +289,8 @@ export type DeliveryGate = {
   id: string
   kind: 'plan' | 'code_review' | 'qa_review' | 'release'
   decision: 'approved' | 'changes_requested'
+  /** Provenance only; it never substitutes for the independent evidence shown in the delivery record. */
+  authority?: 'human' | 'delegated'
   decided_by: string
   comment?: string
   decided_at: string

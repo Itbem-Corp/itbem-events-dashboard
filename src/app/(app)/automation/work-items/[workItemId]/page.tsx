@@ -125,7 +125,7 @@ const phaseByState: Record<
 > = {
   planning: { phase: 'plan', label: 'Generar plan' },
   implementation: { phase: 'implementation', label: 'Preparar cambio aislado' },
-  preview_pending: { phase: 'publish', label: 'Publicar rama y crear PR' },
+  code_review: { phase: 'publish', label: 'Publicar rama y crear PR' },
   qa_running: { phase: 'qa', label: 'Ejecutar QA' },
   release_review: { phase: 'summary', label: 'Preparar resumen de entrega' },
 }
@@ -736,7 +736,9 @@ function deliveryRunEvents(item: DeliveryWorkItem): DeliveryRunEvent[] {
     title: `${gateLabel[gate.kind] ?? gate.kind}: ${gate.decision === 'approved' ? 'aprobado' : 'requiere cambios'}`,
     nodeLabel: 'Gate',
     trackKey: `gate-${gate.kind}`,
-    detail: gate.comment || 'Decisión humana registrada en el flujo.',
+    detail: gate.comment || (gate.authority === 'delegated'
+      ? 'Decisión registrada por el coordinator con evidencia independiente.'
+      : 'Decisión humana registrada en el flujo.'),
     tone: gate.decision === 'approved' ? ('human' as const) : ('attention' as const),
   }))
   const pendingGate = {
@@ -746,15 +748,15 @@ function deliveryRunEvents(item: DeliveryWorkItem): DeliveryRunEvent[] {
     release_review: { kind: 'release', label: 'Entrega' },
   }[item.state]
   // The read model only includes decided gates. While an approval is pending,
-  // preserve that human pause in the fallback graph instead of pretending the
-  // agent is idle or fabricating a technical execution.
+  // preserve that configured gate in the fallback graph instead of pretending
+  // the agent is idle or fabricating a technical execution.
   const pendingGateEvent = pendingGate ? [{
     id: `pending-gate-${item.id}-${pendingGate.kind}`,
     at: item.updated_at,
     title: `${pendingGate.label}: decisión requerida`,
     nodeLabel: 'Gate',
     trackKey: `gate-${pendingGate.kind}`,
-    detail: 'El agente espera una confirmación antes de abrir la siguiente etapa.',
+    detail: 'La plataforma espera la evidencia y autoridad configuradas antes de abrir la siguiente etapa.',
     tone: 'human' as const,
   }] : []
   const evidenceEvents = (item.evidence ?? []).map((evidence) => ({
@@ -3727,7 +3729,12 @@ export default function DeliveryWorkItemPage() {
                         <li key={gate.id} className="rounded-2xl border border-border-subtle bg-surface-soft p-3">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-semibold text-ink">{gateLabel[gate.kind] ?? gate.kind}</p>
-                            <Badge color={approved ? 'emerald' : 'rose'}>{approved ? 'Aprobado' : 'Cambios pedidos'}</Badge>
+                            <span className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-ink-muted">
+                                {gate.authority === 'delegated' ? 'Coordinator' : 'Humano'}
+                              </span>
+                              <Badge color={approved ? 'emerald' : 'rose'}>{approved ? 'Aprobado' : 'Cambios pedidos'}</Badge>
+                            </span>
                           </div>
                           {gate.comment && <p className="mt-2 text-sm leading-5 text-ink-secondary">{gate.comment}</p>}
                           <p className="mt-2 text-xs text-ink-muted">{date(gate.decided_at)}</p>
@@ -3738,11 +3745,11 @@ export default function DeliveryWorkItemPage() {
                 )}
               </div>
             </details>
-            <details open={item.state === 'preview_pending'} className={`premium-surface group rounded-3xl ${consoleView === 'control' ? '' : 'hidden'}`}>
+            <details open={item.state === 'code_review'} className={`premium-surface group rounded-3xl ${consoleView === 'control' ? '' : 'hidden'}`}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
                 <span>
                   <span className="block text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Control de publicación</span>
-                  <span className="mt-1 block text-sm font-semibold text-ink">{item.state === 'preview_pending' ? 'Autorizar publicación' : 'Permisos temporales'}</span>
+                  <span className="mt-1 block text-sm font-semibold text-ink">{item.state === 'code_review' ? 'Publicar PR para revisión' : 'Permisos temporales'}</span>
                 </span>
                 <Badge
                   color={
@@ -3757,7 +3764,7 @@ export default function DeliveryWorkItemPage() {
                     (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > publicationTime
                   )
                       ? 'Vigente'
-                      : item.state === 'preview_pending'
+                      : item.state === 'code_review'
                         ? 'Acción disponible'
                         : 'Sin permiso activo'}
                 </Badge>
@@ -3815,7 +3822,7 @@ export default function DeliveryWorkItemPage() {
                   )}
                 </div>
               )}
-              {item.state === 'preview_pending' &&
+              {item.state === 'code_review' &&
                 (reviewedPublicationReady && reviewedPublicationChange?.branch ? (
                   <div className="mt-4 rounded-2xl border border-(--tenant-accent)/20 bg-(--tenant-accent)/[0.045] p-3">
                     {reviewedPublicationChanges.length > 1 && (
@@ -3939,8 +3946,9 @@ export default function DeliveryWorkItemPage() {
                 ))}
               {(item.publication_grants?.length ?? 0) === 0 ? (
                 <div className="mt-4 rounded-2xl border border-dashed border-border-subtle bg-surface-soft p-3 text-xs leading-5 text-ink-muted">
-                  El trabajo permanece en worktree local. Cuando exista una integración GitHub App configurada y el gate
-                  de código esté aprobado, aquí quedará el permiso auditable de publicación.
+                  El trabajo permanece en worktree local. Cuando exista una integración GitHub App configurada y
+                  validaciones locales aprobadas, aquí quedará el permiso auditable para abrir el PR que revisará la
+                  identidad independiente.
                 </div>
               ) : (
                 <ol className="mt-4 space-y-3">
