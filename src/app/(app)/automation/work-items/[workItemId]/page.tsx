@@ -25,6 +25,10 @@ import type {
   DeliveryWorkItem,
 } from '@/features/automation/delivery-types'
 import { humanTransitionAwaitsAgentResult } from '@/features/automation/delivery-workflow'
+import {
+  agentPhaseToQueueAfterTransition,
+  needsAgentFollowUpRecovery,
+} from '@/features/automation/delivery-agent-followup'
 import type { ExecutionGraphEvent } from '@/features/automation/execution-graph'
 import { api } from '@/lib/api'
 import {
@@ -1204,6 +1208,13 @@ export default function DeliveryWorkItemPage() {
   const completedOperations = new Set(
     (item?.automation_tasks ?? []).filter((task) => task.status === 'completed').map((task) => task.operation)
   )
+  // A transition normally queues its follow-up automatically.  Keep a
+  // visible recovery control only when the gate has no later matching task;
+  // it is protected by the same server-side phase and duplicate-run checks
+  // as the automatic path.
+  const activePhaseNeedsRecovery = Boolean(
+    activePhase && needsAgentFollowUpRecovery(item?.gates ?? [], item?.automation_tasks ?? [], activePhase.phase)
+  )
   const currentFailedTaskIDs = new Set(unresolvedFailedTasks(item?.automation_tasks ?? []).map((task) => task.id))
   const taskRelevance = (task: DeliveryAutomationTask) => {
     if (task.status === 'running' || task.status === 'queued') return 0
@@ -1548,6 +1559,24 @@ export default function DeliveryWorkItemPage() {
         comment: recordedComment,
         evidence_checklist: reviewedEvidence,
       })
+      const followUpPhase = agentPhaseToQueueAfterTransition(action)
+      if (followUpPhase) {
+        try {
+          await api.post(deliveryWorkItemAgentRunsPath(item.id), {
+            phase: followUpPhase,
+            instructions: '',
+          })
+        } catch {
+          // The gate is already durable.  Surface a precise recovery state
+          // instead of claiming the agent started; the guarded recovery
+          // control below can retry without changing the gate or its audit.
+          setComment('')
+          setEvidenceChecklist('')
+          setMessage('Decisión registrada, pero no se pudo confirmar el encolado automático. Usa “Iniciar siguiente movimiento” para reintentarlo; el gate y su auditoría permanecen intactos.')
+          await workItem.mutate()
+          return
+        }
+      }
       setComment('')
       setEvidenceChecklist('')
       setMessage(`Decisión registrada. ${nextAgentMoveAfterGate(action)}`)
@@ -3503,7 +3532,7 @@ export default function DeliveryWorkItemPage() {
                     )}
                   </details>
                 </div>
-              ) : !hasVersionedPlan && activePhase && (
+              ) : activePhase && (!hasVersionedPlan || activePhaseNeedsRecovery) && (
                 <>
                   <details
                     open={phaseContextOpen}
