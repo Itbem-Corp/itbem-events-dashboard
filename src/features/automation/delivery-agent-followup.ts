@@ -18,11 +18,13 @@ const agentPhaseAfterTransition = {
 export type DeliveryAgentPhase =
   | 'plan'
   | 'implementation'
+  | 'assessment'
   | 'publish'
   | 'qa'
   | 'summary'
 
-export function agentPhaseToQueueAfterTransition(action: string): DeliveryAgentPhase | undefined {
+export function agentPhaseToQueueAfterTransition(action: string, readOnlyAssessment = false): DeliveryAgentPhase | undefined {
+  if (action === 'approve_plan' && readOnlyAssessment) return 'assessment'
   return agentPhaseAfterTransition[action as keyof typeof agentPhaseAfterTransition]
 }
 
@@ -30,8 +32,8 @@ export function deliveryOperationForAgentPhase(phase: DeliveryAgentPhase): strin
   return `delivery.${phase}`
 }
 
-function phaseAfterGate(gate: DeliveryGate): DeliveryAgentPhase | undefined {
-  if (gate.kind === 'plan') return gate.decision === 'approved' ? 'implementation' : 'plan'
+function phaseAfterGate(gate: DeliveryGate, readOnlyAssessment: boolean): DeliveryAgentPhase | undefined {
+  if (gate.kind === 'plan') return gate.decision === 'approved' ? (readOnlyAssessment ? 'assessment' : 'implementation') : 'plan'
   if (gate.kind === 'code_review' && gate.decision === 'changes_requested') return 'implementation'
   if (gate.kind === 'qa_review') return gate.decision === 'approved' ? 'summary' : 'implementation'
   return undefined
@@ -47,9 +49,10 @@ export function needsAgentFollowUpRecovery(
   gates: readonly DeliveryGate[],
   tasks: readonly DeliveryAutomationTask[],
   phase: DeliveryAgentPhase,
+  readOnlyAssessment = false,
 ): boolean {
   const gate = [...gates]
-    .filter((candidate) => phaseAfterGate(candidate) === phase)
+    .filter((candidate) => phaseAfterGate(candidate, readOnlyAssessment) === phase)
     .sort((left, right) => Date.parse(right.decided_at) - Date.parse(left.decided_at))[0]
   if (!gate) return false
   const gateTime = Date.parse(gate.decided_at)

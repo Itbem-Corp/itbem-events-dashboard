@@ -22,6 +22,11 @@ describe('delivery agent follow-ups', () => {
     expect(agentPhaseToQueueAfterTransition('block')).toBeUndefined()
   })
 
+  it('routes an explicitly read-only approved plan to assessment, not implementation', () => {
+    expect(agentPhaseToQueueAfterTransition('approve_plan', true)).toBe('assessment')
+    expect(deliveryOperationForAgentPhase('assessment')).toBe('delivery.assessment')
+  })
+
   it('uses the API operation naming for a recovery check', () => {
     expect(deliveryOperationForAgentPhase('implementation')).toBe('delivery.implementation')
   })
@@ -59,5 +64,22 @@ describe('delivery agent follow-ups', () => {
         'implementation',
       ),
     ).toBe(true)
+  })
+
+  it('recovers a read-only plan only when its assessment is absent', () => {
+    const gate = {
+      id: 'gate-assessment',
+      kind: 'plan' as const,
+      decision: 'approved' as const,
+      decided_by: 'human',
+      decided_at: '2026-09-11T14:00:00.000Z',
+    }
+    expect(needsAgentFollowUpRecovery([gate], [], 'assessment', true)).toBe(true)
+    expect(needsAgentFollowUpRecovery(
+      [gate],
+      [{ id: 'assessment-task', operation: 'delivery.assessment', status: 'completed', created_at: '2026-09-11T14:01:00.000Z' }],
+      'assessment',
+      true,
+    )).toBe(false)
   })
 })
