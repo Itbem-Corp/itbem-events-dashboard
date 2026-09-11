@@ -1079,7 +1079,7 @@ export default function DeliveryProjectsPage() {
                     ))}
                   </div>
                   <p className="text-xs leading-5 text-ink-muted">
-                    El agente propone alcance, validaciones y primer plan. Tú sólo apareces en los gates importantes.
+                    El agente propone alcance, validaciones y primer plan. El operador aparece sólo cuando la política del proyecto exige un gate humano.
                   </p>
                 </>
               )}

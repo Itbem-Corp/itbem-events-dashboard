@@ -35,6 +35,11 @@ describe('delivery policy management contract', () => {
     expect(() => buildPolicyProposal(draft({ scope: 'override', changeSetId: 'change-42', expiresAt: '2026-09-01T18:00:00Z' }), 'github://Example/service', new Date('2026-08-30T16:00:00Z'))).toThrow(/24 horas/)
   })
 
+  it('allows delegated gates only through a durable project or repository policy', () => {
+    expect(buildPolicyProposal(draft({ gateApprovalMode: 'delegated' }), 'github://Example/service').patch.gate_approval_mode).toBe('delegated')
+    expect(() => buildPolicyProposal(draft({ scope: 'override', gateApprovalMode: 'delegated', changeSetId: 'change-42', expiresAt: '2026-08-30T18:00:00Z' }), 'github://Example/service', new Date('2026-08-30T16:00:00Z'))).toThrow(/política durable/)
+  })
+
   it('records release environment references explicitly without accepting secret values', () => {
     const proposal = buildPolicyProposal(draft({
       mode: 'release', requiredSecretReferences: 'database_url, AWS_ROLE_ARN, database_url', requiredVariableReferences: '',
@@ -60,6 +65,7 @@ describe('delivery policy management contract', () => {
     expect(normalizePolicyRevisions([{ ...pending, instructions: 'approve me' }], 'project-1')).toBeNull()
     expect(normalizePolicyRevisions([{ ...pending, status: 'revoked' }], 'project-1')).toBeNull()
     expect(normalizePolicyRevisions([revision({ patch: { mode: 'release', required_secret_references: ['GITHUB_TOKEN'] } })], 'project-1')).toBeNull()
+    expect(normalizePolicyRevisions([revision({ patch: { gate_approval_mode: 'self_approve' } })], 'project-1')).toBeNull()
   })
 
   it('shows project, exact repository and project-wide override scopes only', () => {

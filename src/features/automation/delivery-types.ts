@@ -211,6 +211,7 @@ export type DeliveryPolicySafetyFloor = {
 
 export type DeliveryPolicyPatch = {
   mode?: 'review_only' | 'merge' | 'release'
+  gate_approval_mode?: 'human' | 'delegated'
   required_test_kinds?: string[]
   allowed_target_branches?: string[]
   merge_method?: 'merge' | 'squash' | 'rebase'
@@ -260,6 +261,7 @@ export type DeliveryEffectivePolicySnapshot = {
   policy: {
     schema_version: 1
     mode?: 'review_only' | 'merge' | 'release'
+    gate_approval_mode: 'human' | 'delegated'
     required_test_kinds: string[]
     allowed_target_branches: string[]
     merge_method?: 'merge' | 'squash' | 'rebase'
@@ -287,6 +289,8 @@ export type DeliveryGate = {
   id: string
   kind: 'plan' | 'code_review' | 'qa_review' | 'release'
   decision: 'approved' | 'changes_requested'
+  /** Provenance only; it never substitutes for the independent evidence shown in the delivery record. */
+  authority?: 'human' | 'delegated'
   decided_by: string
   comment?: string
   decided_at: string
