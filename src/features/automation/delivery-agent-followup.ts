@@ -23,6 +23,42 @@ export type DeliveryAgentPhase =
   | 'qa'
   | 'summary'
 
+type RepositoryImpact = {
+  name: string
+  reference: string
+  revision: string
+  role: 'primary' | 'supporting'
+  impact: 'changes' | 'consulted' | 'untouched'
+  notes: string
+}
+
+// Plans are stored as JSON text, but the authenticated API may return a
+// decoded structured result. Only a complete zero-change matrix may enter the
+// assessment lane; every malformed or partial value remains fail-closed.
+export function isReadOnlyAssessmentPlan(value: unknown): boolean {
+  let plan: Record<string, unknown>
+  try {
+    plan = typeof value === 'string'
+      ? JSON.parse(value) as Record<string, unknown>
+      : value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {}
+  } catch {
+    return false
+  }
+  const entries = plan.repository_impact
+  if (!Array.isArray(entries) || entries.length === 0) return false
+  return entries.every((entry): entry is RepositoryImpact => {
+    if (!entry || typeof entry !== 'object') return false
+    const candidate = entry as Partial<RepositoryImpact>
+    return typeof candidate.name === 'string' && typeof candidate.reference === 'string' &&
+      typeof candidate.revision === 'string' &&
+      (candidate.role === 'primary' || candidate.role === 'supporting') &&
+      (candidate.impact === 'changes' || candidate.impact === 'consulted' || candidate.impact === 'untouched') &&
+      typeof candidate.notes === 'string' && candidate.impact !== 'changes'
+  })
+}
+
 export function agentPhaseToQueueAfterTransition(action: string, readOnlyAssessment = false): DeliveryAgentPhase | undefined {
   if (action === 'approve_plan' && readOnlyAssessment) return 'assessment'
   return agentPhaseAfterTransition[action as keyof typeof agentPhaseAfterTransition]

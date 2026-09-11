@@ -1,6 +1,7 @@
 import {
   agentPhaseToQueueAfterTransition,
   deliveryOperationForAgentPhase,
+  isReadOnlyAssessmentPlan,
   needsAgentFollowUpRecovery,
 } from '@/features/automation/delivery-agent-followup'
 import { describe, expect, it } from 'vitest'
@@ -25,6 +26,14 @@ describe('delivery agent follow-ups', () => {
   it('routes an explicitly read-only approved plan to assessment, not implementation', () => {
     expect(agentPhaseToQueueAfterTransition('approve_plan', true)).toBe('assessment')
     expect(deliveryOperationForAgentPhase('assessment')).toBe('delivery.assessment')
+  })
+
+  it('accepts either API representation only for a complete zero-change matrix', () => {
+    const plan = { repository_impact: [{ name: 'Backend', reference: 'github://example/backend', revision: 'a'.repeat(40), role: 'primary', impact: 'consulted', notes: 'No change required.' }] }
+    expect(isReadOnlyAssessmentPlan(plan)).toBe(true)
+    expect(isReadOnlyAssessmentPlan(JSON.stringify(plan))).toBe(true)
+    expect(isReadOnlyAssessmentPlan({ repository_impact: [{ ...plan.repository_impact[0], impact: 'changes' }] })).toBe(false)
+    expect(isReadOnlyAssessmentPlan({ repository_impact: [{ reference: 'github://missing-fields', impact: 'consulted' }] })).toBe(false)
   })
 
   it('uses the API operation naming for a recovery check', () => {
