@@ -125,7 +125,7 @@ const DeliveryResultPanel = dynamic(
 
 const phaseByState: Record<
   string,
-  { phase: 'plan' | 'implementation' | 'publish' | 'qa' | 'summary'; label: string } | undefined
+  { phase: 'plan' | 'implementation' | 'assessment' | 'publish' | 'qa' | 'summary'; label: string } | undefined
 > = {
   planning: { phase: 'plan', label: 'Generar plan' },
   implementation: { phase: 'implementation', label: 'Preparar cambio aislado' },
@@ -162,6 +162,7 @@ const stateLabel: Record<string, string> = {
   qa_review: 'QA lista para revisión',
   release_review: 'Entrega lista para decisión',
   released: 'Entregada',
+  assessed: 'Evaluación completada',
   blocked: 'Bloqueada',
   cancelled: 'Cancelada',
 }
@@ -1197,7 +1198,20 @@ export default function DeliveryWorkItemPage() {
   )
   const publicationIntegrationReady = publicationReadiness.data?.state === 'ready'
   const clientContext = frozenClientContext(item?.client_context)
-  const activePhase = item ? phaseByState[item.state] : undefined
+  const approvedPlan = [...(item?.plans ?? [])]
+    .filter((plan) => plan.status === 'approved')
+    .sort((left, right) => right.version - left.version)[0]
+  const plannedRepositoryImpacts = repositoryImpacts(approvedPlan?.structured_result)
+  const changedRepositories = plannedRepositoryImpacts.filter((repository) => repository.impact === 'changes')
+  // A valid explicit matrix with no changed repository is a review-only
+  // delivery. It must run the bounded assessment phase, never a worktree.
+  const isReadOnlyAssessment = Boolean(
+    approvedPlan && plannedRepositoryImpacts.length > 0 && changedRepositories.length === 0,
+  )
+  const statePhase = item ? phaseByState[item.state] : undefined
+  const activePhase = isReadOnlyAssessment && item?.state === 'implementation'
+    ? { phase: 'assessment' as const, label: 'Completar evaluación de solo lectura' }
+    : statePhase
   const transitions = item ? (transitionByState[item.state] ?? []) : []
   const gateTransitions = transitions.filter((transition) => humanGateActions.has(transition.action))
   const activeGateAction = gateTransitions.some((transition) => transition.action === selectedGateAction)
@@ -1213,7 +1227,7 @@ export default function DeliveryWorkItemPage() {
   // it is protected by the same server-side phase and duplicate-run checks
   // as the automatic path.
   const activePhaseNeedsRecovery = Boolean(
-    activePhase && needsAgentFollowUpRecovery(item?.gates ?? [], item?.automation_tasks ?? [], activePhase.phase)
+    activePhase && needsAgentFollowUpRecovery(item?.gates ?? [], item?.automation_tasks ?? [], activePhase.phase, isReadOnlyAssessment)
   )
   const currentFailedTaskIDs = new Set(unresolvedFailedTasks(item?.automation_tasks ?? []).map((task) => task.id))
   const taskRelevance = (task: DeliveryAutomationTask) => {
@@ -1265,11 +1279,6 @@ export default function DeliveryWorkItemPage() {
   const generatedPlanInspectionPending = hasGeneratedPlan && (generatedPlanResult.isLoading || Boolean(generatedPlanResult.error))
   const generatedPlanCanBeVersioned = hasGeneratedPlan && !generatedPlanInspectionPending && !generatedPlanNeedsStagehandCases
   const hasVersionedPlan = (item?.plans?.length ?? 0) > 0
-  const approvedPlan = [...(item?.plans ?? [])]
-    .filter((plan) => plan.status === 'approved')
-    .sort((left, right) => right.version - left.version)[0]
-  const plannedRepositoryImpacts = repositoryImpacts(approvedPlan?.structured_result)
-  const changedRepositories = plannedRepositoryImpacts.filter((repository) => repository.impact === 'changes')
   const changeSetsByRepository = (reference: string) =>
     (item?.change_sets ?? []).filter((change) => change.repository_ref === reference)
   const repositoryCoverage = changedRepositories.map((repository) => {
@@ -1559,7 +1568,7 @@ export default function DeliveryWorkItemPage() {
         comment: recordedComment,
         evidence_checklist: reviewedEvidence,
       })
-      const followUpPhase = agentPhaseToQueueAfterTransition(action)
+      const followUpPhase = agentPhaseToQueueAfterTransition(action, isReadOnlyAssessment)
       if (followUpPhase) {
         try {
           await api.post(deliveryWorkItemAgentRunsPath(item.id), {
