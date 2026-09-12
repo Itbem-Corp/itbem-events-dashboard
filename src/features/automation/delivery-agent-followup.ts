@@ -77,9 +77,10 @@ function phaseAfterGate(gate: DeliveryGate, readOnlyAssessment: boolean): Delive
 
 /**
  * A browser may close between persisting a gate and receiving the enqueue
- * response.  Recover only when there is no task of the expected operation
- * created after the gate that requested it; historical completed tasks must
- * not hide that recovery path.
+ * response. Recover when no viable task of the expected operation was created
+ * after the gate that requested it. A failed or dispatch-failed attempt is
+ * immutable audit evidence, not proof that the phase is still in progress:
+ * hiding the recovery control in that case strands an otherwise valid delivery.
  */
 export function needsAgentFollowUpRecovery(
   gates: readonly DeliveryGate[],
@@ -92,7 +93,9 @@ export function needsAgentFollowUpRecovery(
     .sort((left, right) => Date.parse(right.decided_at) - Date.parse(left.decided_at))[0]
   if (!gate) return false
   const gateTime = Date.parse(gate.decided_at)
-  return !tasks.some(
-    (task) => task.operation === deliveryOperationForAgentPhase(phase) && Date.parse(task.created_at) >= gateTime,
-  )
+  const latestPhaseTask = tasks
+    .filter((task) => task.operation === deliveryOperationForAgentPhase(phase) && Date.parse(task.created_at) >= gateTime)
+    .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))[0]
+  if (!latestPhaseTask) return true
+  return latestPhaseTask.status === 'failed' || latestPhaseTask.status === 'dispatch_failed' || latestPhaseTask.status === 'cancelled'
 }
