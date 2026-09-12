@@ -32,6 +32,7 @@ import {
 } from '@/features/automation/delivery-agent-followup'
 import type { ExecutionGraphEvent } from '@/features/automation/execution-graph'
 import { api } from '@/lib/api'
+import { getApiErrorMessage } from '@/lib/api-error'
 import {
 	automationHealthPath,
 	automationTaskCancelPath,
@@ -1499,10 +1500,15 @@ export default function DeliveryWorkItemPage() {
       setInstructions('')
       setMessage('El siguiente movimiento ya está en marcha. Live Steps se actualizará al recibir el resultado.')
       await workItem.mutate()
-    } catch {
-      setMessage(
+    } catch (error) {
+      // The API deliberately returns an operator-safe rejection for a blocked
+      // phase (for example, an unavailable queue or stale context). Preserve
+      // that reason instead of making every failure look like a local-agent
+      // misconfiguration: it is the only actionable signal on this screen.
+      setMessage(getApiErrorMessage(
+        error,
         'No se pudo iniciar esta fase. Confirma el estado, el contexto congelado y la configuración del agente local.'
-      )
+      ))
     } finally {
       setBusy('')
     }
