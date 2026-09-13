@@ -548,6 +548,7 @@ export default function DeliveryProjectDetailPage() {
     repositoryKind: 'unclassified',
     repositoryResponsibility: '',
     dependsOnRepositories: '',
+    linkedGitHubRepository: '',
   })
   const [task, setTask] = useState({
     requestId: '',
@@ -626,6 +627,9 @@ export default function DeliveryProjectDetailPage() {
                 ...(list(context.dependsOnRepositories).length
                   ? { depends_on_repositories: list(context.dependsOnRepositories) }
                   : {}),
+                ...(context.reference.trim().startsWith('workspace://') && context.linkedGitHubRepository
+                  ? { github_repository: context.linkedGitHubRepository }
+                  : {}),
               }
             : {}),
         },
@@ -640,6 +644,7 @@ export default function DeliveryProjectDetailPage() {
         repositoryKind: 'unclassified',
         repositoryResponsibility: '',
         dependsOnRepositories: '',
+        linkedGitHubRepository: '',
       })
       setMessage('Fuente de contexto guardada. Las siguientes tareas congelarán esta revisión.')
       await project.mutate()
@@ -2623,6 +2628,30 @@ export default function DeliveryProjectDetailPage() {
                       </span>
                     )}
                   </label>
+                  {context.kind === 'repository' && context.reference.trim().startsWith('workspace://') && (
+                    <label className="mt-3 block text-sm font-medium text-ink">
+                      Repositorio GitHub vinculado
+                      <select
+                        required
+                        value={context.linkedGitHubRepository}
+                        onChange={(event) => setContext({ ...context, linkedGitHubRepository: event.target.value })}
+                        className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm"
+                      >
+                        <option value="">Selecciona el checkpoint remoto aprobado</option>
+                        {repositories
+                          .filter((source) => source.reference.startsWith('github://') && source.status === 'ready')
+                          .map((source) => (
+                            <option key={source.id} value={source.reference.replace(/^github:\/\//, '')}>
+                              {source.name} · {source.revision.slice(0, 12)}
+                            </option>
+                          ))}
+                      </select>
+                      <span className="mt-1 block text-xs leading-5 font-normal text-ink-muted">
+                        El runner local deberá probar esta identidad y el SHA congelado antes de leer código. No otorga
+                        permisos de publicación ni reemplaza una revisión.
+                      </span>
+                    </label>
+                  )}
                   <label className="mt-3 block text-sm font-medium text-ink">
                     Revisión
                     <input
