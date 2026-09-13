@@ -372,13 +372,13 @@ function formatShortDate(value?: string) {
 
 export default function AutomationPage() {
   const portfolioQuery = useSWR(automationPortfolioPath(), async (path) => normalizeDeliveryPortfolio(await fetcher<unknown>(path)), { refreshInterval: deliveryPortfolioRefreshInterval, revalidateOnFocus: true, keepPreviousData: true })
-  // The compact portfolio is the primary read model. Keep the old project
-  // collection strictly as a recovery path so opening the Center does not
-  // fetch the same work-item graph twice.
+  // The compact portfolio is the primary read model for Delivery work. The
+  // task index remains live because GitHub App reviews are standalone: a
+  // failed immutable review must stay visible so an operator can retry the
+  // same SHA without redelivering a webhook or changing the PR.
   const needsProjectRecovery = Boolean(portfolioQuery.error || (!portfolioQuery.data && !portfolioQuery.isLoading))
-  const needsTaskRecovery = needsProjectRecovery
   const legacyTasksQuery = useSWR<AutomationTask[]>(
-    needsTaskRecovery ? automationTasksPath() : null,
+    automationTasksPath(),
     fetcher,
     { refreshInterval: 30_000, revalidateOnFocus: true, keepPreviousData: true },
   )

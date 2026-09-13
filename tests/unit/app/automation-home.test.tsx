@@ -409,6 +409,7 @@ describe('AutomationPage', () => {
       }],
     }
     mocks.useSWR.mockImplementation((key: string) => {
+      if (key === automationTasksPath()) return { data: [], isLoading: false, mutate: mocks.mutateTasks }
       if (key === automationPortfolioPath()) return { data: failedReviewPortfolio, isLoading: false, mutate: mocks.mutatePortfolio }
       if (key === automationHealthPath()) return { data: { active_workers: 0 }, isLoading: false, mutate: vi.fn() }
       return { data: undefined, isLoading: false, mutate: vi.fn() }
@@ -418,6 +419,13 @@ describe('AutomationPage', () => {
 
     render(<AutomationPage />)
 
+    // A healthy compact portfolio must not suppress the standalone task
+    // index: GitHub review retries are created from that immutable task.
+    expect(mocks.useSWR).toHaveBeenCalledWith(
+      automationTasksPath(),
+      expect.anything(),
+      expect.objectContaining({ refreshInterval: 30_000 }),
+    )
     expect(screen.getAllByLabelText(`SHA exacto ${reviewSHA}`)).toHaveLength(1)
     await user.click(screen.getByRole('button', { name: 'Reintentar revisión' }))
 
