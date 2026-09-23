@@ -443,6 +443,48 @@ describe('AutomationPage', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Reintento de revisión en cola para el mismo SHA exacto.')
   })
 
+  it('retries a failed standalone review when its safe portfolio projection is unavailable', async () => {
+    const user = userEvent.setup()
+    mocks.useSWR.mockImplementation((key: string) => {
+      if (key === automationTasksPath()) return {
+        data: [{
+          id: 'review-task-without-projection',
+          operation: 'code.review',
+          status: 'failed',
+          created_at: '2026-09-13T08:52:46.000Z',
+        }],
+        isLoading: false,
+        mutate: mocks.mutateTasks,
+      }
+      if (key === automationPortfolioPath()) return {
+        data: {
+          schemaVersion: 3,
+          generatedAt: '2026-09-13T08:53:00.000Z',
+          revision: 'portfolio-without-review-projection',
+          totals: { projects: 0, workItems: 0, activeWorkItems: 0, decisionsRequired: 0, blockedWorkItems: 0, automationTasks: 0, queuedTasks: 0, runningTasks: 0, attentionTasks: 0, reviewTasks: 0, queuedReviews: 0, runningReviews: 0, attentionReviews: 0, publishedReviews: 0 },
+          projects: [],
+          reviewQueue: [],
+        },
+        isLoading: false,
+        mutate: mocks.mutatePortfolio,
+      }
+      if (key === automationHealthPath()) return { data: { active_workers: 0 }, isLoading: false, mutate: vi.fn() }
+      return { data: undefined, isLoading: false, mutate: vi.fn() }
+    })
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
+
+    render(<AutomationPage />)
+
+    await user.click(screen.getByRole('button', { name: 'Reintentar revisión' }))
+
+    await waitFor(() => {
+      expect(mocks.apiPost).toHaveBeenCalledWith(automationTaskRetryCodeReviewPath('review-task-without-projection'))
+    })
+    expect(mocks.mutateTasks).toHaveBeenCalled()
+    expect(mocks.mutatePortfolio).toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent('Reintento de revisión en cola para el mismo diff congelado.')
+  })
+
   it('does not offer a retry for a standalone review that is already published', () => {
     mocks.useSWR.mockImplementation((key: string) => {
       if (key === automationPortfolioPath()) return {
