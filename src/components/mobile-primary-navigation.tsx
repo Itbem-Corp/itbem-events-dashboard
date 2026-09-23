@@ -16,6 +16,8 @@ type PrimaryHref = Exclude<ApplicationRoute, '/audit'>
 
 interface MobilePrimaryNavigationProps {
   pathname: string
+  /** Keep the ITBEM platform directory distinct from Delivery clients on mobile too. */
+  tenantCode?: string
   showEvents: boolean
   showMetrics: boolean
   showTeam: boolean
@@ -37,6 +39,7 @@ const PRIMARY_ITEMS = [
 
 export function MobilePrimaryNavigation({
   pathname,
+  tenantCode,
   showEvents,
   showMetrics,
   showTeam,
@@ -67,7 +70,8 @@ export function MobilePrimaryNavigation({
       className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] left-1/2 z-30 grid w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 rounded-2xl border border-[var(--app-border-subtle)] bg-[var(--app-surface-raised)] p-1.5 shadow-[0_8px_24px_var(--app-shadow-strong)] lg:hidden"
       style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
-      {items.map(({ href, label, icon: Icon }) => {
+      {items.map(({ href, label: defaultLabel, icon: Icon }) => {
+        const label = href === '/clients' && tenantCode === 'itbem' ? 'Organizaciones' : defaultLabel
         const current = href === '/' ? pathname === '/' : pathname.startsWith(href)
         const accessibleLabel = href === '/automation' ? 'Centro de automatización' : label
 

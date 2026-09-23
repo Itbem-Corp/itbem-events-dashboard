@@ -318,12 +318,20 @@ export default function DeliveryClientsPage() {
         const activeCount = portfolioSnapshot
           ? portfolioProjects.reduce((total, project) => total + project.active_work_items, 0)
           : workItems.filter(isActive).length
-        const attentionCount = portfolioSnapshot
+        const reportedAttentionCount = portfolioSnapshot
           ? portfolioProjects.reduce((total, project) => total + project.decisions_required + project.blocked_work_items + project.attention_tasks, 0)
-          : workItems.filter(requiresHuman).length
-        const executionAttentionCount = portfolioSnapshot
+          : 0
+        const observedAttentionCount = workItems.filter(requiresHuman).length
+        // The compact portfolio totals are useful when a server intentionally
+        // truncates the work-item list. When the detailed list is available,
+        // never let an aggregate undercount hide a real human gate from the
+        // operator's attention queue.
+        const attentionCount = Math.max(reportedAttentionCount, observedAttentionCount)
+        const reportedExecutionAttentionCount = portfolioSnapshot
           ? portfolioProjects.reduce((total, project) => total + project.attention_tasks + project.blocked_work_items, 0)
-          : workItems.filter((workItem) => workItemTone(workItem) === 'attention').length
+          : 0
+        const observedExecutionAttentionCount = workItems.filter((workItem) => workItemTone(workItem) === 'attention').length
+        const executionAttentionCount = Math.max(reportedExecutionAttentionCount, observedExecutionAttentionCount)
 
         return { client, projects: portfolioProjects, workItems, flowCount, activeCount, attentionCount, executionAttentionCount }
       })
@@ -434,7 +442,7 @@ export default function DeliveryClientsPage() {
               </div>
             ) : null}
             <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-ink sm:text-3xl">Portafolio en movimiento</h1>
-            <p className="mt-1.5 max-w-2xl text-sm text-ink-muted">El contexto se incorpora automáticamente en cada flujo.</p>
+            <p className="mt-1.5 max-w-2xl text-sm text-ink-muted">Revisa los flujos de cada cliente y prepara el contexto que necesitan.</p>
           </div>
           {!hasLoadError && <Button color="indigo" onClick={() => openProfile()}><PlusIcon data-slot="icon" />Gestionar contexto</Button>}
         </header>
@@ -544,7 +552,7 @@ export default function DeliveryClientsPage() {
             {isLoading ? <div className="space-y-2 p-4" role="status" aria-live="polite" aria-busy="true" aria-label="Cargando intervenciones"><div className="h-16 animate-pulse rounded-xl bg-surface-soft motion-reduce:animate-none" /><div className="h-16 animate-pulse rounded-xl bg-surface-soft motion-reduce:animate-none" /></div> : hasLoadError ? (
               <div className="p-5"><div className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10"><ExclamationTriangleIcon className="size-5 text-amber-600" /></div><p className="mt-3 text-sm font-semibold text-ink">Intervenciones sin confirmar</p><p className="mt-1 text-xs leading-5 text-ink-muted">Sin una lectura actual no podemos asegurar que el agente tenga vía libre.</p></div>
             ) : decisionTotal === 0 ? (
-              <div className="p-5"><div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10"><CheckCircleIcon className="size-5 text-emerald-600" /></div><p className="mt-3 text-sm font-semibold text-ink">El agente tiene vía libre</p><p className="mt-1 text-xs leading-5 text-ink-muted">No hay revisiones ni bloqueos abiertos en los clientes monitorizados.</p></div>
+              <div className="p-5"><div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10"><CheckCircleIcon className="size-5 text-emerald-600" /></div><p className="mt-3 text-sm font-semibold text-ink">Sin intervenciones registradas</p><p className="mt-1 text-xs leading-5 text-ink-muted">No hay revisiones ni bloqueos abiertos en esta vista. Cada ejecución verifica por separado contexto, permisos y presupuesto.</p></div>
             ) : (
               <ul className="divide-y divide-border-subtle">
                 {visibleDecisions.map(({ client, workItem }) => <li key={workItem.id} className="p-4"><p className="text-[11px] font-semibold tracking-[0.08em] text-ink-muted uppercase">{client.client.name}</p><p className="mt-1 line-clamp-2 text-sm font-semibold text-ink">{workItem.title}</p><div className="mt-2 flex items-center justify-between gap-2"><span className={`text-xs font-medium ${workItemTone(workItem) === 'attention' ? 'text-rose-600 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300'}`}>{workItemLabel(workItem)}</span><Link href={`/automation/work-items/${workItem.id}?view=control`} className="inline-flex min-h-11 items-center text-xs font-semibold text-(--tenant-accent)">Abrir gate</Link></div></li>)}

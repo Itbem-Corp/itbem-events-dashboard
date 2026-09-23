@@ -12,6 +12,14 @@ afterEach(() => {
 })
 
 describe('automation artifact integrity', () => {
+  it('extracts only canonical run-scoped private artifact references', async () => {
+    const { automationArtifactRunId } = await import('@/lib/automation-artifact-integrity')
+    const runID = 'd4a4b837-2e18-43af-9f58-6d59629db2bb'
+    expect(automationArtifactRunId(`s3://outputs/automation/task/runs/${runID}/artifacts/01-preview.png`)).toBe(runID)
+    expect(automationArtifactRunId(`s3://outputs/automation/task/artifacts/01-preview.png`)).toBeUndefined()
+    expect(automationArtifactRunId(`s3://outputs/automation/task/runs/not-a-uuid/artifacts/01-preview.png`)).toBeUndefined()
+  })
+
   it('normalizes only canonical SHA-256 digests', async () => {
     const { expectedArtifactSHA256 } = await import('@/lib/automation-artifact-integrity')
     expect(expectedArtifactSHA256(' ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef0123456789 ')).toBe('abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789')

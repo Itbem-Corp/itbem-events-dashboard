@@ -165,6 +165,10 @@ export function automationTaskArtifactPath(taskId: string | number, name: string
   return `/automation/tasks/${encodePathSegment(taskId)}/artifacts/${encodePathSegment(name)}`
 }
 
+export function automationTaskRunArtifactPath(taskId: string | number, runId: string | number, name: string): string {
+  return `/automation/tasks/${encodePathSegment(taskId)}/runs/${encodePathSegment(runId)}/artifacts/${encodePathSegment(name)}`
+}
+
 export function deliveryProjectsPath(): string {
 	return '/automation/projects'
 }

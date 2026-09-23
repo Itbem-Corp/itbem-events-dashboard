@@ -19,6 +19,11 @@ describe('normalizeDeliveryPortfolio', () => {
           automation_task_count: 2, automation_tasks_truncated: false,
           automation_tasks: [{ id: 'task-1', operation: 'delivery.implementation', status: 'running', attempt_count: 1, created_at: '2026-08-12T16:00:00Z', updated_at: '2026-08-12T17:00:00Z' }],
           gate_summary: { total: 1, approved: 1, changes_requested: 0 }, evidence_count: 3,
+          workflow_projection: {
+            schema_version: 1, stage: 'build', state_kind: 'active', summary: 'Trabajando', detail: 'El agente continúa.', state: 'implementation',
+            actor: { type: 'agent', operation: 'delivery.implementation' }, last_activity_at: '2026-08-12T17:00:00Z', stale_after_seconds: 120, stale: false,
+            evidence: { total: 3, validations: 1, has_result: true, has_changes: true, has_human_gate: true }, recovery: { mode: 'repair', title: 'Revisa el fallo', detail: 'Consulta la actividad.', action_id: 'open_activity', requires_human_review: true }, available_actions: [], can_continue: true,
+          },
         }],
       }],
     })
@@ -30,7 +35,7 @@ describe('normalizeDeliveryPortfolio', () => {
       projects: [{
         client: { name: 'ITBEM' },
         workItems: [{
-          state: 'implementation', automationTasks: [{ status: 'running', attemptCount: 1 }], evidenceCount: 3,
+          state: 'implementation', automationTasks: [{ status: 'running', attemptCount: 1 }], evidenceCount: 3, workflowProjection: { state_kind: 'active', stage: 'build', summary: 'Trabajando', evidence: { total: 3 }, recovery: { mode: 'repair', action_id: 'open_activity', requires_human_review: true } },
         }],
       }],
     })

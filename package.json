@@ -27,7 +27,7 @@
     "dev": "next dev --turbopack",
     "build": "next build --webpack",
     "build:budget": "node scripts/build-with-budgets.mjs",
-    "start": "next start",
+    "start": "node scripts/start.mjs",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "contract:check": "node scripts/verify-product-contract.mjs",

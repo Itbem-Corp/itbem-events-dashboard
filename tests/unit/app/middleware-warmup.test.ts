@@ -29,6 +29,21 @@ describe('development route warmup proxy boundary', () => {
     expect(response.headers.get('location')).toBe('https://dashboard.example.com/login')
   })
 
+  it('preserves the externally selected tenant when the internal URL is localhost', () => {
+    vi.stubEnv('NODE_ENV', 'development')
+
+    const response = middleware(new NextRequest('http://localhost:3017/events', {
+      headers: {
+        host: 'localhost:3017',
+        'x-forwarded-host': 'dashboard.itbem.localhost:3017, localhost:3017',
+        'x-forwarded-proto': 'http',
+      },
+    }))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('http://dashboard.itbem.localhost:3017/login')
+  })
+
   it('does not honor the warmup header in production', () => {
     vi.stubEnv('NODE_ENV', 'production')
 

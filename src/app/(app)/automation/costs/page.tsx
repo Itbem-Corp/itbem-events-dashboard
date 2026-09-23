@@ -183,6 +183,7 @@ function costShare(cost = 0, total = 0) {
 function executionLabel(value: string) {
   const normalized = value.replace(/^delivery\./, '')
   const labels: Record<string, string> = {
+    chat: 'Conversación',
     plan: 'Plan',
     implementation: 'Construir',
     publish: 'Publicar',
@@ -321,15 +322,15 @@ export default function AutomationCostsPage() {
     : hasAttentionGuardrail
       ? {
           label: 'Una decisión se acerca',
-          detail: 'El agente puede continuar dentro del margen disponible.',
+          detail: 'Revisa el margen disponible antes de autorizar más trabajo.',
           tone: 'bg-amber-400',
           icon: ExclamationTriangleIcon,
         }
       : {
-          label: 'El agente puede continuar',
+          label: guardrails.length ? 'Consumo dentro del presupuesto' : 'Sin límites de presupuesto configurados',
           detail: guardrails.length
             ? 'El consumo sigue dentro de los límites definidos.'
-            : 'El consumo está trazado; puedes añadir un límite cuando haga falta.',
+            : 'Registrar el consumo no impone un tope. Configura un presupuesto antes de ampliar el trabajo autónomo.',
           tone: guardrails.length ? 'bg-emerald-400' : 'bg-sky-400',
           icon: guardrails.length ? ShieldCheckIcon : SparklesIcon,
         }
@@ -353,7 +354,7 @@ export default function AutomationCostsPage() {
       ? 'Tu sesión venció. Inicia sesión de nuevo para recuperar el pulso.'
       : errorStatus === 403
         ? 'No tienes acceso a esta vista de consumo.'
-        : 'El agente sigue trabajando; sólo esta lectura de guardrails no pudo sincronizarse.')
+        : 'No pudimos sincronizar el consumo. Esta vista no confirma si los agentes siguen trabajando.')
   const ledgerStatus = hasPartialLedger
     ? {
         label: 'Lectura parcial',
@@ -361,7 +362,7 @@ export default function AutomationCostsPage() {
         tone: 'bg-amber-400',
       }
     : {
-        label: isValidating ? 'Sincronizando' : 'Control automático',
+        label: isValidating ? 'Sincronizando' : 'Consumo registrado',
         detail: '',
         tone: controlState.tone,
       }
@@ -508,7 +509,7 @@ export default function AutomationCostsPage() {
         <PageHeader
           eyebrow="Automatización"
           title="Uso y costos"
-          description="El agente avanza dentro de límites claros."
+          description="Revisa el consumo y define cuánto puede gastar cada proyecto."
           icon={ChartBarSquareIcon}
           actions={error ? null :
             <div className="flex flex-wrap items-center gap-2">
@@ -669,11 +670,11 @@ export default function AutomationCostsPage() {
                   <div>
                     <p className="text-xs font-semibold tracking-[.14em] text-ink-muted uppercase">Límites</p>
                     <h2 id="guardrails-title" className="mt-1 text-lg font-semibold text-ink">
-                      {hasAttentionGuardrail ? 'Protecciones que necesitan revisión' : 'Todo avanza dentro de límites'}
+                      {hasAttentionGuardrail ? 'Protecciones que necesitan revisión' : guardrails.length ? 'Presupuestos sin alertas' : 'Configura tus límites'}
                     </h2>
                   </div>
                   <Badge color={hasExceededGuardrail ? 'rose' : hasAttentionGuardrail ? 'amber' : 'emerald'}>
-                    {hasAttentionGuardrail ? `${attentionGuardrails.length} señal${attentionGuardrails.length === 1 ? '' : 'es'}` : 'Sin bloqueos'}
+                    {hasAttentionGuardrail ? `${attentionGuardrails.length} señal${attentionGuardrails.length === 1 ? '' : 'es'}` : guardrails.length ? 'Sin alertas de presupuesto' : 'Sin configurar'}
                   </Badge>
                 </header>
                 {guardrails.length === 0 ? (
@@ -682,7 +683,7 @@ export default function AutomationCostsPage() {
                       <ShieldCheckIcon className="size-4" />
                     </span>
                     <p className="mt-3 text-sm font-semibold text-ink">Sin límites adicionales a nivel portafolio.</p>
-                    <p className="mt-1 max-w-md text-xs leading-5 text-ink-muted">El consumo permanece trazable por proyecto. Añade un guardrail sólo cuando necesites una protección específica.</p>
+                    <p className="mt-1 max-w-md text-xs leading-5 text-ink-muted">La trazabilidad no sustituye un presupuesto. Define un tope por proyecto para controlar las siguientes ejecuciones.</p>
                     <Link
                       href="/automation/projects"
                       className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-(--tenant-accent) hover:underline"

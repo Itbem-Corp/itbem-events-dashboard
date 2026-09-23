@@ -19,7 +19,7 @@ const sections: readonly AutomationSection[] = [
   },
   {
     href: '/automation/projects',
-    label: 'Resultados',
+    label: 'Proyectos',
     matches: (pathname) => pathname.startsWith('/automation/projects'),
   },
   {

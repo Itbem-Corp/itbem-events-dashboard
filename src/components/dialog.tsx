@@ -24,8 +24,12 @@ export function Dialog({
   Headless.DialogProps,
   'as' | 'className'
 >) {
+  // Keep the semantic dialog container in the viewport. The previous
+  // zero-sized relative wrapper rendered correctly, but assistive tech and
+  // browser automation treated the open dialog as hidden because its visible
+  // children were fixed-positioned outside the wrapper's box.
   return (
-    <Headless.Dialog {...props} className="relative z-50">
+    <Headless.Dialog {...props} className="fixed inset-0 z-50">
       <Headless.DialogBackdrop
         transition
         className="fixed inset-0 flex w-screen justify-center overflow-y-auto bg-[rgb(15_23_42_/_24%)] px-2 py-2 backdrop-blur-[2px] transition duration-100 focus:outline-0 motion-reduce:transition-none data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:px-6 sm:py-8 lg:px-8 lg:py-16 dark:bg-[rgb(2_6_12_/_58%)]"

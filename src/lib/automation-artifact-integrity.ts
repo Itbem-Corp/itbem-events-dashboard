@@ -1,4 +1,9 @@
 const sha256Pattern = /^[a-f0-9]{64}$/
+const runScopedArtifactPattern = /^s3:\/\/[^/]+\/automation\/[^/]+\/runs\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/artifacts\/[^/]+$/i
+
+export function automationArtifactRunId(reference?: string) {
+  return String(reference || '').match(runScopedArtifactPattern)?.[1]
+}
 
 export function expectedArtifactSHA256(value?: string) {
   const digest = value?.trim().toLowerCase() ?? ''

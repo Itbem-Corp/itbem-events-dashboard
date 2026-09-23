@@ -1,10 +1,15 @@
 'use client'
 
 import { Badge } from '@/components/badge'
+import { AgentWorkspace } from '@/features/automation/agent-workspace'
+import { agentOperationAvailability } from '@/features/automation/agent-availability'
+import { DeliveryWorkSummary } from '@/features/automation/delivery-work-summary'
+import { DeliveryReviewBrief } from '@/features/automation/delivery-review-brief'
+import { deliveryStateLabels } from '@/features/automation/delivery-presentation'
 import { Button } from '@/components/button'
 import { PageTransition } from '@/components/ui/page-transition'
 import { deliveryExecutionGraphBelongsTo, executionGraphEventsFromDelivery, type DeliveryExecutionGraphSnapshot } from '@/features/automation/delivery-execution-graph'
-import { hasCancellationRequest, hasUnresolvedOperationFailure, unresolvedFailedTasks } from '@/features/automation/delivery-task-status'
+import { deliveryContinuationNotice, hasCancellationRequest, hasUnresolvedOperationFailure, unresolvedWorkflowFailures, workflowTasks } from '@/features/automation/delivery-task-status'
 import {
   deliveryLines,
   deliveryPlanPayload,
@@ -13,23 +18,18 @@ import {
 import type { DeliveryBrowserQAFormCase } from '@/features/automation/delivery-form-payloads'
 import { deliveryWorkItemStreamEnabled, useDeliveryWorkItemStream } from '@/features/automation/use-delivery-work-item-stream'
 import { deliveryTraceRefreshInterval } from '@/features/automation/delivery-trace-refresh'
-import { ReleaseGateEvaluationPanel } from '@/features/automation/release-gate-evaluation-panel'
-import type { ReleaseGateEvaluationSnapshot } from '@/features/automation/release-gate-evaluations'
+import { evaluateRepositoryPreviewGate, isTrustedLocalReview, reviewedPreviewMatches } from '@/features/automation/repository-preview'
 import type { DeliveryReleaseDraft } from '@/features/automation/delivery-result-data'
 import type {
   DeliveryAutomationTask,
   DeliveryChangeSet,
+  DeliveryMessageAttachment,
   DeliveryPublicationReadiness,
   DeliveryPublicationVerification,
   DeliveryWorkItemBudget,
   DeliveryWorkItem,
 } from '@/features/automation/delivery-types'
 import { humanTransitionAwaitsAgentResult } from '@/features/automation/delivery-workflow'
-import {
-  agentPhaseToQueueAfterTransition,
-  isReadOnlyAssessmentPlan,
-  needsAgentFollowUpRecovery,
-} from '@/features/automation/delivery-agent-followup'
 import type { ExecutionGraphEvent } from '@/features/automation/execution-graph'
 import { api } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/api-error'
@@ -52,7 +52,6 @@ import {
   deliveryWorkItemPublicationGrantRevokePath,
   deliveryWorkItemPublicationGrantsPath,
   deliveryWorkItemReleasePath,
-  deliveryWorkItemReleaseGateEvaluationsPath,
   deliveryWorkItemReleaseReportPath,
   deliveryWorkItemTransitionPath,
 } from '@/lib/api-paths'
@@ -127,11 +126,11 @@ const DeliveryResultPanel = dynamic(
 
 const phaseByState: Record<
   string,
-  { phase: 'plan' | 'implementation' | 'assessment' | 'publish' | 'qa' | 'summary'; label: string } | undefined
+  { phase: 'plan' | 'implementation' | 'publish' | 'qa' | 'summary'; label: string } | undefined
 > = {
   planning: { phase: 'plan', label: 'Generar plan' },
   implementation: { phase: 'implementation', label: 'Preparar cambio aislado' },
-  code_review: { phase: 'publish', label: 'Publicar rama y crear PR' },
+  preview_pending: { phase: 'publish', label: 'Publicar rama y crear PR' },
   qa_running: { phase: 'qa', label: 'Ejecutar QA' },
   release_review: { phase: 'summary', label: 'Preparar resumen de entrega' },
 }
@@ -154,20 +153,7 @@ const transitionByState: Record<string, { action: string; label: string; tone?: 
   ],
   release_review: [{ action: 'approve_release', label: 'Aprobar entrega' }],
 }
-const stateLabel: Record<string, string> = {
-  planning: 'Planificación',
-  plan_review: 'Plan listo para revisión',
-  implementation: 'Implementación aislada',
-  code_review: 'Código listo para revisión',
-  preview_pending: 'Esperando preview',
-  qa_running: 'QA en curso',
-  qa_review: 'QA lista para revisión',
-  release_review: 'Entrega lista para decisión',
-  released: 'Entregada',
-  assessed: 'Evaluación completada',
-  blocked: 'Bloqueada',
-  cancelled: 'Cancelada',
-}
+const stateLabel = deliveryStateLabels
 const gateLabel: Record<string, string> = {
   plan: 'Plan',
   code_review: 'Código',
@@ -192,7 +178,7 @@ function gateDecisionCopy(action: string) {
 function nextAgentMoveAfterGate(action: string) {
   if (action === 'approve_plan') return 'El agente iniciará la implementación aislada.'
   if (action === 'request_plan_changes') return 'El agente preparará una nueva propuesta con tus observaciones.'
-  if (action === 'approve_code_review') return 'El agente continuará con el preview y las validaciones.'
+  if (action === 'approve_code_review') return 'Se esperará la publicación autorizada y el preview de CI. Cuando estén verificados, QA comenzará automáticamente.'
   if (action === 'request_code_changes') return 'El agente regresará a la implementación con tus observaciones.'
   if (action === 'approve_qa') return 'El agente preparará el resumen de entrega.'
   if (action === 'request_qa_changes') return 'El agente regresará a la implementación con tus observaciones de QA.'
@@ -226,10 +212,16 @@ type WorkspacePreflight = {
   ready: boolean
   qa_ready: boolean
   visual_qa_ready: boolean
+  dependency_state?: string
+  dependency_reason?: string
+  dependency_next_action?: string
 }
 
 type AutomationRuntimeHealth = {
-  workers?: Array<{ workspace_readiness?: WorkspacePreflight[] }>
+  operational_telemetry_available?: boolean
+  active_workers: number
+  workers?: Array<{ capabilities?: string[]; workspace_readiness?: WorkspacePreflight[] }>
+  operation_readiness?: Array<{ operation: string; worker_count: number; worker_capacity: number; ready: boolean }>
 }
 
 function date(value?: string) {
@@ -271,7 +263,6 @@ function metadataRecord(value?: Record<string, unknown> | string) {
     return {}
   }
 }
-
 type RepositoryImpact = {
   name: string
   reference: string
@@ -281,28 +272,26 @@ type RepositoryImpact = {
   notes: string
 }
 
-function repositoryImpacts(value?: unknown): RepositoryImpact[] {
-  let plan: Record<string, unknown>
+function repositoryImpacts(value?: string): RepositoryImpact[] {
   try {
-    plan = typeof value === 'string'
-      ? JSON.parse(value) as Record<string, unknown>
-      : value && typeof value === 'object' && !Array.isArray(value)
-        ? value as Record<string, unknown>
-        : {}
+    const parsed = JSON.parse(value ?? '{}') as Record<string, unknown>
+    const entries = parsed.repository_impact
+    if (!Array.isArray(entries)) return []
+    return entries.filter((entry): entry is RepositoryImpact => {
+      if (!entry || typeof entry !== 'object') return false
+      const candidate = entry as Partial<RepositoryImpact>
+      return (
+        typeof candidate.name === 'string' &&
+        typeof candidate.reference === 'string' &&
+        typeof candidate.revision === 'string' &&
+        (candidate.role === 'primary' || candidate.role === 'supporting') &&
+        (candidate.impact === 'changes' || candidate.impact === 'consulted' || candidate.impact === 'untouched') &&
+        typeof candidate.notes === 'string'
+      )
+    })
   } catch {
     return []
   }
-  const entries = plan.repository_impact
-  if (!Array.isArray(entries)) return []
-  return entries.filter((entry): entry is RepositoryImpact => {
-    if (!entry || typeof entry !== 'object') return false
-    const candidate = entry as Partial<RepositoryImpact>
-    return typeof candidate.name === 'string' && typeof candidate.reference === 'string' &&
-      typeof candidate.revision === 'string' &&
-      (candidate.role === 'primary' || candidate.role === 'supporting') &&
-      (candidate.impact === 'changes' || candidate.impact === 'consulted' || candidate.impact === 'untouched') &&
-      typeof candidate.notes === 'string'
-  })
 }
 
 function hasPassedReview(change: DeliveryChangeSet | undefined) {
@@ -455,19 +444,29 @@ type TraceEntry = AutomationExecution & {
 type GateReadiness = { label: string; detail: string; ready: boolean }
 
 function cost(value = 0) {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(
+  // Keep provider micro-costs legible. Four decimals rounded a small but real
+  // conversation charge (for example USD 0.000020) to "$0.0000", which made
+  // the dedicated chat ledger look free in the operator view.
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 6 }).format(
     value / 1_000_000
   )
 }
 
 function providerFailureGuidance(task: DeliveryAutomationTask) {
-  if (task.status !== 'failed' || !/provider request rejected \(401\)/i.test(task.error_message ?? '')) {
+  if (task.status !== 'failed') {
     return null
   }
+  if (/provider request rejected \(401\)/i.test(task.error_message ?? '')) {
+    return {
+      title: 'No se pudo verificar la credencial del proveedor',
+      detail:
+        'La ejecución se detuvo y no avanzó ningún gate. Revisa la credencial del entorno activo, su acceso a la API y los créditos o permisos de la cuenta antes de generar un nuevo plan.',
+    }
+  }
   return {
-    title: 'No se pudo verificar la credencial del proveedor',
+    title: 'El agente detuvo este intento',
     detail:
-      'La ejecución se detuvo y no avanzó ningún gate. Revisa la credencial del entorno activo, su acceso a la API y los créditos o permisos de la cuenta antes de generar un nuevo plan.',
+      'La ejecución se detuvo y no avanzó ningún gate. Revisa el diagnóstico y el resultado privado antes de decidir si corresponde reintentar o aportar contexto.',
   }
 }
 
@@ -494,6 +493,7 @@ function isActiveTask(task: DeliveryAutomationTask) {
 
 function operationLabel(operation?: string) {
   const labels: Record<string, string> = {
+    'delivery.chat': 'Respondiendo tu pregunta',
     'delivery.plan': 'Analizando contexto y preparando el plan',
     'delivery.implementation': 'Preparando cambio aislado',
     'delivery.qa': 'Ejecutando validaciones y evidencia',
@@ -523,20 +523,21 @@ function DeliveryPipeline({
   onRefresh?: () => void
 }) {
   const tasks = item.automation_tasks ?? []
-  const activeTask = [...tasks]
+  const executionTasks = workflowTasks(tasks)
+  const activeTask = [...executionTasks]
     .filter(isActiveTask)
     .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))[0]
   const latestTask = [...tasks]
     .sort((left, right) => Date.parse(right.completed_at ?? right.created_at) - Date.parse(left.completed_at ?? left.created_at))[0]
-  const latestFailedTask = unresolvedFailedTasks(tasks)
+  const latestFailedTask = unresolvedWorkflowFailures(tasks)
     .sort((left, right) => Date.parse(right.completed_at ?? right.created_at) - Date.parse(left.completed_at ?? left.created_at))[0]
-  const cancellingTask = hasCancellationRequest(tasks)
-    ? [...tasks]
+  const cancellingTask = hasCancellationRequest(executionTasks)
+    ? [...executionTasks]
       .filter((task) => task.status === 'cancel_requested')
       .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))[0]
     : undefined
   const live = Boolean(activeTask) && !cancellingTask
-  const needsAttention = Boolean(latestFailedTask) && !cancellingTask
+  const needsAttention = (Boolean(latestFailedTask) || item.agent_progress === 'blocked' || item.state === 'blocked') && !cancellingTask
   // A cancelled execution is a neutral record. Only the work-item state can
   // close the delivery flow itself; later/retried work may still continue.
   const cancelled = item.state === 'cancelled'
@@ -576,7 +577,7 @@ function DeliveryPipeline({
     : providerNeedsMaintenance
       ? 'El agente detuvo los reintentos para evitar costes sin una credencial válida.'
       : needsAttention
-          ? 'Revisa la incidencia para que el flujo pueda continuar.'
+          ? item.blocked_reason || 'Revisa la incidencia para que el flujo pueda continuar.'
           : awaitingDecision
             ? `Tu confirmación desbloquea ${stateLabel[item.state] ?? 'el siguiente gate'}.`
             : cancelled
@@ -746,9 +747,7 @@ function deliveryRunEvents(item: DeliveryWorkItem): DeliveryRunEvent[] {
     title: `${gateLabel[gate.kind] ?? gate.kind}: ${gate.decision === 'approved' ? 'aprobado' : 'requiere cambios'}`,
     nodeLabel: 'Gate',
     trackKey: `gate-${gate.kind}`,
-    detail: gate.comment || (gate.authority === 'delegated'
-      ? 'Decisión registrada por el coordinator con evidencia independiente.'
-      : 'Decisión humana registrada en el flujo.'),
+    detail: gate.comment || 'Decisión humana registrada en el flujo.',
     tone: gate.decision === 'approved' ? ('human' as const) : ('attention' as const),
   }))
   const pendingGate = {
@@ -758,15 +757,15 @@ function deliveryRunEvents(item: DeliveryWorkItem): DeliveryRunEvent[] {
     release_review: { kind: 'release', label: 'Entrega' },
   }[item.state]
   // The read model only includes decided gates. While an approval is pending,
-  // preserve that configured gate in the fallback graph instead of pretending
-  // the agent is idle or fabricating a technical execution.
+  // preserve that human pause in the fallback graph instead of pretending the
+  // agent is idle or fabricating a technical execution.
   const pendingGateEvent = pendingGate ? [{
     id: `pending-gate-${item.id}-${pendingGate.kind}`,
     at: item.updated_at,
     title: `${pendingGate.label}: decisión requerida`,
     nodeLabel: 'Gate',
     trackKey: `gate-${pendingGate.kind}`,
-    detail: 'La plataforma espera la evidencia y autoridad configuradas antes de abrir la siguiente etapa.',
+    detail: 'El agente espera una confirmación antes de abrir la siguiente etapa.',
     tone: 'human' as const,
   }] : []
   const evidenceEvents = (item.evidence ?? []).map((evidence) => ({
@@ -818,6 +817,7 @@ function AutomationTaskRow({
   onCancel,
   onRetryCodeReview,
   isCurrentFailure = true,
+  structuredRecovery = false,
   selected = false,
 }: {
   task: DeliveryAutomationTask
@@ -826,6 +826,7 @@ function AutomationTaskRow({
   onCancel: (task: DeliveryAutomationTask) => void
   onRetryCodeReview: (task: DeliveryAutomationTask) => void
   isCurrentFailure?: boolean
+  structuredRecovery?: boolean
   selected?: boolean
 }) {
   const active = task.status === 'running' || task.status === 'queued'
@@ -837,7 +838,7 @@ function AutomationTaskRow({
   const cancelling = task.status === 'cancel_requested'
   const providerNeedsMaintenance = /provider request rejected \(401\)/i.test(task.error_message ?? '')
   const canRetryCodeReview = task.operation === 'code.review' && task.status === 'failed'
-  const failureGuidance = needsAttention ? providerFailureGuidance(task) : null
+  const failureGuidance = needsAttention && !structuredRecovery ? providerFailureGuidance(task) : null
   const statusLabel = complete
     ? 'Completado'
     : active
@@ -882,7 +883,7 @@ function AutomationTaskRow({
               : 'Esperando proveedor'}{' '}
           · <time dateTime={task.completed_at ?? task.created_at} title={date(task.completed_at ?? task.created_at)}>{activityTime(task.completed_at ?? task.created_at)}</time>
         </p>
-        {needsAttention && (
+        {needsAttention && !structuredRecovery && (
           <div className="mt-2.5 flex gap-2 rounded-xl border border-rose-500/20 bg-rose-500/[0.05] px-3 py-2.5">
             <span aria-hidden="true" className="mt-1.5 size-1.5 shrink-0 rounded-full bg-rose-500" />
             <p className="min-w-0 text-xs leading-5 text-rose-800">
@@ -918,7 +919,6 @@ function AutomationTaskRow({
 }
 
 export default function DeliveryWorkItemPage() {
-  const [publicationTime] = useState(() => Date.now())
   const params = useParams<{ workItemId: string }>()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -946,7 +946,7 @@ export default function DeliveryWorkItemPage() {
       dedupingInterval: 2000,
     }
   )
-  const item = workItem.data
+  const item = workItem.data?.id === params.workItemId ? workItem.data : undefined
   const executionGraph = useSWR<DeliveryExecutionGraphSnapshot>(
     // The graph is only rendered in Live Steps. Avoid fetching its specialized
     // snapshot while the operator is reviewing evidence, executions or gates;
@@ -964,18 +964,6 @@ export default function DeliveryWorkItemPage() {
       dedupingInterval: 2_000,
     },
   )
-  const releaseGateEvaluations = useSWR<ReleaseGateEvaluationSnapshot>(
-    params.workItemId && consoleView === 'control' ? deliveryWorkItemReleaseGateEvaluationsPath(params.workItemId) : null,
-    fetcher,
-    {
-      refreshInterval: 60_000,
-      refreshWhenHidden: false,
-      revalidateOnFocus: true,
-      revalidateIfStale: true,
-      keepPreviousData: true,
-      dedupingInterval: 2_000,
-    },
-  )
   const graphStream = useDeliveryWorkItemStream(params.workItemId, {
     // Keep one subscription for the task across every console surface. An
     // operator can inspect evidence or a decision while the agent advances;
@@ -988,13 +976,11 @@ export default function DeliveryWorkItemPage() {
     onSnapshot: () => {
       void workItem.mutate()
       if (consoleView === 'overview') void executionGraph.mutate()
-      if (consoleView === 'control') void releaseGateEvaluations.mutate()
       if (selectedResultIsActive) void trace.mutate()
     },
     onUpdate: () => {
       void workItem.mutate()
       if (consoleView === 'overview') void executionGraph.mutate()
-      if (consoleView === 'control') void releaseGateEvaluations.mutate()
       if (selectedResultIsActive) void trace.mutate()
     },
   })
@@ -1034,11 +1020,16 @@ export default function DeliveryWorkItemPage() {
   const [selectedExecutionKind, setSelectedExecutionKind] = useState<'agent' | 'tool'>('agent')
   const selectedResultPanelRef = useRef<HTMLDivElement | null>(null)
   const selectedTask = item?.automation_tasks?.find((task) => task.id === selectedResult)
+  const selectedProjectionRecovery = selectedTask && item?.workflow_projection?.current_task_id === selectedTask.id
+    ? item.workflow_projection.recovery
+    : undefined
   const selectedDiagnostic = selectedTask && (selectedTask.status === 'failed' || selectedTask.status === 'dispatch_failed')
-    ? providerFailureGuidance(selectedTask) ?? {
+    ? selectedProjectionRecovery
+      ? { title: selectedProjectionRecovery.title, detail: selectedProjectionRecovery.detail }
+      : providerFailureGuidance(selectedTask) ?? {
       title: 'El agente detuvo este intento',
       detail: 'No se avanzó ningún gate. Revisa este intento antes de decidir si el flujo debe continuar o necesita más contexto.',
-    }
+        }
     : undefined
   const selectedResultIsActive = Boolean(selectedResult && item?.automation_tasks?.some((task) => task.id === selectedResult && isActiveTask(task)))
   const selectedResultExists = Boolean(selectedResult && item?.automation_tasks?.some((task) => task.id === selectedResult))
@@ -1203,19 +1194,16 @@ export default function DeliveryWorkItemPage() {
   )
   const publicationIntegrationReady = publicationReadiness.data?.state === 'ready'
   const clientContext = frozenClientContext(item?.client_context)
-  const approvedPlan = [...(item?.plans ?? [])]
-    .filter((plan) => plan.status === 'approved')
-    .sort((left, right) => right.version - left.version)[0]
-  const plannedRepositoryImpacts = repositoryImpacts(approvedPlan?.structured_result)
-  const changedRepositories = plannedRepositoryImpacts.filter((repository) => repository.impact === 'changes')
-  // A valid explicit matrix with no changed repository is a review-only
-  // delivery. It must run the bounded assessment phase, never a worktree.
-  const isReadOnlyAssessment = Boolean(approvedPlan && isReadOnlyAssessmentPlan(approvedPlan.structured_result))
-  const statePhase = item ? phaseByState[item.state] : undefined
-  const activePhase = isReadOnlyAssessment && item?.state === 'implementation'
-    ? { phase: 'assessment' as const, label: 'Completar evaluación de solo lectura' }
-    : statePhase
-  const transitions = item ? (transitionByState[item.state] ?? []) : []
+  const projectedAgentAction = item?.workflow_projection?.available_actions.find((action) => action.kind === 'agent_run' && action.phase)
+  const activePhase = item
+    ? projectedAgentAction?.phase
+      ? { phase: projectedAgentAction.phase as 'plan' | 'implementation' | 'publish' | 'qa' | 'summary', label: projectedAgentAction.label }
+      : phaseByState[item.state]
+    : undefined
+  const projectedTransitions = item?.workflow_projection?.available_actions
+    .filter((action) => action.kind === 'transition' && action.transition)
+    .map((action) => ({ action: action.transition as string, label: action.label, tone: action.id.includes('request_') ? 'rose' as const : 'indigo' as const })) ?? []
+  const transitions = projectedTransitions.length > 0 ? projectedTransitions : item ? (transitionByState[item.state] ?? []) : []
   const gateTransitions = transitions.filter((transition) => humanGateActions.has(transition.action))
   const activeGateAction = gateTransitions.some((transition) => transition.action === selectedGateAction)
     ? selectedGateAction
@@ -1225,14 +1213,7 @@ export default function DeliveryWorkItemPage() {
   const completedOperations = new Set(
     (item?.automation_tasks ?? []).filter((task) => task.status === 'completed').map((task) => task.operation)
   )
-  // A transition normally queues its follow-up automatically.  Keep a
-  // visible recovery control only when the gate has no later matching task;
-  // it is protected by the same server-side phase and duplicate-run checks
-  // as the automatic path.
-  const activePhaseNeedsRecovery = Boolean(
-    activePhase && needsAgentFollowUpRecovery(item?.gates ?? [], item?.automation_tasks ?? [], activePhase.phase, isReadOnlyAssessment)
-  )
-  const currentFailedTaskIDs = new Set(unresolvedFailedTasks(item?.automation_tasks ?? []).map((task) => task.id))
+  const currentFailedTaskIDs = new Set(unresolvedWorkflowFailures(item?.automation_tasks ?? []).map((task) => task.id))
   const taskRelevance = (task: DeliveryAutomationTask) => {
     if (task.status === 'running' || task.status === 'queued') return 0
     if (currentFailedTaskIDs.has(task.id)) return 1
@@ -1282,14 +1263,33 @@ export default function DeliveryWorkItemPage() {
   const generatedPlanInspectionPending = hasGeneratedPlan && (generatedPlanResult.isLoading || Boolean(generatedPlanResult.error))
   const generatedPlanCanBeVersioned = hasGeneratedPlan && !generatedPlanInspectionPending && !generatedPlanNeedsStagehandCases
   const hasVersionedPlan = (item?.plans?.length ?? 0) > 0
+  const approvedPlan = [...(item?.plans ?? [])]
+    .filter((plan) => plan.status === 'approved')
+    .sort((left, right) => right.version - left.version)[0]
+  const plannedRepositoryImpacts = repositoryImpacts(approvedPlan?.structured_result)
+  const changedRepositories = plannedRepositoryImpacts.filter((repository) => repository.impact === 'changes')
   const changeSetsByRepository = (reference: string) =>
     (item?.change_sets ?? []).filter((change) => change.repository_ref === reference)
   const repositoryCoverage = changedRepositories.map((repository) => {
     const changes = changeSetsByRepository(repository.reference)
     const reviewed = changes.some((change) => hasPassedReview(change))
     const published = changes.some((change) => publishedByGitHubApp(change))
-    const preview = changes.some((change) => publishedByGitHubApp(change) && hasValidPreview(change))
-    return { ...repository, reviewed, published, preview }
+    const reviewedChange = [...changes]
+      .filter((change) => isTrustedLocalReview(change))
+      .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))[0]
+    const publishedPreviewChange = changes.find((change) => publishedByGitHubApp(change) && hasValidPreview(change))
+    const previewChange = changes.find(
+      (change) => publishedByGitHubApp(change) && hasValidPreview(change) && reviewedPreviewMatches(reviewedChange, change),
+    )
+    const preview = Boolean(previewChange)
+    return {
+      ...repository,
+      reviewed,
+      published,
+      preview,
+      previewMismatch: Boolean(publishedPreviewChange && !previewChange),
+      previewURL: previewChange?.preview_url?.trim(),
+    }
   })
   // Old work items did not retain a frozen repository-impact matrix. Preserve
   // their historical manual-preview path while new plans use strict coverage.
@@ -1297,8 +1297,11 @@ export default function DeliveryWorkItemPage() {
   const reviewableChangeReady = usesRepositoryCoverage
     ? repositoryCoverage.every((repository) => repository.reviewed)
     : Boolean((item?.change_sets ?? []).some((change) => hasPassedReview(change)))
+  const repositoryPreviewGate = usesRepositoryCoverage
+    ? evaluateRepositoryPreviewGate(repositoryCoverage)
+    : undefined
   const previewReady = usesRepositoryCoverage
-    ? repositoryCoverage.every((repository) => repository.published) && repositoryCoverage.some((repository) => repository.preview)
+    ? Boolean(repositoryPreviewGate?.ready)
     : Boolean((item?.change_sets ?? []).some((change) => hasValidPreview(change)))
   const reviewedPublicationChanges = (item?.change_sets ?? []).filter((change) => {
     const metadata = metadataRecord(change.metadata)
@@ -1331,7 +1334,7 @@ export default function DeliveryWorkItemPage() {
     reviewedPublicationChange?.branch && reviewedBaseSHA && reviewedGitHubRepository && reviewedDiffSHA256
   )
   const activePublicationGrants = (item?.publication_grants ?? []).filter(
-    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > publicationTime
+    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
   )
   const activePublicationGrantForReviewedChange = reviewedPublicationChange
     ? activePublicationGrants.find(
@@ -1356,6 +1359,16 @@ export default function DeliveryWorkItemPage() {
     }
   }
   const unavailableWorkspaces = requiredWorkspaceIDs.filter((workspaceID) => !workspaceReadinessByID.get(workspaceID)?.ready)
+  const phaseOperation = item?.state === 'planning' || item?.state === 'plan_review'
+    ? 'delivery.plan'
+    : item?.state === 'implementation' || item?.state === 'code_review'
+      ? 'delivery.implementation'
+      : item?.state === 'qa_running' || item?.state === 'qa_review'
+        ? 'delivery.qa'
+        : item?.state === 'release_review'
+          ? 'delivery.summary'
+          : undefined
+  const phaseWorker = phaseOperation ? agentOperationAvailability(runtime.data, phaseOperation, Boolean(runtime.error)) : undefined
   const gateReadiness: GateReadiness[] = (() => {
     if (!item) return []
     switch (item.state) {
@@ -1380,6 +1393,7 @@ export default function DeliveryWorkItemPage() {
         ]
       case 'implementation':
         return [
+          ...(phaseWorker ? [{ label: phaseWorker.label, detail: phaseWorker.detail, ready: phaseWorker.state === 'ready' }] : []),
           { label: 'Plan humano', detail: 'El plan aprobado define el alcance de este worktree.', ready: true },
           {
             label: 'Cambio aislado',
@@ -1389,10 +1403,14 @@ export default function DeliveryWorkItemPage() {
         ]
       case 'plan_review':
         return [
+          ...(phaseWorker && phaseWorker.state !== 'ready'
+            ? [{ label: phaseWorker.label, detail: phaseWorker.detail, ready: false }]
+            : []),
           {
             label: 'Preflight del worker',
-            detail:
-              requiredWorkspaceIDs.length === 0
+            detail: phaseWorker?.state === 'unknown'
+              ? phaseWorker.detail
+              : requiredWorkspaceIDs.length === 0
                 ? 'Esta tarea no seleccionó workspaces locales para ejecutar.'
                 : unavailableWorkspaces.length === 0
                   ? `${requiredWorkspaceIDs.length} workspace${requiredWorkspaceIDs.length === 1 ? '' : 's'} listo${requiredWorkspaceIDs.length === 1 ? '' : 's'} para la siguiente fase.`
@@ -1429,8 +1447,10 @@ export default function DeliveryWorkItemPage() {
           {
             label: 'Cobertura de Preview',
             detail: previewReady
-              ? 'La publicación y el preview trazable ya están listos.'
-              : 'Publica los repositorios requeridos y registra un preview.',
+              ? 'Todos los repositorios comparten un preview integrado trazable.'
+              : repositoryPreviewGate?.state === 'ambiguous'
+                ? 'Los previews existen, pero sus URLs no coinciden; registra un preview integrado común.'
+                : 'Publica cada repositorio requerido y registra su preview integrado.',
             ready: previewReady,
           },
         ]
@@ -1501,14 +1521,12 @@ export default function DeliveryWorkItemPage() {
       setMessage('El siguiente movimiento ya está en marcha. Live Steps se actualizará al recibir el resultado.')
       await workItem.mutate()
     } catch (error) {
-      // The API deliberately returns an operator-safe rejection for a blocked
-      // phase (for example, an unavailable queue or stale context). Preserve
-      // that reason instead of making every failure look like a local-agent
-      // misconfiguration: it is the only actionable signal on this screen.
-      setMessage(getApiErrorMessage(
-        error,
-        'No se pudo iniciar esta fase. Confirma el estado, el contexto congelado y la configuración del agente local.'
-      ))
+      const detail = getApiErrorMessage(error, '').toLowerCase()
+      setMessage(
+        detail.includes('saturat')
+          ? 'La capacidad del equipo de agentes está temporalmente ocupada. La fase no se perdió: espera a que termine una ejecución o vuelve a intentarlo.'
+          : 'No se pudo iniciar esta fase. Confirma el estado, el contexto congelado y la configuración del agente local.'
+      )
     } finally {
       setBusy('')
     }
@@ -1576,24 +1594,6 @@ export default function DeliveryWorkItemPage() {
         comment: recordedComment,
         evidence_checklist: reviewedEvidence,
       })
-      const followUpPhase = agentPhaseToQueueAfterTransition(action, isReadOnlyAssessment)
-      if (followUpPhase) {
-        try {
-          await api.post(deliveryWorkItemAgentRunsPath(item.id), {
-            phase: followUpPhase,
-            instructions: '',
-          })
-        } catch {
-          // The gate is already durable.  Surface a precise recovery state
-          // instead of claiming the agent started; the guarded recovery
-          // control below can retry without changing the gate or its audit.
-          setComment('')
-          setEvidenceChecklist('')
-          setMessage('Decisión registrada, pero no se pudo confirmar el encolado automático. Usa “Iniciar siguiente movimiento” para reintentarlo; el gate y su auditoría permanecen intactos.')
-          await workItem.mutate()
-          return
-        }
-      }
       setComment('')
       setEvidenceChecklist('')
       setMessage(`Decisión registrada. ${nextAgentMoveAfterGate(action)}`)
@@ -1653,6 +1653,16 @@ export default function DeliveryWorkItemPage() {
     } finally {
       setBusy('')
     }
+  }
+
+  async function sendAgentContext(body: string, resume: boolean, clientMessageId: string, attachments: DeliveryMessageAttachment[] = []) {
+    if (!item) throw new Error('Work item unavailable')
+    await api.post(deliveryWorkItemMessagesPath(item.id), {
+      phase: item.state, body, resume, client_message_id: clientMessageId,
+      ...(attachments.length ? { attachments: attachments.map(({ kind, id }) => ({ kind, id })) } : {}),
+      ...(resume ? { expected_epoch: item.automation_epoch ?? 0 } : {}),
+    })
+    void workItem.mutate()
   }
   async function savePlan(event: FormEvent) {
     event.preventDefault()
@@ -1902,14 +1912,14 @@ export default function DeliveryWorkItemPage() {
     clientContext.rules.length > 0 ||
     clientContext.conversationSummary
   )
-  const workItemIsStopping = hasCancellationRequest(item.automation_tasks ?? [])
-  const hasRunAttention = unresolvedFailedTasks(item.automation_tasks ?? []).length > 0 && !workItemIsStopping
+  const workItemIsStopping = hasCancellationRequest(workflowTasks(item.automation_tasks ?? []))
+  const hasRunAttention = unresolvedWorkflowFailures(item.automation_tasks ?? []).length > 0 && !workItemIsStopping
   const awaitsDecision = ['plan_review', 'code_review', 'qa_review', 'release_review'].includes(item.state) && !workItemIsStopping
   const consoleTabs: Array<{ view: DeliveryConsoleView; label: string; compact: string; attention?: boolean }> = [
-    { view: 'overview', label: 'Live Steps', compact: 'Live' },
-    { view: 'activity', label: `Ejecuciones ${item.automation_tasks?.length ? `(${item.automation_tasks.length})` : ''}`, compact: 'Ejec.', attention: hasRunAttention },
-    { view: 'evidence', label: `Evidencia ${item.evidence?.length ? `(${item.evidence.length})` : ''}`, compact: 'Evid.' },
-    { view: 'control', label: 'Decisiones', compact: 'Decis.', attention: awaitsDecision },
+    { view: 'overview', label: 'Trabajo', compact: 'Trabajo' },
+    { view: 'activity', label: `Actividad ${item.automation_tasks?.length ? `(${item.automation_tasks.length})` : ''}`, compact: 'Actividad', attention: hasRunAttention },
+    { view: 'evidence', label: `Evidencia ${item.evidence?.length ? `(${item.evidence.length})` : ''}`, compact: 'Evidencia' },
+    { view: 'control', label: 'Revisión', compact: 'Revisión', attention: awaitsDecision },
   ]
   const showConsoleView = (view: DeliveryConsoleView, focusPanel = false) => {
     setConsoleView(view)
@@ -1944,24 +1954,25 @@ export default function DeliveryWorkItemPage() {
   }
   return (
     <PageTransition>
-      <main className="mx-auto max-w-[96rem] px-4 py-6 pb-28 sm:px-6 sm:py-8 lg:px-8 lg:pb-10 2xl:px-10">
+      <div className="mx-auto max-w-[96rem] px-4 py-6 pb-28 sm:px-6 sm:py-8 lg:px-8 lg:pb-10 2xl:px-10">
         <Link
           href={item.project_id && requestedProjectReturn === item.project_id ? `/automation/projects/${requestedProjectReturn}` : item.project_id ? `/automation/projects/${item.project_id}` : '/automation/projects'}
           className="inline-flex items-center gap-2 text-sm font-medium text-ink-secondary hover:text-ink"
         >
           <ArrowLeftIcon className="size-4" />
-          Volver al resultado
+          Volver al proyecto
         </Link>
         <div className="mt-2 flex min-w-0 items-center gap-3">
-          <h1 className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight text-ink sm:text-base">{item.title}</h1>
+          <h1 className="min-w-0 flex-1 text-xl font-semibold leading-8 tracking-tight break-words text-ink sm:text-2xl">{item.title}</h1>
           <span className="hidden shrink-0 rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-semibold text-ink-secondary sm:inline-flex">
             {stateLabel[item.state] ?? item.state}
           </span>
         </div>
+        <DeliveryWorkSummary item={item} connection={graphStream.status} onOpen={(view) => showConsoleView(view, true)} />
         <nav
           aria-label="Consola del resultado"
           role="tablist"
-          className="sticky top-3 z-20 mt-4 flex gap-1 overflow-x-auto overscroll-x-contain rounded-2xl border border-border-subtle bg-surface-raised/92 p-1.5 shadow-[0_10px_30px_-24px_rgb(15_23_42_/_0.45)] backdrop-blur-xl sm:mt-5"
+          className="sticky top-3 z-20 mt-4 grid grid-cols-2 gap-1 rounded-2xl border border-border-subtle bg-surface-raised/92 p-1.5 shadow-[0_10px_30px_-24px_rgb(15_23_42_/_0.45)] backdrop-blur-xl sm:mt-5 sm:flex"
         >
           {consoleTabs.map(({ view, label, compact, attention }) => (
             <button
@@ -1992,6 +2003,16 @@ export default function DeliveryWorkItemPage() {
             </button>
           ))}
         </nav>
+        {item && deliveryContinuationNotice(item) && (
+          <div role="status" className="mt-3 rounded-2xl border border-border-subtle bg-surface-soft px-4 py-3 text-xs leading-5 text-ink-secondary">
+            <p>{deliveryContinuationNotice(item)}</p>
+            {item.agent_progress === 'blocked' && (
+              <button type="button" className="mt-2 min-h-10 rounded-xl border border-border-subtle px-3 font-semibold text-ink hover:bg-surface-interactive focus-visible:outline-2 focus-visible:outline-offset-2" onClick={() => { setConsoleView('activity'); setUsageOpen(true) }}>
+                Revisar consumo y límites
+              </button>
+            )}
+          </div>
+        )}
         {message && (
           <div role="status" aria-live="polite" className="mt-3 flex items-start justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-soft px-4 py-3 text-xs leading-5 text-ink-secondary">
             <span>{message}</span>
@@ -2000,6 +2021,12 @@ export default function DeliveryWorkItemPage() {
             </button>
           </div>
         )}
+        <div hidden={consoleView !== 'overview'}>
+          <AgentWorkspace conversationOnly key={item.id} item={item} streamStatus={graphStream.status} onSend={sendAgentContext}
+            onReview={() => showConsoleView('control', true)}
+            onInspect={(id) => { setSelectedResult(id); setSelectedExecutionKind('agent'); setSelectedExecution(''); showConsoleView('activity', true) }}
+            onStop={(id) => { const task = item.automation_tasks?.find(task => task.id === id); if (task) void cancelAutomationTask(task) }} />
+        </div>
         <div
           key={consoleView}
           ref={consolePanelRef}
@@ -2012,6 +2039,8 @@ export default function DeliveryWorkItemPage() {
           <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">Vista activa: {consoleTabs.find((tab) => tab.view === consoleView)?.label ?? 'Consola'}</p>
           {consoleView === 'overview' && (
             <section aria-label="Live Steps">
+              <details className="mt-5 rounded-2xl border border-border-subtle bg-surface-raised p-4">
+              <summary className="min-h-11 cursor-pointer text-sm font-semibold text-ink">Seguimiento técnico · etapas, intentos y dependencias</summary>
               <DeliveryPipeline
                 item={item}
                 stage={stage}
@@ -2046,6 +2075,7 @@ export default function DeliveryWorkItemPage() {
                 }}
                 onRefresh={() => { void workItem.mutate(); void executionGraph.mutate() }}
               />
+              </details>
             </section>
           )}
         <div
@@ -2734,11 +2764,15 @@ export default function DeliveryWorkItemPage() {
                         <p className="text-xs font-semibold tracking-[0.12em] text-ink-muted uppercase">Cobertura multirrepositorio</p>
                         <h3 className="mt-1 text-sm font-semibold text-ink">Lo aprobado debe quedar publicado de forma verificable</h3>
                         <p className="mt-1 max-w-2xl text-xs leading-5 text-ink-secondary">
-                          Esta matriz proviene del plan aprobado. El agente no puede iniciar QA hasta que cada repositorio con cambios tenga una publicación comprobada por GitHub App y exista un preview trazable.
+                          Esta matriz proviene del plan aprobado. El agente no puede iniciar QA hasta que cada repositorio con cambios tenga una publicación comprobada por GitHub App, su preview trazable y todos apunten al mismo preview integrado.
                         </p>
                       </div>
-                      <Badge color={previewReady ? 'emerald' : 'amber'}>
-                        {previewReady ? 'Listo para registrar Preview' : 'Faltan comprobaciones'}
+                      <Badge color={previewReady ? 'emerald' : repositoryPreviewGate?.state === 'ambiguous' ? 'rose' : 'amber'}>
+                        {previewReady
+                          ? 'Listo para registrar Preview'
+                          : repositoryPreviewGate?.state === 'ambiguous'
+                            ? 'Previews incompatibles'
+                            : 'Faltan comprobaciones'}
                       </Badge>
                     </div>
                     <ul className="divide-y divide-border-subtle">
@@ -2751,21 +2785,48 @@ export default function DeliveryWorkItemPage() {
                           </div>
                           <div className="flex flex-wrap gap-2 sm:justify-end">
                             <Badge color={repository.reviewed ? 'emerald' : 'amber'}>
-                              {repository.reviewed ? 'Revisión aprobada' : 'Falta revisión'}
+                              {repository.reviewed ? 'Pruebas aprobadas' : 'Falta validación'}
                             </Badge>
                             <Badge color={repository.published ? 'emerald' : 'amber'}>
                               {repository.published ? 'Rama publicada' : 'Falta publicar'}
                             </Badge>
-                            {repository.preview && <Badge color="sky">Preview disponible</Badge>}
+                            <Badge color={repository.preview ? 'sky' : repository.previewMismatch ? 'rose' : 'amber'}>
+                              {repository.preview ? 'Preview disponible' : repository.previewMismatch ? 'Preview desactualizado' : 'Falta preview'}
+                            </Badge>
                           </div>
                         </li>
                       ))}
                     </ul>
                     <p className="border-t border-border-subtle px-4 py-3 text-xs leading-5 text-ink-muted">
                       {previewReady
-                        ? 'La cobertura está completa. El siguiente gate registra el preview que se usará para QA.'
-                        : 'Un preview aislado no cubre repositorios sin publicación. Emite un grant por repositorio, publica únicamente la rama revisada y vuelve a esta matriz.'}
+                        ? 'La cobertura está completa y todas las filas resuelven al mismo preview integrado. El siguiente gate lo registrará para QA.'
+                        : repositoryPreviewGate?.state === 'ambiguous'
+                          ? 'Cada repositorio tiene preview, pero las URLs no coinciden. Publica un preview integrado común antes de iniciar QA.'
+                          : repositoryPreviewGate?.staleCount
+                            ? 'Hay una publicación con preview, pero no corresponde al fingerprint revisado. Vuelve a publicar la rama exacta aprobada y regresa a esta matriz.'
+                          : 'Cada repositorio con cambios necesita publicación comprobada y preview trazable. Emite un grant por repositorio, publica únicamente la rama revisada y vuelve a esta matriz.'}
                     </p>
+                    {repositoryPreviewGate?.state === 'ambiguous' && (
+                      <div className="border-t border-rose-200 bg-rose-50/70 px-4 py-3 text-xs text-rose-950" role="alert">
+                        <p className="font-semibold">URLs detectadas que no forman un preview integrado</p>
+                        <ul className="mt-2 space-y-1 font-mono text-[11px] leading-5">
+                          {repositoryPreviewGate.urls.map((url) => (
+                            <li key={url} className="break-all">{url}</li>
+                          ))}
+                        </ul>
+                        <p className="mt-2 leading-5 text-rose-900/80">
+                          Usa una sola URL que represente la entrega completa; el agente no elegirá una de forma arbitraria.
+                        </p>
+                      </div>
+                    )}
+                    {repositoryPreviewGate?.staleCount ? (
+                      <div className="border-t border-rose-200 bg-rose-50/70 px-4 py-3 text-xs text-rose-950" role="alert">
+                        <p className="font-semibold">Preview publicado sobre una revisión distinta</p>
+                        <p className="mt-1 leading-5 text-rose-900/80">
+                          {repositoryPreviewGate.staleCount} repositorio{repositoryPreviewGate.staleCount === 1 ? '' : 's'} tiene{repositoryPreviewGate.staleCount === 1 ? '' : 'n'} un preview que no coincide con el fingerprint aprobado. Publica de nuevo la rama exacta revisada; no se reutilizará una publicación anterior.
+                        </p>
+                      </div>
+                    ) : null}
                   </section>
                 )}
                 <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -3059,7 +3120,7 @@ export default function DeliveryWorkItemPage() {
                 </span>
                 <Badge color={taskBudget.data?.enforced ? 'indigo' : 'zinc'}>{taskBudget.data?.enforced ? 'Límite activo' : 'Sin límite adicional'}</Badge>
               </div>
-              <details className="mt-3 group rounded-xl border border-border-subtle bg-surface-raised">
+              <details open className="mt-3 group rounded-xl border border-border-subtle bg-surface-raised">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-xs font-semibold text-ink-secondary">
                   Ver coste, límites y telemetría
                   <ChevronDownIcon className="size-4 transition group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
@@ -3078,6 +3139,18 @@ export default function DeliveryWorkItemPage() {
                     {item.cost_summary?.executions ?? 0}
                   </p>
                 </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-(--tenant-accent)/15 bg-(--tenant-accent)/[0.045] p-3">
+                <div>
+                  <p className="text-xs font-semibold text-ink">Conversación con el agente</p>
+                  <p className="mt-0.5 text-xs leading-5 text-ink-muted">
+                    {item.cost_summary?.conversation?.executions ?? 0} respuestas ·{' '}
+                    {(item.cost_summary?.conversation?.total_tokens ?? 0).toLocaleString('es-MX')} tokens
+                  </p>
+                </div>
+                <span className="text-sm font-semibold text-ink tabular-nums">
+                  {cost(item.cost_summary?.conversation?.total_cost_microusd)}
+                </span>
               </div>
               <details className="mt-3 rounded-xl border border-border-subtle bg-surface-soft px-3 py-2">
                 <summary className="cursor-pointer text-xs font-semibold text-ink-secondary">Ver métricas técnicas</summary>
@@ -3197,6 +3270,7 @@ export default function DeliveryWorkItemPage() {
                       task={task}
                       busy={busy}
                       isCurrentFailure={currentFailedTaskIDs.has(task.id)}
+                      structuredRecovery={item.workflow_projection?.current_task_id === task.id && Boolean(item.workflow_projection.recovery)}
                       selected={selectedResult === task.id}
                       onInspect={(selectedTask) => {
                         setSelectedExecutionKind('agent')
@@ -3222,6 +3296,7 @@ export default function DeliveryWorkItemPage() {
                         task={task}
                         busy={busy}
                         isCurrentFailure={currentFailedTaskIDs.has(task.id)}
+                        structuredRecovery={item.workflow_projection?.current_task_id === task.id && Boolean(item.workflow_projection.recovery)}
                         selected={selectedResult === task.id}
                         onInspect={(selectedTask) => {
                           setSelectedExecutionKind('agent')
@@ -3432,6 +3507,49 @@ export default function DeliveryWorkItemPage() {
           )}
           {consoleView === 'control' && (
           <aside className="order-first space-y-5 xl:order-none">
+            {usesRepositoryCoverage && (
+              <section className="premium-surface rounded-3xl p-5 sm:p-6" aria-label="Cobertura multirrepositorio en la decisión">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Cobertura multirrepositorio</p>
+                    <h2 className="mt-1 text-lg font-semibold text-ink">Preview integrado antes de aprobar</h2>
+                  </div>
+                  <Badge color={previewReady ? 'emerald' : repositoryPreviewGate?.staleCount || repositoryPreviewGate?.state === 'ambiguous' ? 'rose' : 'amber'}>
+                    {previewReady ? 'Listo' : repositoryPreviewGate?.staleCount ? 'Desactualizado' : repositoryPreviewGate?.state === 'ambiguous' ? 'Incompatible' : 'Pendiente'}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-ink-secondary">
+                  Cada repositorio cambiado debe estar publicado sobre el diff revisado y resolver al mismo preview integrado.
+                </p>
+                <ul className="mt-4 space-y-2">
+                  {repositoryCoverage.map((repository) => (
+                    <li key={repository.reference} className="flex items-center justify-between gap-3 rounded-xl bg-surface-soft px-3 py-2 text-xs">
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold text-ink">{repository.name}</span>
+                        <span className="block truncate text-ink-muted">{repository.reference}</span>
+                      </span>
+                      <span className={`shrink-0 font-semibold ${repository.preview ? 'text-sky-700' : repository.previewMismatch ? 'text-rose-700' : 'text-amber-700'}`}>
+                        {repository.preview ? 'Preview listo' : repository.previewMismatch ? 'Preview desactualizado' : 'Falta preview'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {repositoryPreviewGate?.state === 'ambiguous' && (
+                  <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-3 text-xs text-rose-950" role="alert">
+                    <p className="font-semibold">Las URLs no coinciden</p>
+                    <p className="mt-1 leading-5 text-rose-900/80">Registra una única URL integrada; el agente no elegirá una arbitrariamente.</p>
+                  </div>
+                )}
+                {repositoryPreviewGate?.staleCount ? (
+                  <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-3 text-xs text-rose-950" role="alert">
+                    <p className="font-semibold">La publicación no corresponde al diff aprobado</p>
+                    <p className="mt-1 leading-5 text-rose-900/80">Vuelve a publicar la rama exacta revisada antes de registrar el preview.</p>
+                  </div>
+                ) : null}
+              </section>
+            )}
+            <DeliveryReviewBrief item={item} onInspect={(taskId) => { setSelectedResult(taskId); setSelectedExecutionKind('agent'); setSelectedExecution(''); showConsoleView('activity', true) }} />
+            <DeliveryEvidenceGallery workItemId={item.id} evidence={item.evidence} />
             <section className="premium-surface rounded-3xl p-5 sm:p-6">
               <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Decisión actual</p>
               <h2 className="mt-1 text-lg font-semibold text-ink">
@@ -3443,10 +3561,18 @@ export default function DeliveryWorkItemPage() {
                     : 'Revisar propuesta del agente'
                   : activePhase?.label ?? 'Decisión humana requerida'}
               </h2>
+              {item.state === 'plan_review' && latestPlanTask?.status === 'completed' && (
+                <Button outline className="mt-4" onClick={() => {
+                  setSelectedExecutionKind('agent')
+                  setSelectedExecution('')
+                  setSelectedResult(latestPlanTask.id)
+                  showConsoleView('activity', true)
+                }}>Revisar el plan antes de decidir</Button>
+              )}
               {gateReadiness.length > 0 && (
                 <details className="mt-4 overflow-hidden rounded-2xl border border-border-subtle bg-surface-soft" aria-label="Estado de preparación del gate actual">
                   <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--tenant-accent) marker:hidden [&::-webkit-details-marker]:hidden">
-                    <span className="text-xs font-semibold text-ink">{generatedPlanValidationInProgress ? 'Validando propuesta' : gateReadiness.every((entry) => entry.ready) ? 'Listo para decidir' : 'Falta preparación'}</span>
+                    <span className="text-xs font-semibold text-ink">{generatedPlanValidationInProgress ? 'Validando propuesta' : gateReadiness.every((entry) => entry.ready) ? 'Listo para decidir' : 'Revisión pendiente'}</span>
                     <Badge color={gateReadiness.every((entry) => entry.ready) ? 'emerald' : 'amber'}>
                       {gateReadiness.filter((entry) => entry.ready).length}/{gateReadiness.length}
                     </Badge>
@@ -3549,7 +3675,7 @@ export default function DeliveryWorkItemPage() {
                     )}
                   </details>
                 </div>
-              ) : activePhase && (!hasVersionedPlan || activePhaseNeedsRecovery) && (
+              ) : !hasVersionedPlan && activePhase && (
                 <>
                   <details
                     open={phaseContextOpen}
@@ -3622,7 +3748,7 @@ export default function DeliveryWorkItemPage() {
                           <p className="text-[11px] font-semibold tracking-[.12em] text-ink-muted uppercase">Confirmación</p>
                           {decisionCopy.quickConfirmation && !comment.trim() && (
                             <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-700">
-                              Lista para aprobar
+                              Nota opcional
                             </span>
                           )}
                         </div>
@@ -3705,10 +3831,12 @@ export default function DeliveryWorkItemPage() {
                       <p className="mt-3 rounded-xl bg-surface-soft p-3 text-xs leading-5 text-ink-secondary">
                         {previewReady
                           ? usesRepositoryCoverage
-                            ? 'La publicación de todos los repositorios con cambios está comprobada y hay un preview trazable listo para QA.'
+                            ? 'La publicación de todos los repositorios con cambios está comprobada y todos resuelven al mismo preview integrado listo para QA.'
                             : 'El preview ya está registrado en el cambio trazable.'
                           : usesRepositoryCoverage
-                            ? 'Completa la matriz: cada repositorio con cambios requiere publicación comprobada por GitHub App; además, uno debe aportar un preview HTTP(S) trazable.'
+                            ? repositoryPreviewGate?.state === 'ambiguous'
+                              ? 'Los repositorios tienen previews distintos. Registra un único preview HTTP(S) integrado que represente la entrega completa.'
+                              : 'Completa la matriz: cada repositorio con cambios requiere publicación comprobada por GitHub App y su propio preview HTTP(S) trazable; todos deben apuntar al mismo preview integrado.'
                             : 'Registra una URL de preview en el cambio antes de iniciar QA.'}
                       </p>
                     )}
@@ -3746,14 +3874,6 @@ export default function DeliveryWorkItemPage() {
                 )
               })}
             </section>
-            <ReleaseGateEvaluationPanel
-              workItemId={item.id}
-              snapshot={releaseGateEvaluations.data}
-              loading={releaseGateEvaluations.isLoading}
-              validating={releaseGateEvaluations.isValidating}
-              unavailable={Boolean(releaseGateEvaluations.error)}
-              onRefresh={() => void releaseGateEvaluations.mutate()}
-            />
             <details className={`premium-surface group rounded-3xl ${consoleView === 'control' ? '' : 'hidden'}`}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
                 <span>
@@ -3775,12 +3895,7 @@ export default function DeliveryWorkItemPage() {
                         <li key={gate.id} className="rounded-2xl border border-border-subtle bg-surface-soft p-3">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-sm font-semibold text-ink">{gateLabel[gate.kind] ?? gate.kind}</p>
-                            <span className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-ink-muted">
-                                {gate.authority === 'delegated' ? 'Coordinator' : 'Humano'}
-                              </span>
-                              <Badge color={approved ? 'emerald' : 'rose'}>{approved ? 'Aprobado' : 'Cambios pedidos'}</Badge>
-                            </span>
+                            <Badge color={approved ? 'emerald' : 'rose'}>{approved ? 'Aprobado' : 'Cambios pedidos'}</Badge>
                           </div>
                           {gate.comment && <p className="mt-2 text-sm leading-5 text-ink-secondary">{gate.comment}</p>}
                           <p className="mt-2 text-xs text-ink-muted">{date(gate.decided_at)}</p>
@@ -3791,26 +3906,26 @@ export default function DeliveryWorkItemPage() {
                 )}
               </div>
             </details>
-            <details open={item.state === 'code_review'} className={`premium-surface group rounded-3xl ${consoleView === 'control' ? '' : 'hidden'}`}>
+            <details open={item.state === 'preview_pending'} className={`premium-surface group rounded-3xl ${consoleView === 'control' ? '' : 'hidden'}`}>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4">
                 <span>
                   <span className="block text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Control de publicación</span>
-                  <span className="mt-1 block text-sm font-semibold text-ink">{item.state === 'code_review' ? 'Publicar PR para revisión' : 'Permisos temporales'}</span>
+                  <span className="mt-1 block text-sm font-semibold text-ink">{item.state === 'preview_pending' ? 'Autorizar publicación' : 'Permisos temporales'}</span>
                 </span>
                 <Badge
                   color={
                     item.publication_grants?.some(
-                      (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > publicationTime
+                      (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
                     )
                       ? 'emerald'
                       : 'amber'
                   }
                 >
                   {item.publication_grants?.some(
-                    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > publicationTime
+                    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
                   )
                       ? 'Vigente'
-                      : item.state === 'code_review'
+                      : item.state === 'preview_pending'
                         ? 'Acción disponible'
                         : 'Sin permiso activo'}
                 </Badge>
@@ -3868,7 +3983,7 @@ export default function DeliveryWorkItemPage() {
                   )}
                 </div>
               )}
-              {item.state === 'code_review' &&
+              {item.state === 'preview_pending' &&
                 (reviewedPublicationReady && reviewedPublicationChange?.branch ? (
                   <div className="mt-4 rounded-2xl border border-(--tenant-accent)/20 bg-(--tenant-accent)/[0.045] p-3">
                     {reviewedPublicationChanges.length > 1 && (
@@ -3992,14 +4107,13 @@ export default function DeliveryWorkItemPage() {
                 ))}
               {(item.publication_grants?.length ?? 0) === 0 ? (
                 <div className="mt-4 rounded-2xl border border-dashed border-border-subtle bg-surface-soft p-3 text-xs leading-5 text-ink-muted">
-                  El trabajo permanece en worktree local. Cuando exista una integración GitHub App configurada y
-                  validaciones locales aprobadas, aquí quedará el permiso auditable para abrir el PR que revisará la
-                  identidad independiente.
+                  El trabajo permanece en worktree local. Cuando exista una integración GitHub App configurada y el gate
+                  de código esté aprobado, aquí quedará el permiso auditable de publicación.
                 </div>
               ) : (
                 <ol className="mt-4 space-y-3">
                   {item.publication_grants?.map((grant) => {
-                    const active = !grant.revoked_at && new Date(grant.expires_at).getTime() > publicationTime
+                    const active = !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
                     return (
                       <li key={grant.id} className="rounded-2xl border border-border-subtle bg-surface-soft p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -4082,7 +4196,7 @@ export default function DeliveryWorkItemPage() {
           )}
         </div>
         </div>
-      </main>
+      </div>
     </PageTransition>
   )
 }

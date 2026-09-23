@@ -30,11 +30,14 @@ type ApplicationPrimaryNavigationProps = Pick<
   | 'canViewOrganizations'
 > & {
   pathname: string
+  /** Product-specific copy keeps ITBEM's platform organizations distinct from Delivery clients. */
+  tenantCode?: string
   onIntent: (href: ApplicationRoute) => void
 }
 
 export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavigation({
   pathname,
+  tenantCode,
   hasEvents,
   canViewMetrics,
   canViewUsers,
@@ -109,7 +112,7 @@ export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavi
           </SidebarItem>
           <SidebarItem href="/automation/projects" current={pathname.startsWith('/automation/projects')} {...intentProps('/automation/projects')}>
             <FolderOpenIcon />
-            <SidebarLabel>Resultados</SidebarLabel>
+            <SidebarLabel>Proyectos</SidebarLabel>
           </SidebarItem>
           <SidebarItem href="/automation/clients" current={pathname.startsWith('/automation/clients')} {...intentProps('/automation/clients')}>
             <BuildingOfficeIcon />
@@ -128,7 +131,7 @@ export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavi
         <SidebarSection>
           <SidebarItem href="/clients" current={pathname.startsWith('/clients')} {...intentProps('/clients')}>
             <BuildingOfficeIcon />
-            <SidebarLabel>Clientes</SidebarLabel>
+            <SidebarLabel>{tenantCode === 'itbem' ? 'Organizaciones' : 'Clientes'}</SidebarLabel>
           </SidebarItem>
         </SidebarSection>
       )}

@@ -2,6 +2,9 @@ export type DeliveryTaskStatus =
   'queued' | 'running' | 'cancel_requested' | 'cancelled' | 'completed' | 'failed' | 'dispatch_failed'
 
 export type DeliveryAutomationTask = {
+	progress_step?: 'thinking' | 'reading' | 'validating' | 'repairing' | 'acceptance'
+	progress_call?: number
+	updated_at?: string
   id: string
   operation: string
   max_completion_tokens?: number
@@ -308,12 +311,35 @@ export type DeliveryEvidence = {
 }
 
 export type DeliveryMessage = {
+	resume_requested?: boolean
   id: string
   phase: string
   author_type: 'human' | 'agent'
   author_id?: string
   body: string
+  intent?: 'question' | 'context' | 'action_request' | string
+  effect?: 'informational' | 'stored_context' | 'stored_instruction' | 'continuation_queued' | 'none' | string
+  attachments?: DeliveryMessageAttachment[]
+  receipt?: {
+    version?: number
+    classification?: string
+    effect?: string
+    requires_human_gate?: boolean
+    next?: string
+    next_steps?: string[]
+    questions?: string[]
+		repairs?: string[]
+    status?: string
+  }
   created_at: string
+}
+
+export type DeliveryMessageAttachment = {
+  kind: 'context' | 'evidence' | string
+  id: string
+  name: string
+  reference: string
+  revision?: string
 }
 
 export type DeliveryRequest = {
@@ -354,6 +380,7 @@ export type DeliveryChangeSet = {
   preview_url?: string
   environment?: string
   metadata?: Record<string, unknown> | string
+  created_by?: string
   created_at: string
 }
 
@@ -399,6 +426,62 @@ export type DeliveryWorkItemDependency = {
   created_at: string
 }
 
+export type DeliveryAutonomyMandate = {
+  version: number
+  objective: string
+  included_scope: string[]
+  excluded_scope: string[]
+  repository_refs: string[]
+  allowed_tools: string[]
+  effective_allowed_tools?: string[]
+  max_concurrency: number
+  budget_microusd: number
+  autonomy_policy: 'bounded_autonomy' | string
+  stop_conditions: string[]
+  human_actions: string[]
+}
+
+export type DeliveryWorkflowProjectionAction = {
+  id: string
+  kind: 'agent_run' | 'transition' | 'task_cancel' | 'message' | 'navigation' | string
+  label: string
+  permission?: string
+  phase?: string
+  transition?: string
+  task_id?: string
+  requires_confirmation?: boolean
+}
+
+export type DeliveryWorkflowProjectionRecovery = {
+  mode: string
+  reason_code?: string
+  title: string
+  detail: string
+  action_id?: string
+  requires_human_review: boolean
+}
+
+export type DeliveryWorkflowProjection = {
+  schema_version: number
+  stage: 'plan' | 'build' | 'preview' | 'qa' | 'release' | 'attention' | string
+  state_kind: 'active' | 'waiting' | 'review' | 'blocked' | 'uncertain' | 'terminal' | 'attention' | string
+  summary: string
+  detail: string
+  state: string
+  current_operation?: string
+  current_task_id?: string
+  waiting_reason?: string
+  waiting_category?: string
+  actor: { type: 'agent' | 'human' | 'system' | string; operation?: string; provider?: string; model?: string }
+  last_activity_at: string
+  stale_after_seconds: number
+  stale: boolean
+  evidence: { total: number; validations: number; has_result: boolean; has_changes: boolean; has_human_gate: boolean }
+  recovery?: DeliveryWorkflowProjectionRecovery
+  available_actions: DeliveryWorkflowProjectionAction[]
+  can_continue: boolean
+}
+
 export type DeliveryRelease = {
   id: string
   work_item_id: string
@@ -419,6 +502,10 @@ export type DeliveryProjectMember = {
 }
 
 export type DeliveryWorkItem = {
+	/** Durable backend continuation; independent of the last model-call status. */
+	agent_progress?: 'queued' | 'waiting_for_user' | 'waiting_for_preview' | 'blocked'
+	automation_epoch?: number
+	blocked_reason?: string
   id: string
   project_id: string
   title: string
@@ -433,7 +520,9 @@ export type DeliveryWorkItem = {
   pull_request_url?: string
   preview_url?: string
   budget_microusd?: number
-  budget_alert_percent?: number
+	budget_alert_percent?: number
+	mandate_version?: number
+	mandate?: DeliveryAutonomyMandate
   created_at: string
   updated_at: string
   cost_summary?: {
@@ -449,6 +538,20 @@ export type DeliveryWorkItem = {
     cached_cost_microusd: number
     cache_write_cost_microusd: number
     total_cost_microusd: number
+    conversation: {
+      executions: number
+      input_tokens: number
+      output_tokens: number
+      cached_input_tokens: number
+      cache_write_tokens: number
+      reasoning_tokens: number
+      total_tokens: number
+      input_cost_microusd: number
+      output_cost_microusd: number
+      cached_cost_microusd: number
+      cache_write_cost_microusd: number
+      total_cost_microusd: number
+    }
     steps: Array<{
       step_key: string
       execution_kind: 'agent' | 'tool'
@@ -485,6 +588,7 @@ export type DeliveryWorkItem = {
   change_sets?: DeliveryChangeSet[]
   publication_grants?: DeliveryPublicationGrant[]
   dependencies?: DeliveryWorkItemDependency[]
+  workflow_projection?: DeliveryWorkflowProjection
   request?: DeliveryRequest
   project?: DeliveryProject
 }
@@ -500,6 +604,7 @@ export type DeliveryWorkItemBudget = {
 }
 
 export type DeliveryProject = {
+  preparation?: { version: number; checks: Array<{ key: string; state: 'ready' | 'missing' | 'unknown'; title: string; detail: string }> }
   id: string
   client_id: string
   name: string

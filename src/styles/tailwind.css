@@ -70,7 +70,8 @@
   --app-surface-interactive: #f8fafc;
   --app-text-primary: #151a23;
   --app-text-secondary: #4f5a6b;
-  --app-text-muted: #748094;
+  /* AA-safe on white and interactive surfaces (4.69:1 on #f8fafc). */
+  --app-text-muted: #667085;
   --app-border-subtle: #dce1e8;
   --app-border-strong: rgb(109 94 252 / 38%);
   --app-brand: #786df4;

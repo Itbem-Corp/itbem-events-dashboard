@@ -285,6 +285,7 @@ export function ApplicationLayout({
 
             <ApplicationPrimaryNavigation
               pathname={pathname}
+              tenantCode={tenant.code}
               hasEvents={hasEvents}
               canViewMetrics={canViewMetrics}
               canViewUsers={canViewUsers}
@@ -334,6 +335,7 @@ export function ApplicationLayout({
         {children}
         <MobilePrimaryNavigation
           pathname={pathname}
+          tenantCode={tenant.code}
           showEvents={hasEvents}
           showMetrics={canViewMetrics}
           showTeam={canManageMembers && !canViewUsers}

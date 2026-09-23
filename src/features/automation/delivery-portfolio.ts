@@ -1,4 +1,4 @@
-import type { DeliveryTaskStatus } from './delivery-types'
+import type { DeliveryTaskStatus, DeliveryWorkflowProjection } from './delivery-types'
 
 export type DeliveryPortfolioTask = {
   id: string
@@ -28,6 +28,7 @@ export type DeliveryPortfolioWorkItem = {
   automationTasks: DeliveryPortfolioTask[]
   gateSummary: DeliveryPortfolioGateSummary
   evidenceCount: number
+  workflowProjection?: DeliveryWorkflowProjection
 }
 
 export type DeliveryPortfolioProject = {
@@ -166,6 +167,68 @@ function gateSummary(value: unknown): DeliveryPortfolioGateSummary {
   }
 }
 
+function workflowProjection(value: unknown): DeliveryWorkflowProjection | undefined {
+  const record = asRecord(value)
+  if (!record) return undefined
+  const schemaVersion = count(snakeOrCamel(record, 'schema_version', 'schemaVersion'))
+  const stage = text(record.stage)
+  const stateKind = text(snakeOrCamel(record, 'state_kind', 'stateKind'))
+  const summary = text(record.summary)
+  const detail = text(record.detail)
+  const state = text(record.state)
+  const actor = asRecord(record.actor)
+  const lastActivityAt = text(snakeOrCamel(record, 'last_activity_at', 'lastActivityAt'))
+  if (!schemaVersion || !stage || !stateKind || !summary || !detail || !state || !lastActivityAt || !actor) return undefined
+  const evidenceRecord = asRecord(record.evidence) ?? {}
+  const recoveryRecord = asRecord(record.recovery)
+  const rawActions = Array.isArray(record.available_actions) ? record.available_actions : []
+  const availableActions = rawActions.flatMap(value => {
+    const action = asRecord(value)
+    if (!action) return []
+    const id = text(action.id)
+    const kind = text(action.kind)
+    const label = text(action.label)
+    return id && kind && label ? [{
+      id,
+      kind,
+      label,
+      ...(text(action.permission) ? { permission: text(action.permission) } : {}),
+      ...(text(action.phase) ? { phase: text(action.phase) } : {}),
+      ...(text(action.transition) ? { transition: text(action.transition) } : {}),
+      ...(text(action.task_id) ? { task_id: text(action.task_id) } : {}),
+      ...(action.requires_confirmation === true ? { requires_confirmation: true } : {}),
+    }] : []
+  })
+  return {
+    schema_version: schemaVersion,
+    stage,
+    state_kind: stateKind,
+    summary,
+    detail,
+    state,
+    ...(text(record.current_operation) ? { current_operation: text(record.current_operation) } : {}),
+    ...(text(record.current_task_id) ? { current_task_id: text(record.current_task_id) } : {}),
+    ...(text(record.waiting_reason) ? { waiting_reason: text(record.waiting_reason) } : {}),
+    ...(text(record.waiting_category) ? { waiting_category: text(record.waiting_category) } : {}),
+    actor: { type: text(actor.type, 'system'), ...(text(actor.operation) ? { operation: text(actor.operation) } : {}), ...(text(actor.provider) ? { provider: text(actor.provider) } : {}), ...(text(actor.model) ? { model: text(actor.model) } : {}) },
+    last_activity_at: lastActivityAt,
+    stale_after_seconds: count(snakeOrCamel(record, 'stale_after_seconds', 'staleAfterSeconds')),
+    stale: record.stale === true,
+    evidence: { total: count(evidenceRecord.total), validations: count(evidenceRecord.validations), has_result: evidenceRecord.has_result === true, has_changes: evidenceRecord.has_changes === true, has_human_gate: evidenceRecord.has_human_gate === true },
+    ...(recoveryRecord && text(recoveryRecord.mode) && text(recoveryRecord.title) && text(recoveryRecord.detail) ? {
+      recovery: {
+        mode: text(recoveryRecord.mode),
+        title: text(recoveryRecord.title),
+        detail: text(recoveryRecord.detail),
+        ...(text(recoveryRecord.action_id) ? { action_id: text(recoveryRecord.action_id) } : {}),
+        requires_human_review: recoveryRecord.requires_human_review === true,
+      },
+    } : {}),
+    available_actions: availableActions,
+    can_continue: record.can_continue === true,
+  }
+}
+
 function portfolioWorkItem(value: unknown): DeliveryPortfolioWorkItem | null {
   const record = asRecord(value)
   if (!record) return null
@@ -181,6 +244,7 @@ function portfolioWorkItem(value: unknown): DeliveryPortfolioWorkItem | null {
         .map(portfolioTask)
         .filter((task): task is DeliveryPortfolioTask => task !== null)
     : []
+  const projection = workflowProjection(snakeOrCamel(record, 'workflow_projection', 'workflowProjection'))
   return {
     id,
     projectId,
@@ -193,6 +257,7 @@ function portfolioWorkItem(value: unknown): DeliveryPortfolioWorkItem | null {
     automationTasks: tasks,
     gateSummary: gateSummary(snakeOrCamel(record, 'gate_summary', 'gateSummary')),
     evidenceCount: count(snakeOrCamel(record, 'evidence_count', 'evidenceCount')),
+    ...(projection ? { workflowProjection: projection } : {}),
   }
 }
 

@@ -6,11 +6,12 @@ import {
   automationExecutionInputPath,
   automationExecutionResultPath,
   automationTaskArtifactPath,
+  automationTaskRunArtifactPath,
   automationTaskInputPath,
   automationTaskResultPath,
   automationToolExecutionReportPath,
 } from '@/lib/api-paths'
-import { verifyArtifactIntegrity } from '@/lib/automation-artifact-integrity'
+import { automationArtifactRunId, verifyArtifactIntegrity } from '@/lib/automation-artifact-integrity'
 import { ArrowDownTrayIcon, ArrowPathIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/20/solid'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -22,7 +23,7 @@ import {
   type DeliveryReleaseDraft,
 } from './delivery-result-data'
 
-type Artifact = { name: string; content_type?: string; size_bytes?: number; sha256?: string }
+type Artifact = { name: string; reference?: string; content_type?: string; size_bytes?: number; sha256?: string }
 type RepositoryImpact = {
   name: string
   reference: string
@@ -109,6 +110,8 @@ type DeliveryPlan = {
   context_gaps?: string[]
   human_decisions?: string[]
   rollback_plan?: string[]
+  /** Bounded, runtime-owned shape repairs; never grants authority. */
+  _harness_repairs?: string[]
 }
 type AgentOutput = {
   content?: string
@@ -257,6 +260,7 @@ function isDeliveryPlan(value: unknown): value is DeliveryPlan {
     typeof candidate.summary === 'string' &&
     typeof candidate.estimate === 'string' &&
     isRepositoryImpact(candidate.repository_impact) &&
+    (candidate._harness_repairs === undefined || candidate._harness_repairs.every((item) => typeof item === 'string')) &&
     (candidate.qa_execution_matrix === undefined || isQAExecutionMatrix(candidate.qa_execution_matrix)) &&
     planSections.every(
       ({ key }) => Array.isArray(candidate[key]) && candidate[key].every((item) => typeof item === 'string')
@@ -416,7 +420,10 @@ function ProviderOutcomeSummary({ outcome }: { outcome: ProviderOutcome | null }
 // QA artifacts, verifies the immutable worker digest before rendering it.
 async function privateArtifactObjectURL(taskId: string, artifact: Artifact): Promise<string> {
   const name = artifact.name
-  const descriptor = await api.get(automationTaskArtifactPath(taskId, name))
+  const runID = automationArtifactRunId(artifact.reference)
+  const descriptor = await api.get(
+    runID ? automationTaskRunArtifactPath(taskId, runID, name) : automationTaskArtifactPath(taskId, name),
+  )
   const downloadURL = readApiData<{ download_url: string }>(descriptor.data).download_url
   if (!downloadURL) throw new Error('private artifact URL is unavailable')
   const response = await fetch(downloadURL, { cache: 'no-store', credentials: 'omit' })
@@ -454,6 +461,21 @@ function ExecutionChecks({ checks, emptyLabel }: { checks: DeliveryCheck[]; empt
               {entry.passed ? 'Correcto' : 'Revisar'}
             </span>
           </div>
+          {entry.sandboxLease && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-ink-muted" title={entry.sandboxLease.runtime === 'firecracker'
+              ? 'Ejecución enlazada a tarea mediante supervisor Firecracker; la evidencia guest no sustituye la atestación durable del control plane.'
+              : 'Lease task-scoped de la ejecución; no concede publicación ni implica microVM.'}>
+              <span className="rounded-full border border-indigo-500/20 bg-indigo-500/[0.06] px-1.5 py-0.5 font-medium text-indigo-700">
+                {entry.sandboxLease.runtime === 'firecracker' ? 'microVM' : entry.sandboxLease.runtime} · {entry.sandboxLease.isolationMode}
+              </span>
+              <span>{entry.sandboxLease.status === 'completed' ? 'Lease cerrado' : entry.sandboxLease.status === 'failed' ? 'Lease con fallo' : 'Lease activo'}</span>
+              {entry.sandboxLease.attestation && (
+                <span title={`Evidencia guest ${entry.sandboxLease.attestation.evidenceScope}; no sustituye lifecycle durable.`} className="text-indigo-700">
+                  · guest evidence
+                </span>
+              )}
+            </div>
+          )}
           {entry.output && (
             <pre className="mt-2 max-h-28 overflow-auto text-[11px] leading-4 whitespace-pre-wrap text-ink-secondary">
               {entry.output}
@@ -992,6 +1014,30 @@ function AgentDeliveryResultPanel({
                   </div>
                 </article>
               )}
+              {plan._harness_repairs && plan._harness_repairs.length > 0 && (
+                <article
+                  aria-label="Reparaciones acotadas del harness"
+                  className="rounded-xl border border-amber-500/25 bg-amber-500/[0.045] p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold tracking-[0.12em] text-amber-800 uppercase">
+                        Normalizaciones del harness
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-amber-900/80">
+                        El runtime ajustó sólo la forma de la respuesta para hacerla revisable. No concedió permisos,
+                        no amplió el alcance y no ejecutó ninguna acción por esta reparación.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                      {plan._harness_repairs.length} ajuste{plan._harness_repairs.length === 1 ? '' : 's'} registrado{plan._harness_repairs.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <ul className="mt-3 space-y-1.5 text-xs leading-5 text-amber-950/85">
+                    {plan._harness_repairs.map((repair) => <li key={repair}>• {repair}</li>)}
+                  </ul>
+                </article>
+              )}
               <article className="rounded-xl border border-border-subtle bg-surface-raised p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -1347,7 +1393,7 @@ function AgentDeliveryResultPanel({
                     </section>
                   )}
                   <div className="mt-3 rounded-xl border border-border-subtle bg-surface-soft p-3 text-xs">
-                    {execution.qa.preview ? (
+                  {execution.qa.preview ? (
                       <p className={execution.qa.preview.passed ? 'text-emerald-700' : 'text-rose-700'}>
                         {execution.qa.preview.passed ? 'Preview accesible' : 'Preview no accesible'}
                         {execution.qa.preview.status ? ` · HTTP ${execution.qa.preview.status}` : ''}
@@ -1365,6 +1411,18 @@ function AgentDeliveryResultPanel({
                       </p>
                     )}
                   </div>
+                  {(execution.qa.partial || execution.qa.error) && (
+                    <section className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-3 text-xs" role="alert">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-amber-900">QA incompleta: no habilita aprobación</p>
+                        <span className="rounded-full bg-amber-500/15 px-2 py-1 font-semibold text-amber-800">Diagnóstico privado</span>
+                      </div>
+                      <p className="mt-1 leading-5 text-amber-900/80">
+                        Se conservaron las comprobaciones observadas antes del fallo. Revisa el diagnóstico y reanuda desde el punto seguro; este resultado no representa un QA exitoso.
+                      </p>
+                      {execution.qa.error && <p className="mt-2 break-words font-medium text-amber-900">{execution.qa.error}</p>}
+                    </section>
+                  )}
                   {execution.qa.repositoryRuns.length > 0 ? (
                     <section className="mt-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1393,6 +1451,11 @@ function AgentDeliveryResultPanel({
                                 {run.branch ?? 'Rama registrada'}
                                 {run.branch && run.testedDirectory ? ' · ' : ''}
                                 {run.testedDirectory}
+                              </p>
+                            )}
+                            {run.error && (
+                              <p className="mt-2 rounded-lg border border-rose-500/20 bg-rose-500/[0.05] px-2.5 py-2 text-xs leading-5 text-rose-800">
+                                No completó esta fase: {run.error}
                               </p>
                             )}
                             {run.executionContract && (

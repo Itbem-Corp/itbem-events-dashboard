@@ -24,6 +24,14 @@ const snapshot: DeliveryExecutionGraphSnapshot = {
 }
 
 describe('executionGraphEventsFromDelivery', () => {
+  it('does not turn saved conversation into a pending human gate', () => {
+    const events = executionGraphEventsFromDelivery({ ...snapshot, nodes: [
+      { ...snapshot.nodes[0], id: 'message', kind: 'message', status: 'decision' },
+      { ...snapshot.nodes[0], id: 'gate', kind: 'gate', status: 'decision' },
+    ], edges: [] })
+    expect(events[0].status).toBe('complete')
+    expect(events[1].status).toBe('human')
+  })
   it('does not reuse a graph snapshot for a different work item', () => {
     expect(deliveryExecutionGraphBelongsTo(snapshot, 'work-item-1')).toBe(true)
     expect(deliveryExecutionGraphBelongsTo({ ...snapshot, work_item_id: 'work-item-1' }, 'work-item-2')).toBe(false)

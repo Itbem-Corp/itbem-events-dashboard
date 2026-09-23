@@ -11,7 +11,7 @@ describe('AutomationSectionNavigation', () => {
     const navigation = screen.getByRole('navigation', { name: 'Secciones de automatización' })
     expect(navigation.getElementsByTagName('a')).toHaveLength(4)
     expect(screen.getByRole('link', { name: 'Centro' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'Resultados' })).toHaveAttribute('href', '/automation/projects')
+    expect(screen.getByRole('link', { name: 'Proyectos' })).toHaveAttribute('href', '/automation/projects')
     expect(screen.getByRole('link', { name: 'Portafolio' })).toHaveAttribute('href', '/automation/clients')
     expect(screen.getByRole('link', { name: 'Uso y costos' })).toHaveAttribute('href', '/automation/costs')
     expect(screen.getByRole('link', { name: 'Uso y costos' })).toHaveTextContent('Costos')

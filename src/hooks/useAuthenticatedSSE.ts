@@ -20,16 +20,17 @@ const initialReconnectDelay = 750
 const maximumReconnectDelay = 12_000
 
 async function openAuthenticatedSSE(path: string, signal: AbortSignal): Promise<Response> {
-  const request = async (forceRefresh = false) => fetch(apiUrl(path), {
-    method: 'GET',
-    cache: 'no-store',
-    signal,
-    headers: {
-      ...(await apiRequestHeaders(forceRefresh)),
-      Accept: 'text/event-stream',
-      'Cache-Control': 'no-cache',
-    },
-  })
+  const request = async (forceRefresh = false) =>
+    fetch(apiUrl(path), {
+      method: 'GET',
+      cache: 'no-store',
+      signal,
+      headers: {
+        ...(await apiRequestHeaders(forceRefresh)),
+        Accept: 'text/event-stream',
+        'Cache-Control': 'no-cache',
+      },
+    })
 
   let response = await request()
   // Axios normally refreshes a stale token once. Streams use fetch to preserve
@@ -92,28 +93,49 @@ export function useAuthenticatedSSE<T>({
       }
       let connected = false
       let streamFailed = false
+      let timedOut = false
+      let watchdog: ReturnType<typeof setTimeout> | undefined
+      const touch = () => {
+        if (watchdog) clearTimeout(watchdog)
+        watchdog = setTimeout(() => {
+          timedOut = true
+          controller?.abort()
+        }, 35_000)
+      }
+      touch()
 
       try {
         const response = await openAuthenticatedSSE(path, controller.signal)
-        if (!response.ok || !response.body) {
+        if (!response.ok || !response.body || !response.headers.get('content-type')?.includes('text/event-stream')) {
           throw new Error(`SSE request failed with status ${response.status}`)
         }
 
-        connected = true
-        hasEstablishedStream = true
-        retryDelay = initialReconnectDelay
-        publishStatus('live')
-        await consumeServerSentEvents(response.body, (rawEvent) => {
-          const event = callbacks.current.parse(rawEvent)
-          if (event) callbacks.current.onEvent?.(event, rawEvent)
-        }, controller.signal)
+        await consumeServerSentEvents(
+          response.body,
+          (rawEvent) => {
+            const event = callbacks.current.parse(rawEvent)
+            if (event) {
+              connected = true
+              hasEstablishedStream = true
+              retryDelay = initialReconnectDelay
+              publishStatus('live')
+              callbacks.current.onEvent?.(event, rawEvent)
+            }
+          },
+          controller.signal,
+          touch
+        )
+        if (timedOut) throw new Error('SSE heartbeat timed out')
+        if (!connected) throw new Error('SSE closed without a valid snapshot')
       } catch {
-        if (disposed || controller.signal.aborted) return
+        if (disposed || (controller.signal.aborted && !timedOut)) return
         streamFailed = true
         publishStatus('error')
+      } finally {
+        if (watchdog) clearTimeout(watchdog)
       }
 
-      if (disposed || controller.signal.aborted) return
+      if (disposed || (controller.signal.aborted && !timedOut)) return
       const delay = connected ? initialReconnectDelay : retryDelay
       retryDelay = Math.min(Math.round(retryDelay * 1.8), maximumReconnectDelay)
       // A clean EOF is the normal server-side authorization rollover. Keep

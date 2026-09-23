@@ -1,8 +1,7 @@
-// @vitest-environment node
-
 import {
   apiPath,
   automationTaskRetryCodeReviewPath,
+  automationTaskRunArtifactPath,
   batchGuestsPath,
   bulkGuestsPath,
   bulkGuestStatusPath,
@@ -21,10 +20,6 @@ import {
   designTemplatePath,
   designTemplatesPath,
   deliveryWorkItemStreamPath,
-  deliveryWorkItemReleaseGateEvaluationsPath,
-  deliveryProjectEffectivePolicyPath,
-  deliveryProjectPolicyDecisionPath,
-  deliveryProjectPolicyRevisionsPath,
   eventAnalyticsGuestsPath,
   eventAnalyticsPath,
   eventCheckinGuestsPath,
@@ -100,18 +95,10 @@ describe('api-paths', () => {
     expect(automationTaskRetryCodeReviewPath('task / 1')).toBe('/automation/tasks/task%20%2F%201/retry-code-review')
   })
 
-  it('builds the release Gatekeeper read-model path with an encoded work item', () => {
-    expect(deliveryWorkItemReleaseGateEvaluationsPath('work / 1')).toBe('/automation/work-items/work%20%2F%201/release-gate/evaluations')
-  })
-
-  it('builds the effective project policy path with encoded repository and optional change set', () => {
-    expect(deliveryProjectEffectivePolicyPath('project / 1', 'github://Example/service')).toBe('/automation/projects/project%20%2F%201/delivery-policy/effective?repository=github%3A%2F%2FExample%2Fservice')
-    expect(deliveryProjectEffectivePolicyPath('project-1', 'github://Example/service', ' change/set:1 ')).toBe('/automation/projects/project-1/delivery-policy/effective?repository=github%3A%2F%2FExample%2Fservice&change_set_id=change%2Fset%3A1')
-  })
-
-  it('builds policy management paths with encoded project and revision identities', () => {
-    expect(deliveryProjectPolicyRevisionsPath('project / 1')).toBe('/automation/projects/project%20%2F%201/delivery-policy/revisions')
-    expect(deliveryProjectPolicyDecisionPath('project-1', 'revision / 1')).toBe('/automation/projects/project-1/delivery-policy/revisions/revision%20%2F%201/decisions')
+  it('builds the run-scoped private artifact path', () => {
+    expect(automationTaskRunArtifactPath('task / 1', 'run / 2', '01-preview.png')).toBe(
+      '/automation/tasks/task%20%2F%201/runs/run%20%2F%202/artifacts/01-preview.png',
+    )
   })
 
   it('builds relative API paths with encoded query params', () => {

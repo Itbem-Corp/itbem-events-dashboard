@@ -1,4 +1,6 @@
 'use client'
+import { deliveryStateLabels } from '@/features/automation/delivery-presentation'
+import { ProjectPreparation } from '@/features/automation/project-preparation'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -6,8 +8,8 @@ import { Dialog, DialogActions, DialogBody, DialogTitle } from '@/components/dia
 import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { deliveryWorkItemStreamEnabled, useDeliveryWorkItemStream } from '@/features/automation/use-delivery-work-item-stream'
+import { projectStreamPresentation } from '@/features/automation/project-stream-presentation'
 import { hasCancellationRequest, hasUnresolvedTaskFailure } from '@/features/automation/delivery-task-status'
-import { RepositoryOnboardingPanel } from '@/features/automation/repository-onboarding-panel'
 import type {
   DeliveryContextSource,
   DeliveryProject,
@@ -89,19 +91,7 @@ function list(value: string) {
     .filter(Boolean)
 }
 
-const stateLabel: Record<string, string> = {
-  planning: 'Planificación',
-  plan_review: 'Revisión del plan',
-  implementation: 'Implementación',
-  code_review: 'Revisión de código',
-  preview_pending: 'Preview pendiente',
-  qa_running: 'QA en curso',
-  qa_review: 'Revisión QA',
-  release_review: 'Revisión final',
-  released: 'Entregado',
-  blocked: 'Bloqueada',
-  cancelled: 'Cancelada',
-}
+const stateLabel = deliveryStateLabels
 
 function displayDate(value?: string) {
   const parsed = value ? new Date(value) : null
@@ -370,6 +360,10 @@ type DeliveryProjectCosts = {
 type DeliveryWorkspaceReadiness = {
   id: string
   ready: boolean
+  sandbox_ready: boolean
+  dependency_state?: string
+  dependency_reason?: string
+  dependency_next_action?: string
   qa_ready: boolean
   visual_qa_ready: boolean
   publication_ready: boolean
@@ -389,6 +383,20 @@ function runtimeReadinessForWorkspace(runtime: AutomationRuntimeHealth | undefin
     if (match) return match
   }
   return undefined
+}
+
+function dependencyStateLabel(state?: string) {
+  if (!state || state === 'ready') return undefined
+  if (state === 'kvm_permission_denied') return 'Acceso a KVM pendiente'
+  if (state === 'kvm_device_missing') return 'KVM no disponible'
+  if (state === 'supervisor_unavailable') return 'Supervisor microVM no disponible'
+  if (state === 'production_profile_not_registered') return 'Perfil Jailer de producción pendiente'
+  if (state === 'cgroup_delegation_required') return 'Delegación de cgroup pendiente'
+  if (state === 'controllers_missing') return 'Controladores cgroup incompletos'
+  if (state === 'runtime_ready_requires_lifecycle') return 'Lifecycle microVM pendiente'
+  if (state === 'host_process_not_sandbox') return 'Ejecuta en host, sin sandbox'
+  if (state === 'sandbox_unavailable') return 'Sandbox no disponible'
+  return 'Dependencia pendiente'
 }
 
 type CostLedgerTotals = {
@@ -495,7 +503,7 @@ function workItemPhase(state: string) {
 function taskPulseTone(status: string) {
   if (status === 'completed') return 'bg-emerald-500'
   if (status === 'failed' || status === 'dispatch_failed') return 'bg-rose-500'
-  if (status === 'cancelled' || status === 'cancel_requested') return 'bg-ink-muted/60'
+  if (status === 'cancelled' || status === 'cancel_requested') return 'bg-zinc-400'
   if (status === 'running') return 'bg-indigo-500'
   return 'bg-amber-400'
 }
@@ -548,7 +556,7 @@ export default function DeliveryProjectDetailPage() {
     repositoryKind: 'unclassified',
     repositoryResponsibility: '',
     dependsOnRepositories: '',
-    linkedGitHubRepository: '',
+    componentScopes: '',
   })
   const [task, setTask] = useState({
     requestId: '',
@@ -627,8 +635,8 @@ export default function DeliveryProjectDetailPage() {
                 ...(list(context.dependsOnRepositories).length
                   ? { depends_on_repositories: list(context.dependsOnRepositories) }
                   : {}),
-                ...(context.reference.trim().startsWith('workspace://') && context.linkedGitHubRepository
-                  ? { github_repository: context.linkedGitHubRepository }
+                ...(list(context.componentScopes).length
+                  ? { allowed_paths: list(context.componentScopes) }
                   : {}),
               }
             : {}),
@@ -644,7 +652,7 @@ export default function DeliveryProjectDetailPage() {
         repositoryKind: 'unclassified',
         repositoryResponsibility: '',
         dependsOnRepositories: '',
-        linkedGitHubRepository: '',
+        componentScopes: '',
       })
       setMessage('Fuente de contexto guardada. Las siguientes tareas congelarán esta revisión.')
       await project.mutate()
@@ -667,6 +675,7 @@ export default function DeliveryProjectDetailPage() {
           repository_kind: String(form.get('repositoryKind') ?? 'unclassified'),
           repository_responsibility: String(form.get('repositoryResponsibility') ?? ''),
           depends_on_repositories: list(String(form.get('dependsOnRepositories') ?? '')),
+          allowed_paths: list(String(form.get('componentScopes') ?? '')),
         },
       })
       setMessage(`Arquitectura de ${source.name} actualizada. Las tareas existentes conservan su snapshot.`)
@@ -885,8 +894,12 @@ export default function DeliveryProjectDetailPage() {
         instructions:
           'Propón un plan completo y estructurado. Declara el contexto que usaste, vacíos, riesgos, límites de autonomía, pruebas y evidencia. No implementes ni publiques cambios.',
       })
-      await project.mutate()
       router.push(`/automation/work-items/${workItem.id}?from_project=${encodeURIComponent(projectId)}`)
+      // The work item is now durable and its plan run is queued. Move the
+      // operator to the control surface immediately; revalidation is
+      // intentionally best-effort and must never make a successful dispatch
+      // look like a failed creation.
+      void project.mutate()
     } catch {
       setMessage(
         'No se pudo preparar el plan. La solicitud sigue intacta; revisa que el contexto esté listo e inténtalo de nuevo.'
@@ -920,7 +933,7 @@ export default function DeliveryProjectDetailPage() {
 
   if (project.isLoading)
     return (
-      <main className="mx-auto max-w-[96rem] px-4 py-6 pb-28 sm:px-6 sm:py-8 lg:px-8 lg:pb-10" aria-busy="true" aria-describedby="project-cockpit-loading-copy">
+      <div className="mx-auto max-w-[96rem] px-4 py-6 pb-28 sm:px-6 sm:py-8 lg:px-8 lg:pb-10" aria-busy="true" aria-describedby="project-cockpit-loading-copy">
         <div role="status" aria-live="polite" aria-atomic="true" aria-label="Cargando el resultado y su flujo de automatización" className="mx-auto max-w-5xl">
           <div className="mb-4 flex items-center gap-3 rounded-2xl border border-border-subtle bg-surface-raised px-4 py-3 text-sm text-ink-secondary">
             <span className="flex size-8 items-center justify-center rounded-xl bg-(--tenant-accent)/10 text-(--tenant-accent)"><ArrowPathIcon className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /></span>
@@ -942,7 +955,7 @@ export default function DeliveryProjectDetailPage() {
             </div>
           </section>
         </div>
-      </main>
+      </div>
     )
   const projectErrorStatus = (project.error as { response?: { status?: number }; status?: number } | undefined)?.response?.status ??
     (project.error as { status?: number } | undefined)?.status
@@ -956,7 +969,7 @@ export default function DeliveryProjectDetailPage() {
           : 'El cockpit no pudo sincronizarse todavía. Tus datos no se han modificado.'
   if (!project.data)
     return (
-      <main className="mx-auto max-w-[90rem] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[90rem] px-4 py-8 sm:px-6 lg:px-8">
         <section className="premium-surface mx-auto max-w-xl rounded-3xl p-6 text-center sm:p-8" role="alert">
           <div className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700 dark:text-amber-200">
             <FolderOpenIcon className="size-5" aria-hidden="true" />
@@ -969,10 +982,10 @@ export default function DeliveryProjectDetailPage() {
               <ArrowPathIcon data-slot="icon" />
               Reintentar
             </Button>
-            <Button outline href="/automation/projects">Volver a Resultados</Button>
+            <Button outline href="/automation/projects">Volver a Proyectos</Button>
           </div>
         </section>
-      </main>
+      </div>
     )
   const item = project.data
   const contexts = (item.context ?? []).map((source) => ({ ...source, metadata: contextMetadata(source.metadata) }))
@@ -1110,17 +1123,18 @@ export default function DeliveryProjectDetailPage() {
       : activeWorkItem
         ? `Seguimiento de ${workItemOperationalLabel(activeWorkItem)}`
         : 'Sin ejecuciones en curso'
-  const streamUnavailable = projectStream.status === 'offline' || projectStream.status === 'error'
-  const streamReconnecting = projectStream.status === 'reconnecting' || projectStream.status === 'connecting'
+  const streamPresentation = projectStreamPresentation(projectStream.status, projectRunningTasks.length > 0 || stoppingWorkItems.length > 0)
+  const streamUnavailable = streamPresentation.unavailable
+  const streamReconnecting = streamPresentation.reconnecting
   return (
     <PageTransition>
-      <main className="mx-auto max-w-[96rem] px-4 py-5 pb-28 sm:px-6 sm:py-7 lg:px-8 lg:pb-10">
+      <div className="mx-auto max-w-[96rem] px-4 py-5 pb-28 sm:px-6 sm:py-7 lg:px-8 lg:pb-10">
         <Link
           href="/automation/projects"
           className="inline-flex items-center gap-2 text-sm font-medium text-ink-secondary hover:text-ink"
         >
           <ArrowLeftIcon className="size-4" />
-          Resultados
+          Proyectos
         </Link>
         <PageHeader
           eyebrow={item.client?.name ?? 'Cliente'}
@@ -1131,7 +1145,7 @@ export default function DeliveryProjectDetailPage() {
         {item.summary && (
           <details className="group mt-3 inline-block max-w-2xl text-sm text-ink-secondary">
             <summary className="inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-full border border-border-subtle bg-surface-raised px-3 text-xs font-semibold text-ink-secondary transition hover:border-(--tenant-accent)/35 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) marker:hidden">
-              Ver contexto del resultado
+              Ver objetivo del proyecto
               <ChevronDownIcon className="size-3.5 transition group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
             </summary>
             <p className="mt-2 max-w-2xl rounded-xl border border-border-subtle bg-surface-soft px-3 py-2 text-sm/6 text-ink-secondary">
@@ -1139,39 +1153,32 @@ export default function DeliveryProjectDetailPage() {
             </p>
           </details>
         )}
-        <section className="premium-surface mt-5 overflow-hidden rounded-[1.75rem]" aria-label="Cockpit del resultado">
+        <ProjectPreparation preparation={item.preparation} onConfigure={showProjectOperations} onRequest={openProjectIntent} initiallyOpen={workItems.length === 0} />
+        <section className="premium-surface mt-5 overflow-hidden rounded-[1.75rem]" aria-label="Trabajo del proyecto">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 sm:px-5">
             <div className="flex min-w-0 items-center gap-3">
               <span className="relative flex size-3 shrink-0" aria-hidden="true">
                 <span
-                  className={`absolute inline-flex size-full rounded-full opacity-50 ${streamUnavailable ? 'bg-rose-400' : streamReconnecting ? 'animate-ping motion-reduce:animate-none bg-amber-400' : projectRunningTasks.length > 0 ? 'animate-ping motion-reduce:animate-none bg-indigo-400' : stoppingWorkItems.length > 0 ? 'bg-ink-muted/50' : 'bg-emerald-400'}`}
+                  className={`absolute inline-flex size-full rounded-full opacity-50 ${streamPresentation.tone === 'rose' ? 'bg-rose-400' : streamReconnecting ? 'animate-ping motion-reduce:animate-none bg-amber-400' : streamPresentation.tone === 'indigo' ? 'animate-ping motion-reduce:animate-none bg-indigo-400' : streamPresentation.tone === 'zinc' ? 'bg-zinc-300' : 'bg-emerald-400'}`}
                 />
-                <span className={`relative inline-flex size-3 rounded-full ${streamUnavailable ? 'bg-rose-500' : streamReconnecting ? 'bg-amber-500' : projectRunningTasks.length > 0 ? 'bg-indigo-500' : stoppingWorkItems.length > 0 ? 'bg-ink-muted/60' : 'bg-emerald-500'}`} />
+                <span className={`relative inline-flex size-3 rounded-full ${streamPresentation.tone === 'rose' ? 'bg-rose-500' : streamReconnecting ? 'bg-amber-500' : streamPresentation.tone === 'indigo' ? 'bg-indigo-500' : streamPresentation.tone === 'zinc' ? 'bg-zinc-400' : 'bg-emerald-500'}`} />
               </span>
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold tracking-[.14em] text-ink-muted uppercase">Pulso del resultado</p>
                 <p className="truncate text-sm font-semibold text-ink">
-                {streamReconnecting
-                    ? 'Reconectando al agente'
-                    : streamUnavailable
-                      ? 'El pulso se actualizará al reconectar'
-                      : projectPulse}
+                {streamReconnecting || streamUnavailable || (!projectRunningTasks.length && !stoppingWorkItems.length)
+                  ? streamPresentation.label
+                  : projectPulse}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge color={streamUnavailable ? 'rose' : streamReconnecting ? 'amber' : projectRunningTasks.length > 0 ? 'indigo' : stoppingWorkItems.length > 0 ? 'zinc' : decisionWorkItems.some(workItemNeedsAttention) ? 'rose' : decisionWorkItems.length > 0 ? 'amber' : 'emerald'}>
-                {streamReconnecting
-                  ? 'Reconectando'
-                  : streamUnavailable
-                    ? 'Sin conexión'
-                    : projectRunningTasks.length > 0
-                      ? 'En vivo'
-                      : stoppingWorkItems.length > 0
-                        ? 'Cierre en curso'
-                      : decisionWorkItems.length > 0
-                        ? 'Atención'
-                        : 'Al día'}
+              <Badge color={streamUnavailable || streamReconnecting || !projectRunningTasks.length && !stoppingWorkItems.length ? streamPresentation.tone : projectRunningTasks.length > 0 ? 'indigo' : stoppingWorkItems.length > 0 ? 'zinc' : decisionWorkItems.some(workItemNeedsAttention) ? 'rose' : decisionWorkItems.length > 0 ? 'amber' : 'emerald'}>
+                {streamUnavailable || streamReconnecting || !projectRunningTasks.length && !stoppingWorkItems.length
+                  ? streamPresentation.badge
+                  : projectRunningTasks.length > 0
+                    ? 'En vivo'
+                    : 'Cierre en curso'}
               </Badge>
               <button
                 type="button"
@@ -1249,7 +1256,7 @@ export default function DeliveryProjectDetailPage() {
                               />
                             )}
                             <span
-                              className={`relative mx-auto flex size-6 items-center justify-center rounded-full border text-[10px] font-bold ${passed ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : isStopping && current ? 'border-border-subtle bg-surface-soft text-ink-muted' : isDecision ? 'border-amber-300 bg-amber-50 text-amber-700' : current ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-border-subtle bg-surface-raised text-ink-muted'}`}
+                              className={`relative mx-auto flex size-6 items-center justify-center rounded-full border text-[10px] font-bold ${passed ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : isStopping && current ? 'border-border-strong bg-surface-soft text-ink-muted' : isDecision ? 'border-amber-300 bg-amber-50 text-amber-700' : current ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-border-subtle bg-surface-raised text-ink-muted'}`}
                             >
                               {passed ? <CheckCircleIcon className="size-3" /> : index + 1}
                             </span>
@@ -1398,7 +1405,7 @@ export default function DeliveryProjectDetailPage() {
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-center">
             <div>
               <p className="text-xs font-semibold tracking-[.15em] text-(--tenant-accent) uppercase">
-                Memoria del resultado
+                Memoria del proyecto
               </p>
               <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">
                 Todo lo que el agente puede usar queda a la vista.
@@ -1782,7 +1789,6 @@ export default function DeliveryProjectDetailPage() {
                 Un workspace local fija su SHA actual al registrarse. Un repositorio <code>github://owner/repo</code>{' '}
                 sin revisión queda pendiente hasta sincronizarlo con la GitHub App.
               </p>
-              <RepositoryOnboardingPanel projectId={projectId} onContextPublished={() => project.mutate()} />
               <div className="mt-4 rounded-2xl border border-border-subtle bg-surface-soft p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
@@ -1879,6 +1885,22 @@ export default function DeliveryProjectDetailPage() {
                                 {runtimeReadiness.ready ? 'Worker listo' : 'Preflight pendiente'}
                               </span>
                             )}
+                            {isWorkspaceRepository(source) && runtimeReadiness && (
+                              <span
+                                title="Confirma que el runner local puede ejecutar la validación con la política de aislamiento declarada"
+                                className={`rounded-full px-2 py-1 text-[10px] font-medium ${runtimeReadiness.sandbox_ready ? 'bg-violet-500/[0.08] text-violet-800' : 'bg-rose-500/[0.08] text-rose-800'}`}
+                              >
+                                {runtimeReadiness.sandbox_ready ? 'Sandbox confirmado' : 'Sandbox pendiente'}
+                              </span>
+                            )}
+                            {isWorkspaceRepository(source) && runtimeReadiness && dependencyStateLabel(runtimeReadiness.dependency_state) && (
+                              <span
+                                title={runtimeReadiness.dependency_reason ?? runtimeReadiness.dependency_next_action ?? 'La preparación del runtime requiere atención.'}
+                                className="rounded-full bg-amber-500/[0.08] px-2 py-1 text-[10px] font-medium text-amber-800"
+                              >
+                                {dependencyStateLabel(runtimeReadiness.dependency_state)}
+                              </span>
+                            )}
                             {isWorkspaceRepository(source) && !runtimeReadiness && (
                               <span className="rounded-full bg-amber-500/[0.08] px-2 py-1 text-[10px] font-medium text-amber-800">
                                 Sin señal del worker
@@ -1905,6 +1927,13 @@ export default function DeliveryProjectDetailPage() {
                               </span>
                             )}
                           </div>
+                          {isWorkspaceRepository(source) && runtimeReadiness && dependencyStateLabel(runtimeReadiness.dependency_state) && (
+                            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900" role="status">
+                              <p className="font-semibold">{dependencyStateLabel(runtimeReadiness.dependency_state)}</p>
+                              {runtimeReadiness.dependency_reason && <p className="mt-0.5 leading-5">{runtimeReadiness.dependency_reason}</p>}
+                              {runtimeReadiness.dependency_next_action && <p className="mt-1 font-medium leading-5">Siguiente paso: {runtimeReadiness.dependency_next_action}</p>}
+                            </div>
+                          )}
                         </article>
                       )
                     })}
@@ -2102,6 +2131,23 @@ export default function DeliveryProjectDetailPage() {
                                 className="mt-1 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 py-2 font-mono text-xs text-ink"
                                 placeholder="workspace://itbem-events-backend"
                               />
+                            </label>
+                            <label className="text-xs font-medium text-ink-secondary">
+                              Componentes permitidos <span className="font-normal text-ink-muted">(rutas del monorepo, una por línea; opcional)</span>
+                              <textarea
+                                name="componentScopes"
+                                defaultValue={
+                                  Array.isArray(source.metadata?.allowed_paths)
+                                    ? source.metadata.allowed_paths.filter((value): value is string => typeof value === 'string').join('\n')
+                                    : ''
+                                }
+                                rows={2}
+                                className="mt-1 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 py-2 font-mono text-xs text-ink"
+                                placeholder="apps/dashboard\npackages/ui"
+                              />
+                              <span className="mt-1 block text-xs leading-5 font-normal text-ink-muted">
+                                Si se define, el harness rechazará cualquier diff fuera de estas raíces. Esto permite trabajar un monorepo sin confundir componente con repositorio.
+                              </span>
                             </label>
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <p className="text-xs leading-5 text-ink-muted">
@@ -2628,30 +2674,6 @@ export default function DeliveryProjectDetailPage() {
                       </span>
                     )}
                   </label>
-                  {context.kind === 'repository' && context.reference.trim().startsWith('workspace://') && (
-                    <label className="mt-3 block text-sm font-medium text-ink">
-                      Repositorio GitHub vinculado
-                      <select
-                        required
-                        value={context.linkedGitHubRepository}
-                        onChange={(event) => setContext({ ...context, linkedGitHubRepository: event.target.value })}
-                        className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm"
-                      >
-                        <option value="">Selecciona el checkpoint remoto aprobado</option>
-                        {repositories
-                          .filter((source) => source.reference.startsWith('github://') && source.status === 'ready')
-                          .map((source) => (
-                            <option key={source.id} value={source.reference.replace(/^github:\/\//, '')}>
-                              {source.name} · {source.revision.slice(0, 12)}
-                            </option>
-                          ))}
-                      </select>
-                      <span className="mt-1 block text-xs leading-5 font-normal text-ink-muted">
-                        El runner local deberá probar esta identidad y el SHA congelado antes de leer código. No otorga
-                        permisos de publicación ni reemplaza una revisión.
-                      </span>
-                    </label>
-                  )}
                   <label className="mt-3 block text-sm font-medium text-ink">
                     Revisión
                     <input
@@ -2686,6 +2708,19 @@ export default function DeliveryProjectDetailPage() {
                         />
                         <span className="mt-1 block text-xs leading-5 font-normal text-ink-muted">
                           Sólo puedes referenciar repositorios ya registrados en este proyecto.
+                        </span>
+                      </label>
+                      <label className="mt-3 block text-sm font-medium text-ink">
+                        Componentes permitidos <span className="font-normal text-ink-muted">(rutas del monorepo, una por línea; opcional)</span>
+                        <textarea
+                          value={context.componentScopes}
+                          onChange={(event) => setContext({ ...context, componentScopes: event.target.value })}
+                          rows={2}
+                          placeholder="apps/dashboard\npackages/ui"
+                          className="mt-2 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 py-2 font-mono text-xs"
+                        />
+                        <span className="mt-1 block text-xs leading-5 font-normal text-ink-muted">
+                          El agente sólo podrá proponer cambios dentro de estas raíces cuando el plan las apruebe.
                         </span>
                       </label>
                     </>
@@ -2934,7 +2969,7 @@ export default function DeliveryProjectDetailPage() {
             </form>
           </DialogBody>
         </Dialog>
-      </main>
+      </div>
     </PageTransition>
   )
 }

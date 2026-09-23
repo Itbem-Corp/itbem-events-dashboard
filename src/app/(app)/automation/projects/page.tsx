@@ -1,8 +1,13 @@
 'use client'
+import { deliveryStageIndex, deliveryStateLabels } from '@/features/automation/delivery-presentation'
+import { automationClientOption, isAutomationClient } from '@/features/automation/automation-client-boundary'
+import { decodeProjectDraft, encodeProjectDraft, projectDraftKey } from '@/features/automation/project-draft'
+import { useStore } from '@/store/useStore'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Dialog, DialogActions, DialogBody, DialogDescription, DialogTitle } from '@/components/dialog'
+import { ClientFormModal } from '@/components/clients/forms/client-form-modal'
 import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import {
@@ -18,7 +23,7 @@ import { api, localSessionRecoveryMessage } from '@/lib/api'
 import { readApiData } from '@/lib/api-envelope'
 import { automationPortfolioPath, clientsPagePath, deliveryProjectsPath } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
-import type { ClientsPageResponse } from '@/models/Client'
+import type { Client, ClientsPageResponse } from '@/models/Client'
 import {
   ArrowPathIcon,
   ArrowRightIcon,
@@ -96,21 +101,10 @@ const activeStates = new Set(['planning', 'implementation', 'preview_pending', '
 const decisionStates = new Set(['plan_review', 'code_review', 'qa_review', 'release_review'])
 const emptyProjects: DeliveryProject[] = []
 
-const stateLabel: Record<string, string> = {
-  planning: 'Preparando el plan',
-  plan_review: 'Plan listo para decidir',
-  implementation: 'Construyendo',
-  code_review: 'Cambio listo para revisión',
-  preview_pending: 'Preparando la validación',
-  qa_running: 'Validando',
-  qa_review: 'QA listo para decidir',
-  release_review: 'Entrega lista para decidir',
-  released: 'Entregado',
-  blocked: 'Requiere atención',
-  cancelled: 'Cancelado',
-}
+const stateLabel = deliveryStateLabels
 
 const operationLabel: Record<string, string> = {
+  'delivery.chat': 'Conversación informativa',
   'delivery.plan': 'Preparando el plan',
   'delivery.implementation': 'Construyendo el cambio',
   'delivery.publish': 'Preparando la publicación',
@@ -118,13 +112,11 @@ const operationLabel: Record<string, string> = {
   'delivery.summary': 'Preparando la entrega',
 }
 
-const workflowStages = ['Resultado', 'Plan', 'Ejecución', 'Validado'] as const
+const workflowStages = ['Preparación', 'Plan', 'Trabajo y revisión', 'Entregado'] as const
 
 function workflowStageIndex(snapshot: WorkspaceSnapshot) {
   if (snapshot.pulse.tone === 'complete') return 3
-  if (snapshot.pulse.tone === 'attention') return 1
-  if (snapshot.pulse.tone === 'incident' || snapshot.pulse.tone === 'live' || snapshot.pulse.tone === 'stopping') return 2
-  return 0
+  return deliveryStageIndex(snapshot.focus?.state)
 }
 
 function singular(count: number, singularLabel: string, pluralLabel = `${singularLabel}s`) {
@@ -506,8 +498,57 @@ export default function DeliveryProjectsPage() {
   )
   const [clientId, setClientId] = useState('')
   const [intent, setIntent] = useState('')
+  const [projectName, setProjectName] = useState('')
+  const draftUser = useStore(state => state.user?.id)
+  const draftTenant = useStore(state => state.activeTenantCode)
+  const draftOrganization = useStore(state => state.currentClient?.id)
+  const clientScope = `${draftTenant ?? ''}:${draftOrganization ?? 'platform'}`
+  const draftKey = draftUser && draftTenant ? projectDraftKey(draftUser, draftTenant, draftOrganization ?? 'platform') : null
+  const draftIdentityRef = useRef<string | null | undefined>(undefined)
+  const draftIdentityHydratedRef = useRef(false)
+  const [loadedDraftKey, setLoadedDraftKey] = useState<string | null>(null)
+  useEffect(() => {
+    // The auth store can hydrate after this client page has already rendered.
+    // If the operator opened the composer and started typing during that gap,
+    // do not replace the live form with an empty draft when the identity key
+    // becomes available. Once an identity is known, switching to another
+    // identity/organization is allowed to load that identity's own draft.
+    const previousDraftKey = draftIdentityRef.current
+    if (previousDraftKey === draftKey) return
+    draftIdentityRef.current = draftKey
+    if (!draftKey) {
+      setLoadedDraftKey(null)
+      return
+    }
+    if (!draftIdentityHydratedRef.current && previousDraftKey === null && (clientId.trim() || projectName.trim() || intent.trim())) {
+      draftIdentityHydratedRef.current = true
+      setLoadedDraftKey(draftKey)
+      return
+    }
+    let draft
+    try { draft = draftKey ? decodeProjectDraft(sessionStorage.getItem(draftKey)) : undefined } catch { /* Storage may be disabled. */ }
+    setClientId(draft?.clientId ?? '')
+    setProjectName(draft?.name ?? '')
+    setIntent(draft?.objective ?? '')
+    draftIdentityHydratedRef.current = true
+    setLoadedDraftKey(draftKey)
+  }, [clientId, draftKey, intent, projectName])
+  useEffect(() => {
+    if (!draftKey || loadedDraftKey !== draftKey) return
+    try {
+      if (!projectName && !intent) sessionStorage.removeItem(draftKey)
+      else sessionStorage.setItem(draftKey, encodeProjectDraft({ clientId, name: projectName, objective: intent }))
+    } catch { /* Draft persistence is optional, never block editing. */ }
+  }, [draftKey, loadedDraftKey, clientId, projectName, intent])
   const [creating, setCreating] = useState(false)
+  const projectCreationAttemptRef = useRef<{ fingerprint: string; key: string } | null>(null)
   const [composerOpen, setComposerOpen] = useState(false)
+  const [clientComposerOpen, setClientComposerOpen] = useState(false)
+  // A newly created client is returned by the mutation before the list query
+  // necessarily revalidates. Keep it as a scoped optimistic option so the
+  // operator can finish this project without waiting for another round trip.
+  const [createdClient, setCreatedClient] = useState<Client | null>(null)
+  const [createdClientScope, setCreatedClientScope] = useState('')
   const intentFieldRef = useRef<HTMLTextAreaElement | null>(null)
   const clientFieldRef = useRef<HTMLSelectElement | null>(null)
   const clients = useSWR<ClientsPageResponse>(
@@ -524,18 +565,35 @@ export default function DeliveryProjectsPage() {
     () => (portfolioSnapshot ? portfolioSnapshot.projects.map(asPortfolioWorkspace) : (projects.data ?? emptyProjects).map(asWorkspaceProject)),
     [portfolioSnapshot, projects.data]
   )
-  const clientItems = useMemo(() => clients.data?.data ?? [], [clients.data])
+  const clientItems = useMemo(() => {
+    const serverClients = clients.data?.data ?? []
+    if (!createdClient || createdClientScope !== clientScope || serverClients.some(client => client.id === createdClient.id)) return serverClients
+    return [...serverClients, createdClient]
+  }, [clients.data, clientScope, createdClient, createdClientScope])
+  const automationClientItems = useMemo(() => clientItems.filter(isAutomationClient), [clientItems])
   // The single-client path is a resolved destination immediately; do not make
   // the primary action wait for a follow-up state update just to enable it.
-  const resolvedClientId = clientId || (clientItems.length === 1 ? clientItems[0].id : '')
-  const clientSelectionUnavailable = !clients.isLoading && !clients.error && clientItems.length === 0
+  const resolvedClientId = clientId && automationClientItems.some((client) => client.id === clientId)
+    ? clientId
+    : automationClientItems.length === 1
+      ? automationClientItems[0].id
+      : ''
+  const clientSelectionUnavailable = !clients.isLoading && !clients.error && automationClientItems.length === 0
 
   useEffect(() => {
     // When this workspace has one client, the choice is unambiguous. Remove
     // the administrative step but keep the selector visible as an escape
     // hatch if more clients are added later.
-    if (!composerOpen || clientItems.length !== 1 || clientId) return
-    setClientId(clientItems[0].id)
+    if (!composerOpen || automationClientItems.length !== 1 || clientId) return
+    setClientId(automationClientItems[0].id)
+  }, [automationClientItems, clientId, composerOpen])
+
+  useEffect(() => {
+    // A draft may have been created before the product boundary was enforced.
+    // Clear a now-protected destination instead of leaving a disabled option
+    // looking selected or allowing a stale draft to influence submission.
+    if (!composerOpen || !clientId || clientItems.some((client) => client.id === clientId && isAutomationClient(client))) return
+    setClientId('')
   }, [clientId, clientItems, composerOpen])
 
   useEffect(() => {
@@ -544,8 +602,12 @@ export default function DeliveryProjectsPage() {
     setComposerOpen(true)
     const nextParams = new URLSearchParams(searchParams.toString())
     nextParams.delete('create')
-    router.replace(`/automation/projects${nextParams.size ? `?${nextParams}` : ''}`, { scroll: false })
-  }, [router, searchParams])
+    // Strip the one-shot launcher flag without scheduling a competing route
+    // transition. A pending router.replace could race a successful create and
+    // put the operator back on the list after we navigate to the new project.
+    const nextURL = `/automation/projects${nextParams.size ? `?${nextParams}` : ''}`
+    window.history.replaceState(window.history.state, '', nextURL)
+  }, [searchParams])
 
   useEffect(() => {
     if (!composerOpen || clients.isLoading || clientSelectionUnavailable) return
@@ -668,7 +730,7 @@ export default function DeliveryProjectsPage() {
     { value: 'complete', label: 'Entregados', count: workspaces.filter((workspace) => workspace.snapshot.pulse.tone === 'complete').length },
   ]
   const workspaceHeading: Record<PortfolioFilter, string> = {
-    all: 'Resultados',
+    all: 'Proyectos',
     live: 'En marcha',
     attention: 'Atención requerida',
     paused: 'En pausa',
@@ -702,19 +764,41 @@ export default function DeliveryProjectsPage() {
     setComposerOpen(true)
   }
 
+  function openClientComposer() {
+    // Keep the project dialog as a single modal. The draft effect persists the
+    // current fields, and the saved client is selected when we return.
+    setComposerOpen(false)
+    setClientComposerOpen(true)
+  }
+
   async function createProject(event: FormEvent) {
     event.preventDefault()
-    if (!resolvedClientId || !intent.trim()) return
+    if (!resolvedClientId || !intent.trim() || !projectName.trim() || !automationClientItems.some(client => client.id === resolvedClientId)) return
     setCreating(true)
     setMessage('')
     try {
-      const result = await api.post(deliveryProjectsPath(), { client_id: resolvedClientId, intent: intent.trim() })
+      const payload = { client_id: resolvedClientId, name: projectName.trim(), summary: intent.trim() }
+      const fingerprint = JSON.stringify(payload)
+      let attempt = projectCreationAttemptRef.current
+      if (!attempt || attempt.fingerprint !== fingerprint) {
+        attempt = { fingerprint, key: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}` }
+        projectCreationAttemptRef.current = attempt
+      }
+      const result = await api.post(deliveryProjectsPath(), payload, { headers: { 'Idempotency-Key': attempt.key } })
       const project = readApiData<DeliveryProject>(result.data)
+      if (!project?.id) throw new Error('Project creation returned no id')
+      projectCreationAttemptRef.current = null
       setIntent('')
+      setProjectName('')
+      setCreatedClient(null)
+      setCreatedClientScope('')
       setComposerOpen(false)
-      await projects.mutate()
-      await portfolioQuery.mutate()
+      // Navigation is part of the successful mutation contract. Refreshing
+      // the list is useful, but it must not hold the operator on the composer
+      // when a background revalidation is slow or temporarily unavailable.
       router.push(`/automation/projects/${project.id}`)
+      void projects.mutate()
+      void portfolioQuery.mutate()
     } catch {
       setMessage('No pudimos iniciar este workspace. Confirma el cliente y vuelve a intentarlo.')
     } finally {
@@ -734,16 +818,16 @@ export default function DeliveryProjectsPage() {
 
   return (
     <PageTransition>
-      <main className="mx-auto max-w-[88rem] px-4 py-6 pb-28 sm:px-6 sm:py-9 lg:pb-10">
+      <div className="mx-auto max-w-[88rem] px-4 py-6 pb-28 sm:px-6 sm:py-9 lg:pb-10">
         <PageHeader
-          eyebrow="Resultados"
-          title="Resultados en movimiento"
+          eyebrow="Espacio de trabajo"
+          title="Proyectos"
           description="El sistema avanza, deja evidencia y sólo te avisa cuando importa."
           icon={RocketLaunchIcon}
           actions={hasLoadError ? null :
             <Button color="indigo" onClick={openComposer} className="w-full justify-center sm:w-auto">
               <PlusIcon data-slot="icon" />
-              Iniciar resultado
+              Crear proyecto
             </Button>
           }
         />
@@ -842,7 +926,7 @@ export default function DeliveryProjectsPage() {
           {!hasLoadError && <div
             className="mt-4 flex max-w-full snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain pb-1 scroll-smooth [scrollbar-width:none] motion-reduce:scroll-auto"
             role="group"
-            aria-label="Filtrar resultados"
+            aria-label="Filtrar proyectos"
           >
             {filters.map((item) => {
               const selected = filter === item.value
@@ -898,7 +982,7 @@ export default function DeliveryProjectsPage() {
               </p>
               <Button color="indigo" className="mt-5" onClick={openComposer}>
                 <PlusIcon data-slot="icon" />
-                Iniciar resultado
+                Crear proyecto
               </Button>
             </div>
           ) : visibleWorkspaces.length === 0 ? (
@@ -987,10 +1071,9 @@ export default function DeliveryProjectsPage() {
         </section>
 
         <Dialog open={composerOpen} onClose={() => !creating && setComposerOpen(false)} size="lg">
-          <DialogTitle>Inicia un resultado</DialogTitle>
+          <DialogTitle>Crear proyecto</DialogTitle>
           <DialogDescription>
-            Dile al agente qué resultado necesitas. La ruta y el primer recorrido se preparan
-            automáticamente.
+            Guarda un espacio de trabajo para este cliente. Después prepararás repositorios y crearás el primer encargo; este paso no ejecuta al agente.
           </DialogDescription>
           <form onSubmit={createProject}>
             <DialogBody className="space-y-4 py-2">
@@ -1008,44 +1091,71 @@ export default function DeliveryProjectsPage() {
                   </Button>
                 </div>
               ) : clientSelectionUnavailable ? (
-                <div className="rounded-2xl border border-dashed border-(--tenant-accent)/30 bg-(--tenant-accent)/[.06] p-4">
-                  <p className="text-sm font-semibold text-ink">Primero crea la organización de esta entrega</p>
+                <div className="rounded-2xl border border-dashed border-amber-500/35 bg-amber-500/[.06] p-4">
+                  <p className="text-sm font-semibold text-ink">Necesitas una organización ITBEM para automatizar</p>
                   <p className="mt-1 text-xs leading-5 text-ink-muted">
-                    Así el contexto, las decisiones y los permisos del agente permanecen separados.
+                    Las organizaciones EventiApp y de otros productos permanecen protegidas y no pueden abrir un workspace de agentes desde aquí.
                   </p>
-                  <Link
-                    href="/clients?return_to=automation_create"
-                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl bg-(--tenant-accent) px-3 text-sm font-semibold text-white transition hover:brightness-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35"
-                  >
-                    Crear organización <ArrowRightIcon className="size-4" />
-                  </Link>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button color="indigo" type="button" onClick={openClientComposer}>
+                      <PlusIcon data-slot="icon" /> Crear cliente aquí
+                    </Button>
+                    <Link
+                      href="/clients"
+                      className="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-raised hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35"
+                    >
+                      Ver administración <ArrowRightIcon className="size-4" />
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <>
-                  {clientItems.length === 1 ? (
+                  {automationClientItems.length === 1 ? (
                     <p role="status" aria-live="polite" className="flex items-center gap-2 rounded-xl bg-surface-soft px-3 py-2 text-xs text-ink-secondary">
                       <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
-                      Destino listo: <span className="font-semibold text-ink">{clientItems[0].name}</span>
+                      Destino listo: <span className="font-semibold text-ink">{automationClientItems[0].name}</span>
                     </p>
                   ) : (
-                  <label className="block text-sm font-semibold text-ink">
-                    Cliente
-                    <select
-                      ref={clientFieldRef}
-                      required
-                      value={clientId}
-                      onChange={(event) => setClientId(event.target.value)}
-                      className="mt-2 h-12 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm text-ink transition outline-none focus:border-(--tenant-accent) focus:ring-2 focus:ring-(--tenant-accent)/15"
+                  <div>
+                    <label className="block text-sm font-semibold text-ink">
+                      Cliente
+                      <select
+                        ref={clientFieldRef}
+                        required
+                        value={clientId}
+                        onChange={(event) => setClientId(event.target.value)}
+                        className="mt-2 h-12 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm text-ink transition outline-none focus:border-(--tenant-accent) focus:ring-2 focus:ring-(--tenant-accent)/15"
+                      >
+                        <option value="">Selecciona un cliente</option>
+                        {clientItems.map((client) => {
+                          const option = automationClientOption(client)
+                          return (
+                          <option key={client.id} value={client.id} disabled={!option.selectable}>
+                            {option.selectable ? client.name : `${client.name} · protegido`}
+                          </option>
+                          )
+                        })}
+                      </select>
+                    </label>
+                    {clientItems.some((client) => !isAutomationClient(client)) && (
+                      <p className="mt-2 text-xs leading-5 text-ink-muted">
+                        Los destinos protegidos se muestran para que entiendas el alcance, pero no son seleccionables para automatización ITBEM.
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={openClientComposer}
+                      className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35"
                     >
-                      <option value="">Selecciona un cliente</option>
-                      {clientItems.map((client) => (
-                        <option key={client.id} value={client.id}>
-                          {client.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      <PlusIcon className="size-3.5" /> Crear un cliente nuevo sin salir
+                    </button>
+                  </div>
                   )}
+                  {resolvedClientId && !clientItems.some(client => client.id === resolvedClientId) && <p role="alert" className="text-sm text-ink-secondary">El cliente del borrador ya no está disponible en este espacio. Selecciona uno autorizado; tu nombre y objetivo se conservan.</p>}
+                  <label className="block text-sm font-semibold text-ink">
+                    Nombre del proyecto
+                    <input required maxLength={180} value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Ej. Portal de clientes" className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm" />
+                  </label>
                   <label className="block text-sm font-semibold text-ink">
                     ¿Qué resultado necesitas?
                     <textarea
@@ -1079,7 +1189,7 @@ export default function DeliveryProjectsPage() {
                     ))}
                   </div>
                   <p className="text-xs leading-5 text-ink-muted">
-                    El agente propone alcance, validaciones y primer plan. El operador aparece sólo cuando la política del proyecto exige un gate humano.
+                    Un proyecto puede contener varios trabajos. Guardarlo no aprueba cambios, publica código ni consume inferencia. El borrador se conserva en esta pestaña hasta 24 horas si el navegador lo permite. No incluyas secretos.
                   </p>
                 </>
               )}
@@ -1099,15 +1209,29 @@ export default function DeliveryProjectsPage() {
               <Button
                 color="indigo"
                 type="submit"
-                disabled={creating || Boolean(clients.error) || clientSelectionUnavailable || !resolvedClientId || !intent.trim()}
+                disabled={creating || clients.isLoading || Boolean(clients.error) || clientSelectionUnavailable || !clientItems.some(client => client.id === resolvedClientId) || !intent.trim() || !projectName.trim()}
               >
                 <SparklesIcon data-slot="icon" />
-                {creating ? 'Iniciando…' : 'Poner en marcha'}
+                {creating ? 'Guardando…' : 'Crear proyecto'}
               </Button>
             </DialogActions>
           </form>
         </Dialog>
-      </main>
+        <ClientFormModal
+          isOpen={clientComposerOpen}
+          setIsOpen={setClientComposerOpen}
+          restrictTypeCode="CUSTOMER"
+          onSaved={async (client) => {
+            if (!client?.id) return
+            setCreatedClient(client)
+            setCreatedClientScope(clientScope)
+            setClientId(client.id)
+            setComposerOpen(true)
+            setMessage('Cliente creado y seleccionado. Puedes continuar con el proyecto.')
+            window.requestAnimationFrame(() => intentFieldRef.current?.focus())
+          }}
+        />
+      </div>
     </PageTransition>
   )
 }

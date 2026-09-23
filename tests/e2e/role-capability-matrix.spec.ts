@@ -135,6 +135,10 @@ function response(data: unknown) {
   return { status: 200, contentType: 'application/json', body: JSON.stringify({ status: 200, data }) }
 }
 
+function bffResponse(data: unknown) {
+  return { status: 200, contentType: 'application/json', body: JSON.stringify(data) }
+}
+
 async function installPersonaSession(context: BrowserContext, page: Page, persona: Persona) {
   const baseURL = String(test.info().project.use.baseURL ?? 'http://localhost:3000')
   await context.addCookies([{ name: 'session', value: `persona-${persona.name}`, url: baseURL, httpOnly: true }])
@@ -169,12 +173,11 @@ async function installPersonaSession(context: BrowserContext, page: Page, person
     capabilities: persona.capabilities,
   }
 
-  // Production verifies the browser cookie through the same-origin BFF before
-  // making any backend request.  The cookie above only satisfies middleware;
-  // mock the BFF contract as well so this remains a deterministic UI matrix
-  // rather than attempting to validate a synthetic Cognito token.
+  // SessionBootstrap validates the HttpOnly browser session through the BFF
+  // before any dashboard request. Keep this test hermetic while exercising
+  // the same bootstrap path as the application.
   await page.route(/\/api\/auth\/token(?:\?.*)?$/, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ token: `persona-token-${persona.name}`, session }) })
+    route.fulfill(bffResponse({ token: `persona-token-${persona.name}`, session }))
   )
   await page.route(/\/session(?:\?.*)?$/, (route) => route.fulfill(response(session)))
   await page.route(/\/users(?:\?.*)?$/, (route) => route.fulfill(response(user)))

@@ -23,11 +23,11 @@ describe('MobilePrimaryNavigation', () => {
   })
 
   it('keeps multitenant administration available for the ITBEM workspace', () => {
-    render(<MobilePrimaryNavigation pathname="/" showEvents={false} showMetrics showTeam={false} showUsers showOrganizations showAutomation={false} onIntent={vi.fn()} />)
+    render(<MobilePrimaryNavigation pathname="/" tenantCode="itbem" showEvents={false} showMetrics showTeam={false} showUsers showOrganizations showAutomation={false} onIntent={vi.fn()} />)
 
     expect(screen.getAllByRole('link')).toHaveLength(4)
     expect(screen.getByRole('link', { name: 'Métricas' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Clientes' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Organizaciones' })).toBeInTheDocument()
   })
 
   it('shows the automation control center only when the capability is available', () => {

@@ -1,5 +1,5 @@
 import AutomationPage from '@/app/(app)/automation/page'
-import { automationHealthPath, automationInputUploadPath, automationPortfolioPath, automationTaskRetryCodeReviewPath, automationTasksPath, deliveryProjectsPath, deliveryWorkItemExecutionGraphPath } from '@/lib/api-paths'
+import { automationHealthPath, automationInputUploadPath, automationPortfolioPath, automationTaskResultPath, automationTasksPath, deliveryProjectsPath, deliveryWorkItemExecutionGraphPath } from '@/lib/api-paths'
 import type { DeliveryProject } from '@/features/automation/delivery-types'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -42,7 +42,7 @@ vi.mock('@/components/dialog', () => ({
 
 vi.mock('swr', () => ({
   default: mocks.useSWR,
-  preload: vi.fn(() => Promise.resolve(undefined)),
+  preload: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({
@@ -144,7 +144,6 @@ describe('AutomationPage', () => {
     render(<AutomationPage />)
 
     expect(screen.getByRole('heading', { name: 'Centro de automatización' })).toBeInTheDocument()
-    expect(screen.getByText('El agente avanza con gates; la plataforma V1 sigue en validación de producción.')).toBeInTheDocument()
     expect(screen.getAllByText('Desplegar identidad')).not.toHaveLength(0)
     expect(screen.getByText('Auditar acceso')).toBeInTheDocument()
     expect(screen.getByText('Atelier Norte · Decisión humana')).toBeInTheDocument()
@@ -152,6 +151,58 @@ describe('AutomationPage', () => {
     expect(screen.getByRole('button', { name: /Tomar decisión/i })).toBeInTheDocument()
     expect(screen.getByTestId('execution-graph')).toHaveTextContent('task-plan')
     expect(screen.getByRole('link', { name: /Abrir resultado/i })).toHaveAttribute('href', '/automation/work-items/work-item-review')
+  })
+
+  it('shows the confirmed worker profile without inventing a specialist role', () => {
+    mocks.useSWR.mockImplementation((key: string) => {
+      if (key === automationHealthPath()) {
+        return {
+          data: {
+            active_workers: 1,
+            workers: [{ provider: 'minimax', model: 'MiniMax-M3', last_seen_at: '2026-08-11T12:30:00.000Z', capabilities: ['delivery.qa', 'delivery.summary'], workspace_readiness: [{ sandbox_attestation: { runtime: 'firecracker', transport: 'virtio_vsock', evidence_scope: 'synthetic_guest_fixture', guest_command_verified: true } }] }],
+            operation_readiness: [
+              { operation: 'delivery.qa', worker_count: 1, worker_capacity: 1, ready: true },
+              { operation: 'delivery.implementation', worker_count: 0, worker_capacity: 0, ready: false },
+            ],
+          },
+          isLoading: false,
+          mutate: vi.fn(),
+        }
+      }
+      if (key === automationTasksPath()) return { data: looseTasks, isLoading: false, mutate: mocks.mutateTasks }
+      if (key === deliveryProjectsPath()) return { data: projects, isLoading: false, mutate: mocks.mutateProjects }
+      if (key === automationPortfolioPath()) return { data: null, isLoading: false, mutate: vi.fn() }
+      if (key.startsWith('/api/automation/work-items/')) return { data: undefined, isLoading: false, mutate: vi.fn() }
+      return { data: undefined, isLoading: false, mutate: vi.fn() }
+    })
+
+    render(<AutomationPage />)
+
+    expect(screen.getByLabelText('Equipo de agentes: QA · Entrega')).toBeInTheDocument()
+    expect(screen.getByText('Equipo · QA · Entrega')).toBeInTheDocument()
+    expect(screen.getByLabelText('Modelo activo: minimax · MiniMax-M3')).toBeInTheDocument()
+    expect(screen.getByText('Modelo · minimax · MiniMax-M3')).toBeInTheDocument()
+    expect(screen.getByLabelText('Cobertura de operaciones: 1 de 2 disponibles')).toBeInTheDocument()
+    expect(screen.getByLabelText('Transporte guest verificado')).toBeInTheDocument()
+  })
+
+  it('shows available workers rather than draining presence in the scaling policy', () => {
+    const fallback = mocks.useSWR.getMockImplementation()
+    mocks.useSWR.mockImplementation((key: string) => key === automationHealthPath()
+      ? {
+          data: {
+            active_workers: 2,
+            draining_workers: 2,
+            scaling: { mode: 'observe_only', active_workers: 2, available_workers: 0, desired_workers: 1, worker_gap: 1 },
+          },
+          isLoading: false,
+          mutate: vi.fn(),
+        }
+      : fallback?.(key))
+
+    render(<AutomationPage />)
+
+    expect(screen.getByLabelText('Política de capacidad: Capacidad observada · 0 workers disponibles · objetivo 1')).toBeInTheDocument()
   })
 
   it('moves the expanded flow to the selected result instead of duplicating a long detail panel', async () => {
@@ -175,6 +226,8 @@ describe('AutomationPage', () => {
     expect(document.activeElement).not.toBe(screen.getByLabelText('Live steps de Desplegar identidad'))
 
     await user.click(screen.getByRole('button', { name: /Tomar decisi/i }))
+
+    expect(mocks.mutatePortfolio).toHaveBeenCalled()
 
     await waitFor(() => {
       expect(document.activeElement).toBe(screen.getByLabelText('Live steps de Desplegar identidad'))
@@ -336,7 +389,31 @@ describe('AutomationPage', () => {
     expect(screen.queryByRole('button', { name: 'Consulta puntual' })).not.toBeInTheDocument()
   })
 
-  it('keeps point requests out of the portfolio and starts them through the compact quick-query modal', async () => {
+  it('keeps standalone queries visible even when the compact portfolio is healthy', () => {
+    const fallback = mocks.useSWR.getMockImplementation()!
+    mocks.useSWR.mockImplementation((key: string) => key === automationPortfolioPath()
+      ? { data: { projects: [], totals: { decisionsRequired: 0, blockedWorkItems: 0, attentionTasks: 0 } }, isLoading: false, mutate: vi.fn() }
+      : fallback(key))
+    render(<AutomationPage />)
+    expect(screen.getByText('ai · chat')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver resultado' })).toBeInTheDocument()
+    expect(screen.queryByText('Avanzando')).not.toBeInTheDocument()
+    expect(screen.getByText('La consulta terminó. Puedes abrir su respuesta; no hay más etapas pendientes.')).toBeInTheDocument()
+  })
+
+  it('reads the private query result inside the app without opening a storage hostname', async () => {
+    const user = userEvent.setup()
+    mocks.apiGet.mockResolvedValue({ data: { status: 200, data: { content: 'WORKER_LOCAL_OK', model: 'MiniMax-M3' } } })
+    render(<AutomationPage />)
+    await user.click(screen.getByRole('button', { name: 'Abrir flujo de ai · chat' }))
+    await user.click(screen.getByRole('button', { name: 'Ver resultado' }))
+    expect(mocks.apiGet).toHaveBeenCalledWith(automationTaskResultPath('task-quick'))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('WORKER_LOCAL_OK')
+    await user.click(screen.getByRole('button', { name: 'Cerrar respuesta' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('starts point requests through the compact quick-query modal', async () => {
     const user = userEvent.setup()
     const uploaded = vi.fn().mockResolvedValue({ ok: true })
     vi.stubGlobal('fetch', uploaded)
@@ -367,7 +444,6 @@ describe('AutomationPage', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Tu consulta ya está en movimiento.')
   })
-
   it('retries a failed standalone GitHub review only for its frozen exact SHA', async () => {
     const user = userEvent.setup()
     const reviewSHA = 'a67f3ec5ccbd9558ab97e105cb9ee68af78cb7a4'

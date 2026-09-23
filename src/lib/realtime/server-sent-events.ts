@@ -35,16 +35,24 @@ export async function consumeServerSentEvents(
   stream: ReadableStream<Uint8Array>,
   onEvent: (event: ServerSentEvent) => void,
   signal?: AbortSignal,
+  onActivity?: () => void
 ): Promise<void> {
   const reader = stream.getReader()
   const decoder = new TextDecoder()
   let pending = ''
+  const abort = () => {
+    void reader.cancel().catch(() => undefined)
+  }
+  signal?.addEventListener('abort', abort, { once: true })
+  if (signal?.aborted) abort()
 
   try {
     while (!signal?.aborted) {
       const { done, value } = await reader.read()
       if (done) break
+      onActivity?.()
       pending += decoder.decode(value, { stream: true })
+      if (pending.length > 256 * 1024) throw new Error('SSE frame exceeds safety limit')
 
       let boundary = pending.search(/\r?\n\r?\n/)
       while (boundary !== -1) {
@@ -61,6 +69,7 @@ export async function consumeServerSentEvents(
     const trailing = parseServerSentEventBlock(pending)
     if (!signal?.aborted && trailing) onEvent(trailing)
   } finally {
+    signal?.removeEventListener('abort', abort)
     reader.releaseLock()
   }
 }
