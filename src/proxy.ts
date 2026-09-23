@@ -17,6 +17,23 @@ function securityNonce() {
   return crypto.randomUUID().replaceAll('-', '')
 }
 
+function externalRequestURL(req: NextRequest) {
+  const isLocalRequest = req.nextUrl.hostname === 'localhost' || req.nextUrl.hostname === '127.0.0.1'
+  const forwardedHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim().toLowerCase()
+  const forwardedProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase()
+  // Development proxies may reach Next through localhost while the browser is
+  // on a product subdomain. Only trust an explicitly local forwarded host;
+  // production requests continue to use the URL received by the edge.
+  if (!isLocalRequest || !forwardedHost || !/^(?:[a-z0-9-]+\.)*localhost(?::\d+)?$/.test(forwardedHost)) {
+    return req.nextUrl
+  }
+
+  const external = new URL(req.url)
+  external.host = forwardedHost
+  external.protocol = forwardedProto === 'https' ? 'https:' : 'http:'
+  return external
+}
+
 function withTenantSecurityPolicy(req: NextRequest, response: NextResponse, nonce: string) {
   response.headers.set('Content-Security-Policy', contentSecurityPolicyForHostname(req.nextUrl.hostname, process.env, nonce))
   return response
@@ -38,7 +55,7 @@ export function proxy(req: NextRequest) {
   )
 
   if (!session && !refreshToken && !isPublicRoute) {
-    return withTenantSecurityPolicy(req, NextResponse.redirect(new URL('/login', req.url)), nonce)
+    return withTenantSecurityPolicy(req, NextResponse.redirect(new URL('/login', externalRequestURL(req))), nonce)
   }
 
   // A cookie only proves that the browser once held a session. The BFF

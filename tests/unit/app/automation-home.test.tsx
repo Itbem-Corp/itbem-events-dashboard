@@ -1,5 +1,5 @@
 import AutomationPage from '@/app/(app)/automation/page'
-import { automationHealthPath, automationInputUploadPath, automationPortfolioPath, automationTaskResultPath, automationTasksPath, deliveryProjectsPath, deliveryWorkItemExecutionGraphPath } from '@/lib/api-paths'
+import { automationHealthPath, automationInputUploadPath, automationPortfolioPath, automationTaskResultPath, automationTaskRetryCodeReviewPath, automationTasksPath, deliveryProjectsPath, deliveryWorkItemExecutionGraphPath } from '@/lib/api-paths'
 import type { DeliveryProject } from '@/features/automation/delivery-types'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -500,7 +500,7 @@ describe('AutomationPage', () => {
     expect(mocks.useSWR).toHaveBeenCalledWith(
       automationTasksPath(),
       expect.anything(),
-      expect.objectContaining({ refreshInterval: 30_000 }),
+      expect.objectContaining({ refreshInterval: expect.any(Function) }),
     )
     expect(screen.getAllByLabelText(`SHA exacto ${reviewSHA}`)).toHaveLength(1)
     await user.click(screen.getByRole('button', { name: 'Reintentar revisión' }))

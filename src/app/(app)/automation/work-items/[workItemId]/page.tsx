@@ -929,6 +929,7 @@ export default function DeliveryWorkItemPage() {
       : 'overview'
   })
   const [usageOpen, setUsageOpen] = useState(false)
+  const [heartbeatNow, setHeartbeatNow] = useState(() => Date.now())
   const consolePanelRef = useRef<HTMLDivElement | null>(null)
   const usagePanelRef = useRef<HTMLDetailsElement | null>(null)
   const workItem = useSWR<DeliveryWorkItem>(
@@ -947,6 +948,12 @@ export default function DeliveryWorkItemPage() {
     }
   )
   const item = workItem.data?.id === params.workItemId ? workItem.data : undefined
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setHeartbeatNow(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   const executionGraph = useSWR<DeliveryExecutionGraphSnapshot>(
     // The graph is only rendered in Live Steps. Avoid fetching its specialized
     // snapshot while the operator is reviewing evidence, executions or gates;
@@ -1334,7 +1341,7 @@ export default function DeliveryWorkItemPage() {
     reviewedPublicationChange?.branch && reviewedBaseSHA && reviewedGitHubRepository && reviewedDiffSHA256
   )
   const activePublicationGrants = (item?.publication_grants ?? []).filter(
-    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
+    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > heartbeatNow
   )
   const activePublicationGrantForReviewedChange = reviewedPublicationChange
     ? activePublicationGrants.find(
@@ -3915,14 +3922,14 @@ export default function DeliveryWorkItemPage() {
                 <Badge
                   color={
                     item.publication_grants?.some(
-                      (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
+                      (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > heartbeatNow
                     )
                       ? 'emerald'
                       : 'amber'
                   }
                 >
                   {item.publication_grants?.some(
-                    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
+                    (grant) => !grant.revoked_at && new Date(grant.expires_at).getTime() > heartbeatNow
                   )
                       ? 'Vigente'
                       : item.state === 'preview_pending'
@@ -4113,7 +4120,7 @@ export default function DeliveryWorkItemPage() {
               ) : (
                 <ol className="mt-4 space-y-3">
                   {item.publication_grants?.map((grant) => {
-                    const active = !grant.revoked_at && new Date(grant.expires_at).getTime() > Date.now()
+                    const active = !grant.revoked_at && new Date(grant.expires_at).getTime() > heartbeatNow
                     return (
                       <li key={grant.id} className="rounded-2xl border border-border-subtle bg-surface-soft p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">

@@ -32,7 +32,7 @@ describe('development route warmup proxy boundary', () => {
   it('preserves the externally selected tenant when the internal URL is localhost', () => {
     vi.stubEnv('NODE_ENV', 'development')
 
-    const response = middleware(new NextRequest('http://localhost:3017/events', {
+    const response = proxy(new NextRequest('http://localhost:3017/events', {
       headers: {
         host: 'localhost:3017',
         'x-forwarded-host': 'dashboard.itbem.localhost:3017, localhost:3017',

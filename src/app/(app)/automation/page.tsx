@@ -445,6 +445,7 @@ export default function AutomationPage() {
 
   const items = useMemo(() => {
     const looseTasks = legacyTasksQuery.data ?? []
+    const reviewsByTaskID = new Map((portfolioQuery.data?.reviewQueue ?? []).map((review) => [review.taskId, review]))
     const projectItems = portfolioQuery.data
       ? workItemFromPortfolio(portfolioQuery.data)
       : (projectsQuery.data ?? []).flatMap(workItemFromProject)
@@ -459,8 +460,21 @@ export default function AutomationPage() {
         state: task.status,
         updatedAt: task.created_at,
         tasks: [task],
+        ...(reviewsByTaskID.has(task.id) ? { review: reviewsByTaskID.get(task.id) } : {}),
       }))
-    return [...projectItems, ...standalone].sort((left, right) => {
+    const reviewOnlyItems: PortfolioItem[] = (portfolioQuery.data?.reviewQueue ?? [])
+      .filter((review) => !looseTasks.some((task) => task.id === review.taskId))
+      .map((review) => ({
+        id: `task:${review.taskId}`,
+        title: 'code · review',
+        client: review.repository,
+        href: '',
+        state: review.status,
+        updatedAt: review.updatedAt,
+        tasks: [{ id: review.taskId, job_id: review.taskId, operation: 'code.review', input_ref: '', status: review.status, created_at: review.createdAt }],
+        review,
+      }))
+    return [...projectItems, ...standalone, ...reviewOnlyItems].sort((left, right) => {
       const priority = portfolioPriority(left) - portfolioPriority(right)
       return priority || Date.parse(right.updatedAt) - Date.parse(left.updatedAt)
     })
@@ -805,7 +819,7 @@ export default function AutomationPage() {
                         <div className="grid items-start gap-3.5 p-3.5 sm:p-4 md:grid-cols-[minmax(8.5rem,.72fr)_minmax(0,1.8fr)] 2xl:grid-cols-[minmax(8.5rem,.8fr)_minmax(20rem,2fr)_minmax(9.5rem,.9fr)]">
                           <div aria-label="Ruta del resultado" className="order-1 rounded-2xl border border-border-subtle bg-surface-soft/45 p-3.5"><p className="text-[10px] font-bold tracking-[.14em] text-ink-muted uppercase">Ruta</p><div className="mt-3 space-y-2.5">{progressPhases(item).map((phase) => <div key={phase.operation} className="flex gap-2"><span className={`mt-1.5 size-2 shrink-0 rounded-full ${phase.state === 'complete' ? 'bg-emerald-500' : phase.state === 'active' ? 'bg-sky-500 delivery-signal' : phase.state === 'queued' || phase.state === 'human' ? 'bg-amber-500' : phase.state === 'attention' ? 'bg-rose-500' : phase.state === 'cancelling' || phase.state === 'cancelled' ? 'bg-ink-muted/60' : 'bg-zinc-400'}`} /><span className="min-w-0"><span className="block truncate text-xs font-semibold text-ink">{phase.label}</span><span className="block truncate text-[11px] text-ink-muted">{progressLabel(phase.state)}</span></span></div>)}{item.tasks.length > 0 ? <p className="pt-0.5 text-[11px] font-semibold text-ink-muted">{item.tasks.length} ejecuci{item.tasks.length === 1 ? 'ón registrada' : 'ones registradas'}</p> : <p className="text-xs leading-5 text-ink-muted">Preparando el primer movimiento.</p>}</div></div>
                           <div ref={expanded ? selectedFlowRef : undefined} tabIndex={-1} aria-label={`Live steps de ${item.title}`} className="order-2 min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-surface-raised md:order-2"><ExecutionGraph density="compact" events={selectedGraphEvents} eyebrow="Live steps" title="Flujo" maxEvents={8} autoFollow statusIndicator={item.workItemId ? { state: selectedStream.status, label: selectedStream.status === 'live' ? 'Canal en vivo' : undefined, tone: 'default', onRefresh: () => { void portfolioQuery.mutate(); void selectedGraphQuery.mutate() } } : undefined} grouping={{ enabled: true, mode: 'smart' }} views={[{ id: 'flow', label: 'Flujo', shortLabel: 'Flujo' }]} /></div>
-                          <div className="order-3 rounded-2xl border border-border-subtle bg-surface-raised p-3.5 md:order-3 md:col-span-2 2xl:col-span-1"><p className="text-[10px] font-bold tracking-[.14em] text-ink-muted uppercase">{nextAfterCurrent ? 'Después del gate' : 'Siguiente'}</p><p className="mt-2 text-sm font-semibold text-ink">{next}</p><p className="mt-1 text-xs leading-5 text-ink-muted">{nextActionCopy(item)}</p>{item.review ? <p className="mt-2 break-all font-mono text-[11px] leading-4 text-ink-muted" aria-label={`SHA exacto ${item.review.headSha}`}>SHA exacto: {item.review.headSha}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{item.href ? <Link href={item.href} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Abrir resultado <ArrowRightIcon className="size-3.5" /></Link> : item.review?.reviewUrl ? <a href={item.review.reviewUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Ver revisión en GitHub <ArrowRightIcon className="size-3.5" /></a> : item.tasks[0]?.result_available ? <Button outline disabled={openingTaskID === item.tasks[0].id} onClick={() => void openOutput(item.tasks[0].id)}>{openingTaskID === item.tasks[0].id ? 'Abriendo…' : 'Ver resultado'}</Button> : null}{retryTask ? <Button outline disabled={retryingReviewID === retryTask.id} onClick={() => void retryStandaloneCodeReview(retryTask, item.review)}>{retryingReviewID === retryTask.id ? 'Reintentando…' : 'Reintentar revisión'}</Button> : null}</div></div>
+                          <div className="order-3 rounded-2xl border border-border-subtle bg-surface-raised p-3.5 md:order-3 md:col-span-2 2xl:col-span-1"><p className="text-[10px] font-bold tracking-[.14em] text-ink-muted uppercase">{nextAfterCurrent ? 'Después del gate' : 'Siguiente'}</p><p className="mt-2 text-sm font-semibold text-ink">{next}</p><p className="mt-1 text-xs leading-5 text-ink-muted">{nextActionCopy(item)}</p>{item.review ? <p className="mt-2 break-all font-mono text-[11px] leading-4 text-ink-muted" aria-label={`SHA exacto ${item.review.headSha}`}>SHA exacto: {item.review.headSha}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{item.href ? <Link href={item.href} className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Abrir resultado <ArrowRightIcon className="size-3.5" /></Link> : item.review?.reviewUrl ? <a href={item.review.reviewUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">Ver revisión en GitHub <ArrowRightIcon className="size-3.5" /></a> : item.tasks[0]?.output_ref ? <Button outline disabled={openingTaskID === item.tasks[0].id} onClick={() => void openOutput(item.tasks[0].id)}>{openingTaskID === item.tasks[0].id ? 'Abriendo…' : 'Ver resultado'}</Button> : null}{retryTask ? <Button outline disabled={retryingReviewID === retryTask.id} onClick={() => void retryStandaloneCodeReview(retryTask, item.review)}>{retryingReviewID === retryTask.id ? 'Reintentando…' : 'Reintentar revisión'}</Button> : null}</div></div>
                         </div>
                       </motion.div> : null}</AnimatePresence>
                     </article>

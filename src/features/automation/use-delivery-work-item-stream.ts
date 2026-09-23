@@ -57,6 +57,14 @@ export function isNewDeliveryWorkItemRevision(previousRevision: string | undefin
   return previousRevision !== event.revision
 }
 
+// Bind every streamed event to its requested work item. The API scopes the
+// stream already; this additional check prevents malformed or replayed events
+// from refreshing a different operator console.
+export function deliveryWorkItemStreamEventMatches(event: DeliveryWorkItemStreamEvent, workItemId: string | null | undefined) {
+  const expectedWorkItemId = workItemId?.trim()
+  return Boolean(expectedWorkItemId) && event.work_item_id === expectedWorkItemId
+}
+
 export function deliveryWorkItemStreamEnabled(workItemId: string | null | undefined, state: string | null | undefined) {
   const terminal = state === 'released' || state === 'cancelled'
   return Boolean(workItemId?.trim() && !terminal)
@@ -81,7 +89,7 @@ export function useDeliveryWorkItemStream(
     parse: parseDeliveryWorkItemStreamEvent,
     onStatusChange,
     onEvent: (event, rawEvent) => {
-	  if (event.work_item_id !== workItemId?.trim()) return
+      if (!deliveryWorkItemStreamEventMatches(event, workItemId)) return
       // A new SSE connection always begins with a snapshot. The first
       // snapshot for a work item is authoritative; later healthy stream
       // renewals commonly carry the same revision and should not re-download
