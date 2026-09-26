@@ -71,6 +71,10 @@ export type DeliveryPortfolioTotals = {
   runningReviews: number
   attentionReviews: number
   publishedReviews: number
+  totalCostMicros?: number
+  unpricedExecutions?: number
+  costLast30DaysMicros?: number
+  unpricedExecutionsLast30Days?: number
 }
 
 export type DeliveryPortfolioReview = {

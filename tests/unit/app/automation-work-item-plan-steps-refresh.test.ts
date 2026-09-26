@@ -38,8 +38,8 @@ describe('approved plan steps revalidation', () => {
   it('keeps interval refresh as a fallback only while implementation is active and SSE is not live', () => {
     expect(source).toContain("task.operation === 'delivery.implementation' && isActiveTask(task)")
     expect(source).toContain('deliveryTraceRefreshInterval(implementationExecutionActive, graphStream.status)')
-    expect(source).toContain(
-      'revalidateApprovedPlanSteps(approvedPlan?.id, mutateSWR)\n    }, planStepsFallbackInterval)'
+    expect(source).toMatch(
+      /revalidateApprovedPlanSteps\(approvedPlan\?\.id, mutateSWR\)\r?\n\s+\}, planStepsFallbackInterval\)/
     )
   })
 })
