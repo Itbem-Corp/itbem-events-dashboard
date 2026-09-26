@@ -126,6 +126,7 @@ describe('AutomationRecurrencesScreen', () => {
     fireEvent.change(screen.getByLabelText('Resultado esperado'), { target: { value: 'Propuesta en Planeación.' } })
     fireEvent.click(screen.getByLabelText(/Backend API/))
     fireEvent.change(screen.getByLabelText(/Repositorio principal/), { target: { value: 'source-1' } })
+    fireEvent.change(screen.getByLabelText('Zona horaria'), { target: { value: 'America/Mexico_City' } })
     fireEvent.click(screen.getByRole('button', { name: 'Crear recurrencia' }))
 
     await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith('/automation/projects/project-1/schedules', expect.objectContaining({
