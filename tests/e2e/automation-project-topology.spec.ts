@@ -147,7 +147,7 @@ test('registra topología multirepo y scopes de monorepo sin confundirlos', asyn
   await installFixtures(page)
   await page.goto(`/automation/projects/${PROJECT_ID}`)
 
-  await page.getByText('Mantenimiento del resultado').click()
+  await page.getByRole('button', { name: 'Configuración del proyecto' }).click()
   await page.getByText('Contexto, presupuesto y publicación').click()
   await page.getByText('Memoria y superficies del agente').click()
   await expect(page.getByText('1 registrados · 1 con código · 1 principal')).toBeVisible()

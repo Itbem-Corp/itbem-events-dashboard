@@ -18,17 +18,30 @@ export function deliverySignalLabel(lastActivityAt?: string, now = Date.now()) {
   return `hace ${Math.floor(hours / 24)} d`
 }
 
-export function DeliveryWorkSummary({ item, connection, onOpen }: {
+const recoveryModeLabels: Record<string, string> = {
+  reconcile: 'Comprobar resultado',
+  operator_input: 'Necesita tu contexto',
+  human_review: 'Decisión pendiente',
+  budget: 'Revisar presupuesto',
+  credentials: 'Revisar conexión',
+  repair: 'Corregir un problema',
+  resume: 'Continuar trabajo',
+}
+
+export function DeliveryWorkSummary({ item, connection, onOpen, onOpenConversation }: {
   item: DeliveryWorkItem
   connection: AuthenticatedSSEStatus
   onOpen: (view: DeliveryDestination) => void
+  onOpenConversation?: () => void
 }) {
   const state = deliveryPresentation(item)
   const blocked = item.agent_progress === 'blocked' || item.state === 'blocked'
     ? blockedReasonPresentation(item.blocked_reason)
     : undefined
   const projection = item.workflow_projection
-  const recoveryDestination = projection?.recovery?.action_id === 'open_evidence' ? 'evidence'
+  const needsConversation = projection?.recovery?.mode === 'operator_input' || projection?.recovery?.action_id === 'open_conversation'
+  const recoveryDestination = needsConversation ? 'overview'
+    : projection?.recovery?.action_id === 'open_evidence' ? 'evidence'
     : projection?.recovery?.action_id === 'open_activity' ? 'activity'
       : projection?.recovery ? 'control' : undefined
   const recoveryActionLabel = projection?.recovery?.mode === 'reconcile' ? 'Revisar evidencia'
@@ -60,10 +73,10 @@ export function DeliveryWorkSummary({ item, connection, onOpen }: {
       </button>
     </div>
     {projection?.recovery && <div className={`mt-5 rounded-2xl border px-4 py-3 ${projection.recovery.requires_human_review ? 'border-amber-500/25 bg-amber-500/[0.06]' : 'border-(--tenant-accent)/20 bg-(--tenant-accent)/[0.045]'}`} role="status">
-      <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold tracking-[0.12em] text-ink-muted uppercase">Siguiente paso seguro</span><span className="rounded-full bg-surface-raised px-2 py-1 text-[10px] font-semibold text-ink-secondary">{projection.recovery.mode}</span></div>
+      <div className="flex flex-wrap items-center gap-2"><span className="text-xs font-semibold tracking-[0.12em] text-ink-muted uppercase">Siguiente paso seguro</span><span className="rounded-full bg-surface-raised px-2 py-1 text-[10px] font-semibold text-ink-secondary">{recoveryModeLabels[projection.recovery.mode] ?? 'Revisar siguiente paso'}</span></div>
       <p className="mt-1 text-sm font-semibold text-ink">{projection.recovery.title}</p>
       <p className="mt-1 text-xs leading-5 text-ink-secondary">{projection.recovery.detail}</p>
-      {recoveryDestination && <button type="button" onClick={() => onOpen(recoveryDestination)} className="mt-3 min-h-9 rounded-lg border border-border-subtle bg-surface-raised px-3 py-2 text-xs font-semibold text-ink hover:border-(--tenant-accent)/40 focus-visible:outline-2 focus-visible:outline-offset-2">{recoveryActionLabel}</button>}
+      {recoveryDestination && <button type="button" onClick={() => needsConversation && onOpenConversation ? onOpenConversation() : onOpen(recoveryDestination)} className="mt-3 min-h-9 rounded-lg border border-border-subtle bg-surface-raised px-3 py-2 text-xs font-semibold text-ink hover:border-(--tenant-accent)/40 focus-visible:outline-2 focus-visible:outline-offset-2">{recoveryActionLabel}</button>}
     </div>}
     {blocked?.kind === 'conflict' && <div className="mt-5 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-4" role="status">
       <div className="flex flex-wrap items-center gap-2">

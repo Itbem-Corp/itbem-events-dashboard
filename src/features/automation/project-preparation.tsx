@@ -34,7 +34,7 @@ export function projectPreparationGuidance(preparation: DeliveryProject['prepara
   }
   if (hasKey('acceptance', 'unknown') || hasKey('budget', 'unknown')) {
     return {
-      nextStep: 'Describir un encargo',
+      nextStep: 'Crear solicitud o épica',
       detail: 'El alcance y criterios del encargo permiten comprobar aceptación y reservar presupuesto sin iniciar una ejecución.',
       primary: 'request',
     }
@@ -53,10 +53,10 @@ export function projectPreparationGuidance(preparation: DeliveryProject['prepara
       primary: 'configure',
     }
   }
-  return { nextStep: 'Describir un encargo', detail: 'El proyecto tiene una base suficiente para describir el siguiente encargo.', primary: 'request' }
+  return { nextStep: 'Crear solicitud o épica', detail: 'El proyecto tiene una base suficiente para organizar el siguiente trabajo.', primary: 'request' }
 }
 
-export function ProjectPreparation({ preparation, onConfigure, onRequest, initiallyOpen = false }: { preparation: DeliveryProject['preparation']; onConfigure: () => void; onRequest: () => void; initiallyOpen?: boolean }) {
+export function ProjectPreparation({ preparation, onConfigure, onRequest, onStandaloneTask, initiallyOpen = false }: { preparation: DeliveryProject['preparation']; onConfigure: () => void; onRequest: () => void; onStandaloneTask: () => void; initiallyOpen?: boolean }) {
   const checks = preparation?.checks ?? []
   const missing = checks.filter(check => check.state === 'missing').length
   const unknown = checks.filter(check => check.state === 'unknown').length
@@ -68,7 +68,7 @@ export function ProjectPreparation({ preparation, onConfigure, onRequest, initia
   return <section aria-label="Preparación del proyecto" className="my-5 rounded-3xl border border-border-subtle bg-surface-raised p-5 sm:p-6">
     <details open={initiallyOpen}>
     <summary className="min-h-11 cursor-pointer text-base font-semibold text-ink">Preparación del proyecto · {preparation && hasChecks ? `${ready} listos${missing ? ` · ${missing} por preparar` : ''}${unknown ? ` · ${unknown} por comprobar` : ''}` : 'revisar requisitos'}</summary>
-    <p className="mt-2 text-sm leading-6 text-ink-secondary">Puedes preparar el proyecto sin iniciar una ejecución. Cada encargo vuelve a comprobar acceso, capacidad y presupuesto.</p>
+    <p className="mt-2 text-sm leading-6 text-ink-secondary">Prepara el proyecto sin iniciar una ejecución. Cada solicitud o tarea vuelve a comprobar acceso, capacidad y presupuesto.</p>
     <div className="mt-4 rounded-2xl border border-border-subtle bg-surface-soft p-4" aria-label="Progreso de preparación">
       <div className="flex items-center justify-between gap-3 text-xs font-semibold text-ink-secondary"><span>{guidance.nextStep}</span><span className="tabular-nums">{preparation ? `${readiness}%` : '—'}</span></div>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-border-subtle" role="progressbar" aria-label="Requisitos listos" aria-valuemin={0} aria-valuemax={100} aria-valuenow={preparation ? readiness : 0}><div className={`h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none ${missing ? 'bg-rose-500' : unknown ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${readiness}%` }} /></div>
@@ -86,7 +86,8 @@ export function ProjectPreparation({ preparation, onConfigure, onRequest, initia
       </ol>}
     <div className="mt-4 flex flex-wrap gap-3">
       <button type="button" onClick={onConfigure} className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${guidance.primary === 'configure' ? 'bg-ink text-surface-raised' : 'border border-border-subtle text-ink'}`}>Preparar fuentes y configuración</button>
-      <button type="button" onClick={onRequest} className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${guidance.primary === 'request' ? 'bg-ink text-surface-raised' : 'border border-border-subtle text-ink'}`}>Describir un encargo</button>
+      <button type="button" onClick={onRequest} className={`min-h-11 rounded-xl px-4 text-sm font-semibold ${guidance.primary === 'request' ? 'bg-ink text-surface-raised' : 'border border-border-subtle text-ink'}`}>Crear solicitud o épica</button>
+      <button type="button" onClick={onStandaloneTask} className="min-h-11 rounded-xl border border-border-subtle px-4 text-sm font-semibold text-ink">Crear tarea suelta</button>
     </div>
     </details>
   </section>

@@ -29,4 +29,14 @@ describe('projectStreamPresentation', () => {
       tone: 'amber',
     })
   })
+
+  it.each(['connecting', 'reconnecting'] as const)('does not show a live-channel recovery when no execution is active (%s)', (status) => {
+    expect(projectStreamPresentation(status, false)).toEqual({
+      unavailable: false,
+      reconnecting: false,
+      label: 'Seguimiento bajo demanda',
+      badge: 'Bajo demanda',
+      tone: 'zinc',
+    })
+  })
 })

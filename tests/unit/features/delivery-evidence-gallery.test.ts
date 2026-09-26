@@ -1,4 +1,5 @@
-import { evidenceIntegrityStatus, evidenceLineage, qaComparison } from '@/features/automation/delivery-evidence-gallery'
+import { evidenceIntegrityStatus, evidenceLineage, evidencePurposeLabel, qaComparison } from '@/features/automation/delivery-evidence-gallery'
+import { deliveryEvidenceTitle } from '@/features/automation/delivery-evidence-presentation'
 import { describe, expect, it } from 'vitest'
 
 describe('QA evidence comparisons', () => {
@@ -49,5 +50,19 @@ describe('QA evidence comparisons', () => {
     expect(evidenceIntegrityStatus({
       id: 'invalid', kind: 'artifact', phase: 'qa', title: 'Invalid', reference: 's3://private/invalid.json', metadata: { sha256: 'not-a-digest' },
     })).toMatchObject({ state: 'invalid', digest: '' })
+  })
+
+  it('does not label a planning artifact as executed proof', () => {
+    expect(evidencePurposeLabel({ id: 'plan', kind: 'artifact', phase: 'plan', title: 'Plan result', reference: 'private://plan' }))
+      .toBe('Plan propuesto · no es prueba de ejecución')
+    expect(evidencePurposeLabel({ id: 'test', kind: 'test_result', phase: 'qa', title: 'QA', reference: 'private://test' }))
+      .toBe('Resultado de prueba registrado')
+  })
+
+  it('presents internal plan-artifact names as a human-readable title', () => {
+    expect(deliveryEvidenceTitle({ id: 'plan', kind: 'report', phase: 'plan', title: 'Resultado del agente: plan', reference: 'private://plan' }))
+      .toBe('Propuesta de plan')
+    expect(deliveryEvidenceTitle({ id: 'qa', kind: 'test_result', phase: 'qa', title: 'QA local · 1208 pruebas', reference: 'private://qa' }))
+      .toBe('QA local · 1208 pruebas')
   })
 })

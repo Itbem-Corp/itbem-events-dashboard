@@ -123,6 +123,20 @@ describe('agent workspace', () => {
     expect(screen.getByTestId('agent-connection-indicator')).toHaveClass('bg-zinc-400')
     closed.unmount()
   })
+  it('shows a human decision gate instead of a reconnecting agent when no task is running', () => {
+    const review = render(
+      <AgentWorkspace
+        {...callbacks}
+        item={{ ...item, state: 'plan_review' }}
+        streamStatus="reconnecting"
+        onSend={vi.fn().mockResolvedValue(undefined)}
+      />
+    )
+    expect(screen.getByText('Decisión pendiente')).toBeInTheDocument()
+    expect(screen.queryByText('Reconectando')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-connection-indicator')).toHaveClass('bg-amber-500')
+    review.unmount()
+  })
   it('makes the agent interpretation visible without turning a question into an action', () => {
     render(
       <AgentWorkspace

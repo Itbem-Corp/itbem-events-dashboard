@@ -89,7 +89,11 @@ describe('application navigation contract', () => {
     })
 
     expect(navigation.canUseAutomation).toBe(true)
+    expect(navigation.canManageAutomationConfiguration).toBe(true)
     expect(applicationRoutePreloadPath({ href: '/automation', isRoot: true })).toBe('/automation/portfolio')
+    expect(applicationRoutePreloadPath({ href: '/automation/agents', isRoot: true })).toBe('/automation/agents')
+    expect(applicationRoutePreloadPath({ href: '/automation/dispatch', isRoot: true })).toBe('/automation/dispatch/queue?page_size=25')
+    expect(applicationRoutePreloadPath({ href: '/automation/traces', isRoot: true })).toBeNull()
   })
 
   it('maps route intent to a bounded first request', () => {
@@ -101,5 +105,6 @@ describe('application navigation contract', () => {
     expect(applicationRoutePreloadPath({ href: '/automation/projects', isRoot: true })).toBe('/automation/portfolio')
     expect(applicationRoutePreloadPath({ href: '/automation/clients', isRoot: true })).toBe('/automation/clients')
     expect(applicationRoutePreloadPath({ href: '/automation/costs', isRoot: true })).toContain('/automation/costs')
+    expect(applicationRoutePreloadPath({ href: '/automation/settings', isRoot: true })).toBeNull()
   })
 })

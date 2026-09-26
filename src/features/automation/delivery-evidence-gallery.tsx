@@ -5,6 +5,7 @@ import { Button } from '@/components/button'
 import { Dialog, DialogActions, DialogBody, DialogTitle } from '@/components/dialog'
 import type { DeliveryEvidence } from '@/features/automation/delivery-types'
 import { evidenceComparisonScope } from './evidence-comparison'
+import { deliveryEvidencePurpose, deliveryEvidenceTitle } from './delivery-evidence-presentation'
 import { api } from '@/lib/api'
 import { deliveryWorkItemEvidenceAssetPath } from '@/lib/api-paths'
 import { ArrowPathIcon, ArrowTopRightOnSquareIcon, DocumentTextIcon, ExclamationTriangleIcon, InformationCircleIcon, PhotoIcon, PlayCircleIcon, ShieldCheckIcon } from '@heroicons/react/20/solid'
@@ -85,6 +86,14 @@ function isVisual(entry: DeliveryEvidence) {
 
 function phaseLabel(phase: string) {
   return ({ plan: 'Plan', implementation: 'Implementación', qa: 'QA', summary: 'Entrega' }[phase] ?? phase)
+}
+
+function kindLabel(kind: DeliveryEvidence['kind']) {
+  return ({ screenshot: 'Captura', video: 'Video', test_result: 'Resultado de prueba', diff: 'Diff', report: 'Informe', log: 'Registro', artifact: 'Artefacto' }[kind])
+}
+
+export function evidencePurposeLabel(entry: DeliveryEvidence) {
+  return deliveryEvidencePurpose(entry)
 }
 
 type QAComparisonPair = { key: string; before: DeliveryEvidence; after: DeliveryEvidence }
@@ -218,14 +227,14 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
           <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
             <ShieldCheckIcon className="size-4 text-(--tenant-accent)" /> Evidencia
           </div>
-          <h2 className="mt-1 text-lg font-semibold text-ink">Pruebas del flujo</h2>
+          <h2 className="mt-1 text-lg font-semibold text-ink">Resultado y evidencia del trabajo</h2>
         </div>
         {entries.length > 0 && (
           <div className="flex min-w-0 items-center gap-2">
             {latestEvidence && (
-              <span title={latestEvidence.title} className="hidden min-w-0 max-w-52 items-center gap-1.5 rounded-full bg-surface-soft px-2.5 py-1 text-[10px] font-semibold text-ink-secondary sm:inline-flex">
-                <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
-                <span className="truncate">Última prueba · {latestEvidence.title}</span>
+                <span title={deliveryEvidenceTitle(latestEvidence)} className="hidden min-w-0 max-w-60 items-center gap-1.5 rounded-full bg-surface-soft px-2.5 py-1 text-[10px] font-semibold text-ink-secondary sm:inline-flex">
+                <DocumentTextIcon className="size-3.5 shrink-0 text-ink-muted" aria-hidden="true" />
+                <span className="truncate">{latestEvidence.phase === 'plan' ? 'Plan propuesto' : latestEvidence.kind === 'test_result' ? 'Última prueba' : 'Último registro'} · {deliveryEvidenceTitle(latestEvidence)}</span>
               </span>
             )}
             {visualEntries.length > 0 && <Badge color="indigo">{visualEntries.length} visual{visualEntries.length === 1 ? '' : 'es'}</Badge>}
@@ -259,7 +268,7 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
                       return (
                         <button key={entry.id} type="button" onClick={() => source && setSelectedId(entry.id)} disabled={!source} className="group bg-surface-raised text-left transition motion-reduce:transition-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-(--tenant-accent) disabled:opacity-70">
                           <div className="relative aspect-[16/10] overflow-hidden bg-surface-interactive">
-                            {asset?.loading ? <div className="flex h-full items-center justify-center text-sm text-ink-muted">Preparando captura privada…</div> : source ? <img src={source} alt={`${label}: ${entry.title}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] motion-reduce:transform-none motion-reduce:transition-none" /> : <div className="flex h-full items-center justify-center text-sm text-ink-muted">Captura no disponible</div>}
+                            {asset?.loading ? <div className="flex h-full items-center justify-center text-sm text-ink-muted">Preparando captura privada…</div> : source ? <img src={source} alt={`${label}: ${deliveryEvidenceTitle(entry)}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] motion-reduce:transform-none motion-reduce:transition-none" /> : <div className="flex h-full items-center justify-center text-sm text-ink-muted">Captura no disponible</div>}
                             {source && <span className="absolute left-3 top-3 rounded-lg bg-black/55 px-2 py-1 text-xs font-semibold text-white">{label}</span>}
                           </div>
                           <div className="p-3"><p className="text-xs font-semibold text-ink">{label}</p><p className="mt-1 text-[11px] text-ink-muted">{formatDate(entry.captured_at)}</p></div>
@@ -286,7 +295,7 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
                       {asset?.loading ? (
                         <div className="flex h-full items-center justify-center text-sm text-ink-muted">Preparando evidencia privada…</div>
                       ) : source && !isVideo ? (
-                        <img src={source} alt={entry.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] motion-reduce:transform-none motion-reduce:transition-none" />
+                        <img src={source} alt={deliveryEvidenceTitle(entry)} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] motion-reduce:transform-none motion-reduce:transition-none" />
                       ) : source ? (
                         <video src={source} className="h-full w-full object-cover" muted preload="metadata" />
                       ) : (
@@ -298,7 +307,7 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
                     </div>
                     <div className="p-3">
                         <div className="flex flex-wrap gap-2"><Badge color="indigo">{phaseLabel(entry.phase)}</Badge><Badge color="zinc">{isVideo ? 'Video' : 'Captura'}</Badge></div>
-                        <p className="mt-2 truncate text-sm font-semibold text-ink">{entry.title}</p>
+                        <p className="mt-2 truncate text-sm font-semibold text-ink">{deliveryEvidenceTitle(entry)}</p>
                         <p className="mt-1 text-xs text-ink-muted">{formatDate(entry.captured_at)}</p>
                         {(() => {
                           const integrity = evidenceIntegrityStatus(entry)
@@ -348,21 +357,22 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
                   <article key={entry.id} className="flex min-w-0 items-start gap-3 rounded-2xl border border-border-subtle bg-surface-soft p-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-raised text-(--tenant-accent)"><DocumentTextIcon className="size-5" /></span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">{entry.title}</p>
+                      <p className="truncate text-sm font-semibold text-ink">{deliveryEvidenceTitle(entry)}</p>
                       <p className="mt-0.5 text-xs text-ink-muted">{phaseLabel(entry.phase)} · {formatDate(entry.captured_at)}</p>
                       {(() => {
                         const integrity = evidenceIntegrityStatus(entry)
                         const attempt = evidenceAttempt(entry)
                         const lineage = evidenceLineage(entry)
-                        const tone = integrity.state === 'verified' ? 'text-emerald-700' : integrity.state === 'invalid' ? 'text-rose-700' : 'text-ink-muted'
+                        const isPlanRecord = entry.phase === 'plan'
+                        const tone = isPlanRecord ? 'text-indigo-700' : integrity.state === 'verified' ? 'text-emerald-700' : integrity.state === 'invalid' ? 'text-rose-700' : 'text-ink-muted'
                         return <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium ${tone}`}>
-                          <span>{integrity.state === 'verified' ? 'Huella SHA-256 registrada' : integrity.state === 'invalid' ? 'Integridad no verificable' : 'Evidencia histórica sin huella'}</span>
+                          <span>{isPlanRecord ? evidencePurposeLabel(entry) : integrity.state === 'verified' ? 'Huella SHA-256 registrada' : integrity.state === 'invalid' ? 'Integridad no verificable' : evidencePurposeLabel(entry)}</span>
                           {attempt ? <span>· Intento {attempt}</span> : null}
                           {lineage.status === 'snapshot' ? <span>· Contexto capturado</span> : lineage.status === 'unavailable' ? <span>· Contexto no disponible</span> : null}
                         </div>
                       })()}
                     </div>
-                    <Badge color="zinc" className="shrink-0">{entry.kind.replace('_', ' ')}</Badge>
+                    <Badge color="zinc" className="shrink-0">{kindLabel(entry.kind)}</Badge>
                   </article>
                 ))}
               </div>
@@ -372,9 +382,9 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
       )}
 
       <Dialog open={Boolean(selected)} onClose={() => setSelectedId(null)} size="2xl">
-        <DialogTitle>{selected?.title ?? 'Evidencia visual'}</DialogTitle>
+        <DialogTitle>{selected ? deliveryEvidenceTitle(selected) : 'Evidencia visual'}</DialogTitle>
         <DialogBody className="py-4">
-          {selected?.url && selected.kind === 'screenshot' && <img src={selected.url} alt={selected.title} className="max-h-[70vh] w-full rounded-xl object-contain bg-surface-soft" />}
+          {selected?.url && selected.kind === 'screenshot' && <img src={selected.url} alt={deliveryEvidenceTitle(selected)} className="max-h-[70vh] w-full rounded-xl object-contain bg-surface-soft" />}
           {selected?.url && selected.kind === 'video' && <video src={selected.url} controls className="max-h-[70vh] w-full rounded-xl bg-surface-soft" />}
           <p className="mt-3 text-sm text-ink-muted">{phaseLabel(selected?.phase ?? '')} · {formatDate(selected?.captured_at)}</p>
           {(() => {

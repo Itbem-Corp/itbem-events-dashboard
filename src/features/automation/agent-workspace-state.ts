@@ -14,6 +14,7 @@ export function agentWorkspaceState(item: DeliveryWorkItem) {
   const active = tasks.find((task) => task.status === 'running' || task.status === 'queued')
   const latest = tasks[0]
   const closed = item.state === 'released' || item.state === 'cancelled'
+  const awaitingHumanDecision = !closed && !active && ['plan_review', 'code_review', 'qa_review', 'release_review'].includes(item.state)
   const uncertain = /uncertain|durable answer|private recovery|response storage unavailable/i.test(
     latest?.error_message ?? ''
   )
@@ -49,7 +50,7 @@ export function agentWorkspaceState(item: DeliveryWorkItem) {
             ? 'Añade la corrección o el contexto que falta y solicita un nuevo intento de esta fase.'
             : 'El siguiente avance puede requerir una decisión humana, una dependencia o un preview verificado.'
   const presentation = deliveryPresentation(item)
-  return { active, stopping, latest, closed, uncertain, canContinue,
+  return { active, stopping, latest, closed, uncertain, awaitingHumanDecision, canContinue,
     title: active?.status === 'running' ? title : presentation.title,
     detail: active ? detail : presentation.detail }
 }

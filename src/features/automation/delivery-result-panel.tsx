@@ -144,20 +144,18 @@ const planSections: Array<{
     | 'questions'
   label: string
 }> = [
+  { key: 'implementation_steps', label: 'Ruta de trabajo propuesta' },
+  { key: 'acceptance_criteria', label: 'Criterios de aceptación' },
+  { key: 'qa_plan', label: 'Plan de validación' },
+  { key: 'risks', label: 'Riesgos' },
   { key: 'context_reviewed', label: 'Contexto revisado' },
   { key: 'assumptions', label: 'Suposiciones' },
-  { key: 'implementation_steps', label: 'Pasos de implementación' },
   { key: 'files_impacted', label: 'Archivos impactados' },
-  { key: 'risks', label: 'Riesgos' },
-  { key: 'qa_plan', label: 'Plan de QA' },
   { key: 'evidence_plan', label: 'Evidencia esperada' },
-  { key: 'acceptance_criteria', label: 'Criterios de aceptación' },
   { key: 'questions', label: 'Preguntas pendientes' },
 ]
 
 const advancedPlanSections = [
-  { key: 'context_gaps', label: 'Información que falta' },
-  { key: 'human_decisions', label: 'Decisiones que quedan en manos del equipo' },
   { key: 'rollback_plan', label: 'Cómo revertir con seguridad' },
 ] as const
 
@@ -253,6 +251,10 @@ const reviewVerdictTone: Record<CodeReview['verdict'], string> = {
   request_changes: 'border-rose-500/25 bg-rose-500/[0.05] text-rose-800', blocked: 'border-amber-500/25 bg-amber-500/[0.055] text-amber-800',
 }
 
+function isOptionalStringArray(value: unknown): value is string[] | undefined {
+  return value === undefined || (Array.isArray(value) && value.every((item) => typeof item === 'string'))
+}
+
 function isDeliveryPlan(value: unknown): value is DeliveryPlan {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Partial<DeliveryPlan>
@@ -260,7 +262,10 @@ function isDeliveryPlan(value: unknown): value is DeliveryPlan {
     typeof candidate.summary === 'string' &&
     typeof candidate.estimate === 'string' &&
     isRepositoryImpact(candidate.repository_impact) &&
-    (candidate._harness_repairs === undefined || candidate._harness_repairs.every((item) => typeof item === 'string')) &&
+    isOptionalStringArray(candidate._harness_repairs) &&
+    isOptionalStringArray(candidate.context_gaps) &&
+    isOptionalStringArray(candidate.human_decisions) &&
+    isOptionalStringArray(candidate.rollback_plan) &&
     (candidate.qa_execution_matrix === undefined || isQAExecutionMatrix(candidate.qa_execution_matrix)) &&
     planSections.every(
       ({ key }) => Array.isArray(candidate[key]) && candidate[key].every((item) => typeof item === 'string')
@@ -511,6 +516,53 @@ type DeliveryResultPanelProps = {
   diagnosticSummary?: { title: string; detail: string }
   onClose: () => void
   onUseReleaseDraft?: (draft: DeliveryReleaseDraft) => void
+}
+
+function DeliveryPlanQuickRead({ plan }: { plan: DeliveryPlan }) {
+  const openPointCount = (plan.context_gaps?.length ?? 0) + (plan.human_decisions?.length ?? 0)
+
+  return (
+    <article aria-label="Lectura rápida del plan" className="rounded-xl border border-(--tenant-accent)/20 bg-(--tenant-accent)/[0.035] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold tracking-[0.12em] text-(--tenant-accent) uppercase">Lectura rápida</p>
+          <p className="mt-1 text-xs leading-5 text-ink-secondary">
+            Alcance, secuencia y puntos que el agente dejó para revisar. El plan no sustituye la evidencia de ejecución.
+          </p>
+        </div>
+        <span className="rounded-full bg-surface-raised px-2.5 py-1 text-[11px] font-semibold text-ink-secondary">
+          Propuesta
+        </span>
+      </div>
+      <dl className="mt-3 grid gap-2 sm:grid-cols-3">
+        <div className="rounded-xl bg-surface-raised px-3 py-2">
+          <dt className="text-[11px] text-ink-muted">Repositorios considerados</dt>
+          <dd className="mt-0.5 text-base font-semibold tabular-nums text-ink">{plan.repository_impact.length}</dd>
+        </div>
+        <div className="rounded-xl bg-surface-raised px-3 py-2">
+          <dt className="text-[11px] text-ink-muted">Pasos propuestos</dt>
+          <dd className="mt-0.5 text-base font-semibold tabular-nums text-ink">{plan.implementation_steps.length}</dd>
+        </div>
+        <div className="rounded-xl bg-surface-raised px-3 py-2">
+          <dt className="text-[11px] text-ink-muted">Puntos reportados</dt>
+          <dd className="mt-0.5 text-base font-semibold tabular-nums text-ink">{openPointCount}</dd>
+        </div>
+      </dl>
+      <nav aria-label="Ir a una sección del plan" className="mt-3 flex flex-wrap gap-2">
+        <a href="#plan-repository-impact" className="inline-flex min-h-9 items-center rounded-lg bg-surface-raised px-3 text-xs font-semibold text-(--tenant-accent) hover:bg-surface-interactive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)">
+          Ver repositorios
+        </a>
+        <a href="#plan-implementation-steps" className="inline-flex min-h-9 items-center rounded-lg bg-surface-raised px-3 text-xs font-semibold text-(--tenant-accent) hover:bg-surface-interactive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)">
+          Ver la ruta
+        </a>
+        {openPointCount > 0 && (
+          <a href="#plan-open-points" className="inline-flex min-h-9 items-center rounded-lg bg-surface-raised px-3 text-xs font-semibold text-(--tenant-accent) hover:bg-surface-interactive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)">
+            Revisar {openPointCount === 1 ? 'punto pendiente' : 'puntos pendientes'}
+          </a>
+        )}
+      </nav>
+    </article>
+  )
 }
 
 function AgentDeliveryResultPanel({
@@ -979,6 +1031,7 @@ function AgentDeliveryResultPanel({
             </article>
           ) : plan ? (
             <div className="mt-4 space-y-3">
+              <DeliveryPlanQuickRead plan={plan} />
               <article className="rounded-xl border border-(--tenant-accent)/20 bg-surface-raised p-4">
                 <p className="text-xs font-semibold tracking-[0.12em] text-(--tenant-accent) uppercase">
                   Resumen propuesto
@@ -995,6 +1048,45 @@ function AgentDeliveryResultPanel({
                   )}
                 </div>
               </article>
+              {((plan.context_gaps?.length ?? 0) > 0 || (plan.human_decisions?.length ?? 0) > 0) && (
+                <article
+                  id="plan-open-points"
+                  tabIndex={-1}
+                  aria-label="Puntos pendientes de la propuesta"
+                  className="scroll-mt-24 rounded-xl border border-amber-500/25 bg-amber-500/[0.045] p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold tracking-[0.12em] text-amber-800 uppercase">Puntos pendientes</p>
+                      <p className="mt-1 text-xs leading-5 text-amber-950/75">
+                        El agente los declaró para revisión; el dashboard no los resuelve ni los da por aprobados.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-900">
+                      {(plan.context_gaps?.length ?? 0) + (plan.human_decisions?.length ?? 0)}{' '}
+                      {(plan.context_gaps?.length ?? 0) + (plan.human_decisions?.length ?? 0) === 1 ? 'elemento' : 'elementos'}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {(plan.context_gaps?.length ?? 0) > 0 && (
+                      <section aria-label="Información que falta" className="rounded-xl border border-amber-500/15 bg-surface-raised p-3">
+                        <h4 className="text-xs font-semibold text-ink">Información que falta</h4>
+                        <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-secondary">
+                          {plan.context_gaps?.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+                        </ul>
+                      </section>
+                    )}
+                    {(plan.human_decisions?.length ?? 0) > 0 && (
+                      <section aria-label="Decisiones del equipo" className="rounded-xl border border-amber-500/15 bg-surface-raised p-3">
+                        <h4 className="text-xs font-semibold text-ink">Decisiones del equipo</h4>
+                        <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-secondary">
+                          {plan.human_decisions?.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+                        </ul>
+                      </section>
+                    )}
+                  </div>
+                </article>
+              )}
               {(plan.goal_interpretation || plan.autonomy_boundary) && (
                 <article className="rounded-xl border border-sky-500/20 bg-sky-500/[0.035] p-4">
                   <p className="text-xs font-semibold tracking-[0.12em] text-sky-700 uppercase">Criterio del agente</p>
@@ -1038,7 +1130,11 @@ function AgentDeliveryResultPanel({
                   </ul>
                 </article>
               )}
-              <article className="rounded-xl border border-border-subtle bg-surface-raised p-4">
+              <article
+                id="plan-repository-impact"
+                tabIndex={-1}
+                className="scroll-mt-24 rounded-xl border border-border-subtle bg-surface-raised p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-xs font-semibold tracking-[0.12em] text-ink-muted uppercase">
@@ -1186,16 +1282,36 @@ function AgentDeliveryResultPanel({
               )}
               <div className="grid gap-3 sm:grid-cols-2">
                 {planSections.map(({ key, label }) => (
-                  <article key={key} className="rounded-xl border border-border-subtle bg-surface-raised p-3">
+                  <article
+                    key={key}
+                    id={key === 'implementation_steps' ? 'plan-implementation-steps' : undefined}
+                    tabIndex={key === 'implementation_steps' ? -1 : undefined}
+                    className={`rounded-xl border border-border-subtle bg-surface-raised p-3 ${key === 'implementation_steps' ? 'scroll-mt-24 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent) sm:col-span-2' : ''}`}
+                  >
                     <h4 className="text-xs font-semibold text-ink">{label}</h4>
                     {plan[key].length ? (
-                      <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-secondary">
-                        {plan[key].map((item) => (
-                          <li key={item}>• {item}</li>
-                        ))}
-                      </ul>
+                      key === 'implementation_steps' ? (
+                        <ol aria-label="Ruta de trabajo propuesta" className="mt-3 space-y-2">
+                          {plan[key].map((item, index) => (
+                            <li key={`${index}-${item}`} className="flex gap-3 rounded-xl border border-border-subtle bg-surface-soft p-3 text-xs leading-5 text-ink-secondary">
+                              <span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center rounded-full bg-(--tenant-accent)/10 text-[11px] font-bold text-(--tenant-accent)">
+                                {index + 1}
+                              </span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-secondary">
+                          {plan[key].map((item) => <li key={item}>• {item}</li>)}
+                        </ul>
+                      )
                     ) : (
-                      <p className="mt-2 text-xs text-ink-muted">Sin elementos registrados.</p>
+                      <p className="mt-2 text-xs text-ink-muted">
+                        {key === 'implementation_steps'
+                          ? 'No se definieron pasos; la propuesta necesita ese detalle antes de convertirla en trabajo.'
+                          : 'Sin elementos registrados.'}
+                      </p>
                     )}
                   </article>
                 ))}
@@ -1205,13 +1321,13 @@ function AgentDeliveryResultPanel({
                   return (
                     <article
                       key={key}
-                      className={`rounded-xl border p-3 ${key === 'context_gaps' || key === 'human_decisions' ? 'border-amber-500/20 bg-amber-500/[0.035]' : 'border-border-subtle bg-surface-raised'}`}
+                      className="rounded-xl border border-border-subtle bg-surface-raised p-3"
                     >
                       <h4 className="text-xs font-semibold text-ink">{label}</h4>
                       {entries.length ? (
                         <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-secondary">
-                          {entries.map((item) => (
-                            <li key={item}>• {item}</li>
+                          {entries.map((item, index) => (
+                            <li key={`${index}-${item}`}>• {item}</li>
                           ))}
                         </ul>
                       ) : (

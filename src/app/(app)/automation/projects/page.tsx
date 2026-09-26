@@ -558,6 +558,7 @@ export default function DeliveryProjectsPage() {
   )
   const [filter, setFilter] = useState<PortfolioFilter>('all')
   const [message, setMessage] = useState('')
+  const clientFilterId = searchParams.get('client') ?? ''
 
   const portfolioSnapshot = portfolioQuery.data ?? null
   const hasPortfolioSnapshot = portfolioSnapshot !== null
@@ -571,6 +572,15 @@ export default function DeliveryProjectsPage() {
     return [...serverClients, createdClient]
   }, [clients.data, clientScope, createdClient, createdClientScope])
   const automationClientItems = useMemo(() => clientItems.filter(isAutomationClient), [clientItems])
+  const projectClientOptions = useMemo(() => {
+    const names = new Map<string, string>()
+    for (const project of items) {
+      if (project.client_id && project.client?.name) names.set(project.client_id, project.client.name)
+    }
+    for (const client of automationClientItems) names.set(client.id, client.name)
+    return [...names].map(([id, name]) => ({ id, name })).sort((left, right) => left.name.localeCompare(right.name))
+  }, [automationClientItems, items])
+  const selectedClientFilterName = projectClientOptions.find((client) => client.id === clientFilterId)?.name
   // The single-client path is a resolved destination immediately; do not make
   // the primary action wait for a follow-up state update just to enable it.
   const resolvedClientId = clientId && automationClientItems.some((client) => client.id === clientId)
@@ -592,12 +602,14 @@ export default function DeliveryProjectsPage() {
     // A draft may have been created before the product boundary was enforced.
     // Clear a now-protected destination instead of leaving a disabled option
     // looking selected or allowing a stale draft to influence submission.
-    if (!composerOpen || !clientId || clientItems.some((client) => client.id === clientId && isAutomationClient(client))) return
+    if (!composerOpen || !clientId || clients.isLoading || clients.error || clientItems.some((client) => client.id === clientId && isAutomationClient(client))) return
     setClientId('')
-  }, [clientId, clientItems, composerOpen])
+  }, [clientId, clientItems, clients.error, clients.isLoading, composerOpen])
 
   useEffect(() => {
     if (searchParams.get('create') !== '1') return
+    const requestedClientId = searchParams.get('client')
+    if (requestedClientId) setClientId(requestedClientId)
     setMessage('')
     setComposerOpen(true)
     const nextParams = new URLSearchParams(searchParams.toString())
@@ -630,6 +642,11 @@ export default function DeliveryProjectsPage() {
           return new Date(right.project.updated_at).getTime() - new Date(left.project.updated_at).getTime()
         }),
     [items]
+  )
+
+  const clientWorkspaces = useMemo(
+    () => clientFilterId ? workspaces.filter(({ project }) => project.client_id === clientFilterId) : workspaces,
+    [clientFilterId, workspaces]
   )
 
   const portfolio = useMemo(() => {
@@ -677,7 +694,7 @@ export default function DeliveryProjectsPage() {
 
   const visibleWorkspaces = useMemo(
     () =>
-      workspaces.filter((workspace) => {
+      clientWorkspaces.filter((workspace) => {
         if (filter === 'live') {
           return (
             workspace.snapshot.pulse.tone === 'live' ||
@@ -689,7 +706,7 @@ export default function DeliveryProjectsPage() {
         if (filter === 'complete') return workspace.snapshot.pulse.tone === 'complete'
         return true
       }),
-    [filter, workspaces]
+    [clientWorkspaces, filter]
   )
 
   const hasLoadError = !hasPortfolioSnapshot && needsProjectRecovery && Boolean(projects.error)
@@ -723,11 +740,11 @@ export default function DeliveryProjectsPage() {
     : ''
 
   const filters: Array<{ value: PortfolioFilter; label: string; count: number }> = [
-    { value: 'all', label: 'Todos', count: workspaces.length },
-    { value: 'live', label: 'En marcha', count: portfolio.liveWorkspaces },
-    { value: 'attention', label: 'Atención', count: portfolio.attentionWorkspaces },
-    { value: 'paused', label: 'En pausa', count: portfolio.pausedWorkspaces },
-    { value: 'complete', label: 'Entregados', count: workspaces.filter((workspace) => workspace.snapshot.pulse.tone === 'complete').length },
+    { value: 'all', label: 'Todos', count: clientWorkspaces.length },
+    { value: 'live', label: 'En marcha', count: clientWorkspaces.filter((workspace) => workspace.snapshot.pulse.tone === 'live' || (!workspace.snapshot.hasOutcomeData && workspace.project.status === 'active')).length },
+    { value: 'attention', label: 'Atención', count: clientWorkspaces.filter((workspace) => workspace.snapshot.pulse.tone === 'attention' || workspace.snapshot.pulse.tone === 'incident').length },
+    { value: 'paused', label: 'En pausa', count: clientWorkspaces.filter((workspace) => workspace.project.status === 'paused').length },
+    { value: 'complete', label: 'Entregados', count: clientWorkspaces.filter((workspace) => workspace.snapshot.pulse.tone === 'complete').length },
   ]
   const workspaceHeading: Record<PortfolioFilter, string> = {
     all: 'Proyectos',
@@ -761,7 +778,17 @@ export default function DeliveryProjectsPage() {
 
   function openComposer() {
     setMessage('')
+    if (clientFilterId) setClientId(clientFilterId)
     setComposerOpen(true)
+  }
+
+  function changeClientFilter(nextClientId: string) {
+    setFilter('all')
+    const nextParams = new URLSearchParams(searchParams.toString())
+    if (nextClientId) nextParams.set('client', nextClientId)
+    else nextParams.delete('client')
+    const query = nextParams.toString()
+    router.replace(`/automation/projects${query ? `?${query}` : ''}`, { scroll: false })
   }
 
   function openClientComposer() {
@@ -819,10 +846,19 @@ export default function DeliveryProjectsPage() {
   return (
     <PageTransition>
       <div className="mx-auto max-w-[88rem] px-4 py-6 pb-28 sm:px-6 sm:py-9 lg:pb-10">
+        <nav aria-label="Jerarquía del portafolio" className="mb-3 flex flex-wrap items-center gap-2 text-xs font-medium text-ink-muted">
+          <Link href="/clients" className="min-h-8 inline-flex items-center rounded-md hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35">Organizaciones</Link>
+          <span aria-hidden="true">/</span>
+          <Link href="/automation/clients" className="min-h-8 inline-flex items-center rounded-md hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35">{selectedClientFilterName ?? 'Clientes'}</Link>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page" className="font-semibold text-ink-secondary">Proyectos</span>
+        </nav>
         <PageHeader
-          eyebrow="Espacio de trabajo"
+          eyebrow={selectedClientFilterName ? `Empresa · ${selectedClientFilterName}` : 'Clientes y proyectos'}
           title="Proyectos"
-          description="El sistema avanza, deja evidencia y sólo te avisa cuando importa."
+          description={selectedClientFilterName
+            ? `Proyectos de ${selectedClientFilterName}. Cada espacio conserva sus propios repositorios, contexto, épicas y ejecuciones.`
+            : 'Explora los proyectos por empresa; cada espacio conserva sus propios repositorios, contexto, épicas y ejecuciones.'}
           icon={RocketLaunchIcon}
           actions={hasLoadError ? null :
             <Button color="indigo" onClick={openComposer} className="w-full justify-center sm:w-auto">
@@ -923,31 +959,51 @@ export default function DeliveryProjectsPage() {
             </button>}
           </div>
 
-          {!hasLoadError && <div
-            className="mt-4 flex max-w-full snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain pb-1 scroll-smooth [scrollbar-width:none] motion-reduce:scroll-auto"
-            role="group"
-            aria-label="Filtrar proyectos"
-          >
-            {filters.map((item) => {
-              const selected = filter === item.value
-              return (
-                <button
-                  key={item.value}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => setFilter(item.value)}
-                  className={`inline-flex min-h-11 shrink-0 snap-start items-center gap-2 rounded-xl border px-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35 ${selected ? 'border-(--tenant-accent)/30 bg-(--tenant-accent)/[.1] text-(--tenant-accent)' : 'border-border-subtle bg-surface-raised text-ink-secondary hover:bg-surface-soft hover:text-ink'}`}
-                >
-                  {item.label}
-                  <span
-                    className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums ${selected ? 'bg-(--tenant-accent)/12' : 'bg-surface-soft text-ink-muted'}`}
+          {!hasLoadError && <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div
+              className="flex max-w-full snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain pb-1 scroll-smooth [scrollbar-width:none] motion-reduce:scroll-auto"
+              role="group"
+              aria-label="Filtrar proyectos"
+            >
+              {filters.map((item) => {
+                const selected = filter === item.value
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setFilter(item.value)}
+                    className={`inline-flex min-h-11 shrink-0 snap-start items-center gap-2 rounded-xl border px-3 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35 ${selected ? 'border-(--tenant-accent)/30 bg-(--tenant-accent)/[.1] text-(--tenant-accent)' : 'border-border-subtle bg-surface-raised text-ink-secondary hover:bg-surface-soft hover:text-ink'}`}
                   >
-                    {item.count}
-                  </span>
-                </button>
-              )
-            })}
+                    {item.label}
+                    <span
+                      className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums ${selected ? 'bg-(--tenant-accent)/12' : 'bg-surface-soft text-ink-muted'}`}
+                    >
+                      {item.count}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {projectClientOptions.length > 0 && <label className="flex min-h-11 shrink-0 items-center gap-2 self-start rounded-xl border border-border-subtle bg-surface-raised px-3 text-xs font-semibold text-ink-secondary sm:self-auto">
+              <span>Cliente</span>
+              <select
+                aria-label="Filtrar proyectos por cliente"
+                value={clientFilterId}
+                onChange={(event) => changeClientFilter(event.target.value)}
+                className="max-w-52 bg-transparent text-sm font-semibold text-ink outline-none"
+              >
+                <option value="">Todos los clientes</option>
+                {clientFilterId && !projectClientOptions.some((client) => client.id === clientFilterId) ? <option value={clientFilterId}>Cliente seleccionado</option> : null}
+                {projectClientOptions.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+              </select>
+            </label>}
           </div>}
+
+          {!hasLoadError && clientFilterId && <p className="mt-2 px-1 text-xs leading-5 text-ink-muted">
+            Viendo proyectos de <span className="font-semibold text-ink-secondary">{selectedClientFilterName ?? 'este cliente'}</span>. El pulso superior resume todo el portafolio.
+          </p>}
 
           {isLoading ? (
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3" role="status" aria-live="polite" aria-busy="true" aria-label="Cargando resultados">
@@ -971,18 +1027,18 @@ export default function DeliveryProjectsPage() {
                 {portfolioSessionRecoveryMessage ? 'Actualizar sesión' : 'Reintentar'}
               </Button>
             </div>
-          ) : workspaces.length === 0 ? (
+          ) : clientWorkspaces.length === 0 ? (
             <div className="premium-surface mt-4 flex min-h-72 flex-col items-center justify-center rounded-[1.5rem] px-6 py-12 text-center">
               <span className="flex size-13 items-center justify-center rounded-2xl bg-(--tenant-accent)/10 text-(--tenant-accent)">
                 <RocketLaunchIcon className="size-6" />
               </span>
-              <h3 className="mt-4 text-lg font-semibold text-ink">El portafolio está listo</h3>
+              <h3 className="mt-4 text-lg font-semibold text-ink">{clientFilterId ? `Aún no hay proyectos para ${selectedClientFilterName ?? 'este cliente'}` : 'El portafolio está listo'}</h3>
               <p className="mt-2 max-w-md text-sm leading-6 text-ink-muted">
-                Inicia con lo que buscas. El agente prepara el primer movimiento.
+                {clientFilterId ? 'Crea el espacio de trabajo aquí; su configuración de repositorios, ambientes y entrega será independiente.' : 'Inicia con lo que buscas. El agente prepara el primer movimiento.'}
               </p>
               <Button color="indigo" className="mt-5" onClick={openComposer}>
                 <PlusIcon data-slot="icon" />
-                Crear proyecto
+                {clientFilterId ? `Crear proyecto para ${selectedClientFilterName ?? 'este cliente'}` : 'Crear proyecto'}
               </Button>
             </div>
           ) : visibleWorkspaces.length === 0 ? (

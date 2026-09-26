@@ -237,8 +237,44 @@
   }
 
   .app-product-shell[data-product='itbem'] {
-    --app-brand-gradient: linear-gradient(105deg, #0f9fb8 0%, #168fc6 48%, #3f5de4 100%);
-    --app-brand-glow: rgb(14 116 144 / 12%);
+    --app-brand-gradient: linear-gradient(105deg, #17191f 0%, #353b45 48%, #626b78 100%);
+    --app-brand-glow: rgb(23 25 31 / 14%);
+    --app-focus: #4b5563;
+    --app-border-strong: rgb(63 70 80 / 42%);
+  }
+
+  /* ITBEM is a control plane: the dark navigation creates a stable visual
+     anchor while the workspace remains deliberately light and task-focused. */
+  .app-product-shell[data-product='itbem'] .app-sidebar-panel {
+    --app-surface: #171a1f;
+    --app-surface-raised: #1d2127;
+    --app-surface-soft: #272d35;
+    --app-surface-interactive: #20252c;
+    --app-text-primary: #f4f6f8;
+    --app-text-secondary: #c5cbd4;
+    --app-text-muted: #929ba8;
+    --app-border-subtle: rgb(255 255 255 / 10%);
+    --app-border-strong: rgb(255 255 255 / 24%);
+    --tenant-accent: #f1f3f5;
+    background-color: #171a1f;
+    box-shadow: none;
+  }
+
+  .app-product-shell[data-product='itbem'] .itbem-sidebar [data-slot='sidebar-header'] {
+    background: linear-gradient(180deg, rgb(255 255 255 / 4%), transparent 78%);
+  }
+
+  .app-product-shell[data-product='itbem'] .itbem-sidebar [data-slot='sidebar-body'] {
+    scrollbar-color: rgb(255 255 255 / 22%) transparent;
+  }
+
+  .app-product-shell[data-product='itbem'] .itbem-sidebar a[data-current='true'] {
+    background: linear-gradient(90deg, rgb(255 255 255 / 14%), rgb(255 255 255 / 7%));
+    box-shadow: inset 0 1px rgb(255 255 255 / 8%), 0 8px 18px rgb(0 0 0 / 14%);
+  }
+
+  .app-product-shell[data-product='itbem'] .itbem-sidebar [data-slot='sidebar-footer'] {
+    background: rgb(0 0 0 / 10%);
   }
 
   .app-product-shell[data-product='cafettonhouse'] {

@@ -6,6 +6,8 @@ export const itbemRoutes = [
   { path: '/users', feature: 'users', preload: 'route-and-data' },
   { path: '/metrics', feature: 'metrics', preload: 'route-and-data' },
   { path: '/automation', feature: 'automation', preload: 'route-and-data' },
+  { path: '/automation/recurrences', feature: 'automation', preload: 'route' },
+  { path: '/automation/settings', feature: 'automation', preload: 'route' },
   { path: '/team', feature: 'team', preload: 'route' },
   { path: '/audit', feature: 'audit', preload: 'route-and-data' },
   { path: '/settings/profile', feature: 'profile', preload: 'route-and-data' },

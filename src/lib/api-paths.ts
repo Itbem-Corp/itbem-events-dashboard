@@ -105,6 +105,94 @@ export function automationHealthPath(): string {
   return '/automation/health'
 }
 
+export function automationAgentsPath(): string {
+  return '/automation/agents'
+}
+
+export type AutomationDispatchQueuePathQuery = {
+  page_size?: number | null
+  cursor?: string | null
+  status?: string | null
+  project_id?: string | null
+  agent_key?: string | null
+}
+
+export function automationDispatchQueuePath(query?: AutomationDispatchQueuePathQuery): string {
+  return apiPath('/automation/dispatch/queue', query)
+}
+
+export type AutomationTraceHistoryFilters = {
+  q?: string | null
+  client_id?: string | null
+  project_id?: string | null
+  epic_id?: string | null
+  work_item_id?: string | null
+  step_id?: string | null
+  step_key?: string | null
+  agent_key?: string | null
+  worker_id?: string | null
+  machine_id?: string | null
+  agent_instance_id?: string | null
+  operation?: string | null
+  tool?: string | null
+  status?: string | null
+  provider?: string | null
+  model?: string | null
+  run_id?: string | null
+  from?: string | null
+  to?: string | null
+  limit?: number | null
+  cursor?: string | null
+  snapshot_at?: string | null
+}
+
+export function automationTraceHistoryPath(query?: AutomationTraceHistoryFilters): string {
+  return apiPath('/automation/traces', query)
+}
+
+export type AutomationAgentHistoryPathQuery = {
+  limit?: number
+  cursor?: string | null
+  from?: string | null
+  to?: string | null
+  client_id?: string | null
+  project_id?: string | null
+  work_item_id?: string | null
+  worker_id?: string | null
+  machine_id?: string | null
+  agent_instance_id?: string | null
+  run_id?: string | null
+  operation?: string | null
+  status?: string | null
+  provider?: string | null
+}
+
+export function automationAgentHistoryPath(
+  agentKey: string,
+  query?: AutomationAgentHistoryPathQuery,
+): string {
+  return apiPath(`${automationAgentsPath()}/${encodePathSegment(agentKey)}/history`, query)
+}
+
+export function automationAgentInstancesPath(): string {
+  return '/automation/agent-instances'
+}
+
+export function automationAgentInstancePath(instanceId: string | number): string {
+  return `${automationAgentInstancesPath()}/${encodePathSegment(instanceId)}`
+}
+
+export function automationAgentsStreamPath(scope?: { client_id?: string | null; project_id?: string | null }): string {
+  return apiPath(`${automationAgentsPath()}/stream`, {
+    client_id: scope?.client_id?.trim() || undefined,
+    project_id: scope?.project_id?.trim() || undefined,
+  })
+}
+
+export function automationProviderCatalogPath(): string {
+  return '/automation/ai/catalog'
+}
+
 /**
  * Compact, authorization-scoped read model for the automation console.
  * Keep detail endpoints separate; this is intentionally safe to refresh often.
@@ -113,8 +201,37 @@ export function automationPortfolioPath(): string {
   return '/automation/portfolio'
 }
 
-export function automationCostsPath(days = 30, page = 1, pageSize = 40): string {
-  return apiPath('/automation/costs', { days, page, page_size: pageSize })
+export type AutomationCostsPathQuery = {
+  days?: number
+  from_at?: string | null
+  to_at?: string | null
+  snapshot_at?: string | null
+  client_id?: string | null
+  project_id?: string | null
+  epic_id?: string | null
+  work_item_id?: string | null
+  step_key?: string | null
+  agent_key?: string | null
+  provider?: string | null
+  model?: string | null
+  page?: number
+  page_size?: number
+  cursor?: string | null
+  work_item_limit?: number
+  work_item_cursor?: string | null
+}
+
+export function automationCostsPath(query?: AutomationCostsPathQuery): string
+export function automationCostsPath(days?: number, page?: number, pageSize?: number): string
+export function automationCostsPath(
+  queryOrDays: AutomationCostsPathQuery | number = {},
+  page = 1,
+  pageSize = 40,
+): string {
+  const query = typeof queryOrDays === 'number'
+    ? { days: queryOrDays, page, page_size: pageSize }
+    : { days: 30, page: 1, page_size: 40, work_item_limit: 20, ...queryOrDays }
+  return apiPath('/automation/costs', query)
 }
 
 export function automationTaskInputPath(taskId: string | number): string {
@@ -179,6 +296,42 @@ export function deliveryClientsPath(): string {
 
 export function deliveryClientProfilePath(clientId: string | number): string {
   return `${deliveryClientsPath()}/${encodePathSegment(clientId)}/profile`
+}
+
+export function automationProviderCredentialPath(provider: string): string {
+  return `/automation/ai/providers/${encodePathSegment(provider)}/credential`
+}
+
+export function automationProjectProviderCredentialPath(projectId: string | number, provider: string): string {
+  return `/automation/ai/projects/${encodePathSegment(projectId)}/providers/${encodePathSegment(provider)}/credential`
+}
+
+export function automationProjectProviderUsagePath(projectId: string | number): string {
+  return `/automation/ai/projects/${encodePathSegment(projectId)}/provider-usage`
+}
+
+export function automationProjectProviderUsageRefreshPath(projectId: string | number): string {
+  return `${automationProjectProviderUsagePath(projectId)}/refresh`
+}
+
+export function automationProviderModelsPath(provider: string): string {
+  return `/automation/ai/providers/${encodePathSegment(provider)}/models`
+}
+
+export function automationOpenCodeUsageCredentialPath(): string {
+  return '/automation/ai/providers/opencode-go/usage-credential'
+}
+
+export function automationOpenCodeUsagePath(): string {
+  return '/automation/ai/providers/opencode-go/usage'
+}
+
+export function automationAIActionPoliciesPath(): string {
+  return '/automation/ai/policies'
+}
+
+export function automationAIActionPolicyPath(operation: string): string {
+  return `/automation/ai/policies/${encodePathSegment(operation)}`
 }
 
 export function deliveryProjectPath(projectId: string | number): string {
@@ -272,6 +425,14 @@ export function deliveryProjectRequestsPath(projectId: string | number): string 
   return `${deliveryProjectPath(projectId)}/requests`
 }
 
+export function deliveryRequestDecompositionsPath(projectId: string | number, requestId: string | number): string {
+  return `${deliveryProjectRequestsPath(projectId)}/${encodePathSegment(requestId)}/decompositions`
+}
+
+export function deliveryRequestDecompositionApplyPath(projectId: string | number, requestId: string | number, decompositionId: string | number): string {
+  return `${deliveryRequestDecompositionsPath(projectId, requestId)}/${encodePathSegment(decompositionId)}/apply`
+}
+
 export function deliveryProjectMembersPath(projectId: string | number): string {
   return `${deliveryProjectPath(projectId)}/members`
 }
@@ -282,6 +443,28 @@ export function deliveryProjectWorkItemsPath(projectId: string | number): string
 
 export function deliveryWorkItemPath(workItemId: string | number): string {
   return `/automation/work-items/${encodePathSegment(workItemId)}`
+}
+
+export function deliveryEpicBrowserPath(
+  epicId: string | number,
+  projectContext?: { status?: string; cursor?: string }
+): string {
+  const query = new URLSearchParams()
+  if (projectContext?.status) query.set('epic_status', projectContext.status)
+  if (projectContext?.cursor) query.set('epic_cursor', projectContext.cursor)
+  const search = query.toString()
+  return `/automation/epics/${encodePathSegment(epicId)}${search ? `?${search}` : ''}`
+}
+
+export function deliveryProjectEpicsBrowserPath(
+  projectId: string | number,
+  projectContext?: { status?: string; cursor?: string }
+): string {
+  const query = new URLSearchParams()
+  if (projectContext?.status) query.set('epic_status', projectContext.status)
+  if (projectContext?.cursor) query.set('epic_cursor', projectContext.cursor)
+  const search = query.toString()
+  return `/automation/projects/${encodePathSegment(projectId)}${search ? `?${search}` : ''}#project-epics`
 }
 
 export function deliveryWorkItemStreamPath(workItemId: string | number): string {

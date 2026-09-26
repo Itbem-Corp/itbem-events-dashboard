@@ -508,6 +508,7 @@ export type DeliveryWorkItem = {
 	blocked_reason?: string
   id: string
   project_id: string
+  request_id?: string
   title: string
   description: string
   expected_outcome: string

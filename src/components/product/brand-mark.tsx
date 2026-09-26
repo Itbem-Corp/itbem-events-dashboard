@@ -16,6 +16,21 @@ const iconSizeClasses = {
   lg: 'size-5.5',
 } as const
 
+// Keep the mark stable before the stylesheet has finished loading. Inline SVGs
+// otherwise fall back to their browser intrinsic dimensions during a route
+// transition, which makes the sidebar identity briefly jump in size.
+const sizePixels = {
+  sm: 36,
+  md: 44,
+  lg: 48,
+} as const
+
+const iconSizePixels = {
+  sm: 16,
+  md: 20,
+  lg: 22,
+} as const
+
 export function BrandMark({
   code,
   name,
@@ -45,6 +60,9 @@ export function BrandMark({
           '--brand-mark-accent': accent,
           backgroundImage:
             'linear-gradient(145deg, color-mix(in srgb, var(--brand-mark-accent) 10%, var(--app-surface-raised)), var(--app-surface-raised))',
+          inlineSize: sizePixels[size],
+          blockSize: sizePixels[size],
+          flexBasis: sizePixels[size],
         } as CSSProperties
       }
     >
@@ -59,9 +77,15 @@ export function BrandMark({
           unoptimized
         />
       ) : code === 'itbem' ? (
-        <BuildingOffice2Icon className={iconSizeClasses[size]} style={{ color: accent }} />
+        <BuildingOffice2Icon
+          className={iconSizeClasses[size]}
+          style={{ color: accent, inlineSize: iconSizePixels[size], blockSize: iconSizePixels[size], flex: 'none' }}
+        />
       ) : (
-        <BuildingStorefrontIcon className={iconSizeClasses[size]} style={{ color: accent }} />
+        <BuildingStorefrontIcon
+          className={iconSizeClasses[size]}
+          style={{ color: accent, inlineSize: iconSizePixels[size], blockSize: iconSizePixels[size], flex: 'none' }}
+        />
       )}
     </span>
   )

@@ -63,7 +63,7 @@ function envelope(data: unknown) {
   return { status: 200, contentType: 'application/json', body: JSON.stringify({ status: 200, data }) }
 }
 
-async function installFixtures(page: Page) {
+async function installFixtures(page: Page, planDispatchStatus = 200, workItemCreateStatus = 200) {
   const state = {
     project: { ...structuredClone(project), requests: [] as Array<Record<string, unknown>>, work_items: [] as Array<Record<string, unknown>> },
     request: null as null | Record<string, unknown>,
@@ -84,6 +84,7 @@ async function installFixtures(page: Page) {
     if (route.request().method() !== 'POST') return route.fulfill(envelope(state.project.work_items))
     const body = route.request().postDataJSON() as { request_id?: string; context_source_ids?: string[]; title?: string; expected_outcome?: string }
     expect(body).toMatchObject({ request_id: 'request-first-work-item', context_source_ids: [CONTEXT_ID], title: 'Revisar entrega móvil', expected_outcome: 'Una entrega revisable desde el teléfono' })
+    if (workItemCreateStatus !== 200) return route.fulfill({ status: workItemCreateStatus, contentType: 'application/json', body: JSON.stringify({ status: workItemCreateStatus, message: 'Result uncertain' }) })
     state.workItem = { id: 'work-item-created', project_id: PROJECT_ID, title: body.title, description: 'Revisar la experiencia de entrega en móvil', expected_outcome: body.expected_outcome, state: 'planning', created_at: now, updated_at: now }
     state.project.work_items = [state.workItem]
     return route.fulfill(envelope(state.workItem))
@@ -91,15 +92,59 @@ async function installFixtures(page: Page) {
   await page.route(/\/automation-bridge\/automation\/work-items\/work-item-created\/agent-runs$/, async (route) => {
     expect(route.request().method()).toBe('POST')
     expect(route.request().postDataJSON()).toMatchObject({ phase: 'plan' })
+    if (planDispatchStatus !== 200) return route.fulfill({ status: planDispatchStatus, contentType: 'application/json', body: JSON.stringify({ status: planDispatchStatus, message: 'No worker available' }) })
     return route.fulfill(envelope({ id: 'task-plan-created', status: 'queued', operation: 'delivery.plan' }))
   })
+  await page.route(/\/automation-bridge\/automation\/work-items\/work-item-created$/, (route) => route.fulfill(envelope({ ...state.workItem, context_snapshots: [], automation_tasks: [], plans: [], messages: [], gates: [], evidence: [], change_sets: [] })))
   await page.route(/\/automation-bridge\/.*$/, (route) => {
     const url = route.request().url()
-    if (url.includes(`/automation/projects/${PROJECT_ID}`) || url.includes('/automation/work-items/work-item-created/agent-runs')) return route.fallback()
+    if (url.includes(`/automation/projects/${PROJECT_ID}`) || url.includes('/automation/work-items/work-item-created')) return route.fallback()
     if (route.request().method() !== 'GET') return route.abort('blockedbyclient')
     return route.fulfill(envelope([]))
   })
 }
+
+test('permite ir entre resumen, tareas y configuración sin salir del proyecto', async ({ page }) => {
+  await installFixtures(page)
+  await page.goto(`/automation/projects/${PROJECT_ID}`)
+
+  const navigation = page.getByRole('navigation', { name: 'Secciones del proyecto' })
+  await navigation.getByRole('link', { name: 'Resumen' }).click()
+  await expect(page.locator('#project-overview')).toBeInViewport()
+  await expect(page).toHaveURL(new RegExp(`/automation/projects/${PROJECT_ID}#project-overview$`))
+
+  await navigation.getByRole('button', { name: 'Tareas' }).click()
+  await expect(page.locator('#project-task-groups')).toBeInViewport()
+  await expect(navigation).toBeInViewport()
+  await expect(page).toHaveURL(new RegExp(`/automation/projects/${PROJECT_ID}(?:#project-overview)?$`))
+
+  await navigation.getByRole('button', { name: 'Configuración' }).click()
+  await expect(page.locator('#project-operations-panel')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Fuentes y reglas del proyecto' })).toBeInViewport()
+  await expect(page).toHaveURL(new RegExp(`/automation/projects/${PROJECT_ID}(?:#project-overview)?$`))
+})
+
+test('distingue solicitud o épica de tarea suelta sin iniciar agentes al elegir', async ({ page }) => {
+  const posts: string[] = []
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/automation-bridge/automation/')) posts.push(request.url())
+  })
+  await installFixtures(page)
+  await page.goto(`/automation/projects/${PROJECT_ID}`)
+
+  await page.getByRole('button', { name: 'Crear solicitud o épica' }).click()
+  const requestDialog = page.getByRole('dialog')
+  await expect(requestDialog.getByRole('heading', { name: 'Crear solicitud o épica' })).toBeVisible()
+  await requestDialog.getByRole('button', { name: 'Cancelar' }).click()
+
+  await page.getByRole('button', { name: 'Crear tarea suelta' }).first().click()
+  const taskForm = page.locator('#project-standalone-task-form')
+  await expect(taskForm).toBeInViewport()
+  await expect(taskForm.getByRole('checkbox', { name: /Dashboard local/ })).toBeFocused()
+  await expect(taskForm.getByLabel('Solicitud de origen (opcional)')).toHaveValue('')
+  expect(posts).toEqual([])
+  await expect(page).toHaveURL(new RegExp(`/automation/projects/${PROJECT_ID}$`))
+})
 
 test('convierte una solicitud humana en el primer encargo y arranca sólo la fase de plan', async ({ page }) => {
   await installFixtures(page)
@@ -128,4 +173,30 @@ test('convierte una solicitud humana en el primer encargo y arranca sólo la fas
   await workItemPost
   await agentRunPost
   await expect(page).toHaveURL(/\/automation\/work-items\/work-item-created\?from_project=project-prepared$/)
+})
+
+test('si falla el despacho, conserva la tarea creada y advierte que no se duplique', async ({ page }) => {
+  await installFixtures(page, 503)
+  await page.goto(`/automation/projects/${PROJECT_ID}`)
+  await page.getByRole('button', { name: 'Describe el resultado que necesitas' }).click()
+  await page.getByRole('dialog').getByLabel('Resultado que necesitas').fill('Revisar la experiencia de entrega en móvil')
+  await page.getByRole('dialog').getByRole('button', { name: 'Crear solicitud', exact: true }).click()
+  const planButton = page.getByRole('button', { name: 'Preparar siguiente plan' })
+  await expect(planButton).toBeVisible()
+  await planButton.click()
+  await expect(page).toHaveURL(/\/automation\/work-items\/work-item-created\?from_project=project-prepared&plan_dispatch=failed$/)
+  await expect(page.getByRole('alert').filter({ hasText: 'La tarea sí quedó creada' })).toContainText('no crees una copia')
+})
+
+test('si la respuesta de creación es incierta, pide comprobar la lista antes de reintentar', async ({ page }) => {
+  await installFixtures(page, 200, 503)
+  await page.goto(`/automation/projects/${PROJECT_ID}`)
+  await page.getByRole('button', { name: 'Describe el resultado que necesitas' }).click()
+  await page.getByRole('dialog').getByLabel('Resultado que necesitas').fill('Revisar la experiencia de entrega en móvil')
+  await page.getByRole('dialog').getByRole('button', { name: 'Crear solicitud', exact: true }).click()
+  const planButton = page.getByRole('button', { name: 'Preparar siguiente plan' })
+  await expect(planButton).toBeVisible()
+  await planButton.click()
+  await expect(page.getByRole('status').filter({ hasText: 'No pudimos confirmar la creación de la tarea' }).first()).toContainText('evitar duplicados')
+  await expect(page).toHaveURL(new RegExp(`/automation/projects/${PROJECT_ID}$`))
 })

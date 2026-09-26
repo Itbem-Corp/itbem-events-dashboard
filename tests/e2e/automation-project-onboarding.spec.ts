@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test'
 test.use({ storageState: undefined })
 
 const client = { id: 'client-onboarding', name: 'Cliente de prueba', code: 'ITBEM', is_active: true, client_type: { code: 'CUSTOMER', name: 'Cliente' } }
+const secondClient = { ...client, id: 'client-onboarding-second', name: 'Otro cliente' }
 const session = {
   application: { id: 'application-itbem', code: 'itbem', name: 'ITBEM', product_label: 'Agent operations', modules: ['home', 'users', 'organizations', 'metrics', 'automation'], allows_platform_admin: true, is_active: true },
   user: { id: 'user-onboarding', email: 'onboarding@example.test', first_name: 'Onboarding', last_name: 'Operator', is_active: true, is_root: true, root_level: 1 },
@@ -89,6 +90,19 @@ test('crea un cliente desde el alta de proyecto y lo deja seleccionado sin lanza
   await page.getByLabel('Nombre del proyecto').fill('Proyecto del cliente nuevo')
   await page.getByLabel('¿Qué resultado necesitas?').fill('Preparar su primera entrega revisable')
   await expect(page.getByRole('button', { name: 'Crear proyecto', exact: true })).toBeEnabled()
+})
+
+test('preselecciona el cliente de origen al iniciar un proyecto desde su portafolio', async ({ page }) => {
+  await installFixtures(page, { clients: [client, secondClient] })
+  await page.goto('/automation/projects?create=1&client=client-onboarding')
+
+  const creationDialog = page.getByRole('dialog')
+  await expect(creationDialog).toBeVisible()
+  await expect(creationDialog.getByLabel('Cliente')).toHaveValue('client-onboarding')
+  await expect(page.getByText('Aún no hay proyectos para Cliente de prueba')).toBeVisible()
+  await creationDialog.getByLabel('Nombre del proyecto').fill('Primer proyecto')
+  await creationDialog.getByLabel('¿Qué resultado necesitas?').fill('Preparar su configuración independiente')
+  await expect(creationDialog.getByRole('button', { name: 'Crear proyecto', exact: true })).toBeEnabled()
 })
 
 test('mantiene visibles pero bloqueadas las organizaciones de productos protegidos', async ({ page }) => {

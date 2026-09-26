@@ -16,7 +16,7 @@ export function projectStreamPresentation(
   status: AuthenticatedSSEStatus,
   hasActiveExecution: boolean,
 ): ProjectStreamPresentation {
-  const reconnecting = status === 'connecting' || status === 'reconnecting'
+  const reconnecting = hasActiveExecution && (status === 'connecting' || status === 'reconnecting')
   if (reconnecting) {
     return { unavailable: false, reconnecting: true, label: 'Reconectando al agente', badge: 'Reconectando', tone: 'amber' }
   }

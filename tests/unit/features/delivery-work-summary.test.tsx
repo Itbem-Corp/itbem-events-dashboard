@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { DeliveryWorkSummary, deliverySignalLabel } from '@/features/automation/delivery-work-summary'
 import type { DeliveryWorkItem } from '@/features/automation/delivery-types'
@@ -98,5 +98,31 @@ describe('delivery work summary signal freshness', () => {
     />)
     expect(screen.getByText('En espera de tu decisión')).toBeInTheDocument()
     expect(screen.queryByText('Señal obsoleta · revisar actividad')).not.toBeInTheDocument()
+  })
+
+  it('opens the conversation for operator input and never exposes the raw recovery code', () => {
+    const onOpen = vi.fn()
+    const onOpenConversation = vi.fn()
+    render(<DeliveryWorkSummary
+      item={{
+        ...baseItem,
+        state: 'planning',
+        workflow_projection: {
+          schema_version: 2, stage: 'plan', state_kind: 'blocked', summary: 'Necesita contexto', detail: 'Falta un dato.', state: 'planning',
+          actor: { type: 'human' }, last_activity_at: '2026-09-21T11:42:00Z', stale_after_seconds: 3600, stale: false,
+          evidence: { total: 0, validations: 0, has_result: false, has_changes: false, has_human_gate: false },
+          recovery: { mode: 'operator_input', title: 'Envía el contexto que falta', detail: 'El agente espera tu respuesta.', action_id: 'open_control', requires_human_review: false },
+          available_actions: [], can_continue: true,
+        },
+      }}
+      connection="offline"
+      onOpen={onOpen}
+      onOpenConversation={onOpenConversation}
+    />)
+    expect(screen.getByText('Necesita tu contexto')).toBeInTheDocument()
+    expect(screen.queryByText('operator_input')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir conversación' }))
+    expect(onOpenConversation).toHaveBeenCalledOnce()
+    expect(onOpen).not.toHaveBeenCalled()
   })
 })

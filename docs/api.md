@@ -206,6 +206,18 @@ Response: `Moment[]` (unwrapped by fetcher).
 >
 > Note: dashboard guest lists use protected `GET /guests/all:<eventID>` through `eventGuestsPath(event.id)`.
 
+### Agent operations and history
+
+| Method | Path | Purpose and access |
+|---|---|---|
+| GET | `/automation/agents` | Platform-admin-only operational snapshot: profiles, recent instances, current runs, capacity, shared queue counts, and 30-day spend. It does not return prompts, credentials, local paths, private object references, or raw provider usage. |
+| GET | `/automation/agents/stream` | Authenticated SSE invalidation feed for that platform-wide snapshot. Events contain only `{ revision, generated_at }`; the dashboard reconnects with its bearer token and refetches the protected snapshot/history API. |
+| GET | `/automation/agents/:agentKey/history` | Cursor-paginated, allow-listed timeline for one profile: task lifecycle and assignment events, inference/tool ledger rows, plan-step events, and sanitized step activity. |
+
+History accepts `limit` (default 50, maximum 100), opaque `cursor`, RFC3339 `from` and exclusive `to`, plus `client_id`, `project_id`, `work_item_id`, `worker_id`, `machine_id`, `agent_instance_id`, `run_id`, `operation`, `status`, and `provider` filters. Use `automationAgentHistoryPath()` from `src/lib/api-paths.ts`; do not concatenate profile keys or cursor tokens into a URL yourself. The cursor is bound to the selected agent, workspace, actor, and filters. Identity filters correlate events but do not grant access: platform workspace requires a platform administrator; organization workspace is intersected with the selected organization, and non-platform callers also need access to the exact project.
+
+Timeline projections may contain fixed summaries, safe provider/model labels, token/cost totals, event/status transitions, and current/previous agent-instance correlation IDs. They must not expose prompts, raw model output or errors, object references, command arguments/output, file paths, credentials, or hidden reasoning. The agent directory stream is a global operations feed, not a substitute for tenant-scoped project or work-item APIs.
+
 ---
 
 ## New Endpoints Used (added)
@@ -255,6 +267,100 @@ The effective policy remains fail-closed if either field is absent or malformed.
 The worker later proves only whether those names exist for the configured
 repository, workflow, environment and exact commit SHA; this API never exposes
 the provider values or its complete environment inventory.
+### Delivery plan-step activity and inference accounting
+
+`GET /automation/plans/:planID/steps/:stepID/activity` returns cursor-paginated,
+authorized step activity. A terminal activity item with `action: "inference"`
+may include a top-level `inference` projection only when the server verifies
+its opaque call/receipt binding to the canonical accounting receipt. The
+projection is allow-listed: `receipt_id`, `provider`, `model`, `status`, input,
+output, cached-input, cache-write, reasoning and total token counts,
+`total_cost_microusd`, `currency`, and `pricing_basis`. The browser may display
+these accounting labels and counts; it must never display the receipt ID,
+prompts, model completion, provider response bodies, or private reasoning.
+
+When `inference` is absent, display accounting as “No disponible”; do not infer
+zero usage or cost. `pricing_basis: "unpriced"` also means cost is unavailable,
+even if the ledger's numeric amount is zero. Only a supported priced basis and
+USD currency permit rendering the recorded micro-USD total. No `call_id` is
+returned to the browser.
+
+### Delivery project configuration
+
+`PATCH /automation/projects/:projectId/context/:sourceId` updates an existing
+project context source without replacing its reference or changing any task's
+frozen snapshot. The dashboard uses it for repository architecture, environment
+branch/deployment/URL/promotion metadata, and project-specific runbook rules
+(technologies, Issues, branches, PR review, and release promotion). The backend
+merges only allowlisted fields, validates them, preserves untouched settings,
+and advances the runbook revision for future tasks.
+
+### Delivery project and portfolio costs
+
+`GET /automation/projects/:projectId/costs` is project-authorized and combines
+the agent and AI-tool execution ledgers. `summary`, `by_step`, and `by_work_item`
+include `unpriced_executions`; monetary fields are verified USD subtotals only
+and exclude rows with an unsupported currency or missing/legacy/unpriced basis.
+Work-item rows are cursor-paginated within the selected project.
+
+`GET /automation/portfolio` aggregates those same ledgers for projects visible
+to the caller. Its `totals` and each project expose lifetime
+`unpriced_executions` and `unpriced_executions_last_30_days`; `total_cost_microusd`
+and `cost_last_30_days_microusd` remain verified USD subtotals. A nonzero
+unpriced count means the subtotal is incomplete. During a rolling deployment,
+if an older response lacks the count, treat coverage as unknown even when the
+reported subtotal is zero; never present that as a confirmed zero total.
+
+### Automation cost explorer
+
+`GET /automation/costs` accepts `days` (1–365), `project_id`, active-membership
+`epic_id`, `work_item_id`, `step_key`, `agent_key`, `agent_instance_id`,
+`provider`, `model`, `page` (1–10,000), `page_size` (1–100), and an optional
+opaque `cursor`. These filters apply server-side to the summary, breakdowns,
+and recent execution ledger. Epic membership is matched with an existence
+check, so it cannot multiply cost totals. Cursor scope includes every selected
+filter and the authenticated workspace and actor. The recent rows include
+project, work-item, and agent attribution when the ledger has it; agent
+attribution is the value recorded with each execution, not the task's current
+mutable value.
+
+The first request can use offset pagination. Use its `recent_execution_page.next_cursor`
+for subsequent ledger pages; the response reports `mode`, `has_more`, and the
+next opaque cursor. Retain earlier cursor values client-side to navigate back.
+`budget_watch` and `task_budget_watch` are current portfolio guardrails and do
+not change with the date or dimension filters.
+
+### Recurrence schedule history
+
+The dashboard loads history on demand from the project- and schedule-scoped
+endpoints `GET /automation/projects/:projectId/schedules/:scheduleId/occurrences`
+and `GET /automation/projects/:projectId/schedules/:scheduleId/events`. Both
+endpoints require the normal authenticated project-view authorization; the
+server binds each response to the requested project and schedule. Pages use
+`limit` (1–100) and `offset` (0–10,000), with `next_offset` supplied by the
+server. The dashboard follows that offset and stops when the next page would
+exceed the supported window.
+
+Occurrence rows include schedule revision, scheduled/local time and timezone,
+status, optional `failure_code`, timestamps, and an optional work-item ID.
+Event rows include an allow-listed event type, timestamp, and optional related
+work-item ID. Although the event transport may contain `actor_subject`, the
+dashboard parser deliberately drops it and never displays the raw identity
+claim. A materialized occurrence means only that a work item was created in
+Planeación; it does not mean an agent executed or completed the work, and it
+does not bypass human review or workflow gates.
+
+### Project provider account usage
+
+`GET /automation/ai/projects/:projectId/provider-usage` returns the latest
+sanitized provider balance/quota capture for that project, or an empty
+`accounts` array before the first capture. `POST /automation/ai/projects/:projectId/provider-usage/refresh`
+requests a new capture and requires project-management permission. The backend resolves only that
+project's credentials; the response contains provider-reported units, never
+keys or raw provider bodies. DeepSeek and MiniMax are supported. OpenRouter
+credit queries remain unavailable until a separate management credential is
+implemented; its inference key is not reused. Refresh is the only UI action
+that contacts providers, so it is not triggered just by opening Settings.
 
 ## EventSection - SDUI fields
 When creating/updating sections, always send:

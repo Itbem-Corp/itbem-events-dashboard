@@ -43,12 +43,12 @@ export function OrganizationSwitcherTrigger({
       onFocus={onOpenIntent}
       onPointerEnter={onOpenIntent}
       aria-haspopup="dialog"
-      className="group flex min-h-16 w-full items-center gap-3 rounded-2xl border border-border-subtle bg-surface-interactive px-3 py-2.5 text-left transition-[border-color,background-color,transform] hover:border-border-strong hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) active:scale-[0.99] motion-reduce:transition-none"
+      className="group flex min-h-16 w-full items-center gap-3 rounded-xl border border-border-subtle bg-surface-interactive px-3 py-2.5 text-left shadow-sm transition-[border-color,background-color,transform,box-shadow] duration-200 hover:border-border-strong hover:bg-surface-soft hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) active:scale-[0.99] motion-reduce:transition-none"
     >
       <Avatar
         src={currentClient?.logo}
         initials={currentClient?.name?.substring(0, 2).toUpperCase() || (accessProfile.isPlatformContext ? 'PL' : 'OR')}
-        className="size-10 bg-(--tenant-accent) text-ink"
+        className="size-10 bg-surface-soft text-ink"
       />
       <span className="min-w-0 flex-1">
         <span className="block text-[10px] font-semibold tracking-[0.14em] text-ink-muted uppercase">

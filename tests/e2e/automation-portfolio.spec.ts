@@ -48,6 +48,29 @@ const portfolio = {
     }],
   }],
 }
+const portfolioWithTwoClients = {
+  ...portfolio,
+  totals: { ...portfolio.totals, projects: 2 },
+  projects: [
+    portfolio.projects[0],
+    {
+      ...portfolio.projects[0],
+      id: 'portfolio-e2e-second-project',
+      client_id: 'portfolio-e2e-second-client',
+      name: 'Aplicación secundaria',
+      client: { id: 'portfolio-e2e-second-client', name: 'Segundo cliente' },
+      work_item_count: 0,
+      active_work_items: 0,
+      decisions_required: 0,
+      blocked_work_items: 0,
+      automation_tasks: 0,
+      queued_tasks: 0,
+      running_tasks: 0,
+      attention_tasks: 0,
+      work_items: [],
+    },
+  ],
+}
 
 function envelope(data: unknown) {
   return { status: 200, contentType: 'application/json', body: JSON.stringify({ status: 200, data }) }
@@ -134,4 +157,25 @@ test('no oculta gates humanos cuando el agregado compacto se queda corto', async
   await expect(interventionQueue.getByRole('link', { name: 'Abrir gate' })).toHaveCount(2)
   await expect(page.getByText('Revisar plan de API')).toBeVisible()
   await expect(page.getByText('Validar QA de API')).toBeVisible()
+})
+
+test('conecta cada cliente con sus proyectos y conserva el filtro al navegar', async ({ page }) => {
+  await installFixtures(page, portfolioWithTwoClients)
+  await page.goto('/automation/clients')
+
+  const clientProjects = page.getByRole('group', { name: 'Proyectos de Cliente Demo' })
+  await expect(clientProjects).toBeVisible()
+  await expect(clientProjects.getByRole('link', { name: /Portal de operaciones/ })).toHaveAttribute('href', '/automation/projects/portfolio-e2e-project')
+  await clientProjects.getByRole('link', { name: 'Ver todos los proyectos de Cliente Demo' }).click()
+
+  await expect(page).toHaveURL(/\/automation\/projects\?client=portfolio-e2e-client$/)
+  await expect(page.getByLabel('Filtrar proyectos por cliente')).toHaveValue('portfolio-e2e-client')
+  await expect(page.getByText('Portal de operaciones')).toBeVisible()
+  await expect(page.getByText('Aplicación secundaria')).toHaveCount(0)
+  await expect(page.getByText(/Viendo proyectos de Cliente Demo/)).toBeVisible()
+
+  await page.getByLabel('Filtrar proyectos por cliente').selectOption('portfolio-e2e-second-client')
+  await expect(page).toHaveURL(/\/automation\/projects\?client=portfolio-e2e-second-client$/)
+  await expect(page.getByText('Aplicación secundaria')).toBeVisible()
+  await expect(page.getByText('Portal de operaciones')).toHaveCount(0)
 })

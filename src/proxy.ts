@@ -68,5 +68,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|automation-bridge|_next/static|_next/image|favicon.ico|eventiapp-icon.svg|images).*)'],
+  matcher: ['/((?!api|automation-bridge|_next/static|_next/image|favicon.ico|eventiapp-icon.svg|images|providers).*)'],
 }

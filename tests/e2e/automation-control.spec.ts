@@ -322,6 +322,30 @@ test.describe('Automation control surface', () => {
     await test.info().attach('automation-control-evidence', { path: evidenceScreenshotPath, contentType: 'image/png' })
   })
 
+  test('mantiene pulso, consumo y última evidencia en Trabajo con acceso directo al detalle', async ({ page }) => {
+    await installAutomationFixtures(page)
+    await page.goto(`/automation/work-items/${WORK_ITEM_ID}`)
+
+    await expect(page.getByRole('region', { name: 'Pipeline de entrega en vivo' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Consumo de IA de esta tarea' })).toContainText('$0.00007')
+    await expect(page.getByRole('region', { name: 'Consumo de IA de esta tarea' })).toContainText('Conversación')
+    await expect(page.getByRole('region', { name: 'Consumo de IA de esta tarea' })).toContainText('Implementación')
+    await expect(page.getByRole('region', { name: 'Evidencia de esta tarea' })).toContainText('QA local · 1208 pruebas')
+    await expect(page.getByRole('region', { name: 'Evidencia de esta tarea' })).toContainText('Resultado de prueba registrado')
+    await expect(page.getByText('Cronología detallada · eventos, intentos y dependencias')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Abrir evidencia' }).click()
+    await expect(page.getByRole('tab', { name: /Evidencia/ })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByRole('heading', { name: 'Resultado y evidencia del trabajo' })).toBeVisible()
+
+    await page.getByRole('tab', { name: 'Trabajo' }).click()
+    await page.getByRole('button', { name: 'Ver límites y llamadas' }).click()
+    await expect(page.getByRole('tab', { name: /Actividad/ })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByText('Uso y límites')).toBeVisible()
+    await expect(page.getByText('Implementación', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Conversación con el agente' })).toBeVisible()
+  })
+
   test('explica un preview desactualizado y bloquea el avance multirrepositorio', async ({ page }) => {
     await installAutomationFixtures(page, { item: stalePreviewItem })
     await page.goto(`/automation/work-items/${WORK_ITEM_ID}?view=control`)

@@ -31,6 +31,20 @@ describe('SidebarLayout', () => {
     expect(document.querySelector('aside[aria-label="Navegación principal"]')).toHaveAttribute('aria-hidden', 'true')
   })
 
+  it('uses compositor-friendly motion without a blurred mobile backdrop', () => {
+    render(
+      <SidebarLayout navbar={<span>Barra</span>} sidebar={<button type="button">Cambiar organización</button>}>
+        Contenido
+      </SidebarLayout>
+    )
+
+    const aside = document.querySelector('aside[aria-label="Navegación principal"]')
+    const backdrop = screen.getByRole('button', { name: 'Cerrar menú lateral', hidden: true })
+    expect(aside).toHaveClass('transition-transform', 'duration-[220ms]')
+    expect(backdrop).toHaveClass('transition-opacity', 'duration-150')
+    expect(backdrop).not.toHaveClass('backdrop-blur-sm')
+  })
+
   it('opens on mobile, closes with Escape, and restores focus', async () => {
     render(
       <SidebarLayout navbar={<span>Barra</span>} sidebar={<button type="button">Cambiar organización</button>}>

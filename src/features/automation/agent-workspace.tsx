@@ -46,6 +46,8 @@ export function AgentWorkspace({ item, streamStatus, onSend, onInspect, onReview
   const blockedReason = item.blocked_reason?.trim()
   const connectionLabel = state.closed
     ? 'Historial'
+    : state.awaitingHumanDecision
+      ? 'Decisión pendiente'
     : (
         {
           live: 'Canal en vivo',
@@ -58,6 +60,8 @@ export function AgentWorkspace({ item, streamStatus, onSend, onInspect, onReview
       )[streamStatus]
   const connectionDotClass = state.closed
     ? 'bg-zinc-400'
+    : state.awaitingHumanDecision
+      ? 'bg-amber-500'
     : ({
         live: 'bg-emerald-500',
         connecting: 'bg-amber-500',

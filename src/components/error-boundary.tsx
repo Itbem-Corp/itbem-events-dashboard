@@ -9,7 +9,7 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
+  { children: React.ReactNode; resetKey?: string },
   ErrorBoundaryState
 > {
   constructor(props: { children: React.ReactNode }) {
@@ -23,6 +23,14 @@ export class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('[ErrorBoundary]', error, info)
+  }
+
+  componentDidUpdate(previousProps: Readonly<{ children: React.ReactNode; resetKey?: string }>) {
+    // A rendering failure on one route must not leave the persistent app shell
+    // permanently stuck when the user navigates to a healthy screen.
+    if (this.state.hasError && previousProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: undefined })
+    }
   }
 
   render() {

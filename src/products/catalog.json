@@ -33,7 +33,7 @@
     "identity": {
       "name": "ITBEM",
       "productLabel": "Business operations",
-      "accent": "#22d3ee"
+      "accent": "#3f4650"
     },
     "deployment": {
       "organizationCode": "itbem",

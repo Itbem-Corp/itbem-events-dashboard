@@ -3,14 +3,6 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { BottomSheet, SheetRow } from '@/components/ui/bottom-sheet'
 
-vi.mock('motion/react', () => ({
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  motion: {
-    div: ({ children, initial: _i, animate: _a, exit: _e, transition: _t, ...props }: React.HTMLAttributes<HTMLDivElement> & { initial?: unknown; animate?: unknown; exit?: unknown; transition?: unknown }) =>
-      <div {...props}>{children}</div>,
-  },
-}))
-
 describe('BottomSheet', () => {
   it('renders children when open', () => {
     render(
@@ -48,6 +40,18 @@ describe('BottomSheet', () => {
       </BottomSheet>
     )
     expect(screen.getByText('Más acciones')).toBeInTheDocument()
+  })
+
+  it('uses a semantic dialog and closes with Escape', () => {
+    const onClose = vi.fn()
+    render(
+      <BottomSheet isOpen onClose={onClose} title="Más acciones">
+        <div>content</div>
+      </BottomSheet>
+    )
+    expect(screen.getByRole('dialog', { name: 'Más acciones' })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })
 

@@ -1,5 +1,15 @@
 import {
   apiPath,
+  automationAgentHistoryPath,
+  automationAgentInstancePath,
+  automationAgentInstancesPath,
+  automationAgentsStreamPath,
+  automationDispatchQueuePath,
+  automationTraceHistoryPath,
+  automationCostsPath,
+  automationProjectProviderCredentialPath,
+  automationProjectProviderUsagePath,
+  automationProjectProviderUsageRefreshPath,
   automationTaskRetryCodeReviewPath,
   automationTaskRunArtifactPath,
   batchGuestsPath,
@@ -91,6 +101,70 @@ import {
 import { describe, expect, it } from 'vitest'
 
 describe('api-paths', () => {
+  it('builds a cursor-paginated dispatch queue query without inventing mutation endpoints', () => {
+    expect(automationDispatchQueuePath({ page_size: 25, cursor: 'opaque + cursor', status: 'queued', project_id: 'project / 1', agent_key: 'frontend-specialist' }))
+      .toBe('/automation/dispatch/queue?page_size=25&cursor=opaque+%2B+cursor&status=queued&project_id=project+%2F+1&agent_key=frontend-specialist')
+    expect(automationDispatchQueuePath()).toBe('/automation/dispatch/queue')
+  })
+  it('builds the machine identity registry paths without changing the API boundary', () => {
+    expect(automationAgentInstancesPath()).toBe('/automation/agent-instances')
+    expect(automationAgentInstancePath('instance / 1')).toBe('/automation/agent-instances/instance%20%2F%201')
+  })
+
+  it('builds a scoped agent-directory stream path with only selected non-empty filters', () => {
+    expect(automationAgentsStreamPath()).toBe('/automation/agents/stream')
+    expect(automationAgentsStreamPath({ client_id: ' client-1 ', project_id: '' })).toBe(
+      '/automation/agents/stream?client_id=client-1',
+    )
+    expect(automationAgentsStreamPath({ client_id: 'client-1', project_id: 'project-1' })).toBe(
+      '/automation/agents/stream?client_id=client-1&project_id=project-1',
+    )
+    expect(automationAgentsStreamPath({ client_id: null, project_id: 'project-1' })).toBe(
+      '/automation/agents/stream?project_id=project-1',
+    )
+  })
+
+  it('builds an encoded, cursor-paginated agent history path with server-side filters', () => {
+    expect(automationAgentHistoryPath('generalist / 1', {
+      limit: 50,
+      cursor: 'opaque + cursor',
+      project_id: 'project / 1',
+      agent_instance_id: 'instance-id',
+    })).toBe(
+      '/automation/agents/generalist%20%2F%201/history?limit=50&cursor=opaque+%2B+cursor&project_id=project+%2F+1&agent_instance_id=instance-id',
+    )
+  })
+
+  it('builds one global trace query with hierarchy, worker, time, and snapshot cursor filters', () => {
+    expect(automationTraceHistoryPath({
+      client_id: 'client-1',
+      q: 'worker + gate',
+      epic_id: 'epic-1',
+      step_key: 'build',
+      agent_key: 'generalist',
+      tool: 'agent_loop',
+      from: '2026-09-01T00:00:00Z',
+      limit: 50,
+      cursor: 'opaque+cursor',
+      snapshot_at: '2026-09-24T15:00:00Z',
+    })).toBe('/automation/traces?client_id=client-1&q=worker+%2B+gate&epic_id=epic-1&step_key=build&agent_key=generalist&tool=agent_loop&from=2026-09-01T00%3A00%3A00Z&limit=50&cursor=opaque%2Bcursor&snapshot_at=2026-09-24T15%3A00%3A00Z')
+  })
+
+  it('builds a provider credential path scoped to one project', () => {
+    expect(automationProjectProviderCredentialPath('project / 1', 'openrouter/model')).toBe(
+      '/automation/ai/projects/project%20%2F%201/providers/openrouter%2Fmodel/credential'
+    )
+  })
+
+  it('builds project-scoped provider usage read and refresh paths', () => {
+    expect(automationProjectProviderUsagePath('project / 1')).toBe(
+      '/automation/ai/projects/project%20%2F%201/provider-usage'
+    )
+    expect(automationProjectProviderUsageRefreshPath('project / 1')).toBe(
+      '/automation/ai/projects/project%20%2F%201/provider-usage/refresh'
+    )
+  })
+
   it('builds the explicit code-review retry path without accepting a raw identifier', () => {
     expect(automationTaskRetryCodeReviewPath('task / 1')).toBe('/automation/tasks/task%20%2F%201/retry-code-review')
   })
@@ -105,6 +179,33 @@ describe('api-paths', () => {
     expect(apiPath('/clients/members', { client_id: 'client 1', empty: '', page: 2 })).toBe(
       '/clients/members?client_id=client+1&page=2'
     )
+  })
+
+  it('builds server-filtered automation cost queries and encodes cursor tokens', () => {
+    expect(automationCostsPath({
+      days: 90,
+      snapshot_at: '2026-09-24T12:00:00Z',
+      client_id: 'client a',
+      project_id: 'project / 1',
+      work_item_id: 'work item',
+      agent_key: 'implementation-agent',
+      provider: 'openrouter',
+      model: 'vendor/model:cheap',
+      page: 2,
+      page_size: 40,
+      cursor: 'opaque + cursor',
+      work_item_limit: 7,
+      work_item_cursor: 'opaque work-item + cursor',
+    })).toBe('/automation/costs?days=90&page=2&page_size=40&work_item_limit=7&snapshot_at=2026-09-24T12%3A00%3A00Z&client_id=client+a&project_id=project+%2F+1&work_item_id=work+item&agent_key=implementation-agent&provider=openrouter&model=vendor%2Fmodel%3Acheap&cursor=opaque+%2B+cursor&work_item_cursor=opaque+work-item+%2B+cursor')
+    expect(automationCostsPath(7, 2, 25)).toBe('/automation/costs?days=7&page=2&page_size=25')
+  })
+
+  it('supports an explicit timestamp window for automation cost queries', () => {
+    expect(automationCostsPath({
+      days: 30,
+      from_at: '2026-09-01T06:00:00.000Z',
+      to_at: '2026-09-26T06:00:00.000Z',
+    })).toBe('/automation/costs?days=30&page=1&page_size=40&work_item_limit=20&from_at=2026-09-01T06%3A00%3A00.000Z&to_at=2026-09-26T06%3A00%3A00.000Z')
   })
 
   it('supports repeated query params from arrays', () => {

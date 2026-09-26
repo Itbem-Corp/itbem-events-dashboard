@@ -1,6 +1,14 @@
 'use client'
 import { deliveryStateLabels } from '@/features/automation/delivery-presentation'
 import { ProjectPreparation } from '@/features/automation/project-preparation'
+import { ProjectContextConfiguration } from '@/features/automation/project-context-configuration'
+import { ProjectProviderCredentials } from '@/features/automation/project-provider-credentials'
+import { RequestTaskBreakdown } from '@/features/automation/request-task-breakdown'
+import { groupProjectWork, type ProjectWorkGroup } from '@/features/automation/project-work-groups'
+import { projectCostAmountLabel, projectCostCoverage, projectCostCoverageNote } from '@/features/automation/project-cost-coverage'
+import { ProjectEpicsPanel } from '@/features/automation/project-epics-panel'
+import { ProjectActivityTimeline } from '@/features/automation/project-activity-timeline'
+import { deliveryProjectEpicsPagePath, type DeliveryEpicListPage } from '@/features/automation/delivery-epics'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -38,6 +46,7 @@ import {
   deliveryWorkItemAgentRunsPath,
 } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
+import { useStore } from '@/store/useStore'
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -53,6 +62,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { FormEvent, useRef, useState } from 'react'
 import useSWR from 'swr'
+import useSWRInfinite from 'swr/infinite'
 
 const contextKinds = [
   'repository',
@@ -63,6 +73,15 @@ const contextKinds = [
   'runbook',
   'environment',
 ] as const
+const contextKindLabels: Record<(typeof contextKinds)[number], string> = {
+  repository: 'Repositorio',
+  document: 'Documento',
+  design: 'Diseño',
+  client_conversation: 'Conversación del cliente',
+  decision: 'Decisión',
+  runbook: 'Forma de trabajo',
+  environment: 'Ambiente',
+}
 
 // A product can be one delivery project while spanning several repositories.
 // This describes the operational surface of each repository; it is distinct
@@ -92,6 +111,14 @@ function list(value: string) {
 }
 
 const stateLabel = deliveryStateLabels
+const epicStatusLabels: Record<string, string> = {
+  planned: 'Planeada',
+  active: 'Activa',
+  blocked: 'Bloqueada',
+  completed: 'Completada',
+  cancelled: 'Cancelada',
+  archived: 'Archivada',
+}
 
 function displayDate(value?: string) {
   const parsed = value ? new Date(value) : null
@@ -118,6 +145,19 @@ function contextMetadata(value: unknown): Record<string, unknown> {
   } catch {
     return {}
   }
+}
+
+function projectMetadataText(metadata: Record<string, unknown> | undefined, key: string) {
+  const value = metadata?.[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function environmentDeploymentLabel(value: unknown) {
+  if (value === 'automatic') return 'Automático · configurado'
+  if (value === 'manual') return 'Manual · configurado'
+  if (value === 'none') return 'Despliegue desactivado · configurado'
+  if (typeof value === 'string' && value.trim()) return `Valor registrado: ${value.trim()}`
+  return 'Sin definir'
 }
 
 function isWorkspaceRepository(source: DeliveryContextSource) {
@@ -344,7 +384,7 @@ function usdFromMicros(value?: number) {
 }
 
 type DeliveryProjectCosts = {
-  summary: CostLedgerTotals & { executions: number; work_items: number }
+  summary: CostLedgerTotals & { executions: number; work_items: number; unpriced_executions?: number }
   by_step: Array<
     CostLedgerTotals & {
       key: string
@@ -352,9 +392,20 @@ type DeliveryProjectCosts = {
       tool?: string
       executions: number
       work_items: number
+      unpriced_executions?: number
     }
   >
-  by_work_item: Array<CostLedgerTotals & { work_item_id: string; work_item_title: string; executions: number }>
+  by_work_item: Array<CostLedgerTotals & { work_item_id: string; work_item_title: string; executions: number; unpriced_executions?: number }>
+  by_work_item_limit?: number
+  by_work_item_next_cursor?: string | null
+}
+
+const projectCostWorkItemPageSize = 5
+
+function deliveryProjectCostsPagePath(projectId: string | number, cursor?: string | null) {
+  const params = new URLSearchParams({ limit: String(projectCostWorkItemPageSize) })
+  if (cursor) params.set('cursor', cursor)
+  return `${deliveryProjectCostsPath(projectId)}?${params.toString()}`
 }
 
 type DeliveryWorkspaceReadiness = {
@@ -455,7 +506,8 @@ function workItemNeedsAttention(workItem: DeliveryWorkItem) {
   if (hasCancellationRequest(workItem.automation_tasks ?? [])) return false
   return (
     workItem.state === 'blocked' ||
-    hasUnresolvedTaskFailure(workItem.automation_tasks ?? [])
+    hasUnresolvedTaskFailure(workItem.automation_tasks ?? []) ||
+    workItem.workflow_projection?.recovery?.mode === 'operator_input'
   )
 }
 
@@ -500,6 +552,30 @@ function workItemPhase(state: string) {
   return 3
 }
 
+function ProjectTaskLink({ workItem }: { workItem: DeliveryWorkItem }) {
+  const phase = deliveryPhases[workItemPhase(workItem.state)]
+  return <Link href={`/automation/work-items/${workItem.id}`} className="group flex gap-3 rounded-2xl px-4 py-3 transition hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)">
+    <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-(--tenant-accent)/10 text-(--tenant-accent)"><CheckCircleIcon className="size-4" /></span>
+    <span className="min-w-0 flex-1">
+      <span className="flex flex-wrap items-center gap-2"><span className="font-semibold text-ink">{workItem.title}</span><Badge color={workItemOperationalTone(workItem)}>{workItemOperationalLabel(workItem)}</Badge></span>
+      <span className="mt-1 line-clamp-2 block text-sm text-ink-muted">{workItem.expected_outcome}</span>
+      <span className="mt-2 block text-xs text-ink-secondary">{phase?.label ?? 'Entrega'} · paso {workItem.state === 'released' ? 4 : workItemPhase(workItem.state) + 1} de 4{(workItem.dependencies?.length ?? 0) > 0 ? ` · ${workItem.dependencies?.length} dependencia${workItem.dependencies?.length === 1 ? '' : 's'}` : ''}</span>
+    </span>
+    <ArrowRightIcon className="mt-2 size-4 shrink-0 text-ink-muted transition group-hover:translate-x-0.5 group-hover:text-(--tenant-accent)" />
+  </Link>
+}
+
+function ProjectRequestGroup({ group }: { group: ProjectWorkGroup }) {
+  const [open, setOpen] = useState(() => group.tasks.some((task) => !completedStates.has(task.state)))
+  return <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)} className="group rounded-2xl border border-border-subtle bg-surface-raised">
+    <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--tenant-accent)">
+      <span className="min-w-0"><span className="block text-[11px] font-semibold tracking-[.12em] text-ink-muted uppercase">Solicitud de origen</span><span className="mt-1 block truncate text-sm font-semibold text-ink">{group.request.title}</span><span className="mt-1 block text-xs text-ink-muted">{group.completed} de {group.tasks.length} tareas entregadas</span></span>
+      <ChevronDownIcon className="size-4 shrink-0 text-ink-muted transition group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+    </summary>
+    <ul className="divide-y divide-border-subtle border-t border-border-subtle px-1 py-1">{group.tasks.map((workItem) => <li key={workItem.id}><ProjectTaskLink workItem={workItem} /></li>)}</ul>
+  </details>
+}
+
 function taskPulseTone(status: string) {
   if (status === 'completed') return 'bg-emerald-500'
   if (status === 'failed' || status === 'dispatch_failed') return 'bg-rose-500'
@@ -512,22 +588,44 @@ export default function DeliveryProjectDetailPage() {
   const params = useParams<{ projectId: string }>()
   const router = useRouter()
   const projectId = params.projectId
+  const applicationSession = useStore((state) => state.applicationSession)
   const project = useSWR<DeliveryProject>(projectId ? deliveryProjectPath(projectId) : null, fetcher, {
     refreshInterval: 12_000,
     dedupingInterval: 4_000,
     revalidateOnFocus: true,
     keepPreviousData: true,
   })
+  const epics = useSWR<DeliveryEpicListPage>(
+    projectId ? deliveryProjectEpicsPagePath(projectId, { limit: 100 }) : null,
+    fetcher
+  )
   const [memoryOpen, setMemoryOpen] = useState(false)
   const [operationsOpen, setOperationsOpen] = useState(false)
+  const [projectContextOpen, setProjectContextOpen] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [repositoryMapOpen, setRepositoryMapOpen] = useState(false)
   const budget = useSWR<DeliveryProjectBudget>(
     projectId && (memoryOpen || operationsOpen) ? deliveryProjectBudgetPath(projectId) : null,
     fetcher
   )
-  const costs = useSWR<DeliveryProjectCosts>(
-    projectId && (memoryOpen || operationsOpen) ? deliveryProjectCostsPath(projectId) : null,
-    fetcher
+  const costs = useSWRInfinite<DeliveryProjectCosts>(
+    (pageIndex, previousPage) => {
+      if (!projectId || !(memoryOpen || operationsOpen)) return null
+      if (pageIndex > 0 && !previousPage?.by_work_item_next_cursor) return null
+      return deliveryProjectCostsPagePath(
+        projectId,
+        pageIndex > 0 ? previousPage?.by_work_item_next_cursor : null,
+      )
+    },
+    fetcher,
+    {
+      initialSize: 1,
+      persistSize: false,
+      dedupingInterval: 5_000,
+      revalidateOnFocus: true,
+      revalidateFirstPage: true,
+      revalidateAll: false,
+    }
   )
   const runtime = useSWR<AutomationRuntimeHealth>(
     operationsOpen ? automationHealthPath() : null,
@@ -538,6 +636,34 @@ export default function DeliveryProjectDetailPage() {
     projectId && (memoryOpen || operationsOpen) ? deliveryProjectPublicationReadinessPath(projectId) : null,
     fetcher
   )
+  const costPages = costs.data ?? []
+  const costSummary = costPages[0]
+  const costWorkItems = costPages.flatMap((page) => page.by_work_item ?? [])
+  const lastCostPage = costPages.at(-1)
+  const hasMoreCostWorkItems = Boolean(lastCostPage?.by_work_item_next_cursor)
+  const costPageFailed = Boolean(costs.error && costPages.length < costs.size)
+  const summaryCostCoverage = projectCostCoverage({
+    executions: costSummary?.summary.executions,
+    unpricedExecutions: costSummary?.summary.unpriced_executions,
+    totalCostMicros: costSummary?.summary.total_cost_microusd,
+  })
+  const summaryCostCoverageNote = projectCostCoverageNote(summaryCostCoverage)
+  const costStepRows = (costSummary?.by_step ?? []).slice(0, 5).map((step) => {
+    const coverage = projectCostCoverage({
+      executions: step.executions,
+      unpricedExecutions: step.unpriced_executions,
+      totalCostMicros: step.total_cost_microusd,
+    })
+    return { step, coverage, coverageNote: projectCostCoverageNote(coverage) }
+  })
+  const costWorkItemRows = costWorkItems.map((workItem) => {
+    const coverage = projectCostCoverage({
+      executions: workItem.executions,
+      unpricedExecutions: workItem.unpriced_executions,
+      totalCostMicros: workItem.total_cost_microusd,
+    })
+    return { workItem, coverage, coverageNote: projectCostCoverageNote(coverage) }
+  })
   const activeWorkItemForStream = prioritizedWorkItem(project.data?.work_items ?? [])
   const projectStream = useDeliveryWorkItemStream(activeWorkItemForStream?.id, {
     // Administration is progressive disclosure, not a different experience: the
@@ -557,10 +683,21 @@ export default function DeliveryProjectDetailPage() {
     repositoryResponsibility: '',
     dependsOnRepositories: '',
     componentScopes: '',
+    environmentBranch: '',
+    environmentDeployment: 'none',
+    environmentUrl: '',
+    environmentPromotion: '',
+    workflowTechnologies: '',
+    workflowIssues: '',
+    workflowBranches: '',
+    workflowPullRequests: '',
+    workflowRelease: '',
   })
   const [task, setTask] = useState({
     requestId: '',
+    epicId: '',
     contextSourceIds: [] as string[],
+    primaryRepositorySourceId: '',
     dependsOnWorkItemIds: [] as string[],
     title: '',
     description: '',
@@ -577,10 +714,16 @@ export default function DeliveryProjectDetailPage() {
     expectedOutcome: '',
     constraints: '',
   })
+  const [requestPrimaryByID, setRequestPrimaryByID] = useState<Record<string, string>>({})
   const [quickIntent, setQuickIntent] = useState('')
   const [intentOpen, setIntentOpen] = useState(false)
   const [member, setMember] = useState({ email: '', role: 'viewer' })
-  const operationsSummaryRef = useRef<HTMLElement | null>(null)
+  const operationsSummaryRef = useRef<HTMLButtonElement | null>(null)
+  const projectContextHeadingRef = useRef<HTMLHeadingElement | null>(null)
+  const projectContextDetailsRef = useRef<HTMLDetailsElement | null>(null)
+  const contextFormRef = useRef<HTMLFormElement | null>(null)
+  const taskFormRef = useRef<HTMLFormElement | null>(null)
+  const taskContextRef = useRef<HTMLFieldSetElement | null>(null)
   const intentFieldRef = useRef<HTMLTextAreaElement | null>(null)
   const [submitting, setSubmitting] = useState<
     'budget' | 'context' | 'architecture' | 'refresh' | 'fetch-remote' | 'request' | 'task' | 'member' | null
@@ -589,12 +732,36 @@ export default function DeliveryProjectDetailPage() {
 
   function showProjectOperations() {
     setOperationsOpen(true)
-    requestAnimationFrame(() => {
+    setProjectContextOpen(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (projectContextDetailsRef.current) projectContextDetailsRef.current.open = true
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      const summary = operationsSummaryRef.current
-      summary?.focus({ preventScroll: true })
-      summary?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
-    })
+      const target = projectContextHeadingRef.current ?? operationsSummaryRef.current
+      target?.focus({ preventScroll: true })
+      target?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+    }))
+  }
+
+  function showEnvironmentSetup() {
+    setContext((current) => ({ ...current, kind: 'environment' }))
+    setOperationsOpen(true)
+    setAdvancedOpen(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      contextFormRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+      contextFormRef.current?.querySelector('input')?.focus({ preventScroll: true })
+    }))
+  }
+
+  function showWorkflowSetup() {
+    setContext((current) => ({ ...current, kind: 'runbook' }))
+    setOperationsOpen(true)
+    setAdvancedOpen(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      contextFormRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+      contextFormRef.current?.querySelector('input')?.focus({ preventScroll: true })
+    }))
   }
 
   function showRemainingInterventions() {
@@ -608,21 +775,51 @@ export default function DeliveryProjectDetailPage() {
     })
   }
 
+  function showProjectTasks() {
+    setOperationsOpen(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      document.getElementById('project-task-groups')?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+    }))
+  }
+
   function openProjectIntent() {
     setIntentOpen(true)
     requestAnimationFrame(() => intentFieldRef.current?.focus())
   }
 
+  function openStandaloneTask() {
+    setOperationsOpen(true)
+    setProjectContextOpen(true)
+    setAdvancedOpen(true)
+    setTask(current => current.requestId ? { ...current, requestId: '' } : current)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (projectContextDetailsRef.current) projectContextDetailsRef.current.open = true
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      taskFormRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+      const firstContext = taskContextRef.current?.querySelector<HTMLInputElement>('input[type="checkbox"]:not(:disabled)')
+      const initialField = firstContext ?? taskFormRef.current?.querySelector<HTMLInputElement>('input[required]')
+      initialField?.focus({ preventScroll: true })
+    }))
+  }
+
   async function addContext(event: FormEvent) {
     event.preventDefault()
+    if (context.kind === 'runbook' && ![
+      context.workflowTechnologies, context.workflowIssues, context.workflowBranches,
+      context.workflowPullRequests, context.workflowRelease, context.excerpt,
+    ].some((value) => value.trim())) {
+      setMessage('Describe al menos una regla o tecnología antes de guardar la forma de trabajo.')
+      return
+    }
     setSubmitting('context')
     setMessage('')
     try {
       await api.post(deliveryProjectContextPath(projectId), {
         kind: context.kind,
         name: context.name.trim(),
-        reference: context.reference.trim(),
-        revision: context.revision.trim(),
+        reference: context.kind === 'runbook' ? `workflow://${projectId}/${crypto.randomUUID()}` : context.reference.trim(),
+        revision: context.kind === 'runbook' ? 'v1' : context.revision.trim(),
         metadata: {
           ...(context.excerpt.trim() ? { excerpt: context.excerpt.trim() } : {}),
           ...(context.kind === 'repository'
@@ -640,6 +837,23 @@ export default function DeliveryProjectDetailPage() {
                   : {}),
               }
             : {}),
+          ...(context.kind === 'environment'
+            ? {
+                branch: context.environmentBranch.trim(),
+                deployment: context.environmentDeployment,
+                ...(context.environmentUrl.trim() ? { url: context.environmentUrl.trim() } : {}),
+                ...(context.environmentPromotion.trim() ? { promotion: context.environmentPromotion.trim() } : {}),
+              }
+            : {}),
+          ...(context.kind === 'runbook'
+            ? {
+                ...(context.workflowTechnologies.trim() ? { technologies: context.workflowTechnologies.trim() } : {}),
+                ...(context.workflowIssues.trim() ? { issue_workflow: context.workflowIssues.trim() } : {}),
+                ...(context.workflowBranches.trim() ? { branch_workflow: context.workflowBranches.trim() } : {}),
+                ...(context.workflowPullRequests.trim() ? { pull_request_workflow: context.workflowPullRequests.trim() } : {}),
+                ...(context.workflowRelease.trim() ? { release_workflow: context.workflowRelease.trim() } : {}),
+              }
+            : {}),
         },
       })
       setContext({
@@ -653,6 +867,15 @@ export default function DeliveryProjectDetailPage() {
         repositoryResponsibility: '',
         dependsOnRepositories: '',
         componentScopes: '',
+        environmentBranch: '',
+        environmentDeployment: 'none',
+        environmentUrl: '',
+        environmentPromotion: '',
+        workflowTechnologies: '',
+        workflowIssues: '',
+        workflowBranches: '',
+        workflowPullRequests: '',
+        workflowRelease: '',
       })
       setMessage('Fuente de contexto guardada. Las siguientes tareas congelarán esta revisión.')
       await project.mutate()
@@ -782,7 +1005,9 @@ export default function DeliveryProjectDetailPage() {
     try {
       await api.post(deliveryProjectWorkItemsPath(projectId), {
         request_id: task.requestId || undefined,
+        ...(task.epicId ? { epic_id: task.epicId } : {}),
         context_source_ids: task.contextSourceIds,
+        primary_repository_source_id: taskPrimaryRepositorySourceID || undefined,
         depends_on_work_item_ids: task.dependsOnWorkItemIds,
         title: task.title.trim(),
         description: task.description.trim(),
@@ -795,7 +1020,9 @@ export default function DeliveryProjectDetailPage() {
       })
       setTask({
         requestId: '',
+        epicId: '',
         contextSourceIds: [],
+        primaryRepositorySourceId: '',
         dependsOnWorkItemIds: [],
         title: '',
         description: '',
@@ -805,10 +1032,14 @@ export default function DeliveryProjectDetailPage() {
         acceptance: '',
         budgetUsd: '',
       })
-      setMessage('Tarea creada con un snapshot del contexto que seleccionaste.')
-      await project.mutate()
+      setMessage(
+        task.epicId
+          ? 'Tarea creada con una copia inmutable del contexto de la épica y las reglas operativas del proyecto.'
+          : 'Tarea creada con el contexto seleccionado y las reglas operativas listas del proyecto.'
+      )
+      void project.mutate()
     } catch {
-      setMessage('No se pudo crear la tarea. Agrega contexto listo y define un resultado esperado.')
+      setMessage('No pudimos confirmar la creación de la tarea. Revisa la lista de trabajo antes de reintentar para evitar duplicados.')
     } finally {
       setSubmitting(null)
     }
@@ -881,6 +1112,7 @@ export default function DeliveryProjectDetailPage() {
       const created = await api.post(deliveryProjectWorkItemsPath(projectId), {
         request_id: sourceRequest.id,
         context_source_ids: sourceIDs,
+        primary_repository_source_id: requestPrimaryID(sourceRequest.id),
         title: sourceRequest.title,
         description: sourceRequest.body,
         expected_outcome: sourceRequest.expected_outcome,
@@ -889,11 +1121,19 @@ export default function DeliveryProjectDetailPage() {
         acceptance_criteria: [],
       })
       const workItem = readApiData<{ id: string }>(created.data)
-      await api.post(deliveryWorkItemAgentRunsPath(workItem.id), {
-        phase: 'plan',
-        instructions:
-          'Propón un plan completo y estructurado. Declara el contexto que usaste, vacíos, riesgos, límites de autonomía, pruebas y evidencia. No implementes ni publiques cambios.',
-      })
+      try {
+        await api.post(deliveryWorkItemAgentRunsPath(workItem.id), {
+          phase: 'plan',
+          instructions:
+            'Propón un plan completo y estructurado. Declara el contexto que usaste, vacíos, riesgos, límites de autonomía, pruebas y evidencia. No implementes ni publiques cambios.',
+        })
+      } catch {
+        // The work item already exists. Keep its identity and send the operator
+        // there instead of implying that the request can safely be retried.
+        router.push(`/automation/work-items/${workItem.id}?from_project=${encodeURIComponent(projectId)}&plan_dispatch=failed`)
+        void project.mutate()
+        return
+      }
       router.push(`/automation/work-items/${workItem.id}?from_project=${encodeURIComponent(projectId)}`)
       // The work item is now durable and its plan run is queued. Move the
       // operator to the control surface immediately; revalidation is
@@ -902,7 +1142,7 @@ export default function DeliveryProjectDetailPage() {
       void project.mutate()
     } catch {
       setMessage(
-        'No se pudo preparar el plan. La solicitud sigue intacta; revisa que el contexto esté listo e inténtalo de nuevo.'
+        'No pudimos confirmar la creación de la tarea. Revisa la lista de trabajo antes de reintentar para evitar duplicados.'
       )
     } finally {
       setSubmitting(null)
@@ -988,7 +1228,14 @@ export default function DeliveryProjectDetailPage() {
       </div>
     )
   const item = project.data
+  // SWR may briefly keep the previous response when the route changes. Never
+  // scope project credentials from that stale record under a different URL ID.
+  const loadedProjectIdForCredentials = item.id === projectId ? item.id : ''
   const contexts = (item.context ?? []).map((source) => ({ ...source, metadata: contextMetadata(source.metadata) }))
+  const selectedTaskWorkspaces = contexts.filter((source) => task.contextSourceIds.includes(source.id) && source.kind === 'repository' && isWorkspaceRepository(source))
+  const taskPrimaryRepositorySourceID = selectedTaskWorkspaces.find((source) => source.id === task.primaryRepositorySourceId)?.id
+    ?? selectedTaskWorkspaces.find((source) => source.metadata?.repository_role === 'primary')?.id
+    ?? selectedTaskWorkspaces[0]?.id
   const members = item.members ?? []
   const requests = item.requests ?? []
   const workItems = item.work_items ?? []
@@ -996,9 +1243,27 @@ export default function DeliveryProjectDetailPage() {
   const visibleRepositories = repositoryMapOpen ? repositories : repositories.slice(0, 3)
   const repositoryNameByReference = new Map(repositories.map((source) => [source.reference, source.name]))
   const environments = contexts.filter((source) => source.kind === 'environment')
+  const workflowGuides = contexts.filter((source) => source.kind === 'runbook')
+  const releaseWorkflowGuides = workflowGuides.filter((source) => projectMetadataText(source.metadata, 'release_workflow'))
   const decisions = contexts.filter((source) => source.kind === 'decision')
   const repositoryReferences = new Set(repositories.map((source) => source.reference))
   const localWorkspaceRepositories = repositories.filter(isWorkspaceRepository)
+  const defaultTaskRepositoryID = localWorkspaceRepositories.find((source) => source.metadata?.repository_role === 'primary')?.id
+    ?? localWorkspaceRepositories[0]?.id
+  const requestPrimaryID = (requestID: string) =>
+    localWorkspaceRepositories.find((source) => source.id === requestPrimaryByID[requestID])?.id ?? defaultTaskRepositoryID
+  const requestPrimarySelect = (requestID: string) => localWorkspaceRepositories.length > 1 ? (
+    <label className="min-w-48 text-xs font-medium text-ink-secondary">
+      Repositorio principal
+      <select
+        value={requestPrimaryID(requestID)}
+        onChange={(event) => setRequestPrimaryByID((current) => ({ ...current, [requestID]: event.target.value }))}
+        className="mt-1 block h-10 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm text-ink"
+      >
+        {localWorkspaceRepositories.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}
+      </select>
+    </label>
+  ) : null
   const remoteMetadataRepositories = repositories.filter(isRemoteMetadataRepository)
   const classifiedRepositories = repositories.filter(
     (source) => source.metadata?.repository_kind && source.metadata.repository_kind !== 'unclassified'
@@ -1089,8 +1354,7 @@ export default function DeliveryProjectDetailPage() {
   const openRequests = requests.filter((request) => request.status === 'open')
   const visibleRequests = requests.slice(0, 2)
   const hiddenRequestCount = Math.max(0, requests.length - visibleRequests.length)
-  const visibleWorkItems = [...activeWorkItems, ...workItems.filter((workItem) => completedStates.has(workItem.state))].slice(0, 2)
-  const hiddenWorkItemCount = Math.max(0, workItems.length - visibleWorkItems.length)
+  const projectWork = groupProjectWork(requests, workItems)
   // The cockpit pulse belongs to the whole result, not only to the currently
   // highlighted task. Parallel agent work must remain visible at this level.
   const stoppingWorkItems = workItems.filter((workItem) => hasCancellationRequest(workItem.automation_tasks ?? []))
@@ -1153,8 +1417,148 @@ export default function DeliveryProjectDetailPage() {
             </p>
           </details>
         )}
-        <ProjectPreparation preparation={item.preparation} onConfigure={showProjectOperations} onRequest={openProjectIntent} initiallyOpen={workItems.length === 0} />
-        <section className="premium-surface mt-5 overflow-hidden rounded-[1.75rem]" aria-label="Trabajo del proyecto">
+        <nav aria-label="Secciones del proyecto" className="sticky top-16 z-20 my-4 grid grid-cols-5 items-center gap-1 rounded-2xl border border-border-subtle bg-surface-raised/95 p-1.5 shadow-sm backdrop-blur sm:gap-1.5 lg:top-2 lg:flex lg:flex-wrap">
+          <a href="#project-overview" className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl px-1.5 text-[10px] font-semibold text-ink-secondary whitespace-nowrap transition hover:bg-surface-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) sm:px-3 sm:text-xs">Resumen</a>
+          <a href="#project-live-work" className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl px-1.5 text-[10px] font-semibold text-ink-secondary whitespace-nowrap transition hover:bg-surface-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) sm:px-3 sm:text-xs">En curso</a>
+          <button type="button" onClick={showProjectTasks} className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl px-1.5 text-[10px] font-semibold text-ink-secondary whitespace-nowrap transition hover:bg-surface-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) sm:px-3 sm:text-xs">Tareas</button>
+          <a href="#project-activity" className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl px-1.5 text-[10px] font-semibold text-ink-secondary whitespace-nowrap transition hover:bg-surface-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) sm:px-3 sm:text-xs">Actividad</a>
+          <button type="button" onClick={showProjectOperations} className="inline-flex min-h-10 min-w-0 items-center justify-center rounded-xl px-1.5 text-[10px] font-semibold text-ink-secondary whitespace-nowrap transition hover:bg-surface-soft hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) sm:px-3 sm:text-xs"><span className="sm:hidden">Config.</span><span className="hidden sm:inline">Configuración</span></button>
+        </nav>
+        <ProjectPreparation preparation={item.preparation} onConfigure={showProjectOperations} onRequest={openProjectIntent} onStandaloneTask={openStandaloneTask} initiallyOpen={workItems.length === 0} />
+        <section id="project-overview" aria-label="Mapa operativo del proyecto" className="premium-surface scroll-mt-16 mt-5 rounded-[1.75rem] p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold tracking-[.14em] text-ink-muted uppercase">Cómo funciona este proyecto</p>
+              <h2 className="mt-1 text-lg font-semibold text-ink">Código, ambientes y trabajo en un solo mapa</h2>
+              <p className="mt-1 text-sm leading-6 text-ink-secondary">Esta configuración pertenece a {item.client?.name ?? 'este cliente'} y acompaña cada tarea como contexto versionado.</p>
+            </div>
+            <button type="button" onClick={showProjectOperations} className="min-h-11 rounded-xl border border-border-subtle px-4 text-sm font-semibold text-ink transition hover:bg-surface-soft">Configurar proyecto</button>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-border-subtle bg-surface-soft p-4">
+              <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">1 · Repositorios</p>
+              {localWorkspaceRepositories.length ? <ul className="mt-3 space-y-2">{localWorkspaceRepositories.map(source => <li key={source.id} className="rounded-xl bg-surface-raised px-3 py-2"><span className="block truncate text-sm font-semibold text-ink">{source.name}</span><span className="block text-xs text-ink-muted">{source.metadata?.repository_role === 'primary' ? 'Principal' : 'De apoyo'} · {source.metadata?.repository_kind === 'frontend' ? 'Frontend' : source.metadata?.repository_kind === 'backend_api' ? 'Backend / API' : 'Código editable'} · {source.revision.slice(0, 7)}</span></li>)}</ul> : <p className="mt-3 text-sm text-amber-800">Falta conectar código editable.</p>}
+              {remoteMetadataRepositories.length > 0 && <p className="mt-3 text-xs text-ink-muted">Además, {remoteMetadataRepositories.length} referencia{remoteMetadataRepositories.length === 1 ? '' : 's'} de GitHub para consulta.</p>}
+            </div>
+            <div className="rounded-2xl border border-border-subtle bg-surface-soft p-4">
+              <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">2 · Ambientes y ramas</p>
+              {environments.length ? (
+                <>
+                  <p className="mt-3 text-2xl font-semibold tabular-nums text-ink">{environments.length}</p>
+                  <p className="mt-1 text-sm text-ink-secondary">ambiente{environments.length === 1 ? '' : 's'} declarado{environments.length === 1 ? '' : 's'} en la configuración</p>
+                  <a href="#project-environment-promotion" className="mt-2 inline-flex min-h-9 items-center text-sm font-semibold text-(--tenant-accent)">Ver ramas y destinos <ArrowRightIcon className="ml-1 size-4" /></a>
+                </>
+              ) : <p className="mt-3 text-sm text-amber-800">No hay ambientes registrados en este proyecto.</p>}
+              <button type="button" onClick={showEnvironmentSetup} className="mt-2 block min-h-9 text-sm font-semibold text-(--tenant-accent)">{environments.length ? 'Añadir otro ambiente' : 'Definir primer ambiente'} <span aria-hidden="true">→</span></button>
+            </div>
+            <div className="rounded-2xl border border-border-subtle bg-surface-soft p-4">
+              <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">3 · Forma de trabajo</p>
+              {workflowGuides.length ? <ul className="mt-3 space-y-2">{workflowGuides.map(source => <li key={source.id} className="rounded-xl bg-surface-raised px-3 py-2"><span className="block text-sm font-semibold text-ink">{source.name}</span><span className="mt-1 block text-xs leading-5 text-ink-muted">{[
+                source.metadata?.technologies && 'Tecnologías',
+                source.metadata?.issue_workflow && 'Issues',
+                source.metadata?.branch_workflow && 'Ramas',
+                source.metadata?.pull_request_workflow && 'PRs',
+                source.metadata?.release_workflow && 'Promoción',
+              ].filter(Boolean).join(' · ') || 'Reglas por completar'}</span></li>)}</ul> : <p className="mt-3 text-sm text-amber-800">Aún no se registran tecnologías ni reglas de issues, PRs y promoción.</p>}
+              <button type="button" onClick={showWorkflowSetup} className="mt-3 min-h-9 text-sm font-semibold text-(--tenant-accent)">{workflowGuides.length ? 'Añadir otra guía' : 'Definir forma de trabajo'} <span aria-hidden="true">→</span></button>
+            </div>
+            <div className="rounded-2xl border border-border-subtle bg-surface-soft p-4">
+              <p className="text-xs font-semibold tracking-wide text-ink-muted uppercase">4 · Tareas</p>
+              <p className="mt-3 text-2xl font-semibold tabular-nums text-ink">{workItems.length}</p>
+              <p className="mt-1 text-sm text-ink-secondary">{projectWork.groups.length} solicitud{projectWork.groups.length === 1 ? '' : 'es'} con tareas · {projectWork.standalone.length} suelta{projectWork.standalone.length === 1 ? '' : 's'}</p>
+              <p className="mt-1 text-xs text-ink-muted">{activeWorkItems.length} sin cerrar · {decisionWorkItems.length} requieren atención</p>
+              {activeWorkItem && <Link href={`/automation/work-items/${activeWorkItem.id}`} className="mt-3 inline-flex min-h-9 items-center text-sm font-semibold text-(--tenant-accent)">Abrir trabajo actual <ArrowRightIcon className="ml-1 size-4" /></Link>}
+              {workItems.length > 0 && <button type="button" onClick={showProjectTasks} className="mt-2 block min-h-9 text-sm font-semibold text-(--tenant-accent)">Ver tareas agrupadas <span aria-hidden="true">→</span></button>}
+            </div>
+          </div>
+        </section>
+        <section
+          id="project-environment-promotion"
+          aria-labelledby="project-environment-promotion-heading"
+          className="premium-surface scroll-mt-20 mt-4 rounded-[1.75rem] p-5 sm:p-6"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold tracking-[.14em] text-ink-muted uppercase">Configuración del proyecto</p>
+              <h2 id="project-environment-promotion-heading" className="mt-1 text-lg font-semibold text-ink">Ambientes y promoción</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-ink-secondary">
+                Ramas, modo de despliegue, destinos y pasos siguientes declarados para este proyecto. La lista no implica un orden entre ambientes.
+              </p>
+            </div>
+            <Button outline type="button" onClick={showEnvironmentSetup}>Configurar ambiente</Button>
+          </div>
+
+          {environments.length > 0 ? (
+            <ul className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {environments.map((source) => {
+                const branch = projectMetadataText(source.metadata, 'branch')
+                const destination = projectMetadataText(source.metadata, 'url')
+                const promotion = projectMetadataText(source.metadata, 'promotion')
+                return (
+                  <li key={source.id} className="rounded-2xl border border-border-subtle bg-surface-soft p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold tracking-[.12em] text-ink-muted uppercase">Ambiente configurado</p>
+                        <h3 className="mt-1 truncate text-base font-semibold text-ink">{source.name || 'Nombre sin definir'}</h3>
+                      </div>
+                      <Badge color="zinc">Solo informativo</Badge>
+                    </div>
+                    <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="min-w-0 rounded-xl bg-surface-raised px-3 py-2">
+                        <dt className="text-[10px] font-semibold tracking-wide text-ink-muted uppercase">Rama</dt>
+                        <dd className="mt-1 break-all font-mono text-xs text-ink">{branch ?? 'Sin definir'}</dd>
+                      </div>
+                      <div className="min-w-0 rounded-xl bg-surface-raised px-3 py-2">
+                        <dt className="text-[10px] font-semibold tracking-wide text-ink-muted uppercase">Modo de despliegue</dt>
+                        <dd className="mt-1 text-xs text-ink">{environmentDeploymentLabel(source.metadata?.deployment)}</dd>
+                      </div>
+                      <div className="min-w-0 rounded-xl bg-surface-raised px-3 py-2 sm:col-span-2">
+                        <dt className="text-[10px] font-semibold tracking-wide text-ink-muted uppercase">URL de destino configurada</dt>
+                        <dd className="mt-1 break-all text-xs text-ink">{destination ?? 'No se registró una URL de destino.'}</dd>
+                      </div>
+                    </dl>
+                    <div className="mt-3 border-t border-border-subtle pt-3">
+                      <p className="text-[10px] font-semibold tracking-wide text-ink-muted uppercase">Siguiente paso declarado</p>
+                      <p className="mt-1 text-sm leading-5 text-ink-secondary">{promotion ?? 'No se registró un paso siguiente.'}</p>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <div className="mt-5 rounded-2xl border border-dashed border-border-subtle bg-surface-soft p-5">
+              <p className="text-sm font-semibold text-ink">Todavía no hay ambientes configurados</p>
+              <p className="mt-1 text-sm leading-5 text-ink-secondary">Al registrarlos, aquí se mostrarán las ramas, URLs y guías declaradas, sin asumir que existe un despliegue activo.</p>
+            </div>
+          )}
+
+          {releaseWorkflowGuides.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4 dark:border-indigo-900 dark:bg-indigo-950/30">
+              <p className="text-xs font-semibold tracking-wide text-ink uppercase">Reglas generales de promoción documentadas</p>
+              <ul className="mt-2 space-y-2">
+                {releaseWorkflowGuides.map((source) => (
+                  <li key={source.id} className="text-sm leading-6 text-ink-secondary">
+                    <span className="font-semibold text-ink">{source.name}:</span>{' '}
+                    {projectMetadataText(source.metadata, 'release_workflow')}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="mt-4 rounded-xl border border-border-subtle bg-surface-soft px-3 py-2 text-xs leading-5 text-ink-muted">
+            El contrato actual guarda esta información como configuración y texto libre: no informa el estado real de los despliegues ni define un orden de promoción. Esta vista no despliega ni autoriza promociones.
+          </p>
+        </section>
+        {applicationSession && loadedProjectIdForCredentials ? (
+          <ProjectProviderCredentials
+            key={loadedProjectIdForCredentials}
+            projectId={loadedProjectIdForCredentials}
+            projectName={item.name}
+            authenticated={Boolean(applicationSession)}
+          />
+        ) : null}
+        <section id="project-live-work" className="premium-surface scroll-mt-16 mt-5 overflow-hidden rounded-[1.75rem]" aria-label="Trabajo del proyecto">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 sm:px-5">
             <div className="flex min-w-0 items-center gap-3">
               <span className="relative flex size-3 shrink-0" aria-hidden="true">
@@ -1187,7 +1591,7 @@ export default function DeliveryProjectDetailPage() {
                 aria-controls="project-operations"
                 className="min-h-11 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition hover:bg-surface-soft hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)"
               >
-                Mantenimiento
+                Configuración
               </button>
             </div>
           </div>
@@ -1206,7 +1610,7 @@ export default function DeliveryProjectDetailPage() {
 
               {activeWorkItem ? (
                 <Link
-                  href={`/automation/work-items/${activeWorkItem.id}?view=${!hasCancellationRequest(activeWorkItem.automation_tasks ?? []) && (isReviewState(activeWorkItem.state) || workItemNeedsAttention(activeWorkItem)) ? 'control' : 'overview'}`}
+                  href={`/automation/work-items/${activeWorkItem.id}?view=${!hasCancellationRequest(activeWorkItem.automation_tasks ?? []) && (isReviewState(activeWorkItem.state) || (workItemNeedsAttention(activeWorkItem) && activeWorkItem.workflow_projection?.recovery?.mode !== 'operator_input')) ? 'control' : 'overview'}`}
                   className="group mt-4 block rounded-2xl border border-border-subtle bg-surface-raised p-4 transition duration-200 hover:border-(--tenant-accent)/45 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)"
                 >
                   <div className="flex gap-3">
@@ -1223,10 +1627,12 @@ export default function DeliveryProjectDetailPage() {
                               : isReviewState(activeWorkItem.state)
                               ? 'Gate humano listo.'
                               : workItemNeedsAttention(activeWorkItem)
-                                ? 'Requiere intervención.'
+                                ? activeWorkItem.workflow_projection?.recovery?.title || 'Requiere intervención.'
                                 : activePlanReady
                                   ? 'El gate comprobará la propuesta antes de continuar.'
-                                  : 'El agente avanza de forma autónoma.'}
+                                  : activeWorkItemRunningTasks.length > 0
+                                    ? 'El agente está trabajando en este paso.'
+                                    : 'Aún no hay una ejecución activa; abre la tarea para revisar el siguiente paso.'}
                           </span>
                         </span>
                         <ArrowRightIcon className="mt-0.5 size-4 shrink-0 text-ink-muted transition group-hover:translate-x-0.5 group-hover:text-(--tenant-accent)" />
@@ -1301,11 +1707,11 @@ export default function DeliveryProjectDetailPage() {
               <div className="mt-4 space-y-2">
                 {primaryIntervention && (
                   <Link
-                    href={`/automation/work-items/${primaryIntervention.id}?view=control`}
+                    href={`/automation/work-items/${primaryIntervention.id}?view=${primaryIntervention.workflow_projection?.recovery?.mode === 'operator_input' ? 'overview' : 'control'}`}
                     className={`block rounded-xl border border-border-subtle bg-surface-soft px-3 py-2.5 transition focus-visible:outline-2 focus-visible:outline-offset-2 ${workItemNeedsAttention(primaryIntervention) ? 'hover:border-rose-300 hover:bg-rose-50/60 focus-visible:outline-rose-400' : 'hover:border-amber-300 hover:bg-amber-50/60 focus-visible:outline-amber-400'}`}
                   >
                     <span className="block truncate text-xs font-semibold text-ink">{primaryIntervention.title}</span>
-                    <span className={`mt-1 block text-[11px] ${workItemOperationalTone(primaryIntervention) === 'rose' ? 'text-rose-700' : workItemOperationalTone(primaryIntervention) === 'zinc' ? 'text-ink-muted' : 'text-amber-700'}`}>{workItemOperationalLabel(primaryIntervention)} · Abrir gate</span>
+                    <span className={`mt-1 block text-[11px] ${workItemOperationalTone(primaryIntervention) === 'rose' ? 'text-rose-700' : workItemOperationalTone(primaryIntervention) === 'zinc' ? 'text-ink-muted' : 'text-amber-700'}`}>{workItemOperationalLabel(primaryIntervention)} · {primaryIntervention.workflow_projection?.recovery?.mode === 'operator_input' ? 'Revisar contexto' : 'Abrir revisión'}</span>
                   </Link>
                 )}
                 {decisionWorkItems.length === 0 && openRequests[0] && (
@@ -1376,21 +1782,23 @@ export default function DeliveryProjectDetailPage() {
           </p>
         )}
 
-        <details
+        <section
           id="project-operations"
-          open={operationsOpen}
-          onToggle={(event) => setOperationsOpen(event.currentTarget.open)}
-          className="group mt-5"
+          className="group scroll-mt-16 mt-5"
         >
-          <summary ref={operationsSummaryRef} className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-raised px-4 py-3 text-sm font-semibold text-ink marker:hidden transition hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) sm:px-5">
-            <span>Mantenimiento del resultado</span>
+          <button type="button" ref={operationsSummaryRef} aria-expanded={operationsOpen} aria-controls="project-operations-panel" onClick={() => setOperationsOpen((open) => !open)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-raised px-4 py-3 text-left text-sm font-semibold text-ink transition hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) sm:px-5">
+            <span>Configuración del proyecto</span>
             <span className="flex items-center gap-2 text-xs font-normal text-ink-muted">
               Bajo demanda
-              <ChevronDownIcon className="size-4 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+              <ChevronDownIcon className={`size-4 transition-transform motion-reduce:transition-none ${operationsOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
             </span>
-          </summary>
-          {operationsOpen && <div className="mt-4 space-y-5">
-        <details className="premium-surface group overflow-hidden rounded-[1.75rem]">
+          </button>
+          {operationsOpen && <div id="project-operations-panel" className="mt-4 space-y-5">
+        <details
+          open={projectContextOpen}
+          onToggle={(event) => setProjectContextOpen(event.currentTarget.open)}
+          className="premium-surface group overflow-hidden rounded-[1.75rem]"
+        >
           <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-3 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--tenant-accent) sm:px-6">
             <span className="min-w-0">
               <span className="block text-xs font-semibold tracking-[.14em] text-ink-muted uppercase">Mantenimiento</span>
@@ -1401,7 +1809,7 @@ export default function DeliveryProjectDetailPage() {
               <ChevronDownIcon className="size-4 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
             </span>
           </summary>
-          <div className="border-t border-border-subtle p-4 sm:p-5">
+            <div className="border-t border-border-subtle p-4 sm:p-5">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-center">
             <div>
               <p className="text-xs font-semibold tracking-[.15em] text-(--tenant-accent) uppercase">
@@ -1593,8 +2001,8 @@ export default function DeliveryProjectDetailPage() {
             <span className="min-w-0">
               <span className="block text-xs font-semibold tracking-[.14em] text-ink-muted uppercase">Consumo del resultado</span>
               <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-ink">
-                {usdFromMicros(costs.data?.summary.total_cost_microusd)}
-                <span className="text-xs font-normal text-ink-muted">· {(costs.data?.summary.executions ?? 0).toLocaleString('es-MX')} llamadas</span>
+                {projectCostAmountLabel(summaryCostCoverage, usdFromMicros)}
+                <span className="text-xs font-normal text-ink-muted">· {(costSummary?.summary.executions ?? 0).toLocaleString('es-MX')} llamadas</span>
               </span>
             </span>
             <span className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink-secondary transition group-hover:bg-surface-soft">
@@ -1610,45 +2018,58 @@ export default function DeliveryProjectDetailPage() {
                 Abrir uso y costos
               </Link>
             </div>
+          {costs.isLoading && costPages.length === 0 ? (
+            <p className="px-5 pb-4 text-xs text-ink-muted sm:px-6" role="status">Cargando consumo del proyecto…</p>
+          ) : null}
+          {costs.error && costPages.length === 0 ? (
+            <div className="mx-5 mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-300/50 bg-rose-50/60 px-4 py-3 text-xs text-rose-800 sm:mx-6" role="alert">
+              <span>{getApiErrorMessage(costs.error, 'No se pudo cargar el consumo de este proyecto.')}</span>
+              <button type="button" onClick={() => void costs.mutate()} className="min-h-9 rounded-lg border border-rose-300/60 px-3 font-semibold hover:bg-rose-100">Reintentar</button>
+            </div>
+          ) : null}
           <div className="grid divide-y divide-border-subtle lg:grid-cols-[14rem_minmax(0,1fr)_minmax(0,1fr)] lg:divide-x lg:divide-y-0">
             <div className="p-5 sm:p-6">
               <p className="text-2xl font-semibold tracking-tight text-ink tabular-nums">
-                {usdFromMicros(costs.data?.summary.total_cost_microusd)}
+                {projectCostAmountLabel(summaryCostCoverage, usdFromMicros)}
               </p>
               <p className="mt-1 text-xs text-ink-muted">
-                {(costs.data?.summary.executions ?? 0).toLocaleString('es-MX')} llamadas ·{' '}
-                {(costs.data?.summary.work_items ?? 0).toLocaleString('es-MX')} tareas
+                {(costSummary?.summary.executions ?? 0).toLocaleString('es-MX')} llamadas ·{' '}
+                {(costSummary?.summary.work_items ?? 0).toLocaleString('es-MX')} tareas
               </p>
+              {summaryCostCoverageNote ? (
+                <p className="mt-2 text-xs leading-5 text-amber-800" role="status">{summaryCostCoverageNote}</p>
+              ) : null}
               <p className="mt-2 text-xs text-ink-muted">
-                {(costs.data?.summary.total_tokens ?? 0).toLocaleString('es-MX')} tokens
+                {(costSummary?.summary.total_tokens ?? 0).toLocaleString('es-MX')} tokens
               </p>
               <p className="mt-2 text-xs leading-5 text-ink-muted">
-                {(costs.data?.summary.input_tokens ?? 0).toLocaleString('es-MX')} entrada ·{' '}
-                {(costs.data?.summary.output_tokens ?? 0).toLocaleString('es-MX')} salida ·{' '}
-                {(costs.data?.summary.cached_input_tokens ?? 0).toLocaleString('es-MX')} caché
+                {(costSummary?.summary.input_tokens ?? 0).toLocaleString('es-MX')} entrada ·{' '}
+                {(costSummary?.summary.output_tokens ?? 0).toLocaleString('es-MX')} salida ·{' '}
+                {(costSummary?.summary.cached_input_tokens ?? 0).toLocaleString('es-MX')} caché
               </p>
               <p className="mt-1 text-xs leading-5 text-ink-muted">
-                {(costs.data?.summary.cache_write_tokens ?? 0).toLocaleString('es-MX')} caché escrita ·{' '}
-                {(costs.data?.summary.reasoning_tokens ?? 0).toLocaleString('es-MX')} razonamiento
+                {(costSummary?.summary.cache_write_tokens ?? 0).toLocaleString('es-MX')} caché escrita ·{' '}
+                {(costSummary?.summary.reasoning_tokens ?? 0).toLocaleString('es-MX')} razonamiento
               </p>
             </div>
             <div className="p-5 sm:p-6">
               <p className="text-xs font-semibold text-ink-secondary">Por fase</p>
-              {(costs.data?.by_step ?? []).length === 0 ? (
+              {(costSummary?.by_step ?? []).length === 0 ? (
                 <p className="mt-3 text-xs text-ink-muted">Todavía no hay ejecuciones costeadas.</p>
               ) : (
                 <ul className="mt-3 space-y-3">
-                  {costs.data?.by_step.slice(0, 5).map((step) => (
+                  {costStepRows.map(({ step, coverage, coverageNote }) => (
                     <li key={`${step.execution_kind}-${step.tool ?? 'agent'}-${step.key}`} className="text-xs">
                       <div className="flex items-center justify-between gap-3">
                         <span className="min-w-0 truncate text-ink-secondary">
                           {step.execution_kind === 'tool' ? `${step.tool || 'Herramienta'} · ` : 'Agente · '}
                           {costPhaseLabel(step.key)} · {step.executions} llamadas
                         </span>
-                        <span className="shrink-0 font-semibold text-ink tabular-nums">
-                          {usdFromMicros(step.total_cost_microusd)}
+                        <span className="shrink-0 text-right font-semibold text-ink tabular-nums">
+                          {projectCostAmountLabel(coverage, usdFromMicros)}
                         </span>
                       </div>
+                      {coverageNote ? <p className="mt-1 text-amber-800" role="status">{coverageNote}</p> : null}
                       <p className="mt-1 text-ink-muted">
                         {step.input_tokens.toLocaleString('es-MX')} entrada ·{' '}
                         {step.output_tokens.toLocaleString('es-MX')} salida ·{' '}
@@ -1667,11 +2088,15 @@ export default function DeliveryProjectDetailPage() {
             </div>
             <div className="p-5 sm:p-6">
               <p className="text-xs font-semibold text-ink-secondary">Por tarea</p>
-              {(costs.data?.by_work_item ?? []).length === 0 ? (
+              {costs.isLoading && costPages.length === 0 ? (
+                <p className="mt-3 text-xs text-ink-muted" role="status">Cargando tareas con coste…</p>
+              ) : costs.error && costPages.length === 0 ? (
+                <p className="mt-3 text-xs text-rose-700">No se pudieron cargar las tareas con coste.</p>
+              ) : costWorkItems.length === 0 ? (
                 <p className="mt-3 text-xs text-ink-muted">El coste aparecerá cuando el agente ejecute una fase.</p>
               ) : (
                 <ul className="mt-3 space-y-3">
-                  {costs.data?.by_work_item.slice(0, 4).map((workItem) => (
+                  {costWorkItemRows.map(({ workItem, coverage, coverageNote }) => (
                     <li key={workItem.work_item_id} className="text-xs">
                       <div className="flex items-center justify-between gap-3">
                         <Link
@@ -1680,10 +2105,11 @@ export default function DeliveryProjectDetailPage() {
                         >
                           {workItem.work_item_title}
                         </Link>
-                        <span className="shrink-0 font-semibold text-ink tabular-nums">
-                          {usdFromMicros(workItem.total_cost_microusd)}
+                        <span className="shrink-0 text-right font-semibold text-ink tabular-nums">
+                          {projectCostAmountLabel(coverage, usdFromMicros)}
                         </span>
                       </div>
+                      {coverageNote ? <p className="mt-1 text-amber-800" role="status">{coverageNote}</p> : null}
                       <p className="mt-1 text-ink-muted">
                         {workItem.executions} llamadas · {workItem.input_tokens.toLocaleString('es-MX')} entrada ·{' '}
                         {workItem.output_tokens.toLocaleString('es-MX')} salida ·{' '}
@@ -1693,12 +2119,37 @@ export default function DeliveryProjectDetailPage() {
                   ))}
                 </ul>
               )}
+              {costs.error && costPages.length > 0 ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-300/50 bg-rose-50/60 px-3 py-2 text-xs text-rose-800" role="alert">
+                  <span>No se pudo cargar la siguiente página. Las tareas ya cargadas se conservan.</span>
+                  <button type="button" onClick={() => void costs.mutate()} className="min-h-9 rounded-lg border border-rose-300/60 px-3 font-semibold hover:bg-rose-100">Reintentar</button>
+                </div>
+              ) : null}
+              {hasMoreCostWorkItems && !costPageFailed ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+                  <p className="text-xs text-ink-muted">
+                    {costWorkItems.length.toLocaleString('es-MX')} de {(costSummary?.summary.work_items ?? 0).toLocaleString('es-MX')} tareas con coste
+                  </p>
+                  <button
+                    type="button"
+                    disabled={costs.isValidating}
+                    onClick={() => void costs.setSize(costs.size + 1)}
+                    className="inline-flex min-h-10 items-center rounded-xl border border-border-subtle px-3 text-xs font-semibold text-ink transition hover:bg-surface-soft disabled:pointer-events-none disabled:opacity-45"
+                  >
+                    {costs.isValidating ? 'Cargando…' : 'Cargar más tareas'}
+                  </button>
+                </div>
+              ) : !hasMoreCostWorkItems && !costs.error && costWorkItems.length > 0 ? (
+                <p className="mt-4 border-t border-border-subtle pt-4 text-xs text-ink-muted" role="status">
+                  Mostrando todas las tareas con coste ({costWorkItems.length.toLocaleString('es-MX')}).
+                </p>
+              ) : null}
             </div>
           </div>
           </div>
         </details>
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_23rem]">
+        <div className={`mt-5 grid gap-5 ${advancedOpen ? 'xl:grid-cols-1' : 'xl:grid-cols-[minmax(0,1fr)_23rem]'}`}>
           <section className="order-2 space-y-5 xl:order-none">
             <section id="delivery-work-gates" className="premium-surface overflow-hidden rounded-3xl">
               <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4 sm:px-6">
@@ -1729,6 +2180,7 @@ export default function DeliveryProjectDetailPage() {
                           </div>
                           <p className="mt-1 text-sm text-ink-secondary">{request.expected_outcome}</p>
                         </div>
+                        {request.status === 'open' && requestPrimarySelect(request.id)}
                         {request.status === 'open' && (
                           <Button
                             color="indigo"
@@ -1742,6 +2194,7 @@ export default function DeliveryProjectDetailPage() {
                           </Button>
                         )}
                       </div>
+                      {request.status === 'open' && <RequestTaskBreakdown projectId={projectId} request={request} contexts={contexts} onApplied={() => { void project.mutate() }} />}
                     </li>
                   ))}
                 </ul>
@@ -1760,15 +2213,17 @@ export default function DeliveryProjectDetailPage() {
                             <div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-ink">{request.title}</p><Badge color={request.priority === 'urgent' || request.priority === 'high' ? 'rose' : 'indigo'}>{request.priority}</Badge><Badge color={request.status === 'open' ? 'amber' : 'emerald'}>{request.status}</Badge></div>
                             <p className="mt-1 text-sm text-ink-secondary">{request.expected_outcome}</p>
                           </div>
+                          {request.status === 'open' && requestPrimarySelect(request.id)}
                           {request.status === 'open' && <Button color="indigo" type="button" disabled={submitting === 'task'} onClick={() => void preparePlan(request)} className="shrink-0"><SparklesIcon data-slot="icon" />{submitting === 'task' ? 'Preparando…' : 'Proponer plan'}</Button>}
                         </div>
+                        {request.status === 'open' && <RequestTaskBreakdown projectId={projectId} request={request} contexts={contexts} onApplied={() => { void project.mutate() }} />}
                       </li>
                     ))}
                   </ul>
                 </details>
               )}
             </section>
-            <details className="group premium-surface overflow-hidden rounded-3xl">
+            <details ref={projectContextDetailsRef} className="group premium-surface overflow-hidden rounded-3xl">
               <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--tenant-accent) sm:px-6">
                 <span>
                   <span className="block text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Contexto del resultado</span>
@@ -1958,7 +2413,15 @@ export default function DeliveryProjectDetailPage() {
                   )}
                 </section>
               )}
-              <div className="mt-5 space-y-3">
+              <div className="mt-5 scroll-mt-6">
+                <h3 ref={projectContextHeadingRef} tabIndex={-1} className="scroll-mt-20 text-sm font-semibold text-ink outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)">
+                  Fuentes y reglas del proyecto
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-ink-muted">
+                  Aquí se mantienen repositorios, ambientes y forma de trabajo. Las tareas guardadas conservan su snapshot.
+                </p>
+              </div>
+              <div className="mt-3 space-y-3">
                 {contexts.length === 0 ? (
                   <p className="rounded-2xl bg-surface-soft p-4 text-sm text-ink-muted">
                     Aún no hay fuentes; no se puede iniciar una tarea de agente.
@@ -1987,6 +2450,14 @@ export default function DeliveryProjectDetailPage() {
                         )}
                       </div>
                       <p className="mt-2 font-mono text-xs break-all text-ink-secondary">{source.reference}</p>
+                      {(source.kind === 'environment' || source.kind === 'runbook') && (
+                        <ProjectContextConfiguration
+                          key={`${source.id}:${source.revision}:${source.synced_at ?? ''}`}
+                          projectId={projectId}
+                          source={source}
+                          onSaved={() => { void project.mutate() }}
+                        />
+                      )}
                       {remoteRepositorySourceContext(source) && (
                         <div className="mt-3 rounded-xl border border-sky-500/15 bg-sky-500/[0.035] p-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2420,7 +2891,9 @@ export default function DeliveryProjectDetailPage() {
                 )}
               </section>
             </section>
-            <section className="premium-surface overflow-hidden rounded-3xl">
+            <ProjectEpicsPanel projectId={item.id} workItems={workItems} onProjectChanged={() => { void project.mutate() }} />
+            <ProjectActivityTimeline projectId={item.id} workItems={workItems.map(({ id, title }) => ({ id, title }))} />
+            <section id="project-task-groups" className="premium-surface scroll-mt-16 overflow-hidden rounded-3xl">
               <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4 sm:px-6">
                 <div>
                   <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Tareas</p>
@@ -2432,53 +2905,13 @@ export default function DeliveryProjectDetailPage() {
                 <div className="p-8 text-center text-sm text-ink-muted">
                   Todavía no hay tareas. Cada una debe tener un resultado y criterios de aceptación concretos.
                 </div>
-              ) : (
-                <ul className="divide-y divide-border-subtle">
-                  {visibleWorkItems.map((workItem) => (
-                    <li key={workItem.id}>
-                      <Link
-                        href={`/automation/work-items/${workItem.id}`}
-                        className="group flex gap-4 px-5 py-5 hover:bg-surface-soft sm:px-6"
-                      >
-                        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-(--tenant-accent)/10 text-(--tenant-accent)">
-                          <CheckCircleIcon className="size-5" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-2">
-                            <span className="font-semibold text-ink">{workItem.title}</span>
-                            <Badge color={workItem.state === 'released' ? 'emerald' : 'amber'}>
-                              {stateLabel[workItem.state] ?? workItem.state}
-                            </Badge>
-                          </span>
-                          <span className="mt-1 line-clamp-2 block text-sm text-ink-muted">
-                            {workItem.expected_outcome}
-                          </span>
-                        </span>
-                        <ArrowRightIcon className="mt-2 size-5 text-ink-muted group-hover:text-ink" />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {hiddenWorkItemCount > 0 && (
-                <details className="group border-t border-border-subtle">
-                  <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-5 text-xs font-semibold text-ink-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--tenant-accent) sm:px-6">
-                    Ver {hiddenWorkItemCount} tarea{hiddenWorkItemCount === 1 ? '' : 's'} anterior{hiddenWorkItemCount === 1 ? '' : 'es'}
-                    <ChevronDownIcon className="size-4 transition group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
-                  </summary>
-                  <ul className="divide-y divide-border-subtle border-t border-border-subtle">
-                    {workItems.filter((workItem) => !visibleWorkItems.some((visible) => visible.id === workItem.id)).map((workItem) => (
-                      <li key={workItem.id}>
-                        <Link href={`/automation/work-items/${workItem.id}`} className="group flex gap-4 px-5 py-5 hover:bg-surface-soft sm:px-6">
-                          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-(--tenant-accent)/10 text-(--tenant-accent)"><CheckCircleIcon className="size-5" /></span>
-                          <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2"><span className="font-semibold text-ink">{workItem.title}</span><Badge color={workItem.state === 'released' ? 'emerald' : 'amber'}>{stateLabel[workItem.state] ?? workItem.state}</Badge></span><span className="mt-1 line-clamp-2 block text-sm text-ink-muted">{workItem.expected_outcome}</span></span>
-                          <ArrowRightIcon className="mt-2 size-5 text-ink-muted group-hover:text-ink" />
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
+              ) : <div className="space-y-4 p-4 sm:p-5">
+                {projectWork.groups.map((group) => <ProjectRequestGroup key={group.request.id} group={group} />)}
+                {projectWork.standalone.length > 0 && <section className="rounded-2xl border border-border-subtle bg-surface-raised">
+                  <div className="px-4 py-3"><p className="text-[11px] font-semibold tracking-[.12em] text-ink-muted uppercase">Sin solicitud de origen</p><p className="mt-1 text-sm text-ink-secondary">Trabajo independiente de una solicitud. Las épicas se gestionan por separado.</p></div>
+                  <ul className="divide-y divide-border-subtle border-t border-border-subtle px-1 py-1">{projectWork.standalone.map((workItem) => <li key={workItem.id}><ProjectTaskLink workItem={workItem} /></li>)}</ul>
+                </section>}
+              </div>}
             </section>
           </section>
           <aside className="order-1 space-y-5 xl:order-none">
@@ -2486,14 +2919,11 @@ export default function DeliveryProjectDetailPage() {
               <p className="text-xs font-semibold tracking-[0.14em] text-(--tenant-accent) uppercase">
                 Empezar con intención
               </p>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">¿Qué necesitas lograr?</h2>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight text-ink">¿Cómo quieres organizar el trabajo?</h2>
               <p className="mt-2 text-sm leading-6 text-ink-secondary">
-                Describe el resultado en tus palabras. El sistema conserva tu solicitud, propone su estructura y te pide
-                aprobación antes de ejecutar.
+                Registra una solicitud para capturar una necesidad, usa una épica para organizar tareas relacionadas o crea una tarea independiente.
+                Guardar la solicitud o la épica no inicia agentes.
               </p>
-              <label className="sr-only" htmlFor="delivery-intent">
-                Necesidad del proyecto
-              </label>
               <Button
                 color="indigo"
                 type="button"
@@ -2503,8 +2933,16 @@ export default function DeliveryProjectDetailPage() {
                 <PlusIcon data-slot="icon" />
                 Crear solicitud
               </Button>
+              <button
+                type="button"
+                onClick={openStandaloneTask}
+                className="mt-2 flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface-raised px-4 py-3 text-left transition hover:border-(--tenant-accent)/40 hover:bg-surface-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)"
+              >
+                <span className="text-sm font-semibold text-ink">Crear tarea suelta</span>
+                <ArrowRightIcon className="size-4 shrink-0 text-ink-muted" aria-hidden="true" />
+              </button>
               <p className="mt-3 text-xs leading-5 text-ink-muted">
-                La IA no infiere permisos, alcance final ni despliegues: los propone y espera el gate humano.
+                Una solicitud puede dividirse en varias tareas. Las épicas agrupan tareas existentes; el plan y la ejecución siempre esperan sus gates humanos.
               </p>
             </section>
             {requests.some((request) => request.status === 'open') && (
@@ -2527,12 +2965,12 @@ export default function DeliveryProjectDetailPage() {
                 </Button>
               </section>
             )}
-            <details className="premium-surface rounded-3xl">
+            <details open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)} className="premium-surface rounded-3xl">
               <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-ink marker:hidden sm:px-6">
                 Configuración y captura avanzada{' '}
                 <span className="ml-2 font-normal text-ink-muted">fuentes, campos detallados y tareas manuales</span>
               </summary>
-              <div className="space-y-5 border-t border-border-subtle p-5">
+              <div className={`border-t border-border-subtle p-5 ${advancedOpen ? 'grid gap-5 lg:grid-cols-2' : 'space-y-5'}`}>
                 <form onSubmit={createRequest} className="premium-surface rounded-3xl p-5">
                   <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Nueva solicitud</p>
                   <p className="mt-1 text-sm text-ink-muted">
@@ -2592,7 +3030,7 @@ export default function DeliveryProjectDetailPage() {
                     {submitting === 'request' ? 'Guardando…' : 'Registrar solicitud'}
                   </Button>
                 </form>
-                <form onSubmit={addContext} className="premium-surface rounded-3xl p-5">
+                <form ref={contextFormRef} onSubmit={addContext} className="premium-surface rounded-3xl p-5">
                   <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Añadir contexto</p>
                   <label className="mt-4 block text-sm font-medium text-ink">
                     Tipo
@@ -2602,7 +3040,7 @@ export default function DeliveryProjectDetailPage() {
                       className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm"
                     >
                       {contextKinds.map((kind) => (
-                        <option key={kind}>{kind}</option>
+                        <option key={kind} value={kind}>{contextKindLabels[kind]}</option>
                       ))}
                     </select>
                   </label>
@@ -2652,13 +3090,13 @@ export default function DeliveryProjectDetailPage() {
                       className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm"
                     />
                   </label>
-                  <label className="mt-3 block text-sm font-medium text-ink">
+                  {context.kind !== 'runbook' && <label className="mt-3 block text-sm font-medium text-ink">
                     Referencia
                     <input
                       required
                       value={context.reference}
                       onChange={(event) => setContext({ ...context, reference: event.target.value })}
-                      placeholder="workspace://itbem-events-backend o github://Itbem-Corp/repo"
+                      placeholder={context.kind === 'environment' ? 'local://proyecto/desarrollo o https://ambiente.ejemplo.com' : context.kind === 'runbook' ? 'workflow://proyecto/forma-de-trabajo' : 'workspace://itbem-events-backend o github://Itbem-Corp/repo'}
                       className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 font-mono text-xs"
                     />
                     {context.kind === 'repository' && context.reference.startsWith('github://') && (
@@ -2673,8 +3111,8 @@ export default function DeliveryProjectDetailPage() {
                         publicación sigue requiriendo revisión humana y GitHub App.
                       </span>
                     )}
-                  </label>
-                  <label className="mt-3 block text-sm font-medium text-ink">
+                  </label>}
+                  {context.kind !== 'runbook' && <label className="mt-3 block text-sm font-medium text-ink">
                     Revisión
                     <input
                       value={context.revision}
@@ -2682,7 +3120,7 @@ export default function DeliveryProjectDetailPage() {
                       placeholder="commit, versión o fecha"
                       className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm"
                     />
-                  </label>
+                  </label>}
                   {context.kind === 'repository' && (
                     <>
                       <label className="mt-3 block text-sm font-medium text-ink">
@@ -2725,6 +3163,49 @@ export default function DeliveryProjectDetailPage() {
                       </label>
                     </>
                   )}
+                  {context.kind === 'environment' && (
+                    <div className="mt-4 space-y-3 rounded-2xl border border-border-subtle bg-surface-soft p-4">
+                      <p className="text-sm font-semibold text-ink">Cómo llega el código a este ambiente</p>
+                      <p className="text-xs leading-5 text-ink-muted">Registra cada etapa por separado. El agente usará esta información al proponer ramas, PRs y validaciones; no concede permiso de despliegue.</p>
+                      <label className="block text-sm font-medium text-ink">Rama que alimenta este ambiente
+                        <input required value={context.environmentBranch} onChange={(event) => setContext({ ...context, environmentBranch: event.target.value })} placeholder="dev, staging o main" className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 font-mono text-sm" />
+                      </label>
+                      <label className="block text-sm font-medium text-ink">Despliegue
+                        <select value={context.environmentDeployment} onChange={(event) => setContext({ ...context, environmentDeployment: event.target.value })} className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 text-sm">
+                          <option value="automatic">Automático al actualizar la rama</option>
+                          <option value="manual">Manual, tras aprobación</option>
+                          <option value="none">Sin despliegue</option>
+                        </select>
+                      </label>
+                      <label className="block text-sm font-medium text-ink">URL del ambiente <span className="font-normal text-ink-muted">(si existe)</span>
+                        <input type="url" value={context.environmentUrl} onChange={(event) => setContext({ ...context, environmentUrl: event.target.value })} placeholder="https://staging.ejemplo.com" className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 text-sm" />
+                      </label>
+                      <label className="block text-sm font-medium text-ink">Paso siguiente / promoción <span className="font-normal text-ink-muted">(opcional)</span>
+                        <input value={context.environmentPromotion} onChange={(event) => setContext({ ...context, environmentPromotion: event.target.value })} placeholder="Tras QA, abrir PR hacia main" className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 text-sm" />
+                      </label>
+                    </div>
+                  )}
+                  {context.kind === 'runbook' && (
+                    <div className="mt-4 space-y-3 rounded-2xl border border-border-subtle bg-surface-soft p-4">
+                      <p className="text-sm font-semibold text-ink">Reglas propias de este proyecto</p>
+                      <p className="text-xs leading-5 text-ink-muted">Describe cómo se trabaja aquí, sin asumir que otro cliente usa el mismo flujo. Esta guía queda congelada al seleccionar la fuente en una tarea; no concede permisos de push, merge ni despliegue.</p>
+                      <label className="block text-sm font-medium text-ink">Tecnologías y versiones
+                        <textarea value={context.workflowTechnologies} onChange={(event) => setContext({ ...context, workflowTechnologies: event.target.value })} maxLength={1200} rows={2} placeholder="Ej. Go 1.25 para API; Next.js para web; PostgreSQL" className="mt-2 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 py-2 text-sm" />
+                      </label>
+                      <label className="block text-sm font-medium text-ink">Issues y planeación
+                        <textarea value={context.workflowIssues} onChange={(event) => setContext({ ...context, workflowIssues: event.target.value })} maxLength={1200} rows={2} placeholder="Dónde se registran, cómo se priorizan y cuándo se cierran" className="mt-2 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 py-2 text-sm" />
+                      </label>
+                      <label className="block text-sm font-medium text-ink">Ramas y puntos de partida
+                        <textarea value={context.workflowBranches} onChange={(event) => setContext({ ...context, workflowBranches: event.target.value })} maxLength={1200} rows={2} placeholder="Ej. feature/* nace de dev; staging recibe sólo cambios aprobados" className="mt-2 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 py-2 text-sm" />
+                      </label>
+                      <label className="block text-sm font-medium text-ink">Pull requests y revisión
+                        <textarea value={context.workflowPullRequests} onChange={(event) => setContext({ ...context, workflowPullRequests: event.target.value })} maxLength={1200} rows={2} placeholder="Destino, checks, revisores y condiciones para merge" className="mt-2 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 py-2 text-sm" />
+                      </label>
+                      <label className="block text-sm font-medium text-ink">Promoción y publicación
+                        <textarea value={context.workflowRelease} onChange={(event) => setContext({ ...context, workflowRelease: event.target.value })} maxLength={1200} rows={2} placeholder="Orden entre ambientes, QA y aprobación de producción" className="mt-2 w-full rounded-xl border border-border-subtle bg-surface-raised px-3 py-2 text-sm" />
+                      </label>
+                    </div>
+                  )}
                   <label className="mt-3 block text-sm font-medium text-ink">
                     Extracto para el agente{' '}
                     <span className="font-normal text-ink-muted">(opcional, máximo 12,000 caracteres)</span>
@@ -2742,28 +3223,30 @@ export default function DeliveryProjectDetailPage() {
                     {submitting === 'context' ? 'Guardando…' : 'Guardar fuente'}
                   </Button>
                 </form>
-                <form onSubmit={createTask} className="premium-surface rounded-3xl p-5">
+                <form id="project-standalone-task-form" ref={taskFormRef} onSubmit={createTask} className="premium-surface rounded-3xl p-5 scroll-mt-24">
                   <p className="text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">Nueva tarea</p>
                   <p className="mt-1 text-sm text-ink-muted">
-                    Selecciona sólo el contexto mínimo que el agente necesita; quedará congelado al crearla.
+                    Déjala sin solicitud de origen para que sea una tarea suelta, o vincúlala a una solicitud abierta. El ambiente y la guía del proyecto siempre se incluyen.
                   </p>
-                  <fieldset className="mt-4">
+                  <fieldset ref={taskContextRef} className="mt-4">
                     <legend className="text-sm font-medium text-ink">
                       Contexto usado <span className="text-rose-600">*</span>
                     </legend>
+                    <p className="mt-1 text-xs leading-5 text-ink-muted">Selecciona al menos una fuente lista. El entorno y las reglas del proyecto se agregarán automáticamente.</p>
                     <div className="mt-2 max-h-40 space-y-2 overflow-y-auto rounded-xl border border-border-subtle bg-surface-soft p-2">
                       {contexts.map((source) => {
                         const checked = task.contextSourceIds.includes(source.id)
                         const ready = source.status === 'ready'
+                        const projectRule = source.kind === 'environment' || (source.kind === 'runbook' && source.reference.startsWith('workflow://'))
                         return (
                           <label
                             key={source.id}
-                            className={`flex items-start gap-2 rounded-lg p-2 text-xs ${ready ? 'cursor-pointer hover:bg-surface-raised' : 'cursor-not-allowed opacity-55'}`}
+                            className={`flex items-start gap-2 rounded-lg p-2 text-xs ${ready && !projectRule ? 'cursor-pointer hover:bg-surface-raised' : 'cursor-default opacity-75'}`}
                           >
                             <input
                               type="checkbox"
-                              disabled={!ready}
-                              checked={checked}
+                              disabled={!ready || projectRule}
+                              checked={ready && projectRule ? true : checked}
                               onChange={() =>
                                 setTask({
                                   ...task,
@@ -2775,7 +3258,7 @@ export default function DeliveryProjectDetailPage() {
                               className="mt-0.5"
                             />
                             <span>
-                              <span className="font-semibold text-ink">{source.name}</span>
+                              <span className="font-semibold text-ink">{source.name}{ready && projectRule && <span className="ml-2 rounded-full bg-(--tenant-accent)/10 px-2 py-0.5 text-[10px] font-semibold text-(--tenant-accent)">Siempre incluido</span>}</span>
                               <span className="mt-0.5 block font-mono text-[10px] text-ink-muted">
                                 {ready ? source.revision || source.kind : 'sin revisión verificable'}
                               </span>
@@ -2785,6 +3268,59 @@ export default function DeliveryProjectDetailPage() {
                       })}
                     </div>
                   </fieldset>
+                  <div className="mt-4">
+                    <label htmlFor="project-task-epic" className="block text-sm font-medium text-ink">
+                      Épica <span className="font-normal text-ink-muted">(opcional)</span>
+                    </label>
+                    <select
+                      id="project-task-epic"
+                      value={task.epicId}
+                      onChange={(event) => setTask({ ...task, epicId: event.target.value })}
+                      aria-describedby="project-task-epic-help project-task-epic-status"
+                      disabled={epics.isLoading || (Boolean(epics.error) && !epics.data)}
+                      className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm text-ink disabled:cursor-wait disabled:opacity-70"
+                    >
+                      <option value="">Trabajo independiente · sin épica</option>
+                      {(epics.data?.items ?? []).map((epic) => (
+                        <option key={epic.id} value={epic.id}>
+                          {epic.title} · {epicStatusLabels[epic.status] ?? epic.status.replaceAll('_', ' ')}
+                        </option>
+                      ))}
+                    </select>
+                    <p id="project-task-epic-help" className="mt-1 text-xs leading-5 text-ink-muted">
+                      Si eliges una épica, el servidor guardará su contexto como snapshot inmutable antes de preparar el plan. Los cambios posteriores a la épica no alterarán esta tarea.
+                    </p>
+                    <div id="project-task-epic-status" aria-live="polite">
+                      {epics.isLoading && !epics.data ? (
+                        <p role="status" className="mt-2 text-xs text-ink-muted">Cargando épicas del proyecto…</p>
+                      ) : null}
+                      {epics.error && !epics.data ? (
+                        <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-rose-700 dark:text-rose-300">
+                          <span>No se pudieron cargar las épicas; puedes crear la tarea como independiente.</span>
+                          <button type="button" onClick={() => void epics.mutate()} className="font-semibold underline underline-offset-2">Volver a intentar</button>
+                        </div>
+                      ) : null}
+                      {epics.error && epics.data ? (
+                        <p role="status" className="mt-2 text-xs text-amber-700 dark:text-amber-300">No se pudo actualizar la lista; se muestran las épicas cargadas previamente.</p>
+                      ) : null}
+                      {epics.data && epics.data.items.length === 0 ? (
+                        <p className="mt-2 text-xs text-ink-muted">Este proyecto aún no tiene épicas; la tarea se creará de forma independiente.</p>
+                      ) : null}
+                    </div>
+                  </div>
+                  {selectedTaskWorkspaces.length > 0 && (
+                    <label className="mt-4 block text-sm font-medium text-ink">
+                      Repositorio principal de esta tarea
+                      <select
+                        value={taskPrimaryRepositorySourceID}
+                        onChange={(event) => setTask({ ...task, primaryRepositorySourceId: event.target.value })}
+                        className="mt-2 h-11 w-full rounded-xl border border-border-subtle bg-surface-soft px-3 text-sm text-ink"
+                      >
+                        {selectedTaskWorkspaces.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}
+                      </select>
+                      <span className="mt-1 block text-xs leading-5 text-ink-muted">Solo esta tarea tratará ese workspace como destino principal de cambios. El mapa del proyecto y las tareas anteriores no cambian.</span>
+                    </label>
+                  )}
                   {workItems.length > 0 && (
                     <fieldset className="mt-4">
                       <legend className="text-sm font-medium text-ink">
@@ -2940,11 +3476,11 @@ export default function DeliveryProjectDetailPage() {
           </aside>
         </div>
           </div>}
-        </details>
+        </section>
         <Dialog open={intentOpen} onClose={setIntentOpen} size="md">
-          <DialogTitle>Iniciar un resultado</DialogTitle>
+          <DialogTitle>Crear solicitud o épica</DialogTitle>
           <DialogBody>
-            <p className="text-sm leading-6 text-ink-secondary">Describe el resultado. El agente lo convierte en una propuesta acotada y se detiene en el gate correcto.</p>
+            <p className="text-sm leading-6 text-ink-secondary">Describe el objetivo general que quieras dividir en entregas relacionadas. Primero se registra la solicitud; después puedes agrupar tareas, revisar el plan y aprobar antes de ejecutar.</p>
             <form onSubmit={captureIntent} className="mt-5">
               <label className="text-sm font-semibold text-ink" htmlFor="delivery-intent-dialog">Resultado que necesitas</label>
               <textarea

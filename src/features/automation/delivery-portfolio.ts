@@ -46,6 +46,12 @@ export type DeliveryPortfolioProject = {
   queuedTasks: number
   runningTasks: number
   attentionTasks: number
+  totalCostMicros?: number
+  unpricedExecutions?: number
+  costLast30DaysMicros?: number
+  unpricedExecutionsLast30Days?: number
+  technologyTags: string[]
+  runtimeHints: string[]
   workItemsTruncated: boolean
   workItems: DeliveryPortfolioWorkItem[]
 }
@@ -82,6 +88,10 @@ export type DeliveryPortfolioReview = {
   updatedAt: string
   completedAt?: string
   publishedAt?: string
+  totalCostMicros?: number
+  unpricedExecutions?: number
+  costLast30DaysMicros?: number
+  unpricedExecutionsLast30Days?: number
 }
 
 export type DeliveryPortfolioSnapshot = {
@@ -91,6 +101,7 @@ export type DeliveryPortfolioSnapshot = {
   totals: DeliveryPortfolioTotals
   projects: DeliveryPortfolioProject[]
   reviewQueue: DeliveryPortfolioReview[]
+  summarySourcesUnavailable?: string[]
 }
 
 // The portfolio is the broad, low-cost read model used outside an individual
@@ -106,6 +117,18 @@ export function deliveryPortfolioRefreshInterval(snapshot: DeliveryPortfolioSnap
 }
 
 type RecordLike = Record<string, unknown>
+
+export type DeliveryPortfolioCostCoverage = {
+  status: 'complete' | 'partial' | 'unknown'
+  verifiedSubtotalMicros?: number
+  unpricedExecutions?: number
+  unknownProjects?: number
+}
+
+export type DeliveryPortfolioCostInput = {
+  costLast30DaysMicros?: number
+  unpricedExecutionsLast30Days?: number
+}
 
 const taskStatuses = new Set<DeliveryTaskStatus>([
   'queued',
@@ -127,6 +150,119 @@ function text(value: unknown, fallback = ''): string {
 
 function count(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0
+}
+
+function optionalNonNegativeInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined
+}
+
+function costMicros(value: unknown): number | undefined {
+  return optionalNonNegativeInteger(value)
+}
+
+function portfolioCostFields(record: RecordLike) {
+  const totalCostMicros = costMicros(snakeOrCamel(record, 'total_cost_microusd', 'totalCostMicros'))
+  const unpricedExecutions = optionalNonNegativeInteger(snakeOrCamel(record, 'unpriced_executions', 'unpricedExecutions'))
+  const costLast30DaysMicros = costMicros(snakeOrCamel(record, 'cost_last_30_days_microusd', 'costLast30DaysMicros'))
+  const unpricedExecutionsLast30Days = optionalNonNegativeInteger(snakeOrCamel(record, 'unpriced_executions_last_30_days', 'unpricedExecutionsLast30Days'))
+  return {
+    ...(totalCostMicros === undefined ? {} : { totalCostMicros }),
+    ...(unpricedExecutions === undefined ? {} : { unpricedExecutions }),
+    ...(costLast30DaysMicros === undefined ? {} : { costLast30DaysMicros }),
+    ...(unpricedExecutionsLast30Days === undefined ? {} : { unpricedExecutionsLast30Days }),
+  }
+}
+
+export function deliveryPortfolioCostCoverage(
+  subtotalMicros: number | undefined,
+  unpricedExecutions: number | undefined,
+): DeliveryPortfolioCostCoverage {
+  const unpriced = optionalNonNegativeInteger(unpricedExecutions)
+  if (subtotalMicros === undefined || !Number.isSafeInteger(subtotalMicros) || subtotalMicros < 0) {
+    return { status: 'unknown', ...(unpriced === undefined ? {} : { unpricedExecutions: unpriced }) }
+  }
+  if (unpriced === undefined) return { status: 'unknown', verifiedSubtotalMicros: subtotalMicros }
+  if (unpriced === 0) return { status: 'complete', verifiedSubtotalMicros: subtotalMicros, unpricedExecutions: 0 }
+  return { status: 'partial', verifiedSubtotalMicros: subtotalMicros, unpricedExecutions: unpriced }
+}
+
+export function aggregateDeliveryPortfolioCosts(projects: readonly DeliveryPortfolioCostInput[]): DeliveryPortfolioCostCoverage {
+  if (projects.length === 0) return { status: 'unknown' }
+
+  let verifiedSubtotalMicros = 0
+  let subtotalCount = 0
+  let unpricedExecutions = 0
+  let unpricedCount = 0
+  let unknownProjects = 0
+
+  for (const project of projects) {
+    const coverage = deliveryPortfolioCostCoverage(project.costLast30DaysMicros, project.unpricedExecutionsLast30Days)
+    if (coverage.verifiedSubtotalMicros !== undefined) {
+      verifiedSubtotalMicros += coverage.verifiedSubtotalMicros
+      subtotalCount += 1
+    }
+    if (coverage.unpricedExecutions !== undefined) {
+      unpricedExecutions += coverage.unpricedExecutions
+      unpricedCount += 1
+    }
+    if (coverage.status === 'unknown') unknownProjects += 1
+  }
+
+  const subtotal = subtotalCount > 0 ? verifiedSubtotalMicros : undefined
+  const unpriced = unpricedCount === projects.length ? unpricedExecutions : undefined
+  const allAmountsKnown = subtotalCount === projects.length
+  const status = !allAmountsKnown || unpriced === undefined
+    ? 'unknown'
+    : unpriced === 0
+      ? 'complete'
+      : 'partial'
+
+  return {
+    status,
+    ...(subtotal === undefined ? {} : { verifiedSubtotalMicros: subtotal }),
+    ...(unpriced === undefined ? {} : { unpricedExecutions: unpriced }),
+    ...(unknownProjects > 0 ? { unknownProjects } : {}),
+  }
+}
+
+export function portfolioCostAmountLabel(
+  coverage: DeliveryPortfolioCostCoverage,
+  formatUsd: (micros: number) => string,
+) {
+  if (coverage.verifiedSubtotalMicros === undefined) return 'No disponible'
+  const amount = formatUsd(coverage.verifiedSubtotalMicros)
+  return coverage.status === 'complete' ? amount : `Subtotal USD verificable: ${amount}`
+}
+
+export function portfolioCostCoverageNote(coverage: DeliveryPortfolioCostCoverage) {
+  if (coverage.status === 'partial') {
+    const count = coverage.unpricedExecutions ?? 0
+    return `${count.toLocaleString('es-MX')} ${count === 1 ? 'ejecución' : 'ejecuciones'} sin precio USD verificable; el gasto total es mayor o desconocido.`
+  }
+  if (coverage.status === 'unknown') {
+    if (coverage.verifiedSubtotalMicros !== undefined) {
+      const unknownProjectNote = coverage.unknownProjects && coverage.unknownProjects > 0
+        ? ` Cobertura desconocida en ${coverage.unknownProjects} ${coverage.unknownProjects === 1 ? 'proyecto' : 'proyectos'}.`
+        : ''
+      const unpricedNote = (coverage.unpricedExecutions ?? 0) > 0
+        ? ` ${coverage.unpricedExecutions?.toLocaleString('es-MX')} ejecuciones sin precio USD verificable.`
+        : ''
+      return `Sólo se suman subtotales USD disponibles; el total puede ser mayor o desconocido.${unpricedNote}${unknownProjectNote}`
+    }
+    if ((coverage.unpricedExecutions ?? 0) > 0) {
+      return `${coverage.unpricedExecutions?.toLocaleString('es-MX')} ejecuciones sin precio USD verificable; el subtotal no está disponible.`
+    }
+    return 'Costo USD no disponible o sin cobertura verificable.'
+  }
+  return undefined
+}
+
+function boundedStrings(value: unknown, maximum = 16): string[] {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim())
+    .filter(item => item.length > 0 && item.length <= 120))].slice(0, maximum)
 }
 
 function bool(value: unknown): boolean {
@@ -292,6 +428,9 @@ function portfolioProject(value: unknown): DeliveryPortfolioProject | null {
     queuedTasks: count(snakeOrCamel(record, 'queued_tasks', 'queuedTasks')),
     runningTasks: count(snakeOrCamel(record, 'running_tasks', 'runningTasks')),
     attentionTasks: count(snakeOrCamel(record, 'attention_tasks', 'attentionTasks')),
+    ...portfolioCostFields(record),
+    technologyTags: boundedStrings(snakeOrCamel(record, 'technology_tags', 'technologyTags')),
+    runtimeHints: boundedStrings(snakeOrCamel(record, 'runtime_hints', 'runtimeHints')),
     workItemsTruncated: bool(snakeOrCamel(record, 'work_items_truncated', 'workItemsTruncated')),
     workItems,
   }
@@ -314,6 +453,7 @@ function portfolioTotals(value: unknown): DeliveryPortfolioTotals {
     runningReviews: count(snakeOrCamel(record, 'running_reviews', 'runningReviews')),
     attentionReviews: count(snakeOrCamel(record, 'attention_reviews', 'attentionReviews')),
     publishedReviews: count(snakeOrCamel(record, 'published_reviews', 'publishedReviews')),
+    ...portfolioCostFields(record),
   }
 }
 
@@ -425,5 +565,8 @@ export function normalizeDeliveryPortfolio(value: unknown): DeliveryPortfolioSna
     reviewQueue: reviewQueueValue
       .map(portfolioReview)
       .filter((review): review is DeliveryPortfolioReview => review !== null),
+    summarySourcesUnavailable: Array.isArray(record.summary_sources_unavailable)
+      ? record.summary_sources_unavailable.filter((source): source is string => typeof source === 'string')
+      : [],
   }
 }

@@ -207,7 +207,7 @@ api.interceptors.request.use(async (config) => {
     // keeps the same key and the API can replay the original mutation safely.
     const method = (config.method || "").toLowerCase()
     if (MUTATION_METHODS.has(method) && !config.headers["Idempotency-Key"]) {
-        const reservation = reserveMutationKey(method, config.url || "", config.data)
+        const reservation = await reserveMutationKey(method, config.url || "", config.data)
         idempotentConfig._eventiIdempotencySignature = reservation.signature || undefined
         config.headers["Idempotency-Key"] = reservation.key
     }
