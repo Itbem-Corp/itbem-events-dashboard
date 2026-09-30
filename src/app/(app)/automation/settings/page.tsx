@@ -314,6 +314,26 @@ function ListboxVisualRow({ mark, title, detail }: { mark: React.ReactNode; titl
   </span>
 }
 
+const policyValidationMessages = new Set([
+  'Configuración de IA inválida',
+  'selecciona entre una y tres rutas de IA',
+  'proveedor, modelo o nivel de razonamiento inválido',
+  'proveedor de IA no permitido',
+  'primero autentica cada proveedor en la sección de credenciales',
+  'no se pudo validar el catálogo actual del proveedor',
+  'el modelo seleccionado ya no es compatible; recarga el catálogo',
+  'la variante del modelo ya no está disponible; recarga el catálogo',
+  'ese modelo no admite el nivel de razonamiento seleccionado',
+  'una ruta de fallback no puede repetir proveedor y modelo',
+])
+
+function policySaveError(error: unknown): string {
+  const response = (error as { response?: { status?: number; data?: { message?: unknown } } } | null)?.response
+  const message = response?.data?.message
+  if (response?.status === 400 && typeof message === 'string' && policyValidationMessages.has(message)) return message
+  return 'No se pudo guardar la cadena. Comprueba los proveedores y vuelve a intentarlo.'
+}
+
 export default function AutomationSettingsPage() {
   const applicationSession = useStore((state) => state.applicationSession)
   const workspaceMode = useStore((state) => state.workspaceMode)
@@ -355,6 +375,7 @@ export default function AutomationSettingsPage() {
   const catalogSnapshotLoadingRef = useRef(false)
   const [catalogLoading, setCatalogLoading] = useState<LoadingStates>(emptyLoadingStates)
   const [savingPolicy, setSavingPolicy] = useState<string | null>(null)
+  const [policyErrors, setPolicyErrors] = useState<Record<string, string>>({})
   const [openCodeUsageKey, setOpenCodeUsageKey] = useState('')
   const [openCodeUsage, setOpenCodeUsage] = useState<{ windows?: Array<{ name: string; limit_microusd: number; remaining_microusd: number }> } | null>(null)
   const selectedProjectIdRef = useRef(selectedProjectId)
@@ -631,6 +652,7 @@ export default function AutomationSettingsPage() {
   async function savePolicy(policy: ActionPolicy) {
     if (policy.routes.length === 0 || policy.routes.some((route) => !route.provider || !route.model) || savingPolicy) return
     setSavingPolicy(policy.operation)
+    setPolicyErrors((current) => ({ ...current, [policy.operation]: '' }))
     try {
       const { data } = await api.put(automationAIActionPolicyPath(policy.operation), {
         routes: policy.routes.map((route) => ({
@@ -644,8 +666,10 @@ export default function AutomationSettingsPage() {
       const normalized = normalizePolicy(saved)
       if (normalized) setPolicies((current) => current.map((item) => item.operation === policy.operation ? normalized : item))
       toast.success(`${actionLabels[policy.operation]?.title ?? 'Acción'}: cadena guardada.`)
-    } catch {
-      toast.error('No se pudo guardar la ruta. El proveedor debe tener una credencial válida.')
+    } catch (error) {
+      const message = policySaveError(error)
+      setPolicyErrors((current) => ({ ...current, [policy.operation]: message }))
+      toast.error(message)
     } finally {
       setSavingPolicy(null)
     }
@@ -851,6 +875,7 @@ export default function AutomationSettingsPage() {
                     <div>{policy.routes.length < 3 ? <Button outline type="button" onClick={() => updateRoutes(policy.operation, (routes) => [...routes, defaultRoute()])}>Agregar fallback</Button> : <p className="text-xs text-ink-muted">Máximo de tres rutas por acción.</p>}</div>
                     <Button color="indigo" type="button" disabled={policy.routes.some((route) => !route.provider || !route.model) || savingPolicy === policy.operation} onClick={() => void savePolicy(policy)}>{savingPolicy === policy.operation ? <><ArrowPathIcon className="animate-spin" /> Guardando…</> : <><CheckCircleIcon /> Guardar cadena</>}</Button>
                   </div>
+                  {policyErrors[policy.operation] && <p role="alert" className="mt-3 text-sm text-red-600">{policyErrors[policy.operation]}</p>}
                 </article>
               )
             })}

@@ -225,6 +225,24 @@ describe('AI project credentials settings', () => {
     }))
   })
 
+  it.each([
+    [400, 'no se pudo validar el catálogo actual del proveedor', 'no se pudo validar el catálogo actual del proveedor'],
+    [400, 'private-provider-marker', 'No se pudo guardar la cadena. Comprueba los proveedores y vuelve a intentarlo.'],
+    [500, 'private-provider-marker', 'No se pudo guardar la cadena. Comprueba los proveedores y vuelve a intentarlo.'],
+  ])('shows a persistent safe policy error and clears it after a successful save (%s, %s)', async (status, message, expected) => {
+    initializeApi([{ operation: 'delivery.plan', configured: true, routes: [{ provider: 'minimax', model: 'MiniMax-M3', reasoning_enabled: false, reasoning_effort: '' }] }])
+    apiPut.mockRejectedValueOnce({ response: { status, data: { message } } })
+    const user = userEvent.setup()
+    render(<AutomationSettingsPage />)
+    const card = (await screen.findByRole('heading', { name: 'Planeación' })).closest('article')!
+    await user.click(within(card).getByRole('button', { name: 'Guardar cadena' }))
+    expect(await within(card).findByRole('alert')).toHaveTextContent(expected)
+    expect(within(card).queryByText('private-provider-marker')).not.toBeInTheDocument()
+    await user.click(within(card).getByRole('button', { name: 'Guardar cadena' }))
+    await waitFor(() => expect(within(card).queryByRole('alert')).not.toBeInTheDocument())
+    expect(apiPut).toHaveBeenCalledTimes(2)
+  })
+
   it.each([false, true])('persists the MiniMax M3 binary thinking control (initially %s) without inventing effort levels', async (initiallyEnabled) => {
     initializeApi([{
       operation: 'delivery.plan', configured: true,
