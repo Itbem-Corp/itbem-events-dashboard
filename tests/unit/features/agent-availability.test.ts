@@ -1,4 +1,4 @@
-import { agentAvailability, agentHeartbeatFreshForMs, agentHeartbeatSignal } from '@/features/automation/agent-availability'
+import { agentAvailability, agentHeartbeatFreshForMs, agentHeartbeatSignal, agentOperationAvailability } from '@/features/automation/agent-availability'
 import { describe, expect, it } from 'vitest'
 
 describe('agent heartbeat presentation', () => {
@@ -33,5 +33,59 @@ describe('agent heartbeat presentation', () => {
     expect(agentHeartbeatSignal(health, Date.parse(observedAt) + 90_000).state).toBe('fresh')
     expect(agentHeartbeatSignal(health, Date.parse(observedAt) + 90_001).state).toBe('stale')
     expect(agentHeartbeatSignal({ active_workers: 1, last_worker_seen_at: 'invalid', workers: [{}] }).state).toBe('unknown')
+  })
+
+  it('does not present all-draining workers as available despite fresh heartbeats', () => {
+    expect(agentAvailability({ ...health, draining_workers: 1 }, false, Date.parse(observedAt))).toMatchObject({
+      connected: false,
+      label: 'Agentes en drenado',
+      detail: expect.stringContaining('ya no aceptan trabajo nuevo'),
+    })
+  })
+
+  it('keeps partial draining available while another live worker accepts work', () => {
+    expect(agentAvailability({ ...health, active_workers: 2, draining_workers: 1 }, false, Date.parse(observedAt))).toMatchObject({
+      connected: true,
+      label: 'Agentes conectados',
+    })
+  })
+
+  it.each([
+    { capabilities: ['delivery.plan'], operation: 'delivery.plan', state: 'ready' },
+    { capabilities: ['delivery.plan'], operation: 'delivery.implement', state: 'unavailable' },
+    { capabilities: [], operation: 'delivery.implement', state: 'ready' },
+  ])('projects capability fallback for $operation with $capabilities as $state', ({ capabilities, operation, state }) => {
+    expect(agentOperationAvailability({ ...health, workers: [{ capabilities, last_seen_at: observedAt }] }, operation)).toMatchObject({
+      state,
+      detail: expect.stringContaining(state === 'ready' ? 'generalista o especialista' : 'no declaran esta operación'),
+    })
+  })
+
+  it('rejects capability fallback for drained or absent workers', () => {
+    expect(agentOperationAvailability({ ...health, draining_workers: 1 }, 'delivery.plan')).toMatchObject({
+      state: 'unavailable', detail: expect.stringContaining('en drenado'),
+    })
+    expect(agentOperationAvailability({ ...health, active_workers: 0, workers: [] }, 'delivery.plan')).toMatchObject({
+      state: 'unavailable', detail: expect.stringContaining('heartbeat reciente'),
+    })
+  })
+
+  it('prefers operation readiness over the legacy capability fallback', () => {
+    const operation_readiness = [{ operation: 'delivery.plan', worker_count: 1, worker_capacity: 1, ready: true }]
+    expect(agentOperationAvailability({ ...health, workers: [{ capabilities: ['delivery.implement'] }], operation_readiness }, 'delivery.plan')).toMatchObject({
+      state: 'ready', detail: '1 worker puede ejecutar esta fase.',
+    })
+    expect(agentOperationAvailability({ ...health, draining_workers: 1, operation_readiness }, 'delivery.plan')).toMatchObject({
+      state: 'unavailable', detail: expect.stringContaining('en drenado'),
+    })
+    expect(agentOperationAvailability({ ...health, operation_readiness: [{ ...operation_readiness[0], worker_capacity: 0 }] }, 'delivery.plan')).toMatchObject({
+      state: 'unavailable', detail: expect.stringContaining('capacidad disponible'),
+    })
+  })
+
+  it('keeps missing and failed capability telemetry unknown', () => {
+    expect(agentOperationAvailability(undefined, 'delivery.plan').state).toBe('unknown')
+    expect(agentOperationAvailability(health, 'delivery.plan', true).state).toBe('unknown')
+    expect(agentOperationAvailability({ ...health, operational_telemetry_available: false }, 'delivery.plan').state).toBe('unknown')
   })
 })
