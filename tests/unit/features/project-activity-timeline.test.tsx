@@ -186,8 +186,11 @@ describe('project activity timeline', () => {
     fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-09-24T11:00' } })
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtros' }))
 
+    // datetime-local follows the browser's timezone, not necessarily UTC.
+    const from = encodeURIComponent(new Date('2026-09-24T10:00').toISOString())
+    const to = encodeURIComponent(new Date('2026-09-24T11:00').toISOString())
     await waitFor(() => expect(mocks.fetcher).toHaveBeenLastCalledWith(
-      `/automation/projects/${projectId}/activity?limit=25&from=2026-09-24T10%3A00%3A00.000Z&to=2026-09-24T11%3A00%3A00.000Z`,
+      `/automation/projects/${projectId}/activity?limit=25&from=${from}&to=${to}`,
     ))
   })
 })
