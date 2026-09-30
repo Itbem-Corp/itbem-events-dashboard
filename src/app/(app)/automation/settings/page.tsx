@@ -10,6 +10,7 @@ import { Listbox, ListboxLabel, ListboxOption } from '@/components/listbox'
 import { Select } from '@/components/select'
 import { CapabilityMark, ModelMark, ProviderMark } from '@/components/automation/provider-visual'
 import { ProviderAccountUsagePanel } from '@/features/automation/provider-account-usage-panel'
+import { ModelEvaluationPanel } from '@/features/automation/model-evaluation-panel'
 import type { ProviderUsageSnapshot } from '@/features/automation/provider-account-usage-panel'
 import { api } from '@/lib/api'
 import { automationAIActionPoliciesPath, automationAIActionPolicyPath, automationOpenCodeUsageCredentialPath, automationOpenCodeUsagePath, automationProjectProviderCredentialPath, automationProjectProviderUsagePath, automationProjectProviderUsageRefreshPath, automationProviderCatalogPath, automationProviderCredentialPath, automationProviderModelsPath, deliveryProjectsPath } from '@/lib/api-paths'
@@ -855,6 +856,7 @@ export default function AutomationSettingsPage() {
             {!policiesLoading && policies.length === 0 && <p className="rounded-2xl border border-dashed border-border-subtle p-5 text-sm text-ink-secondary">No se encontraron acciones configurables. Recarga la página cuando el backend actualizado esté disponible.</p>}
           </div>
         </section>
+        <ModelEvaluationPanel />
       </main>
     </PageTransition>
   )
