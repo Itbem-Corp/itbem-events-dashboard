@@ -60,7 +60,7 @@ export function InferenceDiagnosticsPanel({ taskId, runId }: { taskId: string; r
         <Button plain onClick={() => setContent(null)}>Ocultar contenido</Button>
         <p>Vista sanitizada: oculta patrones de credenciales detectados y campos de razonamiento privado.</p>
         <h4>Solicitud preparada</h4>
-        {content.value.request_available ? content.value.request?.messages?.map((message, index) => <pre key={index} className="max-h-80 overflow-auto whitespace-pre-wrap break-words">{message.role}{'\n'}{message.content}</pre>) : <p>Solicitud no disponible.</p>}
+        {content.value.request_available ? (content.value.request?.messages?.length ? content.value.request.messages.map((message, index) => <pre key={index} className="max-h-80 overflow-auto whitespace-pre-wrap break-words">{message.role}{'\n'}{message.content}</pre>) : <p>La captura no contiene mensajes visibles.</p>) : <p>Solicitud no disponible.</p>}
         <h4>Respuesta final</h4>
         {content.value.response_available ? <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words">{content.value.response?.final_answer}</pre> : <p>No se observó una respuesta final guardada.</p>}
       </div>}

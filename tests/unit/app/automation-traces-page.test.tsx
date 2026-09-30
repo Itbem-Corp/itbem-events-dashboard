@@ -64,6 +64,15 @@ const tracePage = {
   snapshot_at: '2026-09-24T15:45:00Z',
 }
 
+function configurePrivateInspection() {
+  mocks.rootLevel = 1
+  mocks.get.mockResolvedValue({ data: { status: 200, data: [{
+    receipt_id: 'receipt-1', call_id: 'call-1', run_id: 'run_01HZX9', status: 'accepted',
+    diagnostics: { request_hash: 'sealed', request_bytes: 20, message_count: 1, max_completion_tokens: 4096, duration_ms: 100, gateway_status: 200, request_capture: 'available', response_capture: 'available', attempts: [] },
+  }] } })
+  mocks.post.mockResolvedValue({ data: { status: 200, data: { request_available: true, response_available: true, request: { messages: [{ role: 'user', content: 'private event input' }] }, response: { final_answer: 'private event output' } } } })
+}
+
 describe('Automation traces page', () => {
   beforeEach(() => {
     mocks.workspaceMode = 'platform'
@@ -97,16 +106,41 @@ describe('Automation traces page', () => {
     expect(mocks.post).not.toHaveBeenCalled()
   })
 
-  it('shows the inspection entry only to platform Root 1 and unmounts it when access changes', () => {
-    mocks.rootLevel = 1
+  it('clears previously visible private content when platform Root 1 access changes', async () => {
+    configurePrivateInspection()
     const view = render(<AutomationTracesPage />)
     fireEvent.click(screen.getByRole('button', { name: /stagehand/ }))
     expect(screen.getByRole('region', { name: 'Diagnóstico de inferencia' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Consultar llamadas' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar llamadas' }))
+    await screen.findByText('Receipt: receipt-1')
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir contenido privado y registrar acceso' }))
+    await screen.findByText('private event output')
     mocks.rootLevel = 2
     view.rerender(<AutomationTracesPage />)
     expect(screen.queryByRole('region', { name: 'Diagnóstico de inferencia' })).not.toBeInTheDocument()
-    expect(mocks.post).not.toHaveBeenCalled()
+    expect(screen.queryByText('private event output')).not.toBeInTheDocument()
+    expect(screen.queryByText(/private event input/)).not.toBeInTheDocument()
+    expect(mocks.post).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears private content when switching to another event run without automatically requesting content', async () => {
+    configurePrivateInspection()
+    mocks.useSWRInfinite.mockReturnValue({ data: [{ ...tracePage, items: [tracePage.items[0], { ...tracePage.items[0], id: 'trace-2', run_id: 'run_second' }] }], error: undefined, isLoading: false, isValidating: false, size: 1, setSize: mocks.setSize, mutate: mocks.mutate })
+    render(<AutomationTracesPage />)
+    const events = screen.getAllByRole('button', { name: /stagehand/ })
+    expect(events).toHaveLength(2)
+    fireEvent.click(events[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar llamadas' }))
+    await screen.findByText('Receipt: receipt-1')
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir contenido privado y registrar acceso' }))
+    await screen.findByText('private event output')
+    fireEvent.click(events[1])
+    expect(screen.queryByText('private event output')).not.toBeInTheDocument()
+    expect(screen.queryByText(/private event input/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Consultar llamadas' })).toBeInTheDocument()
+    expect(mocks.get).toHaveBeenCalledTimes(1)
+    expect(mocks.post).toHaveBeenCalledTimes(1)
   })
 
   it('requests one global, snapshot-cursored endpoint and shows only approved event metadata', () => {
