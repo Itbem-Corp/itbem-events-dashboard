@@ -24,7 +24,7 @@ type Evaluation = {
 
 export function parseEvaluation(value: unknown): Evaluation {
   const data = readApiData(value) as Evaluation | null
-  if (!data?.batch || typeof data.batch.id !== 'string' || !Array.isArray(data.calls) || data.calls.length !== 60 || data.batch.corpus_version !== EVALUATION_CORPUS_VERSION || !Number.isSafeInteger(data.batch.budget_microusd) || data.batch.budget_microusd <= 0 || data.batch.budget_microusd > 1_000_000 || !Number.isSafeInteger(data.batch.reservation_microusd) || data.batch.reservation_microusd < 0 || data.batch.reservation_microusd > data.batch.budget_microusd || data.calls.some(call => !call || ['task_id', 'case_id', 'candidate', 'status', 'receipt_status', 'actual_provider', 'actual_model'].some(key => typeof call[key] !== 'string') || typeof call.result_available !== 'boolean' || !Number.isSafeInteger(call.total_cost_microusd) || call.total_cost_microusd < 0)) {
+  if (!data?.batch || typeof data.batch.id !== 'string' || typeof data.batch.status !== 'string' || !Array.isArray(data.calls) || data.calls.length !== 60 || data.batch.corpus_version !== EVALUATION_CORPUS_VERSION || !Number.isSafeInteger(data.batch.budget_microusd) || data.batch.budget_microusd <= 0 || data.batch.budget_microusd > 1_000_000 || !Number.isSafeInteger(data.batch.reservation_microusd) || data.batch.reservation_microusd < 0 || data.batch.reservation_microusd > data.batch.budget_microusd || data.calls.some(call => !call || ['task_id', 'case_id', 'candidate', 'status', 'receipt_status', 'actual_provider', 'actual_model'].some(key => typeof call[key] !== 'string') || typeof call.result_available !== 'boolean' || !Number.isSafeInteger(call.total_cost_microusd) || call.total_cost_microusd < 0)) {
     throw new Error('La evaluación no coincide con el contrato de 60 casos y USD 1.')
   }
   return data
@@ -105,7 +105,7 @@ export function ModelEvaluationPanel() {
       }
       calls.push({ ...evaluationEvidence(call), final_answer: finalAnswer, result_error: resultError })
     }
-    const blob = new Blob([JSON.stringify({ ...current, calls, screening_only: true }, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ batch: { id: current.batch.id, status: current.batch.status, corpus_version: current.batch.corpus_version, budget_microusd: current.batch.budget_microusd, reservation_microusd: current.batch.reservation_microusd }, calls, screening_only: true }, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a'); link.href = url; link.download = `itbem-evaluation-${id}.json`
     document.body.appendChild(link)

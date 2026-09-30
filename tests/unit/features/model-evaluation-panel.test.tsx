@@ -123,6 +123,23 @@ describe('isolated evaluation controls', () => {
     expect(post).toHaveBeenCalledTimes(1)
     expect(get).toHaveBeenCalledTimes(3)
   })
+  it('dispatches after an observed in-flight call returns to pending', async () => {
+    const active = fixture(); active.calls[0].status = 'running'
+    get.mockResolvedValue({ data: { status: 200, data: active } })
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    const view = render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' })) })
+    expect(post).not.toHaveBeenCalled()
+    get.mockResolvedValue({ data: { status: 200, data: fixture() } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(post).toHaveBeenCalledExactlyOnceWith(`/automation/model-evaluations/${id}/dispatch-next`, {})
+    view.unmount()
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(post).toHaveBeenCalledTimes(1)
+  })
   it('stops after the in-flight polling interval without dispatching another call', async () => {
     const value = fixture(); value.calls[0].status = 'running'
     get.mockResolvedValue({ data: { status: 200, data: value } })
@@ -139,7 +156,8 @@ describe('isolated evaluation controls', () => {
     expect(screen.getByRole('button', { name: 'Ejecutar evaluación' })).toBeEnabled()
   })
   it('downloads final evidence through a connected anchor and records unavailable results', async () => {
-    const value = fixture('completed')
+    const base = fixture('completed')
+    const value = { ...base, private_extension: 'top-private-marker', batch: { ...base.batch, reasoning: 'batch-private-marker' } }
     value.calls[0].result_available = true; value.calls[1].result_available = true
     let evidenceBlob: Blob | undefined
     const revoke = vi.fn()
@@ -168,6 +186,8 @@ describe('isolated evaluation controls', () => {
     expect(report.calls[0].final_answer).toBe('{"ok":true}')
     expect(report.calls[1].result_error).toBe('final_result_unavailable')
     expect(text).not.toContain('private-marker')
+    expect(Object.keys(report).sort()).toEqual(['batch', 'calls', 'screening_only'])
+    expect(Object.keys(report.batch).sort()).toEqual(['budget_microusd', 'corpus_version', 'id', 'reservation_microusd', 'status'])
     expect(report.screening_only).toBe(true)
     await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:fixture'), { timeout: 1500 })
   })
