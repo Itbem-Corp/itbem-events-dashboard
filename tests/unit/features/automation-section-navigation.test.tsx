@@ -33,6 +33,27 @@ describe('AutomationSectionNavigation', () => {
     expect(screen.getByRole('link', { name: 'Agentes' })).toHaveAttribute('aria-current', 'page')
   })
 
+  it('switches mobile grid columns with configuration access and retains responsive visibility', () => {
+    const { rerender } = render(<AutomationSectionNavigation pathname="/automation" onIntent={vi.fn()} />)
+    const navigation = screen.getByRole('navigation', { name: 'Secciones de automatización' })
+    expect(navigation).toHaveClass('lg:hidden')
+    expect(navigation.firstElementChild).toHaveClass('grid-cols-7')
+    expect(navigation.firstElementChild).not.toHaveClass('grid-cols-8')
+
+    rerender(<AutomationSectionNavigation pathname="/automation" onIntent={vi.fn()} canManageConfiguration />)
+    expect(navigation.firstElementChild).toHaveClass('grid-cols-8')
+    expect(navigation.firstElementChild).not.toHaveClass('grid-cols-7')
+    expect(navigation.getElementsByTagName('a')).toHaveLength(8)
+    const settings = screen.getByRole('link', { name: 'Configuración de IA' })
+    expect(settings.children[0]).toHaveClass('sm:hidden')
+    expect(settings.children[1]).toHaveClass('hidden', 'sm:inline')
+
+    rerender(<AutomationSectionNavigation pathname="/automation" onIntent={vi.fn()} />)
+    expect(navigation.firstElementChild).toHaveClass('grid-cols-7')
+    expect(navigation.getElementsByTagName('a')).toHaveLength(7)
+    expect(screen.queryByRole('link', { name: 'Configuración de IA' })).not.toBeInTheDocument()
+  })
+
   it('adds IA configuration to the mobile automation navigation only for Root 1', () => {
     render(<AutomationSectionNavigation pathname="/automation/settings" onIntent={vi.fn()} canManageConfiguration />)
 

@@ -52,6 +52,20 @@ describe('development route warmup proxy boundary', () => {
     expect(response.status).toBe(307)
     expect(new URL(response.headers.get('location')!).pathname).toBe('/login')
   })
+
+  it.each(['evil.example:3017', 'dashboard.localhost.evil.example:3017', 'localhost:3017@evil.example', 'https://dashboard.itbem.localhost:3017', 'dashboard_localhost:3017'])('ignores a non-local or malformed forwarded host (%s)', (forwardedHost) => {
+    const response = proxy(new NextRequest('http://localhost:3017/events', {
+      headers: { 'x-forwarded-host': forwardedHost, 'x-forwarded-proto': 'https' },
+    }))
+    expect(response.headers.get('location')).toBe('http://localhost:3017/login')
+  })
+
+  it('never overrides a production tenant with a local forwarded host', () => {
+    const response = proxy(new NextRequest('https://dashboard.itbem.com.mx/events', {
+      headers: { 'x-forwarded-host': 'dashboard.eventiapp.localhost:3017', 'x-forwarded-proto': 'http' },
+    }))
+    expect(response.headers.get('location')).toBe('https://dashboard.itbem.com.mx/login')
+  })
 })
 
 describe('public authentication routes', () => {

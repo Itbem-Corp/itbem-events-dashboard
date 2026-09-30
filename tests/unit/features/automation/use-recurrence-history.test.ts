@@ -59,4 +59,35 @@ describe('useRecurrenceHistory pagination and request scope', () => {
     expect(getOccurrenceKey(0, null)).toBeNull()
     expect(mocks.scopedPath).not.toHaveBeenCalled()
   })
+
+  it('deduplicates overlapping pages by ID, preserving the first occurrence and event', () => {
+    const occurrence = { id: 'occurrence-1', status: 'materialized' }
+    const event = { id: 'event-1', event_type: 'created' }
+    mocks.useSWRInfinite
+      .mockReturnValueOnce({ ...emptyQuery, data: [
+        { items: [occurrence], limit: 25, offset: 0, next_offset: 25 },
+        { items: [{ ...occurrence, status: 'blocked' }, { id: 'occurrence-2' }], limit: 25, offset: 25 },
+      ] })
+      .mockReturnValueOnce({ ...emptyQuery, data: [
+        { items: [event], limit: 25, offset: 0, next_offset: 25 },
+        { items: [{ ...event, event_type: 'updated' }, { id: 'event-2' }], limit: 25, offset: 25 },
+      ] })
+    const { result } = renderHook(() => useRecurrenceHistory('project-1', 'schedule-1'))
+    expect(result.current.occurrences.items).toEqual([occurrence, { id: 'occurrence-2' }])
+    expect(result.current.events.items).toEqual([event, { id: 'event-2' }])
+    expect(result.current.occurrences.hasMore).toBe(false)
+    expect(result.current.events.hasMore).toBe(false)
+  })
+
+  it.each([10_000, 10_025])('enforces the next-offset boundary for both feeds (%s)', (nextOffset) => {
+    mocks.useSWRInfinite.mockReturnValue({ ...emptyQuery, data: [{ items: [], limit: 25, offset: 9_975, next_offset: nextOffset }] })
+    const { result } = renderHook(() => useRecurrenceHistory('project-1', 'schedule-1'))
+    for (const feed of [result.current.occurrences, result.current.events]) {
+      expect(feed.offsetLimitReached).toBe(nextOffset > 10_000)
+      expect(feed.hasMore).toBe(nextOffset <= 10_000)
+      feed.loadMore()
+    }
+    if (nextOffset > 10_000) expect(emptyQuery.setSize).not.toHaveBeenCalled()
+    else expect(emptyQuery.setSize).toHaveBeenCalledWith(2)
+  })
 })

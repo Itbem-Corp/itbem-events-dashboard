@@ -88,6 +88,31 @@ describe('mutation idempotency keys', () => {
     releaseMutationKey(reservation.signature)
   })
 
+  it('fails closed beyond the recursion limit even for non-sensitive nested payloads', async () => {
+    const nest = (depth: number) => {
+      let payload: unknown = 'ordinary-text'
+      for (let index = 0; index < depth; index++) payload = { nested: payload }
+      return payload
+    }
+    const boundary = await reserveMutationKey('post', '/profiles', nest(32), 1_000, generate)
+    expect(boundary.signature).toMatch(/^v1:[a-f0-9]{64}$/)
+    releaseMutationKey(boundary.signature)
+    const first = await reserveMutationKey('post', '/profiles', nest(33), 1_000, generate)
+    const retry = await reserveMutationKey('post', '/profiles', nest(33), 1_000, generate)
+    expect(first.signature).toBeNull()
+    expect(retry.signature).toBeNull()
+    expect(retry.key).not.toBe(first.key)
+  })
+
+  it.each(['{"options":{"apiKey":"serialized-private-canary"}}', '[{"accessToken":"serialized-private-canary"}]', '{invalid-json}'])('retains no signature for sensitive or malformed serialized JSON (%s)', async (body) => {
+    const first = await reserveMutationKey('post', '/profiles', body, 1_000, generate)
+    const retry = await reserveMutationKey('post', '/profiles', body, 1_000, generate)
+    expect(first.signature).toBeNull()
+    expect(retry.signature).toBeNull()
+    expect(retry.key).not.toBe(first.key)
+    expect(JSON.stringify([first, retry])).not.toContain('serialized-private-canary')
+  })
+
   it('hashes multi-block payloads with the stable SHA-256 format', async () => {
     const reservation = await reserveMutationKey('post', '/profiles', { note: 'x'.repeat(90) }, 1_000, generate)
 

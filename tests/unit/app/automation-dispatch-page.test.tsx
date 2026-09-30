@@ -1,7 +1,7 @@
 import AutomationDispatchPage from '@/app/(app)/automation/dispatch/page'
 import { automationAgentDirectoryPath } from '@/features/automation/agent-directory'
 import { automationDispatchQueuePath } from '@/lib/api-paths'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useStore } from '@/store/useStore'
@@ -110,6 +110,19 @@ describe('Automation dispatch page', () => {
     expect(screen.getByText(/instancias con actividad autorizada/i)).toBeInTheDocument()
     const directoryKey = mocks.useSWR.mock.calls.find(([key]) => Array.isArray(key) && String(key[0]).startsWith('/automation/agents'))?.[0]
     expect(directoryKey?.[0]).toBe(automationAgentDirectoryPath({ client_id: 'client-1' }))
+  })
+
+  it('removes the scoped capacity warnings when returning to the platform fixture', () => {
+    useStore.setState({ workspaceMode: 'organization', currentClient: { id: 'client-1', name: 'ITBEM' } as never })
+    render(<AutomationDispatchPage />)
+    // One summary warning and one for each of the two fixed worker fixtures.
+    expect(screen.getAllByText(/no se calcula capacidad libre entre proyectos/i)).toHaveLength(1 + directorySnapshot.agents.length)
+    expect(screen.getByText('Slots disponibles').nextElementSibling).toHaveTextContent('—')
+
+    act(() => useStore.setState({ workspaceMode: 'platform', currentClient: null }))
+    expect(screen.queryAllByText(/no se calcula capacidad libre entre proyectos/i)).toHaveLength(0)
+    expect(screen.getByText('Slots disponibles').nextElementSibling).toHaveTextContent('4')
+    expect(screen.getByText('2/3 espacios libres')).toBeInTheDocument()
   })
 
   it('sends exact server-side filters and cursor on demand', () => {
