@@ -11,6 +11,18 @@ function fixture(status = 'active') {
 describe('isolated evaluation controls', () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
   beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); get.mockResolvedValue({ data: { status: 200, data: fixture() } }); post.mockResolvedValue({ data: {} }) })
+  it('restores the saved ID without loading or dispatching automatically', () => {
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    expect(screen.getByLabelText('ID de evaluación')).toHaveValue(id)
+    expect(get).not.toHaveBeenCalled()
+    expect(post).not.toHaveBeenCalled()
+  })
+  it.each([undefined, NaN, Infinity, -1, 0.5, '0'])('rejects invalid recorded call cost: %s', cost => {
+    const value = fixture()
+    const calls = value.calls.map((call, index) => index ? call : { ...call, total_cost_microusd: cost })
+    expect(() => parseEvaluation({ status: 200, data: { ...value, calls } })).toThrow()
+  })
   it('admits only the published corpus and preserves the ID after an unknown outcome', async () => {
     post.mockRejectedValue(new Error('unknown response'))
     render(<ModelEvaluationPanel />)
