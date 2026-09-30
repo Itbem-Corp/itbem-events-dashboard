@@ -16,7 +16,7 @@ export function InferenceDiagnosticsPanel({ taskId, runId }: { taskId: string; r
   const [error, setError] = useState('')
   const path = `/automation/tasks/${encodeURIComponent(taskId)}`
   async function load() {
-    setBusy(true); setError(''); setContent(null)
+    setBusy(true); setError(''); setContent(null); setReceipts(null)
     try {
       const response = await api.get(`${path}/inference-diagnostics${runId ? `?run_id=${encodeURIComponent(runId)}` : ''}`)
       const rows = readApiData<Receipt[]>(response.data)

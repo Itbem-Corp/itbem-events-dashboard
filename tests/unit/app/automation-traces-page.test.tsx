@@ -12,12 +12,20 @@ const mocks = vi.hoisted(() => ({
   setSize: vi.fn(),
   mutate: vi.fn(),
   workspaceMode: 'platform' as 'platform' | 'organization',
+  rootLevel: 0 as 0 | 1 | 2,
+  get: vi.fn(),
+  post: vi.fn(),
 }))
 
 vi.mock('swr', () => ({ default: mocks.useSWR }))
 vi.mock('swr/infinite', () => ({ default: mocks.useSWRInfinite }))
 vi.mock('@/lib/fetcher', () => ({ fetcher: mocks.fetcher }))
-vi.mock('@/store/useStore', () => ({ useStore: (selector: (state: { workspaceMode: string }) => unknown) => selector({ workspaceMode: mocks.workspaceMode }) }))
+vi.mock('@/lib/api', () => ({ api: { get: mocks.get, post: mocks.post } }))
+vi.mock('@/store/useStore', () => ({ useStore: (selector: (state: { workspaceMode: string; applicationSession: unknown; currentClient: unknown }) => unknown) => selector({
+  workspaceMode: mocks.workspaceMode,
+  currentClient: { id: 'client-1' },
+  applicationSession: { application: { allows_platform_admin: true }, user: { is_root: mocks.rootLevel > 0, root_level: mocks.rootLevel }, organizations: [], capabilities: [] },
+}) }))
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: { children: ReactNode; href: string }) => <a href={href} {...props}>{children}</a>,
 }))
@@ -59,6 +67,9 @@ const tracePage = {
 describe('Automation traces page', () => {
   beforeEach(() => {
     mocks.workspaceMode = 'platform'
+    mocks.rootLevel = 0
+    mocks.get.mockReset()
+    mocks.post.mockReset()
     mocks.useSWR.mockReset().mockImplementation((path) => ({
       data: path === deliveryProjectsPath() ? projects : directory,
       error: undefined,
@@ -72,6 +83,30 @@ describe('Automation traces page', () => {
     mocks.fetcher.mockReset()
     mocks.setSize.mockReset()
     mocks.mutate.mockReset()
+  })
+
+  it.each([[2, 'platform'], [1, 'organization'], [0, 'platform']] as const)('denies private inspection for root level %s in %s context', (level, mode) => {
+    mocks.rootLevel = level
+    mocks.workspaceMode = mode
+    render(<AutomationTracesPage />)
+    fireEvent.click(screen.getByRole('button', { name: /stagehand/ }))
+    expect(screen.queryByRole('region', { name: 'Diagnóstico de inferencia' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Consultar llamadas' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Abrir contenido privado y registrar acceso' })).not.toBeInTheDocument()
+    expect(mocks.get).not.toHaveBeenCalled()
+    expect(mocks.post).not.toHaveBeenCalled()
+  })
+
+  it('shows the inspection entry only to platform Root 1 and unmounts it when access changes', () => {
+    mocks.rootLevel = 1
+    const view = render(<AutomationTracesPage />)
+    fireEvent.click(screen.getByRole('button', { name: /stagehand/ }))
+    expect(screen.getByRole('region', { name: 'Diagnóstico de inferencia' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Consultar llamadas' })).toBeInTheDocument()
+    mocks.rootLevel = 2
+    view.rerender(<AutomationTracesPage />)
+    expect(screen.queryByRole('region', { name: 'Diagnóstico de inferencia' })).not.toBeInTheDocument()
+    expect(mocks.post).not.toHaveBeenCalled()
   })
 
   it('requests one global, snapshot-cursored endpoint and shows only approved event metadata', () => {
