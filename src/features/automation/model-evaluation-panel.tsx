@@ -24,7 +24,7 @@ type Evaluation = {
 
 export function parseEvaluation(value: unknown): Evaluation {
   const data = readApiData(value) as Evaluation | null
-  if (!data?.batch || typeof data.batch.id !== 'string' || !Array.isArray(data.calls) || data.calls.length !== 60 || data.batch.corpus_version !== EVALUATION_CORPUS_VERSION || data.batch.budget_microusd > 1_000_000 || data.calls.some(call => typeof call.task_id !== 'string' || typeof call.status !== 'string')) {
+  if (!data?.batch || typeof data.batch.id !== 'string' || !Array.isArray(data.calls) || data.calls.length !== 60 || data.batch.corpus_version !== EVALUATION_CORPUS_VERSION || !Number.isSafeInteger(data.batch.budget_microusd) || data.batch.budget_microusd <= 0 || data.batch.budget_microusd > 1_000_000 || !Number.isSafeInteger(data.batch.reservation_microusd) || data.batch.reservation_microusd < 0 || data.batch.reservation_microusd > data.batch.budget_microusd || data.calls.some(call => typeof call.task_id !== 'string' || typeof call.status !== 'string')) {
     throw new Error('La evaluación no coincide con el contrato de 60 casos y USD 1.')
   }
   return data
@@ -74,10 +74,13 @@ export function ModelEvaluationPanel() {
   })
   const run = async () => {
     stop.current = false; setRunning(true); setError('')
+    let dispatchedFrom = ''
     try {
       while (!stop.current) {
         const current = await load()
         if (current.batch.status !== 'active' || stop.current) break
+        const progress = JSON.stringify(current.calls.map(call => [call.task_id, call.status, call.run_id, call.receipt_id, call.receipt_status]))
+        if (progress === dispatchedFrom) throw new Error('Dispatch did not advance the evaluation')
         if (current.calls.some(call => ['queued', 'running', 'cancel_requested'].includes(call.status))) {
           await new Promise(resolve => setTimeout(resolve, 5000))
           continue
@@ -85,6 +88,8 @@ export function ModelEvaluationPanel() {
         // No retry surrounds this write. A lost response or any rejection stops
         // the runner; the server independently enforces quota and exclusivity.
         await api.post(automationModelEvaluationDispatchPath(id), {})
+        dispatchedFrom = progress
+        await new Promise(resolve => setTimeout(resolve, 5000))
       }
     } catch { setError('Ejecución detenida. Revisa el estado y los receipts; no se reintentó el despacho.') }
     finally { stop.current = true; setRunning(false) }
@@ -102,8 +107,14 @@ export function ModelEvaluationPanel() {
     }
     const blob = new Blob([JSON.stringify({ ...current, calls, screening_only: true }, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
-    const link = document.createElement('a'); link.href = url; link.download = `itbem-evaluation-${id}.json`; link.click()
-    URL.revokeObjectURL(url)
+    const link = document.createElement('a'); link.href = url; link.download = `itbem-evaluation-${id}.json`
+    document.body.appendChild(link)
+    try { link.click() }
+    finally {
+      link.remove()
+      // Allow the browser to begin the download before releasing its URL.
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
   })
   const completed = evaluation?.calls.filter(call => call.status === 'completed').length ?? 0
   return <section aria-label="Evaluación sintética aislada" className="mt-8 rounded-2xl border border-border-subtle bg-surface-raised p-5 sm:p-6">
