@@ -225,6 +225,79 @@ describe('AI project credentials settings', () => {
     }))
   })
 
+  it.each([
+    [400, 'no se pudo validar el catálogo actual del proveedor', 'no se pudo validar el catálogo actual del proveedor'],
+    [400, 'private-provider-marker', 'No se pudo guardar la cadena. Comprueba los proveedores y vuelve a intentarlo.'],
+    [500, 'private-provider-marker', 'No se pudo guardar la cadena. Comprueba los proveedores y vuelve a intentarlo.'],
+  ])('shows a persistent safe policy error and clears it after a successful save (%s, %s)', async (status, message, expected) => {
+    initializeApi([{ operation: 'delivery.plan', configured: true, routes: [{ provider: 'minimax', model: 'MiniMax-M3', reasoning_enabled: false, reasoning_effort: '' }] }])
+    apiPut.mockRejectedValueOnce({ response: { status, data: { message } } })
+    const user = userEvent.setup()
+    render(<AutomationSettingsPage />)
+    const card = (await screen.findByRole('heading', { name: 'Planeación' })).closest('article')!
+    await user.click(within(card).getByRole('button', { name: 'Guardar cadena' }))
+    expect(await within(card).findByRole('alert')).toHaveTextContent(expected)
+    expect(within(card).queryByText('private-provider-marker')).not.toBeInTheDocument()
+    await user.click(within(card).getByRole('button', { name: 'Guardar cadena' }))
+    await waitFor(() => expect(within(card).queryByRole('alert')).not.toBeInTheDocument())
+    expect(apiPut).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([false, true])('persists the MiniMax M3 binary thinking control (initially %s) without inventing effort levels', async (initiallyEnabled) => {
+    initializeApi([{
+      operation: 'delivery.plan', configured: true,
+      routes: [{ provider: 'minimax', model: 'MiniMax-M3', reasoning_enabled: initiallyEnabled, reasoning_effort: '' }],
+    }])
+    const defaultGet = apiGet.getMockImplementation()!
+    apiGet.mockImplementation((path: string) => path === automationProviderCatalogPath() ? response({ providers: [{
+      profile: { id: 'minimax', name: 'MiniMax Token Plan' }, status: 'ready',
+      models: [{ id: 'MiniMax-M3', name: 'MiniMax M3', supports_reasoning: true, reasoning_efforts: [], supported: true }],
+    }] }) : defaultGet(path))
+    const user = userEvent.setup()
+    render(<AutomationSettingsPage />)
+    const heading = await screen.findByRole('heading', { name: 'Planeación' })
+    const card = heading.closest('article')!
+    const checkbox = await within(card).findByRole('checkbox', { name: 'Razonamiento del modelo' })
+    expect(checkbox).toHaveProperty('checked', initiallyEnabled)
+    expect(within(card).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(card).getByText(/no ofrece niveles de esfuerzo/)).toBeInTheDocument()
+    await user.click(checkbox)
+    await user.click(within(card).getByRole('button', { name: 'Guardar cadena' }))
+    await waitFor(() => expect(apiPut).toHaveBeenCalledWith(automationAIActionPolicyPath('delivery.plan'), {
+      routes: [{ provider: 'minimax', model: 'MiniMax-M3', reasoning_enabled: !initiallyEnabled, reasoning_effort: '' }],
+    }))
+  })
+
+  it('keeps named effort controls for DeepSeek and does not expose an unsupported MiniMax M2 binary switch', async () => {
+    initializeApi([{
+      operation: 'code.review', configured: true,
+      routes: [
+        { provider: 'deepseek', model: 'deepseek-flash', reasoning_enabled: true, reasoning_effort: 'high' },
+        { provider: 'minimax', model: 'MiniMax-M2.7', reasoning_enabled: false, reasoning_effort: '' },
+      ],
+    }])
+    const defaultGet = apiGet.getMockImplementation()!
+    apiGet.mockImplementation((path: string) => path === automationProviderCatalogPath() ? response({ providers: [{
+      profile: { id: 'minimax' }, status: 'ready',
+      models: [{ id: 'MiniMax-M2.7', supports_reasoning: true, reasoning_efforts: [], supported: true }],
+    }] }) : defaultGet(path))
+    const user = userEvent.setup()
+    render(<AutomationSettingsPage />)
+    const heading = await screen.findByRole('heading', { name: 'Revisión de código' })
+    const card = heading.closest('article')!
+    const effort = within(card).getByRole('combobox', { name: 'Nivel de razonamiento para Revisión de código · Ruta principal' })
+    expect(effort).toHaveValue('high')
+    expect(within(card).getAllByRole('checkbox', { name: 'Razonamiento del modelo' })).toHaveLength(1)
+    await user.selectOptions(effort, 'max')
+    await user.click(within(card).getByRole('button', { name: 'Guardar cadena' }))
+    await waitFor(() => expect(apiPut).toHaveBeenCalledWith(automationAIActionPolicyPath('code.review'), {
+      routes: [
+        { provider: 'deepseek', model: 'deepseek-flash', reasoning_enabled: true, reasoning_effort: 'max' },
+        { provider: 'minimax', model: 'MiniMax-M2.7', reasoning_enabled: false, reasoning_effort: '' },
+      ],
+    }))
+  })
+
   it.each([[], { projects: [] }])('accepts a valid empty project list without inventing a transport error (%j)', async (payload) => {
     const defaultGet = apiGet.getMockImplementation()!
     apiGet.mockImplementation((path: string) => path === deliveryProjectsPath() ? response(payload) : defaultGet(path))

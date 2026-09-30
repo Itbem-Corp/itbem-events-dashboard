@@ -315,6 +315,26 @@ function ListboxVisualRow({ mark, title, detail }: { mark: React.ReactNode; titl
   </span>
 }
 
+const policyValidationMessages = new Set([
+  'Configuración de IA inválida',
+  'selecciona entre una y tres rutas de IA',
+  'proveedor, modelo o nivel de razonamiento inválido',
+  'proveedor de IA no permitido',
+  'primero autentica cada proveedor en la sección de credenciales',
+  'no se pudo validar el catálogo actual del proveedor',
+  'el modelo seleccionado ya no es compatible; recarga el catálogo',
+  'la variante del modelo ya no está disponible; recarga el catálogo',
+  'ese modelo no admite el nivel de razonamiento seleccionado',
+  'una ruta de fallback no puede repetir proveedor y modelo',
+])
+
+function policySaveError(error: unknown): string {
+  const response = (error as { response?: { status?: number; data?: { message?: unknown } } } | null)?.response
+  const message = response?.data?.message
+  if (response?.status === 400 && typeof message === 'string' && policyValidationMessages.has(message)) return message
+  return 'No se pudo guardar la cadena. Comprueba los proveedores y vuelve a intentarlo.'
+}
+
 export default function AutomationSettingsPage() {
   const applicationSession = useStore((state) => state.applicationSession)
   const workspaceMode = useStore((state) => state.workspaceMode)
@@ -356,6 +376,7 @@ export default function AutomationSettingsPage() {
   const catalogSnapshotLoadingRef = useRef(false)
   const [catalogLoading, setCatalogLoading] = useState<LoadingStates>(emptyLoadingStates)
   const [savingPolicy, setSavingPolicy] = useState<string | null>(null)
+  const [policyErrors, setPolicyErrors] = useState<Record<string, string>>({})
   const [openCodeUsageKey, setOpenCodeUsageKey] = useState('')
   const [openCodeUsage, setOpenCodeUsage] = useState<{ windows?: Array<{ name: string; limit_microusd: number; remaining_microusd: number }> } | null>(null)
   const selectedProjectIdRef = useRef(selectedProjectId)
@@ -632,6 +653,7 @@ export default function AutomationSettingsPage() {
   async function savePolicy(policy: ActionPolicy) {
     if (policy.routes.length === 0 || policy.routes.some((route) => !route.provider || !route.model) || savingPolicy) return
     setSavingPolicy(policy.operation)
+    setPolicyErrors((current) => ({ ...current, [policy.operation]: '' }))
     try {
       const { data } = await api.put(automationAIActionPolicyPath(policy.operation), {
         routes: policy.routes.map((route) => ({
@@ -645,8 +667,10 @@ export default function AutomationSettingsPage() {
       const normalized = normalizePolicy(saved)
       if (normalized) setPolicies((current) => current.map((item) => item.operation === policy.operation ? normalized : item))
       toast.success(`${actionLabels[policy.operation]?.title ?? 'Acción'}: cadena guardada.`)
-    } catch {
-      toast.error('No se pudo guardar la ruta. El proveedor debe tener una credencial válida.')
+    } catch (error) {
+      const message = policySaveError(error)
+      setPolicyErrors((current) => ({ ...current, [policy.operation]: message }))
+      toast.error(message)
     } finally {
       setSavingPolicy(null)
     }
@@ -824,7 +848,9 @@ export default function AutomationSettingsPage() {
                       const modelOptions = visibleModels.flatMap((model) => [{ id: model.id, name: model.name, model }, ...(model.variants ?? []).map((variant) => ({ id: model.id + '#' + variant.id, name: model.name + ' · ' + variant.name, model }))])
                       const selectedModel = visibleModels.find((model) => route.model === model.id || route.model.startsWith(model.id + '#'))
                       const reasoningEfforts = selectedModel?.reasoningEfforts ?? []
-                      const canConfigureReasoning = selectedModel?.supportsReasoning && reasoningEfforts.length > 0
+                      const hasReasoningEffort = reasoningEfforts.length > 0
+                      const hasBinaryReasoning = route.provider === 'minimax' && route.model.toLowerCase() === 'minimax-m3'
+                      const canConfigureReasoning = selectedModel?.supportsReasoning && (hasReasoningEffort || hasBinaryReasoning)
                       const routeLabel = routeIndex === 0 ? 'Ruta principal' : routeIndex === 1 ? 'Fallback' : 'Último fallback'
                       return <div key={routeIndex} className="rounded-xl border border-border-subtle bg-surface-raised/50 p-4">
                         <div className="flex items-center justify-between gap-3"><Badge color={routeIndex === 0 ? 'indigo' : 'zinc'}>{routeLabel}</Badge>{routeIndex > 0 && <Button plain type="button" onClick={() => updateRoutes(policy.operation, (routes) => routes.filter((_, index) => index !== routeIndex))}>Quitar</Button>}</div>
@@ -841,7 +867,7 @@ export default function AutomationSettingsPage() {
                         {selectedModel?.source === 'curated' && <p className="mt-2 text-xs leading-5 text-ink-muted">Catálogo verificado por el backend para este proveedor.</p>}
                         {selectedModel?.source === 'models_dev' && <p className="mt-2 text-xs leading-5 text-ink-muted">Ficha pública de Models.dev; guarda la credencial y recarga modelos para confirmar que esta cuenta lo tiene disponible.</p>}
                         <div className="mt-4 border-t border-border-subtle pt-4">
-                          {canConfigureReasoning ? <div className="flex flex-wrap items-center gap-3"><label className="flex cursor-pointer items-center gap-2 text-sm text-ink"><input type="checkbox" checked={route.reasoningEnabled} onChange={(event) => updateRoutes(policy.operation, (routes) => routes.map((item, index) => index === routeIndex ? { ...item, reasoningEnabled: event.target.checked, reasoningEffort: event.target.checked ? (reasoningEfforts.includes(item.reasoningEffort) ? item.reasoningEffort : reasoningEfforts[0]) : '' } : item))} /> Razonamiento del modelo</label>{route.reasoningEnabled && <Select className="min-w-36" value={reasoningEfforts.includes(route.reasoningEffort) ? route.reasoningEffort : reasoningEfforts[0]} onChange={(event) => updateRoutes(policy.operation, (routes) => routes.map((item, index) => index === routeIndex ? { ...item, reasoningEffort: event.target.value } : item))}>{reasoningEfforts.map((effort) => <option key={effort} value={effort}>{reasoningEffortLabel(effort)}</option>)}</Select>}</div> : <p className="text-xs leading-5 text-ink-muted">{route.provider === 'minimax' ? 'MiniMax M3 usa el razonamiento administrado por el proveedor.' : route.provider ? 'Este proveedor/modelo no publica un control de razonamiento compatible para el gateway.' : 'Selecciona primero un proveedor y modelo.'}</p>}
+                          {canConfigureReasoning ? <div className="space-y-2"><div className="flex flex-wrap items-center gap-3"><label className="flex cursor-pointer items-center gap-2 text-sm text-ink"><input type="checkbox" checked={route.reasoningEnabled} onChange={(event) => updateRoutes(policy.operation, (routes) => routes.map((item, index) => index === routeIndex ? { ...item, reasoningEnabled: event.target.checked, reasoningEffort: event.target.checked && hasReasoningEffort ? (reasoningEfforts.includes(item.reasoningEffort) ? item.reasoningEffort : reasoningEfforts[0]) : '' } : item))} /> Razonamiento del modelo</label>{route.reasoningEnabled && hasReasoningEffort && <Select aria-label={`Nivel de razonamiento para ${meta.title} · ${routeLabel}`} className="min-w-36" value={reasoningEfforts.includes(route.reasoningEffort) ? route.reasoningEffort : reasoningEfforts[0]} onChange={(event) => updateRoutes(policy.operation, (routes) => routes.map((item, index) => index === routeIndex ? { ...item, reasoningEffort: event.target.value } : item))}>{reasoningEfforts.map((effort) => <option key={effort} value={effort}>{reasoningEffortLabel(effort)}</option>)}</Select>}</div>{hasBinaryReasoning && !hasReasoningEffort && <p className="text-xs leading-5 text-ink-muted">MiniMax M3 permite activar o desactivar el razonamiento; no ofrece niveles de esfuerzo. Desactivado, el gateway envía thinking: disabled.</p>}</div> : <p className="text-xs leading-5 text-ink-muted">{route.provider ? 'Este proveedor/modelo no publica un control de razonamiento compatible para el gateway.' : 'Selecciona primero un proveedor y modelo.'}</p>}
                         </div>
                       </div>
                     })}
@@ -850,6 +876,7 @@ export default function AutomationSettingsPage() {
                     <div>{policy.routes.length < 3 ? <Button outline type="button" onClick={() => updateRoutes(policy.operation, (routes) => [...routes, defaultRoute()])}>Agregar fallback</Button> : <p className="text-xs text-ink-muted">Máximo de tres rutas por acción.</p>}</div>
                     <Button color="indigo" type="button" disabled={policy.routes.some((route) => !route.provider || !route.model) || savingPolicy === policy.operation} onClick={() => void savePolicy(policy)}>{savingPolicy === policy.operation ? <><ArrowPathIcon className="animate-spin" /> Guardando…</> : <><CheckCircleIcon /> Guardar cadena</>}</Button>
                   </div>
+                  {policyErrors[policy.operation] && <p role="alert" className="mt-3 text-sm text-red-600">{policyErrors[policy.operation]}</p>}
                 </article>
               )
             })}
