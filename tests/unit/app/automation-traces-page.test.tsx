@@ -12,12 +12,20 @@ const mocks = vi.hoisted(() => ({
   setSize: vi.fn(),
   mutate: vi.fn(),
   workspaceMode: 'platform' as 'platform' | 'organization',
+  rootLevel: 0 as 0 | 1 | 2,
+  get: vi.fn(),
+  post: vi.fn(),
 }))
 
 vi.mock('swr', () => ({ default: mocks.useSWR }))
 vi.mock('swr/infinite', () => ({ default: mocks.useSWRInfinite }))
 vi.mock('@/lib/fetcher', () => ({ fetcher: mocks.fetcher }))
-vi.mock('@/store/useStore', () => ({ useStore: (selector: (state: { workspaceMode: string }) => unknown) => selector({ workspaceMode: mocks.workspaceMode }) }))
+vi.mock('@/lib/api', () => ({ api: { get: mocks.get, post: mocks.post } }))
+vi.mock('@/store/useStore', () => ({ useStore: (selector: (state: { workspaceMode: string; applicationSession: unknown; currentClient: unknown }) => unknown) => selector({
+  workspaceMode: mocks.workspaceMode,
+  currentClient: { id: 'client-1' },
+  applicationSession: { application: { allows_platform_admin: true }, user: { is_root: mocks.rootLevel > 0, root_level: mocks.rootLevel }, organizations: [], capabilities: [] },
+}) }))
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: { children: ReactNode; href: string }) => <a href={href} {...props}>{children}</a>,
 }))
@@ -56,9 +64,21 @@ const tracePage = {
   snapshot_at: '2026-09-24T15:45:00Z',
 }
 
+function configurePrivateInspection() {
+  mocks.rootLevel = 1
+  mocks.get.mockResolvedValue({ data: { status: 200, data: [{
+    receipt_id: 'receipt-1', call_id: 'call-1', run_id: 'run_01HZX9', status: 'accepted',
+    diagnostics: { request_hash: 'sealed', request_bytes: 20, message_count: 1, max_completion_tokens: 4096, duration_ms: 100, gateway_status: 200, request_capture: 'available', response_capture: 'available', attempts: [] },
+  }] } })
+  mocks.post.mockResolvedValue({ data: { status: 200, data: { request_available: true, response_available: true, request: { messages: [{ role: 'user', content: 'private event input' }] }, response: { final_answer: 'private event output' } } } })
+}
+
 describe('Automation traces page', () => {
   beforeEach(() => {
     mocks.workspaceMode = 'platform'
+    mocks.rootLevel = 0
+    mocks.get.mockReset()
+    mocks.post.mockReset()
     mocks.useSWR.mockReset().mockImplementation((path) => ({
       data: path === deliveryProjectsPath() ? projects : directory,
       error: undefined,
@@ -72,6 +92,55 @@ describe('Automation traces page', () => {
     mocks.fetcher.mockReset()
     mocks.setSize.mockReset()
     mocks.mutate.mockReset()
+  })
+
+  it.each([[2, 'platform'], [1, 'organization'], [0, 'platform']] as const)('denies private inspection for root level %s in %s context', (level, mode) => {
+    mocks.rootLevel = level
+    mocks.workspaceMode = mode
+    render(<AutomationTracesPage />)
+    fireEvent.click(screen.getByRole('button', { name: /stagehand/ }))
+    expect(screen.queryByRole('region', { name: 'Diagnóstico de inferencia' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Consultar llamadas' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Abrir contenido privado y registrar acceso' })).not.toBeInTheDocument()
+    expect(mocks.get).not.toHaveBeenCalled()
+    expect(mocks.post).not.toHaveBeenCalled()
+  })
+
+  it('clears previously visible private content when platform Root 1 access changes', async () => {
+    configurePrivateInspection()
+    const view = render(<AutomationTracesPage />)
+    fireEvent.click(screen.getByRole('button', { name: /stagehand/ }))
+    expect(screen.getByRole('region', { name: 'Diagnóstico de inferencia' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Consultar llamadas' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar llamadas' }))
+    await screen.findByText('Receipt: receipt-1')
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir contenido privado y registrar acceso' }))
+    await screen.findByText('private event output')
+    mocks.rootLevel = 2
+    view.rerender(<AutomationTracesPage />)
+    expect(screen.queryByRole('region', { name: 'Diagnóstico de inferencia' })).not.toBeInTheDocument()
+    expect(screen.queryByText('private event output')).not.toBeInTheDocument()
+    expect(screen.queryByText(/private event input/)).not.toBeInTheDocument()
+    expect(mocks.post).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears private content when switching to another event run without automatically requesting content', async () => {
+    configurePrivateInspection()
+    mocks.useSWRInfinite.mockReturnValue({ data: [{ ...tracePage, items: [tracePage.items[0], { ...tracePage.items[0], id: 'trace-2', run_id: 'run_second' }] }], error: undefined, isLoading: false, isValidating: false, size: 1, setSize: mocks.setSize, mutate: mocks.mutate })
+    render(<AutomationTracesPage />)
+    const events = screen.getAllByRole('button', { name: /stagehand/ })
+    expect(events).toHaveLength(2)
+    fireEvent.click(events[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar llamadas' }))
+    await screen.findByText('Receipt: receipt-1')
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir contenido privado y registrar acceso' }))
+    await screen.findByText('private event output')
+    fireEvent.click(events[1])
+    expect(screen.queryByText('private event output')).not.toBeInTheDocument()
+    expect(screen.queryByText(/private event input/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Consultar llamadas' })).toBeInTheDocument()
+    expect(mocks.get).toHaveBeenCalledTimes(1)
+    expect(mocks.post).toHaveBeenCalledTimes(1)
   })
 
   it('requests one global, snapshot-cursored endpoint and shows only approved event metadata', () => {
