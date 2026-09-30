@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { contentSecurityPolicyForHostname } from '@/lib/content-security-policy'
+import { PRODUCT_CATALOG } from '@/products/core/product-catalog'
 
 const publicRoutes = ['/login', '/forgot-password', '/register', '/auth', '/logout']
 const LOCAL_WARMUP_HEADER = 'x-eventi-local-warmup'
 const LOCAL_WARMUP_VALUE = 'route-shell'
+const localTenantHostnames = new Set(Object.values(PRODUCT_CATALOG).flatMap((product) => product.deployment.localHostnames))
 
 function isLocalWarmup(req: NextRequest) {
   return (
@@ -24,7 +26,7 @@ function externalRequestURL(req: NextRequest) {
   // Development proxies may reach Next through localhost while the browser is
   // on a product subdomain. Only trust an explicitly local forwarded host;
   // production requests continue to use the URL received by the edge.
-  if (!isLocalRequest || !forwardedHost || !/^(?:[a-z0-9-]+\.)*localhost(?::\d+)?$/.test(forwardedHost)) {
+  if (!isLocalRequest || !forwardedHost || !/^(?:[a-z0-9-]+\.)*localhost(?::\d+)?$/.test(forwardedHost) || !localTenantHostnames.has(forwardedHost.split(':')[0])) {
     return req.nextUrl
   }
 

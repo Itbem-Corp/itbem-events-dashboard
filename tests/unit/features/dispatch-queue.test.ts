@@ -50,4 +50,9 @@ describe('automation dispatch queue contract', () => {
     expect(() => parseAutomationDispatchQueue({ schema_version: 1, generated_at: item.created_at, items: [{ ...item, target_availability: 'maybe' }] })).toThrow(/no compatibles o no seguros/)
     expect(() => parseAutomationDispatchQueue({ schema_version: 1, generated_at: item.created_at, items: [{ ...item, target_available_slots: -1 }] })).toThrow(/no compatibles o no seguros/)
   })
+
+  it.each(['unknown', 'offline', 'draining', 'no_capacity', 'saturated', 'working', 'available'])('accepts the documented worker availability vocabulary (%s)', (availability) => {
+    const page = parseAutomationDispatchQueue({ schema_version: 1, generated_at: item.created_at, items: [{ ...item, target_availability: availability }] })
+    expect(page.items[0].target_availability).toBe(availability)
+  })
 })

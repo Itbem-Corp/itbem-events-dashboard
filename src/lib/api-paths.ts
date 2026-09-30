@@ -229,7 +229,7 @@ export function automationCostsPath(
   pageSize = 40,
 ): string {
   const query = typeof queryOrDays === 'number'
-    ? { days: queryOrDays, page, page_size: pageSize }
+    ? { days: queryOrDays, page, page_size: pageSize, work_item_limit: 20 }
     : { days: 30, page: 1, page_size: 40, work_item_limit: 20, ...queryOrDays }
   return apiPath('/automation/costs', query)
 }

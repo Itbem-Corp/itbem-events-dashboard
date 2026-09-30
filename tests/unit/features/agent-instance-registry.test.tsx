@@ -138,6 +138,23 @@ describe('agent instance registry', () => {
     expect(mocks.mutate).toHaveBeenCalled()
   })
 
+  it('requires all three machine enrollment conditions and rechecks an edited public key', async () => {
+    const user = userEvent.setup()
+    render(<AgentInstanceRegistry profiles={profiles} />)
+    await user.click(screen.getByRole('button', { name: 'Gestionar identidades' }))
+    await user.selectOptions(screen.getByLabelText('Perfil de agente'), 'frontend-specialist')
+    fireEvent.change(screen.getByLabelText(/ID de máquina/), { target: { value: registeredMachineID } })
+    const register = screen.getByRole('button', { name: 'Registrar máquina' })
+    expect(register).toBeDisabled()
+    await user.click(screen.getByLabelText(/Confirmo que esta clave pública se generó/))
+    expect(register).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/Clave pública Ed25519/), { target: { value: publicKey } })
+    expect(register).toBeEnabled()
+    fireEvent.change(screen.getByLabelText(/Clave pública Ed25519/), { target: { value: 'not-ed25519' } })
+    expect(register).toBeDisabled()
+    expect(mocks.post).not.toHaveBeenCalled()
+  })
+
   it('rejects malformed input and parses only the safe registry projection', () => {
     expect(isValidAgentMachineID(existingMachineID)).toBe(true)
     expect(isValidAgentMachineID(` ${existingMachineID} `)).toBe(true)

@@ -36,7 +36,7 @@ const original: DeliveryWorkItem = {
     },
   ],
 }
-function Preview() {
+export function Preview() {
   const [item, setItem] = useState(original)
   const [offline, setOffline] = useState(false)
   const [failSend, setFailSend] = useState(false)
@@ -158,4 +158,5 @@ function Preview() {
     </main>
   )
 }
-createRoot(document.getElementById('root')!).render(<Preview />)
+const root = document.getElementById('root')
+if (root) createRoot(root).render(<Preview />)

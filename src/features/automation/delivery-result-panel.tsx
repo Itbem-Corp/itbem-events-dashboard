@@ -423,7 +423,7 @@ function ProviderOutcomeSummary({ outcome }: { outcome: ProviderOutcome | null }
 // it could be copied from an inspector even though the object remains private.
 // The UI resolves it immediately to a same-session blob URL and, for current
 // QA artifacts, verifies the immutable worker digest before rendering it.
-async function privateArtifactObjectURL(taskId: string, artifact: Artifact): Promise<string> {
+export async function privateArtifactObjectURL(taskId: string, artifact: Artifact): Promise<string> {
   const name = artifact.name
   const runID = automationArtifactRunId(artifact.reference)
   const descriptor = await api.get(

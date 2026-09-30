@@ -2,9 +2,9 @@ export type DeliveryTaskStatus =
   'queued' | 'running' | 'cancel_requested' | 'cancelled' | 'completed' | 'failed' | 'dispatch_failed'
 
 export type DeliveryAutomationTask = {
-	progress_step?: 'thinking' | 'reading' | 'validating' | 'repairing' | 'acceptance'
-	progress_call?: number
-	updated_at?: string
+  progress_step?: 'thinking' | 'reading' | 'validating' | 'repairing' | 'acceptance'
+  progress_call?: number
+  updated_at?: string
   id: string
   operation: string
   max_completion_tokens?: number

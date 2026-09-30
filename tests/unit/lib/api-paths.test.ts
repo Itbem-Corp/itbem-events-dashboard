@@ -197,7 +197,8 @@ describe('api-paths', () => {
       work_item_limit: 7,
       work_item_cursor: 'opaque work-item + cursor',
     })).toBe('/automation/costs?days=90&page=2&page_size=40&work_item_limit=7&snapshot_at=2026-09-24T12%3A00%3A00Z&client_id=client+a&project_id=project+%2F+1&work_item_id=work+item&agent_key=implementation-agent&provider=openrouter&model=vendor%2Fmodel%3Acheap&cursor=opaque+%2B+cursor&work_item_cursor=opaque+work-item+%2B+cursor')
-    expect(automationCostsPath(7, 2, 25)).toBe('/automation/costs?days=7&page=2&page_size=25')
+    expect(automationCostsPath(7, 2, 25)).toBe('/automation/costs?days=7&page=2&page_size=25&work_item_limit=20')
+    expect(automationCostsPath(7, 2, 25)).toBe(automationCostsPath({ days: 7, page: 2, page_size: 25 }))
   })
 
   it('supports an explicit timestamp window for automation cost queries', () => {

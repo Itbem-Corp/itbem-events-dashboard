@@ -28,4 +28,10 @@ describe('agent heartbeat presentation', () => {
   it('does not invent a timestamp when only coarse health is available', () => {
     expect(agentHeartbeatSignal({ active_workers: 1, operational_telemetry_available: true })).toMatchObject({ state: 'unknown', label: 'Última señal no disponible' })
   })
+
+  it('keeps the exact 90-second boundary fresh and rejects invalid timestamp evidence', () => {
+    expect(agentHeartbeatSignal(health, Date.parse(observedAt) + 90_000).state).toBe('fresh')
+    expect(agentHeartbeatSignal(health, Date.parse(observedAt) + 90_001).state).toBe('stale')
+    expect(agentHeartbeatSignal({ active_workers: 1, last_worker_seen_at: 'invalid', workers: [{}] }).state).toBe('unknown')
+  })
 })

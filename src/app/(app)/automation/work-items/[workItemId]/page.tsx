@@ -21,6 +21,7 @@ import {
 } from '@/features/automation/delivery-form-payloads'
 import { deliveryPlanStepsPath } from '@/features/automation/delivery-plan-steps'
 import { deliveryStateLabels } from '@/features/automation/delivery-presentation'
+import { providerFailureGuidance } from '@/features/automation/delivery-provider-failure'
 import type { DeliveryReleaseDraft } from '@/features/automation/delivery-result-data'
 import { DeliveryReviewBrief } from '@/features/automation/delivery-review-brief'
 import {
@@ -582,24 +583,6 @@ function cost(value = 0) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 6 }).format(
     value / 1_000_000
   )
-}
-
-function providerFailureGuidance(task: DeliveryAutomationTask) {
-  if (task.status !== 'failed') {
-    return null
-  }
-  if (/provider request rejected \(401\)/i.test(task.error_message ?? '')) {
-    return {
-      title: 'No se pudo verificar la credencial del proveedor',
-      detail:
-        'La ejecución se detuvo y no avanzó ningún gate. Revisa la credencial del entorno activo, su acceso a la API y los créditos o permisos de la cuenta antes de generar un nuevo plan.',
-    }
-  }
-  return {
-    title: 'El agente detuvo este intento',
-    detail:
-      'La ejecución se detuvo y no avanzó ningún gate. Revisa el diagnóstico y el resultado privado antes de decidir si corresponde reintentar o aportar contexto.',
-  }
 }
 
 type PipelineStage = {

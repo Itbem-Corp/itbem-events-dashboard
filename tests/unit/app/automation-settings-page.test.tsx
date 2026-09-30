@@ -224,4 +224,22 @@ describe('AI project credentials settings', () => {
       routes: [{ provider: 'deepseek', model: 'deepseek-flash', reasoning_enabled: true, reasoning_effort: 'high' }],
     }))
   })
+
+  it.each([[], { projects: [] }])('accepts a valid empty project list without inventing a transport error (%j)', async (payload) => {
+    const defaultGet = apiGet.getMockImplementation()!
+    apiGet.mockImplementation((path: string) => path === deliveryProjectsPath() ? response(payload) : defaultGet(path))
+    render(<AutomationSettingsPage />)
+    expect(await screen.findByText('No hay proyectos disponibles para configurar credenciales.')).toBeInTheDocument()
+    expect(screen.queryByText(/No se pudo cargar el listado/)).not.toBeInTheDocument()
+    expect(apiPut).not.toHaveBeenCalled()
+  })
+
+  it('fails closed for an invalid project-list envelope instead of guessing an empty scope', async () => {
+    const defaultGet = apiGet.getMockImplementation()!
+    apiGet.mockImplementation((path: string) => path === deliveryProjectsPath() ? response({}) : defaultGet(path))
+    render(<AutomationSettingsPage />)
+    expect(await screen.findByText(/No se pudo cargar el listado de proyectos/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Clave API de proyecto')).not.toBeInTheDocument()
+    expect(apiPut).not.toHaveBeenCalled()
+  })
 })

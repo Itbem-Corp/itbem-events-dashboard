@@ -169,7 +169,8 @@ describe('AutomationRecurrencesScreen', () => {
     await waitFor(() => expect(mocks.apiPost).toHaveBeenCalledWith('/automation/projects/project-1/schedules', expect.objectContaining({
       recurrence: expect.objectContaining({ frequency: 'monthly', month_day: 15, misfire_policy: 'coalesce' }),
     })))
-    const body = mocks.apiPost.mock.calls.at(-1)?.[1] as { recurrence: Record<string, unknown> }
+    // Select the monthly submission explicitly, independent of earlier submits.
+    const body = mocks.apiPost.mock.calls.findLast(([, body]) => body?.recurrence?.frequency === 'monthly')?.[1] as { recurrence: Record<string, unknown> }
     expect(body.recurrence).not.toHaveProperty('weekdays')
   })
 

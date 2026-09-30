@@ -88,6 +88,17 @@ describe('mutation idempotency keys', () => {
     releaseMutationKey(reservation.signature)
   })
 
+  it('retains benign repository and identifier keys but never a bare credential key', async () => {
+    const data = { primary_repository_key: 'backend', encryption_key_id: 'public-id', map_key: 'entry' }
+    const first = await reserveMutationKey('post', '/profiles', data, 1_000, generate)
+    const retry = await reserveMutationKey('post', '/profiles', data, 1_000, generate)
+    expect(first.signature).toMatch(/^v1:[a-f0-9]{64}$/)
+    expect(retry.key).toBe(first.key)
+    releaseMutationKey(first.signature)
+    const sensitive = await reserveMutationKey('post', '/profiles', { key: 'synthetic-private-canary' }, 1_000, generate)
+    expect(sensitive.signature).toBeNull()
+  })
+
   it('fails closed beyond the recursion limit even for non-sensitive nested payloads', async () => {
     const nest = (depth: number) => {
       let payload: unknown = 'ordinary-text'

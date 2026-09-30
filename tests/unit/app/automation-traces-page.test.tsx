@@ -85,7 +85,10 @@ describe('Automation traces page', () => {
     expect(screen.getByRole('button', { name: /stagehand/ })).toBeInTheDocument()
     expect(screen.getByText(/Instantánea estable desde .* · hasta 50 eventos por página/)).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /stagehand/ }))
+    const eventButton = screen.getByRole('button', { name: /stagehand/ })
+    expect(eventButton).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(eventButton)
+    expect(eventButton).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('heading', { name: 'stagehand' })).toBeInTheDocument()
     expect(screen.getByText('Leyó la lista de archivos autorizados.')).toBeInTheDocument()
     const details = within(screen.getByLabelText('Detalle del evento seleccionado'))
