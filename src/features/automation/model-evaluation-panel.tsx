@@ -24,7 +24,7 @@ type Evaluation = {
 
 export function parseEvaluation(value: unknown): Evaluation {
   const data = readApiData(value) as Evaluation | null
-  if (!data?.batch || typeof data.batch.id !== 'string' || !Array.isArray(data.calls) || data.calls.length !== 60 || data.batch.corpus_version !== EVALUATION_CORPUS_VERSION || !Number.isSafeInteger(data.batch.budget_microusd) || data.batch.budget_microusd <= 0 || data.batch.budget_microusd > 1_000_000 || !Number.isSafeInteger(data.batch.reservation_microusd) || data.batch.reservation_microusd < 0 || data.batch.reservation_microusd > data.batch.budget_microusd || data.calls.some(call => typeof call.task_id !== 'string' || typeof call.status !== 'string' || !Number.isSafeInteger(call.total_cost_microusd) || call.total_cost_microusd < 0)) {
+  if (!data?.batch || typeof data.batch.id !== 'string' || !Array.isArray(data.calls) || data.calls.length !== 60 || data.batch.corpus_version !== EVALUATION_CORPUS_VERSION || !Number.isSafeInteger(data.batch.budget_microusd) || data.batch.budget_microusd <= 0 || data.batch.budget_microusd > 1_000_000 || !Number.isSafeInteger(data.batch.reservation_microusd) || data.batch.reservation_microusd < 0 || data.batch.reservation_microusd > data.batch.budget_microusd || data.calls.some(call => !call || ['task_id', 'case_id', 'candidate', 'status', 'receipt_status', 'actual_provider', 'actual_model'].some(key => typeof call[key] !== 'string') || typeof call.result_available !== 'boolean' || !Number.isSafeInteger(call.total_cost_microusd) || call.total_cost_microusd < 0)) {
     throw new Error('La evaluación no coincide con el contrato de 60 casos y USD 1.')
   }
   return data

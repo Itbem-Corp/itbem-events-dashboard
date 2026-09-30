@@ -11,6 +11,43 @@ function fixture(status = 'active') {
 describe('isolated evaluation controls', () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
   beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); get.mockResolvedValue({ data: { status: 200, data: fixture() } }); post.mockResolvedValue({ data: {} }) })
+  it('generates and persists one ID on first admission without dispatch', async () => {
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Admitir evaluación' }))
+    await screen.findByRole('status')
+    expect(post).toHaveBeenCalledExactlyOnceWith('/automation/model-evaluations', { id, corpus_version: EVALUATION_CORPUS_VERSION })
+    expect(localStorage.getItem('itbem.synthetic-evaluation.id')).toBe(id)
+    expect(get).toHaveBeenCalledExactlyOnceWith(`/automation/model-evaluations/${id}`)
+  })
+  it('shows consultation failures without dispatching', async () => {
+    get.mockRejectedValue(new Error('unavailable'))
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('alert')
+    expect(post).not.toHaveBeenCalled()
+  })
+  it('stops polling and dispatching when an in-flight panel is unmounted', async () => {
+    const value = fixture(); value.calls[0].status = 'running'
+    get.mockResolvedValue({ data: { status: 200, data: value } })
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    const view = render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' })) })
+    const calls = get.mock.calls.length
+    view.unmount()
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+    expect(get).toHaveBeenCalledTimes(calls)
+    expect(post).not.toHaveBeenCalled()
+  })
+  it.each(['task_id', 'case_id', 'candidate', 'status', 'receipt_status', 'actual_provider', 'actual_model', 'result_available'])('rejects malformed rendered call fields: %s', key => {
+    const value = fixture()
+    const calls = value.calls.map((call, index) => index ? call : { ...call, [key]: { unexpected: true } })
+    expect(() => parseEvaluation({ status: 200, data: { ...value, calls } })).toThrow()
+  })
   it('restores the saved ID without loading or dispatching automatically', () => {
     localStorage.setItem('itbem.synthetic-evaluation.id', id)
     render(<ModelEvaluationPanel />)
