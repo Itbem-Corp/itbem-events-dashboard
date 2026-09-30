@@ -51,7 +51,7 @@ export function InferenceDiagnosticsPanel({ taskId, runId }: { taskId: string; r
         <p>Gateway: HTTP {row.diagnostics.gateway_status || 'sin resultado'} · {row.diagnostics.duration_ms} ms · {row.diagnostics.failure_code || 'sin fallo registrado'}</p>
         <p>Última etapa: {row.diagnostics.stage || 'no registrada'} · validación {row.diagnostics.validation_ms ?? '—'} ms</p>
         <p>{row.diagnostics.message_count} mensajes · {row.diagnostics.request_bytes} bytes · máximo {row.diagnostics.max_completion_tokens} tokens</p>
-        <p className="break-all">Hash de mensajes enviados: {row.diagnostics.request_hash}</p>
+        <p className="break-all">Hash de mensajes de la solicitud: {row.diagnostics.request_hash}</p>
         {(Array.isArray(row.diagnostics.attempts) ? row.diagnostics.attempts : []).map(attempt => <p key={attempt.index}>Ruta {attempt.index + 1}: {attempt.provider} / {attempt.model} · razonamiento {attempt.reasoning_enabled ? 'activado' : 'desactivado'} · esfuerzo {attempt.reasoning_effort || 'vacío'} · {attempt.duration_ms} ms · timeout {attempt.timeout_ms ?? '—'} ms · {attempt.failure_code || 'sin fallo registrado'} · finalización {attempt.finish_reason || 'no observada'}</p>)}
         <p>Captura de solicitud: {row.diagnostics.request_capture || 'no registrada'} · respuesta: {row.diagnostics.response_capture || 'no registrada'}</p>
         <Button outline disabled={busy} onClick={() => void inspect(row.receipt_id)}>Abrir contenido privado y registrar acceso</Button>
@@ -59,7 +59,7 @@ export function InferenceDiagnosticsPanel({ taskId, runId }: { taskId: string; r
       {content?.id === row.receipt_id && <div className="space-y-2">
         <Button plain onClick={() => setContent(null)}>Ocultar contenido</Button>
         <p>Vista sanitizada: oculta patrones de credenciales detectados y campos de razonamiento privado.</p>
-        <h4>Solicitud enviada</h4>
+        <h4>Solicitud preparada</h4>
         {content.value.request_available ? content.value.request?.messages?.map((message, index) => <pre key={index} className="max-h-80 overflow-auto whitespace-pre-wrap break-words">{message.role}{'\n'}{message.content}</pre>) : <p>Solicitud no disponible.</p>}
         <h4>Respuesta final</h4>
         {content.value.response_available ? <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words">{content.value.response?.final_answer}</pre> : <p>No se observó una respuesta final guardada.</p>}
