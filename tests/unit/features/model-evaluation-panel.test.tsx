@@ -46,6 +46,12 @@ describe('isolated evaluation controls', () => {
     const value = fixture()
     expect(() => parseEvaluation({ status: 200, data: { ...value, batch: { ...value.batch, reservation_microusd: reservation } } })).toThrow()
   })
+  it('accepts zero and full-budget reservations without weakening the envelope check', () => {
+    for (const reservation of [0, 1_000_000]) {
+      const value = fixture(); value.batch.reservation_microusd = reservation
+      expect(parseEvaluation({ status: 200, data: value })).toEqual(value)
+    }
+  })
   it('rejects a reservation exceeding the actual smaller budget', () => {
     const value = fixture(); value.batch.budget_microusd = 300_000
     expect(() => parseEvaluation({ status: 200, data: value })).toThrow()
