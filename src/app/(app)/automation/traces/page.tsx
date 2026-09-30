@@ -14,6 +14,8 @@ import { automationAgentsPath, automationTraceHistoryPath, deliveryProjectPath, 
 import { deliveryEpicDetailPath } from '@/features/automation/delivery-epics'
 import { fetcher } from '@/lib/fetcher'
 import { useStore } from '@/store/useStore'
+import { createAccessProfile } from '@/lib/access-profile'
+import { InferenceDiagnosticsPanel } from '@/features/automation/inference-diagnostics-panel'
 import {
   ArrowPathIcon,
   ArrowRightIcon,
@@ -184,6 +186,9 @@ export default function AutomationTracesPage() {
   const [applied, setApplied] = useState<AutomationTraceHistoryFilters>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const workspaceMode = useStore((state) => state.workspaceMode)
+  const session = useStore((state) => state.applicationSession)
+  const client = useStore((state) => state.currentClient)
+  const access = createAccessProfile(session, workspaceMode, client?.id)
   const directory = useSWR<AutomationAgentDirectorySnapshot>(workspaceMode === 'platform' ? automationAgentsPath() : null, async (path) =>
     parseAutomationAgentDirectory(await fetcher<unknown>(path)), { refreshInterval: 60_000, revalidateOnFocus: true })
   const projectList = useSWR<DeliveryProject[]>(deliveryProjectsPath(), fetcher, {
@@ -447,7 +452,8 @@ export default function AutomationTracesPage() {
                   {hasTraceField(selected, 'latency_ms') && <DetailRow label="Latencia" value={selected.latency_ms == null ? '—' : `${displayCount(selected.latency_ms)} ms`} />}
                   <DetailRow label="Costo registrado" value={displayEventCost(selected)} />
                 </dl>
-                <p className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-900">La vista solo muestra metadatos aprobados. No conserva ni revela prompts, salida del modelo, secretos o razonamiento privado.</p>
+                <p className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-900">La línea de tiempo muestra metadatos. Root 1 puede abrir por separado el contenido privado sanitizado; cada acceso se registra en auditoría.</p>
+                {access.isPlatformContext && access.platformLevel === 'root_1' && selected.automation_task_id && <InferenceDiagnosticsPanel key={`${selected.id}:${selected.run_id || ''}`} taskId={selected.automation_task_id} runId={selected.run_id} />}
               </>
             ) : (
               <div className="flex min-h-64 flex-col items-center justify-center text-center"><ClipboardDocumentListIcon className="size-8 text-ink-muted" /><h2 className="mt-3 font-semibold text-ink">Selecciona un evento</h2><p className="mt-1 max-w-xs text-sm text-ink-secondary">Aquí verás su contexto, estado, proveedor y coste usando únicamente campos aprobados.</p></div>
