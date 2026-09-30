@@ -176,4 +176,18 @@ describe('project activity timeline', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Anterior' }))
     expect(await screen.findByText(/Página 1 ·/)).toBeInTheDocument()
   })
+
+  it('applies the selected date range as ISO timestamps in the activity request', async () => {
+    renderTimeline()
+    fireEvent.click(screen.getByRole('button', { name: 'Ver actividad' }))
+    expect(await screen.findByText('Step status changed')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2026-09-24T10:00' } })
+    fireEvent.change(screen.getByLabelText('Hasta'), { target: { value: '2026-09-24T11:00' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar filtros' }))
+
+    await waitFor(() => expect(mocks.fetcher).toHaveBeenLastCalledWith(
+      `/automation/projects/${projectId}/activity?limit=25&from=2026-09-24T10%3A00%3A00.000Z&to=2026-09-24T11%3A00%3A00.000Z`,
+    ))
+  })
 })

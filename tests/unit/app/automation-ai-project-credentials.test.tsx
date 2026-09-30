@@ -68,10 +68,10 @@ function projectProviderCard(providerName: string, providerId: string) {
   return card
 }
 
-function initializeApi() {
+function initializeApi(policies: unknown[] = []) {
   apiGet.mockImplementation((path: string) => {
     if (path === deliveryProjectsPath()) return response(projects)
-    if (path === automationAIActionPoliciesPath()) return response([])
+    if (path === automationAIActionPoliciesPath()) return response(policies)
     if (path === automationProviderCatalogPath()) return response({ providers: [] })
     const usageProjectId = projectUsageFromPath(path)
     if (usageProjectId) return response(projectUsageSnapshot(usageProjectId, usageProjectId === 'project-a' ? '1.00' : '2.00'))
@@ -202,5 +202,25 @@ describe('AI project credentials settings', () => {
     expect(await within(deepSeekCard).findByText('No se pudo verificar')).toBeInTheDocument()
     expect(within(deepSeekCard).queryByText('No configurada')).not.toBeInTheDocument()
     expect(within(deepSeekCard).queryByText('Guardada')).not.toBeInTheDocument()
+  })
+
+  it('saves the selected action policy with the gateway route contract', async () => {
+    const policy = {
+      operation: 'code.review',
+      configured: true,
+      routes: [{ provider: 'deepseek', model: 'deepseek-flash', reasoning_enabled: true, reasoning_effort: 'high' }],
+    }
+    initializeApi([policy])
+    const user = userEvent.setup()
+    render(<AutomationSettingsPage />)
+
+    const policyHeading = await screen.findByRole('heading', { name: 'Revisión de código' })
+    const policyCard = policyHeading.closest('article')
+    if (!(policyCard instanceof HTMLElement)) throw new Error('Code review policy card was not rendered')
+    await user.click(within(policyCard).getByRole('button', { name: 'Guardar cadena' }))
+
+    await waitFor(() => expect(apiPut).toHaveBeenCalledWith(automationAIActionPolicyPath('code.review'), {
+      routes: [{ provider: 'deepseek', model: 'deepseek-flash', reasoning_enabled: true, reasoning_effort: 'high' }],
+    }))
   })
 })
