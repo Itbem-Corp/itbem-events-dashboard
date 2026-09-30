@@ -57,10 +57,9 @@ export function isNewDeliveryWorkItemRevision(previousRevision: string | undefin
   return previousRevision !== event.revision
 }
 
-// Keep the stream endpoint and its payload bound to the same work item. The
-// backend already scopes the SSE route, but this client-side check makes a
-// malformed, replayed, or misrouted event unable to refresh a different
-// item's panels.
+// Bind every streamed event to its requested work item. The API scopes the
+// stream already; this additional check prevents malformed or replayed events
+// from refreshing a different operator console.
 export function deliveryWorkItemStreamEventMatches(event: DeliveryWorkItemStreamEvent, workItemId: string | null | undefined) {
   const expectedWorkItemId = workItemId?.trim()
   return Boolean(expectedWorkItemId) && event.work_item_id === expectedWorkItemId

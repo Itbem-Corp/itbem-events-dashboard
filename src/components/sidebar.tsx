@@ -30,7 +30,7 @@ export function SidebarBody({ className, ...props }: React.ComponentPropsWithout
       data-slot="sidebar-body"
       className={clsx(
         className,
-        'flex flex-1 flex-col overflow-y-auto p-4 [&>[data-slot=section]+[data-slot=section]]:mt-8'
+        'flex flex-1 flex-col overflow-y-auto px-3 py-4 [&>[data-slot=section]+[data-slot=section]]:mt-7'
       )}
     />
   )
@@ -63,7 +63,7 @@ export function SidebarSpacer({ className, ...props }: React.ComponentPropsWitho
 
 export function SidebarHeading({ className, ...props }: React.ComponentPropsWithoutRef<'h3'>) {
   return (
-    <h3 {...props} className={clsx(className, 'mb-1 px-2 text-xs/6 font-medium text-ink-muted')} />
+    <h3 {...props} className={clsx(className, 'mb-1.5 px-2.5 text-[10px]/5 font-semibold tracking-[0.14em] text-ink-muted uppercase')} />
   )
 }
 
@@ -81,7 +81,7 @@ export const SidebarItem = forwardRef(function SidebarItem(
 ) {
   let classes = clsx(
     // Base
-    'flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-base/6 font-medium text-ink transition-[background-color,color,transform,box-shadow] duration-200 ease-out motion-reduce:transition-none sm:py-2.5 sm:text-sm/5',
+    'flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-left text-base/6 font-medium text-ink transition-[background-color,color,transform] duration-150 ease-out motion-reduce:transition-none sm:py-2 sm:text-sm/5',
     // Leading icon/icon-only
     '*:data-[slot=icon]:size-6 *:data-[slot=icon]:shrink-0 *:data-[slot=icon]:fill-ink-muted sm:*:data-[slot=icon]:size-5',
     // Trailing icon (down chevron or similar)
@@ -89,18 +89,18 @@ export const SidebarItem = forwardRef(function SidebarItem(
     // Avatar
     '*:data-[slot=avatar]:-m-0.5 *:data-[slot=avatar]:size-7 sm:*:data-[slot=avatar]:size-6',
     // Hover
-    'data-hover:bg-surface-interactive data-hover:*:data-[slot=icon]:fill-ink',
+    'data-hover:bg-surface-interactive data-hover:*:data-[slot=icon]:fill-ink data-hover:translate-x-0.5',
     // Active
     'data-active:bg-surface-interactive data-active:*:data-[slot=icon]:fill-ink',
     // Current
-    'data-current:bg-(--tenant-accent)/[0.11] data-current:text-ink data-current:shadow-[inset_0_1px_rgb(255_255_255_/_14%)] data-current:*:data-[slot=icon]:fill-(--tenant-accent)',
+    'data-current:bg-(--tenant-accent)/[0.11] data-current:text-ink data-current:font-semibold data-current:shadow-[inset_0_1px_rgb(255_255_255_/_14%)] data-current:*:data-[slot=icon]:fill-(--tenant-accent)',
     'dark:data-current:shadow-[inset_0_1px_rgb(255_255_255_/_4%)]'
   )
 
   return (
     <span className={clsx(className, 'relative')}>
       {current && (
-        <span className="absolute inset-y-2 -left-4 w-0.5 rounded-full bg-(--tenant-accent)" />
+          <span className="absolute inset-y-2 -left-3 w-0.5 rounded-full bg-(--tenant-accent) shadow-[0_0_10px_color-mix(in_srgb,var(--tenant-accent)_55%,transparent)]" />
       )}
       {typeof props.href === 'string' ? (
         <Headless.CloseButton

@@ -1,8 +1,7 @@
 'use client'
 
-import { AnimatePresence, motion } from 'motion/react'
-import { useEffect } from 'react'
-import type { ReactNode } from 'react'
+import * as Headless from '@headlessui/react'
+import { useRef, type ReactNode } from 'react'
 
 interface BottomSheetProps {
   isOpen: boolean
@@ -12,59 +11,44 @@ interface BottomSheetProps {
 }
 
 export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetProps) {
-  useEffect(() => {
-    if (!isOpen) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [isOpen])
+  const closeRequestedRef = useRef(false)
+  const wasOpenRef = useRef(isOpen)
 
-  useEffect(() => {
-    if (!isOpen) return
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [isOpen, onClose])
+  if (isOpen && !wasOpenRef.current) closeRequestedRef.current = false
+  wasOpenRef.current = isOpen
+
+  const requestClose = () => {
+    if (closeRequestedRef.current) return
+    closeRequestedRef.current = true
+    onClose()
+  }
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            data-testid="bottom-sheet-backdrop"
-            className="fixed inset-0 z-40 bg-black/60"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl bg-surface border-t border-white/10"
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-            role="dialog"
-            aria-modal="true"
-            aria-label={title ?? 'Acciones'}
-          >
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-white/20" />
-            </div>
-            {title && (
-              <p className="px-4 py-2 text-sm font-semibold text-ink-secondary border-b border-white/5">
-                {title}
-              </p>
-            )}
-            <div className="px-2 py-2 max-h-[70vh] overflow-y-auto pb-safe">
-              {children}
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    <Headless.Dialog open={isOpen} onClose={requestClose} className="relative z-50" aria-label={title ?? 'Acciones'}>
+      <Headless.DialogBackdrop
+        transition
+        data-testid="bottom-sheet-backdrop"
+        className="fixed inset-0 bg-black/60 backdrop-blur-[2px] transition-opacity duration-200 ease-out motion-reduce:transition-none data-closed:opacity-0 data-leave:duration-150 data-leave:ease-in"
+      />
+      <div className="fixed inset-0 flex items-end">
+        <Headless.DialogPanel
+          transition
+          className="pointer-events-auto w-full rounded-t-[1.75rem] border-t border-[var(--app-border-subtle)] bg-[var(--app-surface-raised)] shadow-[0_-16px_48px_var(--app-shadow-strong)] will-change-[opacity,transform] transition-[opacity,transform] duration-[240ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none motion-reduce:data-closed:translate-y-0 motion-reduce:data-closed:opacity-100 data-closed:translate-y-full data-closed:opacity-0 data-leave:duration-150 data-leave:ease-in"
+        >
+          <div aria-hidden="true" className="flex justify-center pb-1 pt-3">
+            <div className="h-1 w-10 rounded-full bg-[var(--app-border-strong)]" />
+          </div>
+          {title && (
+            <Headless.DialogTitle className="border-b border-[var(--app-border-subtle)] px-5 py-3 text-sm font-semibold text-[var(--app-text-primary)]">
+              {title}
+            </Headless.DialogTitle>
+          )}
+          <div className="max-h-[min(70dvh,36rem)] overflow-y-auto overscroll-contain px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            {children}
+          </div>
+        </Headless.DialogPanel>
+      </div>
+    </Headless.Dialog>
   )
 }
 
@@ -84,10 +68,10 @@ export function SheetRow({ icon, label, onClick, trailing, variant = 'default', 
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm transition-colors disabled:opacity-40 ${
+      className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.985] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) motion-reduce:transition-none disabled:opacity-40 ${
         variant === 'danger'
-          ? 'text-rose-400 hover:bg-rose-500/10'
-          : 'text-ink hover:bg-white/5'
+          ? 'text-rose-500 hover:bg-rose-500/10'
+          : 'text-ink hover:bg-surface-interactive'
       }`}
     >
       <span className="shrink-0 w-5 h-5 flex items-center justify-center">{icon}</span>

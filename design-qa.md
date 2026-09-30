@@ -58,6 +58,67 @@
 
 final result: passed
 
+## Responsive shell and navigation pass (2026-09-23)
+
+**Source visual truth:** `C:\Users\AndBe\.codex\generated_images\01a0d0d5-a0a8-7e01-833c-2c57bbf9e927\exec-392eed64-6729-4454-99f0-d798bf71a397.png` (1487 × 1058). The selected Command Center direction defines the desktop visual language; the mobile and tablet treatments preserve its hierarchy rather than scale the desktop rail down.
+
+**Implementation evidence:** browser-rendered project view at `http://dashboard.itbem.localhost:3017/automation/projects/237da69f-4d99-4ad2-a0b3-0a2de946875f`. Captured and inspected in the current QA session at 360 × 800, 390 × 844, 768 × 1024, and 1440 × 900 CSS px (DPR 1). The browser capture surface does not persist files locally; the route and viewports above are the reproducible evidence.
+
+**State:** authenticated ITBEM platform context, project detail, Proyectos selected; no dialogs open.
+
+**Full-view comparison:** the 1440 px view retains the graphite full-height navigation rail and intentionally calm, light work surface from the selected design. At tablet and phone widths, the rail becomes a modal drawer, the application navigation becomes a tactile bottom bar, and page content is given the full available column.
+
+**Focused region comparison:** responsive header, automation section strip, project section tabs, persistent bottom navigation, and the first operational card were inspected. At 360 px the page has no horizontal document overflow (`scrollWidth: 345`, viewport: 360); the four project actions and five automation destinations remain visible and independently tappable.
+
+**Findings and resolution**
+
+- [P0 resolved] The previous narrow mobile view could leave the desktop sidebar visually in the viewport, making the work area feel shifted. The drawer width now caps at the remaining viewport width and the shell explicitly clips horizontal overflow while preserving keyboard focus handling.
+- [P1 resolved] Dense mobile navigation labels collided or truncated ambiguously. The bottom bar uses compact, readable labels; the automation strip uses five equal touch targets and its settings label shortens only on phone widths; project tabs use a four-column mobile layout with a compact `Config.` label.
+- [P2 resolved] Content spacing was desktop-weighted on short phones. The body now starts with 12 px horizontal / 16 px vertical padding, grows progressively through tablet and desktop, and reserves a safe-area-aware lane for the bottom navigation.
+
+**Required fidelity surfaces**
+
+- Typography: mobile labels are 10 px with semantic aria labels; titles and body copy retain their existing readable scale and wrapping.
+- Spacing/layout rhythm: 16 px mobile header, compact 12 px body gutter, 44 px-or-greater primary touch controls, and a safe-area-aware bottom inset.
+- Colors/tokens: graphite navigation, neutral work surface, focus token, and semantic status colors remain unchanged across breakpoints.
+- Images/assets: the existing product mark and Heroicons retain intrinsic sizing; no image was scaled or replaced in responsive modes.
+- Copy/content: live Spanish project data is preserved; only visual compact labels change at constrained widths and their accessible names remain complete.
+
+**Validation:** targeted lint passed; targeted navigation tests passed (2 files, 6 tests); browser inspection passed at 360/390/768/1440; zero horizontal overflow observed at phone widths. Repository-wide TypeScript validation is currently blocked by an unrelated pre-existing type error in `src/app/(app)/automation/settings/page.tsx:494`.
+
+**Follow-up polish:** browser console still reports a development hydration warning from Headless UI-generated account-menu IDs after reload; it does not affect layout or interaction in the inspected routes, but it should be addressed separately from this responsive visual pass.
+
+final result: passed
+
+## ITBEM Command Center sidebar refresh (2026-09-23)
+
+**Source visual truth:** `C:\Users\AndBe\.codex\generated_images\01a0d0d5-a0a8-7e01-833c-2c57bbf9e927\exec-392eed64-6729-4454-99f0-d798bf71a397.png` (1487 × 1058).
+
+**Implementation evidence:** browser-rendered `/automation` at `http://dashboard.itbem.localhost:3032/automation`, captured in the current QA session at 1718 × 881 CSS px, DPR 1. The implementation retains real production data and workflow controls, so it is reviewed as a direction-led adaptation rather than a pixel-for-pixel reproduction of the concept mock.
+
+**State:** desktop, ITBEM platform context, Centro de automatización selected, live portfolio populated.
+
+**Full-view comparison:** both surfaces use a dark, stable navigation anchor with a light operational canvas and a clear action hierarchy. The implementation preserves the existing live workflow and decision queue instead of substituting mock content.
+
+**Focused region comparison — sidebar:** the source's dark graphite rail is represented by a 288 px full-height desktop sidebar, compact brand/workspace area, grouped navigation, strong selected-route surface, and utility/account footer. Computed QA values confirmed `rgb(23, 26, 31)` panel background, `rgb(244, 246, 248)` active-route foreground, and a graphite active treatment. No console errors or rendered route error boundary were observed.
+
+**Findings and resolution**
+
+- [P1 resolved] Non-semantic automation chips used violet and cyan, which conflicted with ITBEM's graphite-only brand direction. Team and model indicators now use the shared neutral token (`rgb(102, 112, 133)`); green, amber, and red remain reserved for semantic health and workflow states.
+- [P2 resolved] Navigation hierarchy was too visually flat. Group headings, active-route emphasis, icon semantics, 40 px navigation targets, workspace elevation, and footer controls now make primary actions and context easier to scan.
+
+**Required fidelity surfaces**
+
+- Typography: preserved Inter/system product stack; compact labels use optical 10 px uppercase hierarchy while route labels remain readable at 14 px.
+- Spacing/layout rhythm: sidebar expanded from 272 px to 288 px, with full-height desktop anchoring and a 12 px content gutter.
+- Colors/tokens: ITBEM uses graphite/white neutral tokens in navigation; state colors are limited to green, amber, and red.
+- Images/assets: no new raster imagery is used in the selected direction. Existing product mark and the installed Heroicons set remain appropriate, sharp, and semantically labelled.
+- Copy/content: all existing Spanish product copy and live workflow data remain intact.
+
+**Validation:** TypeScript passed; lint passed; focused navigation/product-manifest tests passed (20 tests); isolated production build passed; browser console errors: 0.
+
+final result: passed
+
 ## Pulido integral de vistas autenticadas y carga (2026-07-17)
 
 - Se compararon estados antes/después en el mismo viewport para Eventos, detalle de evento y control plane. Evidencia: `.codex-audit/full-platform-polish-2026-07-17/comparison-*.png`.
@@ -112,3 +173,29 @@ final result: passed
 - `git diff --check`: passed.
 
 final result: passed
+
+## Referencias de operaciones ITBEM — verificación pendiente (2026-09-26)
+
+**Fuentes visuales:** capturas adjuntas en `C:\Users\AndBe\Desktop\ChatGPT Image Sep 24, 2026, 10_11_44 AM.png` (1487 × 1058), `10_12_09 AM.png` (1505 × 1045), `10_12_16 AM.png` (1504 × 1046), `10_12_23 AM.png` (1487 × 1058), `10_12_29 AM.png` (1487 × 1058), `10_12_35 AM.png` (1487 × 1058), `10_12_43 AM.png` (1487 × 1058), `10_12_58 AM.png` (1448 × 1086), `10_13_06 AM.png` (1448 × 1086).
+
+**Alcance:** referencias de cartera/empresa, detalle de plan y pasos, directorio y despacho de agentes, trazas, trabajo por proyecto, configuración de proyecto y revisión de resultado/costo. En esta iteración se trabajó en el despacho y perfil de agentes; el backend también separa operaciones del perfil de capacidades declaradas.
+
+**Estado y comparación:** se intentó abrir `http://dashboard.itbem.localhost:3017/automation/agents/generalist` en el navegador local. La aplicación redirigió a `http://dashboard.itbem.localhost:3017/login`; la única vista renderizada fue el formulario de acceso, no la vista autenticada de las referencias. Viewport CSS, DPR y captura local de implementación no están disponibles; no hay screenshot de implementación que pueda compararse en la misma escala/estado. No se comparó lado a lado ni se inspeccionaron tipografía, layout, paleta, assets o copy contra las referencias. No se afirma fidelidad visual.
+
+**Evidencia automatizada relacionada:** perfil del agente 13/13 pruebas y lint/typecheck focalizados pasaron; despacho 4/4 pruebas y lint/typecheck focalizados pasaron. El backend Stagehand QA pasó 25/25 pruebas; su reporte ahora conserva usage nativo del proveedor y la correlación de receipts de respuestas rechazadas que podrían ser billables. Estas comprobaciones no sustituyen la comparación visual.
+
+**Hallazgo / bloqueo:** la sesión autenticada es necesaria para llegar a los estados de empresa/proyecto, agente, dispatcher y tarea. No se usaron credenciales ni se intentó eludir el control de acceso. La captura actual de `/login` se ve en la herramienta de navegador, pero no tiene ruta de archivo local y no corresponde al diseño objetivo.
+
+**Superficies de fidelidad requeridas:**
+
+- Tipografía: no evaluada en las pantallas objetivo.
+- Espaciado y ritmo de layout: no evaluados en las pantallas objetivo.
+- Colores y tokens: no evaluados en las pantallas objetivo.
+- Calidad y fidelidad de imágenes/assets: no evaluadas en las pantallas objetivo.
+- Copy y contenido: no evaluados en las pantallas objetivo.
+
+**Comparación/iteraciones:** ninguna P0/P1/P2 visual puede confirmarse sin el estado autenticado y una captura comparable. La QA queda pendiente; no se introduce una corrección visual basada sólo en código o memoria.
+
+**Implementation screenshot path:** no disponible; acceso terminó en `/login` y el screenshot de implementación no se guardó como archivo local. **Viewport:** no capturado. **Estado:** login sin autenticación. **Resultado final:** blocked — se necesita abrir el dashboard local con una sesión autorizada y volver a capturar las vistas equivalentes a las fuentes.
+
+final result: blocked

@@ -18,8 +18,8 @@ export const ApplicationSidebarFooter = memo(function ApplicationSidebarFooter({
   onSearchOpen: () => void
 }) {
   return (
-    <SidebarFooter className="border-t border-border-subtle pt-4 max-lg:hidden dark:border-white/10">
-      <div className="mb-2 flex items-center gap-2 px-2">
+    <SidebarFooter className="border-t border-border-subtle px-3 pt-3 max-lg:hidden dark:border-white/10">
+      <div className="mb-2 flex items-center gap-2 px-1">
         <ApplicationSearchButton compact onOpen={onSearchOpen} onIntent={onSearchIntent} />
         <LazyNotificationButton />
         <ThemeToggle className="size-8" />

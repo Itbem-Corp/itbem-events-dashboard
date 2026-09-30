@@ -29,6 +29,21 @@ describe('development route warmup proxy boundary', () => {
     expect(response.headers.get('location')).toBe('https://dashboard.example.com/login')
   })
 
+  it('preserves the externally selected tenant when the internal URL is localhost', () => {
+    vi.stubEnv('NODE_ENV', 'development')
+
+    const response = proxy(new NextRequest('http://localhost:3017/events', {
+      headers: {
+        host: 'localhost:3017',
+        'x-forwarded-host': 'dashboard.itbem.localhost:3017, localhost:3017',
+        'x-forwarded-proto': 'http',
+      },
+    }))
+
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('http://dashboard.itbem.localhost:3017/login')
+  })
+
   it('does not honor the warmup header in production', () => {
     vi.stubEnv('NODE_ENV', 'production')
 
@@ -36,6 +51,27 @@ describe('development route warmup proxy boundary', () => {
 
     expect(response.status).toBe(307)
     expect(new URL(response.headers.get('location')!).pathname).toBe('/login')
+  })
+
+  it.each(['evil.example:3017', 'dashboard.localhost.evil.example:3017', 'localhost:3017@evil.example', 'https://dashboard.itbem.localhost:3017', 'dashboard_localhost:3017', 'unregistered.localhost:3017'])('ignores a non-local, unregistered or malformed forwarded host (%s)', (forwardedHost) => {
+    const response = proxy(new NextRequest('http://localhost:3017/events', {
+      headers: { 'x-forwarded-host': forwardedHost, 'x-forwarded-proto': 'https' },
+    }))
+    expect(response.headers.get('location')).toBe('http://localhost:3017/login')
+  })
+
+  it.each(['dashboard.eventiapp.localhost', 'dashboard.itbem.localhost', 'dashboard.cafettonhouse.localhost'])('preserves every catalog-approved local tenant (%s)', (hostname) => {
+    const response = proxy(new NextRequest('http://localhost:3017/events', {
+      headers: { 'x-forwarded-host': `${hostname}:3017`, 'x-forwarded-proto': 'http' },
+    }))
+    expect(response.headers.get('location')).toBe(`http://${hostname}:3017/login`)
+  })
+
+  it('never overrides a production tenant with a local forwarded host', () => {
+    const response = proxy(new NextRequest('https://dashboard.itbem.com.mx/events', {
+      headers: { 'x-forwarded-host': 'dashboard.eventiapp.localhost:3017', 'x-forwarded-proto': 'http' },
+    }))
+    expect(response.headers.get('location')).toBe('https://dashboard.itbem.com.mx/login')
   })
 })
 

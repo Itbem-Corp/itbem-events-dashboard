@@ -6,10 +6,15 @@ import { Dialog, DialogActions, DialogBody, DialogTitle } from '@/components/dia
 import { PageTransition } from '@/components/ui/page-transition'
 import {
   deliveryPortfolioRefreshInterval,
+  aggregateDeliveryPortfolioCosts,
+  deliveryPortfolioCostCoverage,
   normalizeDeliveryPortfolio,
+  portfolioCostAmountLabel,
+  portfolioCostCoverageNote,
   type DeliveryPortfolioProject,
   type DeliveryPortfolioSnapshot,
   type DeliveryPortfolioWorkItem,
+  type DeliveryPortfolioCostCoverage,
 } from '@/features/automation/delivery-portfolio'
 import { hasCancellationRequest, hasUnresolvedTaskFailure } from '@/features/automation/delivery-task-status'
 import type { DeliveryClientOverview, DeliveryProject, DeliveryTaskStatus, DeliveryWorkItem } from '@/features/automation/delivery-types'
@@ -55,11 +60,15 @@ type ClientPortfolioProject = {
   client_name: string
   name: string
   updated_at: string
-  work_item_count: number
+  work_item_count?: number
   active_work_items: number
   decisions_required: number
   blocked_work_items: number
   attention_tasks: number
+  cost_last_30_days_microusd?: number
+  unpriced_executions_last_30_days?: number
+  technology_tags?: string[]
+  work_items_truncated?: boolean
   work_items: ClientFlowWorkItem[]
 }
 
@@ -71,6 +80,7 @@ type ClientRow = {
   activeCount: number
   attentionCount: number
   executionAttentionCount: number
+  costCoverage: DeliveryPortfolioCostCoverage
 }
 
 const healthMeta: Record<Health, { label: string; color: 'emerald' | 'amber' | 'rose'; dot: string }> = {
@@ -109,6 +119,12 @@ function relativeTime(value?: string) {
   return `hace ${Math.floor(hours / 24)} d`
 }
 
+function clientProjectsHref(clientId: string, create = false) {
+  const params = new URLSearchParams({ client: clientId })
+  if (create) params.set('create', '1')
+  return `${deliveryProjectsPath()}?${params.toString()}`
+}
+
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'CL'
 }
@@ -136,7 +152,7 @@ function asClientFlowWorkItem(workItem: DeliveryPortfolioWorkItem | DeliveryWork
   }
 }
 
-function asClientPortfolioProject(project: DeliveryPortfolioProject): ClientPortfolioProject {
+function asClientPortfolioProject(project: DeliveryPortfolioProject, costSourceAvailable: boolean): ClientPortfolioProject {
   return {
     id: project.id,
     client_id: project.clientId,
@@ -148,8 +164,38 @@ function asClientPortfolioProject(project: DeliveryPortfolioProject): ClientPort
     decisions_required: project.decisionsRequired,
     blocked_work_items: project.blockedWorkItems,
     attention_tasks: project.attentionTasks,
+    ...(costSourceAvailable && project.costLast30DaysMicros !== undefined ? { cost_last_30_days_microusd: project.costLast30DaysMicros } : {}),
+    ...(costSourceAvailable && project.unpricedExecutionsLast30Days !== undefined ? { unpriced_executions_last_30_days: project.unpricedExecutionsLast30Days } : {}),
+    technology_tags: project.technologyTags,
+    work_items_truncated: project.workItemsTruncated,
     work_items: project.workItems.map(asClientFlowWorkItem),
   }
+}
+
+function asClientFallbackProject(project: DeliveryProject): ClientPortfolioProject {
+  const workItems = project.work_items?.map(asClientFlowWorkItem) ?? []
+  return {
+    id: project.id,
+    client_id: project.client_id,
+    client_name: project.client?.name ?? 'Cliente sin nombre',
+    name: project.name,
+    updated_at: project.updated_at,
+    ...(project.work_items ? { work_item_count: project.work_items.length } : {}),
+    active_work_items: workItems.filter(isActive).length,
+    decisions_required: workItems.filter(requiresHuman).length,
+    blocked_work_items: workItems.filter((workItem) => workItem.state === 'blocked').length,
+    attention_tasks: workItems.filter((workItem) => workItemTone(workItem) === 'attention').length,
+    work_items: workItems,
+  }
+}
+
+function formatCostMicros(value: number) {
+  return new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  }).format(value / 1_000_000)
 }
 
 function requiresHuman(workItem: ClientFlowWorkItem) {
@@ -246,11 +292,12 @@ function flowStageIndex(tone: FlowTone) {
   return 0
 }
 
-function Metric({ label, value, emphasis = false }: { label: string; value: number; emphasis?: boolean }) {
+function Metric({ label, value, detail, emphasis = false }: { label: string; value: number | string; detail?: string; emphasis?: boolean }) {
   return (
     <div className={`min-w-0 rounded-2xl border px-3 py-2.5 ${emphasis ? 'border-(--tenant-accent)/25 bg-(--tenant-accent)/[.055]' : 'border-border-subtle bg-surface-soft/70'}`}>
       <p className="text-base font-semibold tabular-nums text-ink sm:text-lg">{value}</p>
       <p className="mt-0.5 truncate text-[10px] font-semibold tracking-[0.08em] text-ink-muted uppercase sm:text-[11px]">{label}</p>
+      {detail ? <p className="mt-1 text-[10px] leading-4 text-amber-800">{detail}</p> : null}
     </div>
   )
 }
@@ -293,15 +340,22 @@ export default function DeliveryClientsPage() {
   const items = useMemo(() => deliveryClients.data ?? [], [deliveryClients.data])
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
   const portfolioSnapshot = portfolioQuery.data ?? null
+  const portfolioCostsAvailable = Boolean(portfolioSnapshot && !portfolioSnapshot.summarySourcesUnavailable?.includes('costs'))
+  const portfolioCostCoverage = deliveryPortfolioCostCoverage(
+    portfolioCostsAvailable ? portfolioSnapshot?.totals.costLast30DaysMicros : undefined,
+    portfolioCostsAvailable ? portfolioSnapshot?.totals.unpricedExecutionsLast30Days : undefined,
+  )
+  const portfolioCostNote = portfolioCostCoverageNote(portfolioCostCoverage)
   const selectableClients = useMemo(() => organizationClients.data?.data ?? [], [organizationClients.data])
   const clientRows = useMemo<ClientRow[]>(() => {
     const knownClients = new Map(items.map((client) => [client.client.id, client]))
-    const compactProjects = portfolioSnapshot?.projects.map(asClientPortfolioProject) ?? []
-    const clientIds = new Set([...items.map((client) => client.client.id), ...compactProjects.map((project) => project.client_id)])
+    const compactProjects = portfolioSnapshot?.projects.map((project) => asClientPortfolioProject(project, portfolioCostsAvailable)) ?? []
+    const availableProjects = portfolioSnapshot ? compactProjects : projects.map(asClientFallbackProject)
+    const clientIds = new Set([...items.map((client) => client.client.id), ...availableProjects.map((project) => project.client_id)])
 
     return [...clientIds]
       .map((clientId) => {
-        const portfolioProjects = compactProjects
+        const portfolioProjects = availableProjects
           .filter((project) => project.client_id === clientId)
           .sort((left, right) => safeTime(right.updated_at) - safeTime(left.updated_at))
         const client = knownClients.get(clientId) ?? {
@@ -313,19 +367,31 @@ export default function DeliveryClientsPage() {
           ? portfolioProjects.flatMap((project) => project.work_items).sort((left, right) => safeTime(right.updated_at) - safeTime(left.updated_at))
           : clientWorkItems(client, projects)
         const flowCount = portfolioSnapshot
-          ? portfolioProjects.reduce((total, project) => total + project.work_item_count, 0)
+          ? portfolioProjects.reduce((total, project) => total + (project.work_item_count ?? 0), 0)
           : workItems.length
         const activeCount = portfolioSnapshot
           ? portfolioProjects.reduce((total, project) => total + project.active_work_items, 0)
           : workItems.filter(isActive).length
-        const attentionCount = portfolioSnapshot
+        const reportedAttentionCount = portfolioSnapshot
           ? portfolioProjects.reduce((total, project) => total + project.decisions_required + project.blocked_work_items + project.attention_tasks, 0)
-          : workItems.filter(requiresHuman).length
-        const executionAttentionCount = portfolioSnapshot
+          : 0
+        const observedAttentionCount = workItems.filter(requiresHuman).length
+        // The compact portfolio totals are useful when a server intentionally
+        // truncates the work-item list. When the detailed list is available,
+        // never let an aggregate undercount hide a real human gate from the
+        // operator's attention queue.
+        const attentionCount = Math.max(reportedAttentionCount, observedAttentionCount)
+        const reportedExecutionAttentionCount = portfolioSnapshot
           ? portfolioProjects.reduce((total, project) => total + project.attention_tasks + project.blocked_work_items, 0)
-          : workItems.filter((workItem) => workItemTone(workItem) === 'attention').length
+          : 0
+        const observedExecutionAttentionCount = workItems.filter((workItem) => workItemTone(workItem) === 'attention').length
+        const executionAttentionCount = Math.max(reportedExecutionAttentionCount, observedExecutionAttentionCount)
+        const costCoverage = aggregateDeliveryPortfolioCosts(portfolioProjects.map((project) => ({
+          costLast30DaysMicros: project.cost_last_30_days_microusd,
+          unpricedExecutionsLast30Days: project.unpriced_executions_last_30_days,
+        })))
 
-        return { client, projects: portfolioProjects, workItems, flowCount, activeCount, attentionCount, executionAttentionCount }
+        return { client, projects: portfolioProjects, workItems, flowCount, activeCount, attentionCount, executionAttentionCount, costCoverage }
       })
       .sort((left, right) => {
         const attention = right.attentionCount - left.attentionCount
@@ -333,7 +399,7 @@ export default function DeliveryClientsPage() {
         const active = right.activeCount - left.activeCount
         return active || left.client.client.name.localeCompare(right.client.client.name)
       })
-  }, [items, portfolioSnapshot, projects])
+  }, [items, portfolioCostsAvailable, portfolioSnapshot, projects])
   const decisions = useMemo(
     () =>
       clientRows
@@ -425,6 +491,11 @@ export default function DeliveryClientsPage() {
   return (
     <PageTransition>
       <main className="mx-auto max-w-[1440px] px-4 py-6 pb-28 sm:px-6 sm:py-8 lg:px-8 lg:pb-10">
+        <nav aria-label="Jerarquía del portafolio" className="mb-3 flex items-center gap-2 text-xs font-medium text-ink-muted">
+          <Link href="/clients" className="min-h-8 inline-flex items-center rounded-md hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35">Organizaciones</Link>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page" className="font-semibold text-ink-secondary">Clientes</span>
+        </nav>
         <header className="flex flex-col gap-5 border-b border-border-subtle pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             {!hasLoadError ? (
@@ -434,21 +505,53 @@ export default function DeliveryClientsPage() {
               </div>
             ) : null}
             <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-ink sm:text-3xl">Portafolio en movimiento</h1>
-            <p className="mt-1.5 max-w-2xl text-sm text-ink-muted">El contexto se incorpora automáticamente en cada flujo.</p>
+            <p className="mt-1.5 max-w-2xl text-sm text-ink-muted">Cada empresa agrupa sus proyectos. Revisa aquí su actividad y abre un proyecto para entrar a sus épicas, tareas y ejecuciones.</p>
           </div>
           {!hasLoadError && <Button color="indigo" onClick={() => openProfile()}><PlusIcon data-slot="icon" />Gestionar contexto</Button>}
         </header>
 
-        {!hasLoadError && <section aria-label="Pulso del portafolio" className="mt-5 grid grid-cols-2 gap-2 sm:gap-3">
+        {!hasLoadError && <section aria-label="Pulso del portafolio" className={`mt-5 grid gap-2 sm:gap-3 ${portfolioCostsAvailable ? 'grid-cols-2 xl:grid-cols-3' : 'grid-cols-2'}`}>
           <Metric label="En movimiento" value={activeFlows} emphasis />
           <Metric label={decisionTotal > 0 ? 'Requiere atención' : 'Sin intervención'} value={decisionTotal} />
+          {portfolioCostsAvailable && <Metric label="IA · 30 días · proyectos visibles" value={portfolioCostAmountLabel(portfolioCostCoverage, formatCostMicros)} detail={portfolioCostNote} />}
         </section>}
+
+        {!hasLoadError ? (
+          <details className="group mt-4 overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--tenant-accent)/35 sm:px-5 [&::-webkit-details-marker]:hidden">
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink">Jerarquía y snapshots de contexto</span>
+                <span className="mt-0.5 block text-xs text-ink-muted">Cliente → proyecto → épica → tarea</span>
+              </span>
+              <ChevronRightIcon className="size-4 shrink-0 text-ink-muted transition-transform group-open:rotate-90" aria-hidden="true" />
+            </summary>
+            <div className="border-t border-border-subtle px-4 py-4 sm:px-5">
+              <ol aria-label="Niveles de la jerarquía" className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ['Cliente / empresa', 'Perfil de negocio y reglas generales.'],
+                  ['Proyecto', 'Stack, repositorios, ambientes y presupuesto propios.'],
+                  ['Épica', 'Objetivo que agrupa tareas relacionadas dentro del proyecto.'],
+                  ['Tarea', 'Plan, pasos, ejecución, cambios y evidencia.'],
+                ].map(([title, description], index) => (
+                  <li key={title} className="rounded-xl border border-border-subtle bg-surface-soft/65 p-3">
+                    <p className="text-[10px] font-semibold tracking-[0.08em] text-ink-muted uppercase">{index + 1} · {title}</p>
+                    <p className="mt-1 text-xs leading-5 text-ink-secondary">{description}</p>
+                  </li>
+                ))}
+              </ol>
+              <p className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/[.05] px-3 py-2 text-xs leading-5 text-ink-secondary">
+                Este resumen agrupa proyectos por cliente, pero la respuesta resumida no expone el vínculo de épica para cada trabajo. Abre un proyecto para comprobar las épicas y sus tareas; no inferimos esa asociación aquí. Editar el perfil de empresa tampoco reescribe snapshots que ya se capturaron en tareas existentes.
+              </p>
+            </div>
+          </details>
+        ) : null}
 
         <div className={`mt-5 grid gap-5 ${hasLoadError ? '' : 'xl:grid-cols-[minmax(0,1fr)_20rem]'}`}>
           <section className="premium-surface overflow-hidden rounded-3xl">
             <div className="flex flex-col gap-3 border-b border-border-subtle px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <div>
-                <h2 className="text-lg font-semibold text-ink">Señales por cliente</h2>
+                <h2 className="text-lg font-semibold text-ink">Empresas cliente</h2>
+                <p className="mt-0.5 text-xs text-ink-muted">El resumen y los proyectos visibles pertenecen a cada empresa.</p>
               </div>
               {!hasLoadError && <div className="flex items-center gap-1 rounded-xl bg-surface-soft p-1" role="group" aria-label="Filtrar clientes">
                 {([
@@ -502,7 +605,7 @@ export default function DeliveryClientsPage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-semibold text-ink">{client.client.name}</h3>{row.executionAttentionCount > 0 ? <Badge color="rose">Atención operativa</Badge> : decisionsCount > 0 ? <Badge color="amber">Decisión pendiente</Badge> : <Badge color={meta.color}>{meta.label}</Badge>}</div>
+                              <div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-semibold text-ink"><Link href={`/automation/clients/${encodeURIComponent(client.client.id)}`} aria-label={`Abrir overview de ${client.client.name}`} className="rounded-sm hover:text-(--tenant-accent) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35">{client.client.name}</Link></h3>{row.executionAttentionCount > 0 ? <Badge color="rose">Atención operativa</Badge> : decisionsCount > 0 ? <Badge color="amber">Decisión pendiente</Badge> : <Badge color={meta.color}>{meta.label}</Badge>}</div>
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
                               {decisionsCount > 0 && <span className="inline-flex min-h-7 items-center gap-1 rounded-lg bg-amber-500/10 px-2 text-xs font-semibold text-amber-700 dark:text-amber-300"><ExclamationTriangleIcon className="size-3.5" />{decisionsCount}</span>}
@@ -522,6 +625,75 @@ export default function DeliveryClientsPage() {
                                 {stage < 3 ? <span className={`h-px min-w-1 flex-1 ${stage < activeStageIndex ? 'bg-emerald-500/45' : 'bg-border-subtle'}`} /> : null}
                               </span>
                             ))}
+                          </div>
+
+                          <div role="group" aria-label={`Proyectos de ${client.client.name}`} className="mt-3 rounded-2xl border border-border-subtle bg-surface-soft/45 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="text-[11px] font-semibold tracking-[0.08em] text-ink-muted uppercase">Proyectos del cliente</p>
+                                <p className="mt-0.5 text-xs text-ink-secondary">{row.projects.length} {row.projects.length === 1 ? 'proyecto' : 'proyectos'}{row.projects.length > 3 ? ` · mostrando 3 de ${row.projects.length}` : ''}{portfolioCostsAvailable ? ` · IA 30 días ${portfolioCostAmountLabel(row.costCoverage, formatCostMicros)} en proyectos visibles` : ''}</p>
+                                {portfolioCostsAvailable && portfolioCostCoverageNote(row.costCoverage) ? <p className="mt-1 text-[10px] leading-4 text-amber-800">{portfolioCostCoverageNote(row.costCoverage)}</p> : null}
+                              </div>
+                              <Link
+                                href={clientProjectsHref(client.client.id, row.projects.length === 0)}
+                                aria-label={row.projects.length === 0 ? `Crear proyecto para ${client.client.name}` : `Ver todos los proyectos de ${client.client.name}`}
+                                className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-(--tenant-accent) transition hover:bg-(--tenant-accent)/[.07] focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35"
+                              >
+                                {row.projects.length === 0 ? 'Crear proyecto' : 'Ver todos'}
+                                <ArrowTopRightOnSquareIcon className="size-3.5" aria-hidden="true" />
+                              </Link>
+                            </div>
+                            {row.projects.length > 0 ? (
+                              <ul className="mt-2 grid gap-1.5">
+                                {row.projects.slice(0, 3).map((project) => {
+                                  const attention = project.decisions_required + project.blocked_work_items + project.attention_tasks
+                                  const projectCost = deliveryPortfolioCostCoverage(
+                                    portfolioCostsAvailable ? project.cost_last_30_days_microusd : undefined,
+                                    portfolioCostsAvailable ? project.unpriced_executions_last_30_days : undefined,
+                                  )
+                                  const status = attention > 0
+                                    ? 'Requiere atención'
+                                    : project.active_work_items > 0
+                                      ? 'En marcha'
+                                          : project.work_item_count === undefined
+                                            ? 'Actividad no disponible'
+                                            : project.work_item_count > 0
+                                        ? `${project.work_item_count} ${project.work_item_count === 1 ? 'trabajo' : 'trabajos'}`
+                                        : 'Listo para empezar'
+                                  return (
+                                    <li key={project.id}>
+                                      <Link
+                                        href={`/automation/projects/${project.id}`}
+                                        className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-border-subtle/70 bg-[var(--app-surface-raised)] px-3 py-2 transition hover:border-(--tenant-accent)/30 hover:bg-surface-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)/35"
+                                      >
+                                        <span className="min-w-0">
+                                          <span className="block line-clamp-2 text-xs font-semibold leading-4 text-ink">{project.name}</span>
+                                          <span className={`mt-0.5 block text-[10px] font-medium ${attention > 0 ? 'text-amber-700 dark:text-amber-300' : project.active_work_items > 0 ? 'text-sky-700 dark:text-sky-300' : 'text-ink-muted'}`}>{status}</span>
+                                          <span className="mt-1.5 flex flex-wrap gap-1" aria-label={`Stack tecnológico de ${project.name}`}>
+                                            {project.technology_tags === undefined ? (
+                                              <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[10px] text-ink-muted">Stack no incluido en esta respuesta</span>
+                                            ) : project.technology_tags.length > 0 ? (
+                                              <>
+                                                {project.technology_tags.slice(0, 4).map((technology) => <span key={technology} className="rounded-full bg-(--tenant-accent)/[.08] px-2 py-0.5 text-[10px] font-medium text-(--tenant-accent)">{technology}</span>)}
+                                                {project.technology_tags.length > 4 ? <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[10px] text-ink-muted">+{project.technology_tags.length - 4}</span> : null}
+                                              </>
+                                            ) : (
+                                              <span className="rounded-full bg-surface-soft px-2 py-0.5 text-[10px] text-ink-muted">Sin stack reportado</span>
+                                            )}
+                                          </span>
+                                          {project.work_items_truncated ? <span className="mt-1 block text-[10px] text-ink-muted">{project.work_items.length} de {project.work_item_count ?? '—'} trabajos visibles · abre el proyecto para consultar el resto</span> : null}
+                                          {portfolioCostsAvailable && <span className="mt-0.5 block text-[10px] text-ink-muted">IA 30 días · {portfolioCostAmountLabel(projectCost, formatCostMicros)}</span>}
+                                          {portfolioCostsAvailable && portfolioCostCoverageNote(projectCost) ? <span className="mt-0.5 block text-[10px] leading-4 text-amber-800">{portfolioCostCoverageNote(projectCost)}</span> : null}
+                                        </span>
+                                        <ArrowTopRightOnSquareIcon className="size-3.5 shrink-0 text-ink-muted" aria-hidden="true" />
+                                      </Link>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            ) : (
+                              <p className="mt-1 max-w-xl text-xs leading-5 text-ink-muted">Cada proyecto tendrá sus propios repositorios, ramas, ambientes, reglas de entrega y presupuesto.</p>
+                            )}
                           </div>
 
                           <div className="mt-2 flex items-center justify-end text-xs text-ink-muted">
@@ -544,7 +716,7 @@ export default function DeliveryClientsPage() {
             {isLoading ? <div className="space-y-2 p-4" role="status" aria-live="polite" aria-busy="true" aria-label="Cargando intervenciones"><div className="h-16 animate-pulse rounded-xl bg-surface-soft motion-reduce:animate-none" /><div className="h-16 animate-pulse rounded-xl bg-surface-soft motion-reduce:animate-none" /></div> : hasLoadError ? (
               <div className="p-5"><div className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10"><ExclamationTriangleIcon className="size-5 text-amber-600" /></div><p className="mt-3 text-sm font-semibold text-ink">Intervenciones sin confirmar</p><p className="mt-1 text-xs leading-5 text-ink-muted">Sin una lectura actual no podemos asegurar que el agente tenga vía libre.</p></div>
             ) : decisionTotal === 0 ? (
-              <div className="p-5"><div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10"><CheckCircleIcon className="size-5 text-emerald-600" /></div><p className="mt-3 text-sm font-semibold text-ink">El agente tiene vía libre</p><p className="mt-1 text-xs leading-5 text-ink-muted">No hay revisiones ni bloqueos abiertos en los clientes monitorizados.</p></div>
+              <div className="p-5"><div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10"><CheckCircleIcon className="size-5 text-emerald-600" /></div><p className="mt-3 text-sm font-semibold text-ink">Sin intervenciones registradas</p><p className="mt-1 text-xs leading-5 text-ink-muted">No hay revisiones ni bloqueos abiertos en esta vista. Cada ejecución verifica por separado contexto, permisos y presupuesto.</p></div>
             ) : (
               <ul className="divide-y divide-border-subtle">
                 {visibleDecisions.map(({ client, workItem }) => <li key={workItem.id} className="p-4"><p className="text-[11px] font-semibold tracking-[0.08em] text-ink-muted uppercase">{client.client.name}</p><p className="mt-1 line-clamp-2 text-sm font-semibold text-ink">{workItem.title}</p><div className="mt-2 flex items-center justify-between gap-2"><span className={`text-xs font-medium ${workItemTone(workItem) === 'attention' ? 'text-rose-600 dark:text-rose-300' : 'text-amber-700 dark:text-amber-300'}`}>{workItemLabel(workItem)}</span><Link href={`/automation/work-items/${workItem.id}?view=control`} className="inline-flex min-h-11 items-center text-xs font-semibold text-(--tenant-accent)">Abrir gate</Link></div></li>)}

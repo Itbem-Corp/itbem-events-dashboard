@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { contentSecurityPolicyForHostname } from '@/lib/content-security-policy'
+import { PRODUCT_CATALOG } from '@/products/core/product-catalog'
 
 const publicRoutes = ['/login', '/forgot-password', '/register', '/auth', '/logout']
 const LOCAL_WARMUP_HEADER = 'x-eventi-local-warmup'
 const LOCAL_WARMUP_VALUE = 'route-shell'
+const localTenantHostnames = new Set(Object.values(PRODUCT_CATALOG).flatMap((product) => product.deployment.localHostnames))
 
 function isLocalWarmup(req: NextRequest) {
   return (
@@ -15,6 +17,23 @@ function isLocalWarmup(req: NextRequest) {
 
 function securityNonce() {
   return crypto.randomUUID().replaceAll('-', '')
+}
+
+function externalRequestURL(req: NextRequest) {
+  const isLocalRequest = req.nextUrl.hostname === 'localhost' || req.nextUrl.hostname === '127.0.0.1'
+  const forwardedHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim().toLowerCase()
+  const forwardedProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase()
+  // Development proxies may reach Next through localhost while the browser is
+  // on a product subdomain. Only trust an explicitly local forwarded host;
+  // production requests continue to use the URL received by the edge.
+  if (!isLocalRequest || !forwardedHost || !/^(?:[a-z0-9-]+\.)*localhost(?::\d+)?$/.test(forwardedHost) || !localTenantHostnames.has(forwardedHost.split(':')[0])) {
+    return req.nextUrl
+  }
+
+  const external = new URL(req.url)
+  external.host = forwardedHost
+  external.protocol = forwardedProto === 'https' ? 'https:' : 'http:'
+  return external
 }
 
 function withTenantSecurityPolicy(req: NextRequest, response: NextResponse, nonce: string) {
@@ -38,7 +57,7 @@ export function proxy(req: NextRequest) {
   )
 
   if (!session && !refreshToken && !isPublicRoute) {
-    return withTenantSecurityPolicy(req, NextResponse.redirect(new URL('/login', req.url)), nonce)
+    return withTenantSecurityPolicy(req, NextResponse.redirect(new URL('/login', externalRequestURL(req))), nonce)
   }
 
   // A cookie only proves that the browser once held a session. The BFF
@@ -51,5 +70,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|automation-bridge|_next/static|_next/image|favicon.ico|eventiapp-icon.svg|images).*)'],
+  matcher: ['/((?!api|automation-bridge|_next/static|_next/image|favicon.ico|eventiapp-icon.svg|images|providers).*)'],
 }

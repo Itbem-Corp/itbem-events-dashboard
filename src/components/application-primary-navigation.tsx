@@ -8,18 +8,24 @@ import {
 } from '@/components/sidebar'
 import type { ApplicationNavigation, ApplicationRoute } from '@/lib/application-navigation'
 import {
-  BuildingOfficeIcon,
-  ChartBarSquareIcon,
+  BanknotesIcon,
+  BuildingOffice2Icon,
+  ChartPieIcon,
+  CalendarDaysIcon,
+  ClipboardDocumentListIcon,
+  Cog6ToothIcon,
   ClipboardDocumentCheckIcon,
   FolderOpenIcon,
   HomeIcon,
+  QueueListIcon,
   SparklesIcon,
   Square2StackIcon,
   UsersIcon,
+  UserGroupIcon,
 } from '@heroicons/react/20/solid'
 import { memo } from 'react'
 
-type ApplicationPrimaryNavigationProps = Pick<
+type ApplicationPrimaryNavigationProps = Omit<Pick<
   ApplicationNavigation,
   | 'hasEvents'
   | 'canViewMetrics'
@@ -28,18 +34,23 @@ type ApplicationPrimaryNavigationProps = Pick<
   | 'canUseAutomation'
   | 'canManageMembers'
   | 'canViewOrganizations'
-> & {
+>, 'canManageAutomationConfiguration'> & {
+  canManageAutomationConfiguration?: boolean
   pathname: string
+  /** Product-specific copy keeps ITBEM's platform organizations distinct from Delivery clients. */
+  tenantCode?: string
   onIntent: (href: ApplicationRoute) => void
 }
 
 export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavigation({
   pathname,
+  tenantCode,
   hasEvents,
   canViewMetrics,
   canViewUsers,
   canViewAudit,
   canUseAutomation,
+  canManageAutomationConfiguration = false,
   canManageMembers,
   canViewOrganizations,
   onIntent,
@@ -69,7 +80,7 @@ export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavi
 
         {canViewMetrics && (
           <SidebarItem href="/metrics" current={pathname.startsWith('/metrics')} {...intentProps('/metrics')}>
-            <ChartBarSquareIcon />
+          <ChartPieIcon />
             <SidebarLabel>Métricas</SidebarLabel>
           </SidebarItem>
         )}
@@ -109,16 +120,38 @@ export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavi
           </SidebarItem>
           <SidebarItem href="/automation/projects" current={pathname.startsWith('/automation/projects')} {...intentProps('/automation/projects')}>
             <FolderOpenIcon />
-            <SidebarLabel>Resultados</SidebarLabel>
+            <SidebarLabel>Proyectos</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem href="/automation/agents" current={pathname.startsWith('/automation/agents')} {...intentProps('/automation/agents')}>
+            <UserGroupIcon />
+            <SidebarLabel>Agentes</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem href="/automation/dispatch" current={pathname.startsWith('/automation/dispatch')} {...intentProps('/automation/dispatch')}>
+            <QueueListIcon />
+            <SidebarLabel>Colas y despacho</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem href="/automation/recurrences" current={pathname.startsWith('/automation/recurrences')} {...intentProps('/automation/recurrences')}>
+            <CalendarDaysIcon />
+            <SidebarLabel>Recurrentes</SidebarLabel>
+          </SidebarItem>
+          <SidebarItem href="/automation/traces" current={pathname.startsWith('/automation/traces')} {...intentProps('/automation/traces')}>
+            <ClipboardDocumentListIcon />
+            <SidebarLabel>Trazas</SidebarLabel>
           </SidebarItem>
           <SidebarItem href="/automation/clients" current={pathname.startsWith('/automation/clients')} {...intentProps('/automation/clients')}>
-            <BuildingOfficeIcon />
+            <BuildingOffice2Icon />
             <SidebarLabel>Portafolio</SidebarLabel>
           </SidebarItem>
           <SidebarItem href="/automation/costs" current={pathname.startsWith('/automation/costs')} {...intentProps('/automation/costs')}>
-            <ChartBarSquareIcon />
+            <BanknotesIcon />
             <SidebarLabel>Uso y costos</SidebarLabel>
           </SidebarItem>
+          {canManageAutomationConfiguration && (
+            <SidebarItem href="/automation/settings" current={pathname.startsWith('/automation/settings')} {...intentProps('/automation/settings')}>
+              <Cog6ToothIcon />
+              <SidebarLabel>Configuración de IA</SidebarLabel>
+            </SidebarItem>
+          )}
         </SidebarSection>
       )}
 
@@ -127,8 +160,8 @@ export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavi
       {canViewOrganizations && (
         <SidebarSection>
           <SidebarItem href="/clients" current={pathname.startsWith('/clients')} {...intentProps('/clients')}>
-            <BuildingOfficeIcon />
-            <SidebarLabel>Clientes</SidebarLabel>
+            <BuildingOffice2Icon />
+            <SidebarLabel>{tenantCode === 'itbem' ? 'Organizaciones' : 'Clientes'}</SidebarLabel>
           </SidebarItem>
         </SidebarSection>
       )}

@@ -44,7 +44,7 @@ describe('product manifests', () => {
 
     expect(eventiapp.identity.name).toBe('EventiApp')
     expect(eventiapp.deployment.apiHostname).toBe('api.eventiapp.com.mx')
-    expect(itbem.identity.accent).toBe('#22d3ee')
+    expect(itbem.identity.accent).toBe('#3f4650')
     expect(itbem.deployment.clientIdEnv).toBe('COGNITO_ITBEM_CLIENT_ID')
     expect(itbem.deployment.ownedDomains).toEqual(['itbem.com.mx', 'itbem.com'])
     expect(eventiapp.deployment.publicExperience).toMatchObject({

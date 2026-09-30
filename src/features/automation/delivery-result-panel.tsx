@@ -6,11 +6,12 @@ import {
   automationExecutionInputPath,
   automationExecutionResultPath,
   automationTaskArtifactPath,
+  automationTaskRunArtifactPath,
   automationTaskInputPath,
   automationTaskResultPath,
   automationToolExecutionReportPath,
 } from '@/lib/api-paths'
-import { verifyArtifactIntegrity } from '@/lib/automation-artifact-integrity'
+import { automationArtifactRunId, verifyArtifactIntegrity } from '@/lib/automation-artifact-integrity'
 import { ArrowDownTrayIcon, ArrowPathIcon, PhotoIcon, XMarkIcon } from '@heroicons/react/20/solid'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -22,7 +23,7 @@ import {
   type DeliveryReleaseDraft,
 } from './delivery-result-data'
 
-type Artifact = { name: string; content_type?: string; size_bytes?: number; sha256?: string }
+type Artifact = { name: string; reference?: string; content_type?: string; size_bytes?: number; sha256?: string }
 type RepositoryImpact = {
   name: string
   reference: string
@@ -109,6 +110,8 @@ type DeliveryPlan = {
   context_gaps?: string[]
   human_decisions?: string[]
   rollback_plan?: string[]
+  /** Bounded, runtime-owned shape repairs; never grants authority. */
+  _harness_repairs?: string[]
 }
 type AgentOutput = {
   content?: string
@@ -141,20 +144,18 @@ const planSections: Array<{
     | 'questions'
   label: string
 }> = [
+  { key: 'implementation_steps', label: 'Ruta de trabajo propuesta' },
+  { key: 'acceptance_criteria', label: 'Criterios de aceptación' },
+  { key: 'qa_plan', label: 'Plan de validación' },
+  { key: 'risks', label: 'Riesgos' },
   { key: 'context_reviewed', label: 'Contexto revisado' },
   { key: 'assumptions', label: 'Suposiciones' },
-  { key: 'implementation_steps', label: 'Pasos de implementación' },
   { key: 'files_impacted', label: 'Archivos impactados' },
-  { key: 'risks', label: 'Riesgos' },
-  { key: 'qa_plan', label: 'Plan de QA' },
   { key: 'evidence_plan', label: 'Evidencia esperada' },
-  { key: 'acceptance_criteria', label: 'Criterios de aceptación' },
   { key: 'questions', label: 'Preguntas pendientes' },
 ]
 
 const advancedPlanSections = [
-  { key: 'context_gaps', label: 'Información que falta' },
-  { key: 'human_decisions', label: 'Decisiones que quedan en manos del equipo' },
   { key: 'rollback_plan', label: 'Cómo revertir con seguridad' },
 ] as const
 
@@ -250,6 +251,10 @@ const reviewVerdictTone: Record<CodeReview['verdict'], string> = {
   request_changes: 'border-rose-500/25 bg-rose-500/[0.05] text-rose-800', blocked: 'border-amber-500/25 bg-amber-500/[0.055] text-amber-800',
 }
 
+function isOptionalStringArray(value: unknown): value is string[] | undefined {
+  return value === undefined || (Array.isArray(value) && value.every((item) => typeof item === 'string'))
+}
+
 function isDeliveryPlan(value: unknown): value is DeliveryPlan {
   if (!value || typeof value !== 'object') return false
   const candidate = value as Partial<DeliveryPlan>
@@ -257,6 +262,10 @@ function isDeliveryPlan(value: unknown): value is DeliveryPlan {
     typeof candidate.summary === 'string' &&
     typeof candidate.estimate === 'string' &&
     isRepositoryImpact(candidate.repository_impact) &&
+    isOptionalStringArray(candidate._harness_repairs) &&
+    isOptionalStringArray(candidate.context_gaps) &&
+    isOptionalStringArray(candidate.human_decisions) &&
+    isOptionalStringArray(candidate.rollback_plan) &&
     (candidate.qa_execution_matrix === undefined || isQAExecutionMatrix(candidate.qa_execution_matrix)) &&
     planSections.every(
       ({ key }) => Array.isArray(candidate[key]) && candidate[key].every((item) => typeof item === 'string')
@@ -414,9 +423,12 @@ function ProviderOutcomeSummary({ outcome }: { outcome: ProviderOutcome | null }
 // it could be copied from an inspector even though the object remains private.
 // The UI resolves it immediately to a same-session blob URL and, for current
 // QA artifacts, verifies the immutable worker digest before rendering it.
-async function privateArtifactObjectURL(taskId: string, artifact: Artifact): Promise<string> {
+export async function privateArtifactObjectURL(taskId: string, artifact: Artifact): Promise<string> {
   const name = artifact.name
-  const descriptor = await api.get(automationTaskArtifactPath(taskId, name))
+  const runID = automationArtifactRunId(artifact.reference)
+  const descriptor = await api.get(
+    runID ? automationTaskRunArtifactPath(taskId, runID, name) : automationTaskArtifactPath(taskId, name),
+  )
   const downloadURL = readApiData<{ download_url: string }>(descriptor.data).download_url
   if (!downloadURL) throw new Error('private artifact URL is unavailable')
   const response = await fetch(downloadURL, { cache: 'no-store', credentials: 'omit' })
@@ -454,6 +466,21 @@ function ExecutionChecks({ checks, emptyLabel }: { checks: DeliveryCheck[]; empt
               {entry.passed ? 'Correcto' : 'Revisar'}
             </span>
           </div>
+          {entry.sandboxLease && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-ink-muted" title={entry.sandboxLease.runtime === 'firecracker'
+              ? 'Ejecución enlazada a tarea mediante supervisor Firecracker; la evidencia guest no sustituye la atestación durable del control plane.'
+              : 'Lease task-scoped de la ejecución; no concede publicación ni implica microVM.'}>
+              <span className="rounded-full border border-indigo-500/20 bg-indigo-500/[0.06] px-1.5 py-0.5 font-medium text-indigo-700">
+                {entry.sandboxLease.runtime === 'firecracker' ? 'microVM' : entry.sandboxLease.runtime} · {entry.sandboxLease.isolationMode}
+              </span>
+              <span>{entry.sandboxLease.status === 'completed' ? 'Lease cerrado' : entry.sandboxLease.status === 'failed' ? 'Lease con fallo' : 'Lease activo'}</span>
+              {entry.sandboxLease.attestation && (
+                <span title={`Evidencia guest ${entry.sandboxLease.attestation.evidenceScope}; no sustituye lifecycle durable.`} className="text-indigo-700">
+                  · guest evidence
+                </span>
+              )}
+            </div>
+          )}
           {entry.output && (
             <pre className="mt-2 max-h-28 overflow-auto text-[11px] leading-4 whitespace-pre-wrap text-ink-secondary">
               {entry.output}
@@ -489,6 +516,53 @@ type DeliveryResultPanelProps = {
   diagnosticSummary?: { title: string; detail: string }
   onClose: () => void
   onUseReleaseDraft?: (draft: DeliveryReleaseDraft) => void
+}
+
+function DeliveryPlanQuickRead({ plan }: { plan: DeliveryPlan }) {
+  const openPointCount = (plan.context_gaps?.length ?? 0) + (plan.human_decisions?.length ?? 0)
+
+  return (
+    <article aria-label="Lectura rápida del plan" className="rounded-xl border border-(--tenant-accent)/20 bg-(--tenant-accent)/[0.035] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold tracking-[0.12em] text-(--tenant-accent) uppercase">Lectura rápida</p>
+          <p className="mt-1 text-xs leading-5 text-ink-secondary">
+            Alcance, secuencia y puntos que el agente dejó para revisar. El plan no sustituye la evidencia de ejecución.
+          </p>
+        </div>
+        <span className="rounded-full bg-surface-raised px-2.5 py-1 text-[11px] font-semibold text-ink-secondary">
+          Propuesta
+        </span>
+      </div>
+      <dl className="mt-3 grid gap-2 sm:grid-cols-3">
+        <div className="rounded-xl bg-surface-raised px-3 py-2">
+          <dt className="text-[11px] text-ink-muted">Repositorios considerados</dt>
+          <dd className="mt-0.5 text-base font-semibold tabular-nums text-ink">{plan.repository_impact.length}</dd>
+        </div>
+        <div className="rounded-xl bg-surface-raised px-3 py-2">
+          <dt className="text-[11px] text-ink-muted">Pasos propuestos</dt>
+          <dd className="mt-0.5 text-base font-semibold tabular-nums text-ink">{plan.implementation_steps.length}</dd>
+        </div>
+        <div className="rounded-xl bg-surface-raised px-3 py-2">
+          <dt className="text-[11px] text-ink-muted">Puntos reportados</dt>
+          <dd className="mt-0.5 text-base font-semibold tabular-nums text-ink">{openPointCount}</dd>
+        </div>
+      </dl>
+      <nav aria-label="Ir a una sección del plan" className="mt-3 flex flex-wrap gap-2">
+        <a href="#plan-repository-impact" className="inline-flex min-h-9 items-center rounded-lg bg-surface-raised px-3 text-xs font-semibold text-(--tenant-accent) hover:bg-surface-interactive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)">
+          Ver repositorios
+        </a>
+        <a href="#plan-implementation-steps" className="inline-flex min-h-9 items-center rounded-lg bg-surface-raised px-3 text-xs font-semibold text-(--tenant-accent) hover:bg-surface-interactive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)">
+          Ver la ruta
+        </a>
+        {openPointCount > 0 && (
+          <a href="#plan-open-points" className="inline-flex min-h-9 items-center rounded-lg bg-surface-raised px-3 text-xs font-semibold text-(--tenant-accent) hover:bg-surface-interactive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)">
+            Revisar {openPointCount === 1 ? 'punto pendiente' : 'puntos pendientes'}
+          </a>
+        )}
+      </nav>
+    </article>
+  )
 }
 
 function AgentDeliveryResultPanel({
@@ -957,6 +1031,7 @@ function AgentDeliveryResultPanel({
             </article>
           ) : plan ? (
             <div className="mt-4 space-y-3">
+              <DeliveryPlanQuickRead plan={plan} />
               <article className="rounded-xl border border-(--tenant-accent)/20 bg-surface-raised p-4">
                 <p className="text-xs font-semibold tracking-[0.12em] text-(--tenant-accent) uppercase">
                   Resumen propuesto
@@ -973,6 +1048,45 @@ function AgentDeliveryResultPanel({
                   )}
                 </div>
               </article>
+              {((plan.context_gaps?.length ?? 0) > 0 || (plan.human_decisions?.length ?? 0) > 0) && (
+                <article
+                  id="plan-open-points"
+                  tabIndex={-1}
+                  aria-label="Puntos pendientes de la propuesta"
+                  className="scroll-mt-24 rounded-xl border border-amber-500/25 bg-amber-500/[0.045] p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold tracking-[0.12em] text-amber-800 uppercase">Puntos pendientes</p>
+                      <p className="mt-1 text-xs leading-5 text-amber-950/75">
+                        El agente los declaró para revisión; el dashboard no los resuelve ni los da por aprobados.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-900">
+                      {(plan.context_gaps?.length ?? 0) + (plan.human_decisions?.length ?? 0)}{' '}
+                      {(plan.context_gaps?.length ?? 0) + (plan.human_decisions?.length ?? 0) === 1 ? 'elemento' : 'elementos'}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {(plan.context_gaps?.length ?? 0) > 0 && (
+                      <section aria-label="Información que falta" className="rounded-xl border border-amber-500/15 bg-surface-raised p-3">
+                        <h4 className="text-xs font-semibold text-ink">Información que falta</h4>
+                        <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-secondary">
+                          {plan.context_gaps?.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+                        </ul>
+                      </section>
+                    )}
+                    {(plan.human_decisions?.length ?? 0) > 0 && (
+                      <section aria-label="Decisiones del equipo" className="rounded-xl border border-amber-500/15 bg-surface-raised p-3">
+                        <h4 className="text-xs font-semibold text-ink">Decisiones del equipo</h4>
+                        <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-secondary">
+                          {plan.human_decisions?.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
+                        </ul>
+                      </section>
+                    )}
+                  </div>
+                </article>
+              )}
               {(plan.goal_interpretation || plan.autonomy_boundary) && (
                 <article className="rounded-xl border border-sky-500/20 bg-sky-500/[0.035] p-4">
                   <p className="text-xs font-semibold tracking-[0.12em] text-sky-700 uppercase">Criterio del agente</p>
@@ -992,7 +1106,35 @@ function AgentDeliveryResultPanel({
                   </div>
                 </article>
               )}
-              <article className="rounded-xl border border-border-subtle bg-surface-raised p-4">
+              {plan._harness_repairs && plan._harness_repairs.length > 0 && (
+                <article
+                  aria-label="Reparaciones acotadas del harness"
+                  className="rounded-xl border border-amber-500/25 bg-amber-500/[0.045] p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold tracking-[0.12em] text-amber-800 uppercase">
+                        Normalizaciones del harness
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-amber-900/80">
+                        El runtime ajustó sólo la forma de la respuesta para hacerla revisable. No concedió permisos,
+                        no amplió el alcance y no ejecutó ninguna acción por esta reparación.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                      {plan._harness_repairs.length} ajuste{plan._harness_repairs.length === 1 ? '' : 's'} registrado{plan._harness_repairs.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <ul className="mt-3 space-y-1.5 text-xs leading-5 text-amber-950/85">
+                    {plan._harness_repairs.map((repair) => <li key={repair}>• {repair}</li>)}
+                  </ul>
+                </article>
+              )}
+              <article
+                id="plan-repository-impact"
+                tabIndex={-1}
+                className="scroll-mt-24 rounded-xl border border-border-subtle bg-surface-raised p-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-xs font-semibold tracking-[0.12em] text-ink-muted uppercase">
@@ -1140,16 +1282,36 @@ function AgentDeliveryResultPanel({
               )}
               <div className="grid gap-3 sm:grid-cols-2">
                 {planSections.map(({ key, label }) => (
-                  <article key={key} className="rounded-xl border border-border-subtle bg-surface-raised p-3">
+                  <article
+                    key={key}
+                    id={key === 'implementation_steps' ? 'plan-implementation-steps' : undefined}
+                    tabIndex={key === 'implementation_steps' ? -1 : undefined}
+                    className={`rounded-xl border border-border-subtle bg-surface-raised p-3 ${key === 'implementation_steps' ? 'scroll-mt-24 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent) sm:col-span-2' : ''}`}
+                  >
                     <h4 className="text-xs font-semibold text-ink">{label}</h4>
                     {plan[key].length ? (
-                      <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-secondary">
-                        {plan[key].map((item) => (
-                          <li key={item}>• {item}</li>
-                        ))}
-                      </ul>
+                      key === 'implementation_steps' ? (
+                        <ol aria-label="Ruta de trabajo propuesta" className="mt-3 space-y-2">
+                          {plan[key].map((item, index) => (
+                            <li key={`${index}-${item}`} className="flex gap-3 rounded-xl border border-border-subtle bg-surface-soft p-3 text-xs leading-5 text-ink-secondary">
+                              <span aria-hidden="true" className="flex size-6 shrink-0 items-center justify-center rounded-full bg-(--tenant-accent)/10 text-[11px] font-bold text-(--tenant-accent)">
+                                {index + 1}
+                              </span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-secondary">
+                          {plan[key].map((item) => <li key={item}>• {item}</li>)}
+                        </ul>
+                      )
                     ) : (
-                      <p className="mt-2 text-xs text-ink-muted">Sin elementos registrados.</p>
+                      <p className="mt-2 text-xs text-ink-muted">
+                        {key === 'implementation_steps'
+                          ? 'No se definieron pasos; la propuesta necesita ese detalle antes de convertirla en trabajo.'
+                          : 'Sin elementos registrados.'}
+                      </p>
                     )}
                   </article>
                 ))}
@@ -1159,13 +1321,13 @@ function AgentDeliveryResultPanel({
                   return (
                     <article
                       key={key}
-                      className={`rounded-xl border p-3 ${key === 'context_gaps' || key === 'human_decisions' ? 'border-amber-500/20 bg-amber-500/[0.035]' : 'border-border-subtle bg-surface-raised'}`}
+                      className="rounded-xl border border-border-subtle bg-surface-raised p-3"
                     >
                       <h4 className="text-xs font-semibold text-ink">{label}</h4>
                       {entries.length ? (
                         <ul className="mt-2 space-y-1.5 text-xs leading-5 text-ink-secondary">
-                          {entries.map((item) => (
-                            <li key={item}>• {item}</li>
+                          {entries.map((item, index) => (
+                            <li key={`${index}-${item}`}>• {item}</li>
                           ))}
                         </ul>
                       ) : (
@@ -1347,7 +1509,7 @@ function AgentDeliveryResultPanel({
                     </section>
                   )}
                   <div className="mt-3 rounded-xl border border-border-subtle bg-surface-soft p-3 text-xs">
-                    {execution.qa.preview ? (
+                  {execution.qa.preview ? (
                       <p className={execution.qa.preview.passed ? 'text-emerald-700' : 'text-rose-700'}>
                         {execution.qa.preview.passed ? 'Preview accesible' : 'Preview no accesible'}
                         {execution.qa.preview.status ? ` · HTTP ${execution.qa.preview.status}` : ''}
@@ -1365,6 +1527,18 @@ function AgentDeliveryResultPanel({
                       </p>
                     )}
                   </div>
+                  {(execution.qa.partial || execution.qa.error) && (
+                    <section className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-3 text-xs" role="alert">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-semibold text-amber-900">QA incompleta: no habilita aprobación</p>
+                        <span className="rounded-full bg-amber-500/15 px-2 py-1 font-semibold text-amber-800">Diagnóstico privado</span>
+                      </div>
+                      <p className="mt-1 leading-5 text-amber-900/80">
+                        Se conservaron las comprobaciones observadas antes del fallo. Revisa el diagnóstico y reanuda desde el punto seguro; este resultado no representa un QA exitoso.
+                      </p>
+                      {execution.qa.error && <p className="mt-2 break-words font-medium text-amber-900">{execution.qa.error}</p>}
+                    </section>
+                  )}
                   {execution.qa.repositoryRuns.length > 0 ? (
                     <section className="mt-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1393,6 +1567,11 @@ function AgentDeliveryResultPanel({
                                 {run.branch ?? 'Rama registrada'}
                                 {run.branch && run.testedDirectory ? ' · ' : ''}
                                 {run.testedDirectory}
+                              </p>
+                            )}
+                            {run.error && (
+                              <p className="mt-2 rounded-lg border border-rose-500/20 bg-rose-500/[0.05] px-2.5 py-2 text-xs leading-5 text-rose-800">
+                                No completó esta fase: {run.error}
                               </p>
                             )}
                             {run.executionContract && (

@@ -25,8 +25,10 @@ export const ApplicationWorkspaceHeader = memo(function ApplicationWorkspaceHead
   onOpenSwitcher,
   onSwitcherIntent,
 }: ApplicationWorkspaceHeaderProps) {
+  const sidebarAccent = tenant.code === 'itbem' ? '#f1f3f5' : tenant.accent
+
   return (
-    <SidebarHeader className="gap-3 border-border-subtle bg-gradient-to-b from-surface-interactive to-transparent pb-3">
+    <SidebarHeader className="gap-3 border-border-subtle bg-gradient-to-b from-surface-interactive to-transparent pb-4">
       <Link
         href="/"
         aria-label={`${tenant.name} — ir al inicio`}
@@ -35,7 +37,7 @@ export const ApplicationWorkspaceHeader = memo(function ApplicationWorkspaceHead
         <BrandMark
           code={tenant.code}
           name={tenant.name}
-          accent={tenant.accent}
+          accent={sidebarAccent}
           size="md"
           priority
           className="transition-transform group-hover:scale-[1.03] motion-reduce:transition-none"

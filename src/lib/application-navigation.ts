@@ -1,7 +1,9 @@
 import { accessCan, type AccessProfile } from '@/lib/access-profile'
 import {
   auditLogsPath,
+  automationAgentsPath,
   automationCostsPath,
+  automationDispatchQueuePath,
   automationPortfolioPath,
   deliveryClientsPath,
   clientMembersPagePath,
@@ -13,7 +15,7 @@ import {
 } from '@/lib/api-paths'
 import { productSupportsFeature, type ProductManifest, type TenantModule } from '@/products/core/product-manifest'
 
-export type ApplicationRoute = '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients' | '/audit' | '/automation' | '/automation/costs' | '/automation/clients' | '/automation/projects'
+export type ApplicationRoute = '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients' | '/audit' | '/automation' | '/automation/agents' | '/automation/dispatch' | '/automation/recurrences' | '/automation/traces' | '/automation/costs' | '/automation/clients' | '/automation/projects' | '/automation/settings'
 
 export type ApplicationNavigation = {
   hasEvents: boolean
@@ -23,6 +25,7 @@ export type ApplicationNavigation = {
   canViewMetrics: boolean
   canViewAudit: boolean
   canUseAutomation: boolean
+  canManageAutomationConfiguration: boolean
   canSwitchOrganizations: boolean
 }
 
@@ -76,6 +79,12 @@ export function createApplicationNavigation({
       productSupportsFeature(product, 'automation') &&
       accessProfile.isPlatformContext &&
       (accessCan(accessProfile, 'automation:view') || accessCan(accessProfile, 'automation:manage')),
+    // The server independently requires Root 1. This only keeps the control
+    // out of Root 2 navigation and direct client-side route access.
+    canManageAutomationConfiguration:
+      productSupportsFeature(product, 'automation') &&
+      accessProfile.isPlatformContext &&
+      accessProfile.platformLevel === 'root_1',
     canSwitchOrganizations: hasApplicationSession ? accessProfile.canSwitchOrganizations : isRoot,
   }
 }
@@ -107,9 +116,19 @@ export function applicationRoutePreloadPath({
     case '/automation':
     case '/automation/projects':
       return automationPortfolioPath()
+    case '/automation/agents':
+      return automationAgentsPath()
+    case '/automation/dispatch':
+      return automationDispatchQueuePath({ page_size: 25 })
+    case '/automation/recurrences':
+      return null
+    case '/automation/traces':
+      return null
     case '/automation/costs':
       return automationCostsPath()
     case '/automation/clients':
       return deliveryClientsPath()
+    case '/automation/settings':
+      return null
   }
 }

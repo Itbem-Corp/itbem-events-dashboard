@@ -24,11 +24,15 @@ export function Dialog({
   Headless.DialogProps,
   'as' | 'className'
 >) {
+  // Keep the semantic dialog container in the viewport. The previous
+  // zero-sized relative wrapper rendered correctly, but assistive tech and
+  // browser automation treated the open dialog as hidden because its visible
+  // children were fixed-positioned outside the wrapper's box.
   return (
-    <Headless.Dialog {...props} className="relative z-50">
+    <Headless.Dialog {...props} className="fixed inset-0 z-50">
       <Headless.DialogBackdrop
         transition
-        className="fixed inset-0 flex w-screen justify-center overflow-y-auto bg-[rgb(15_23_42_/_24%)] px-2 py-2 backdrop-blur-[2px] transition duration-100 focus:outline-0 motion-reduce:transition-none data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:px-6 sm:py-8 lg:px-8 lg:py-16 dark:bg-[rgb(2_6_12_/_58%)]"
+        className="fixed inset-0 flex w-screen justify-center overflow-y-auto bg-[rgb(15_23_42_/_32%)] px-2 py-2 backdrop-blur-[2px] transition-opacity duration-200 ease-out focus:outline-0 motion-reduce:transition-none data-closed:opacity-0 data-enter:ease-out data-leave:duration-150 data-leave:ease-in sm:px-6 sm:py-8 lg:px-8 lg:py-16 dark:bg-[rgb(2_6_12_/_62%)]"
       />
 
       <div className="fixed inset-0 w-screen overflow-y-auto overscroll-contain px-2 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-0 sm:pt-0 sm:pb-0">
@@ -39,7 +43,7 @@ export function Dialog({
               className,
               sizes[size],
               'row-start-2 max-h-[calc(100dvh-1.5rem)] w-full min-w-0 overflow-y-auto overscroll-contain rounded-t-3xl bg-[var(--app-surface-raised)] p-(--gutter) shadow-[0_24px_80px_var(--app-shadow-strong)] ring-1 ring-[var(--app-border-subtle)] [--gutter:--spacing(8)] sm:mb-auto sm:max-h-[calc(100dvh-4rem)] sm:rounded-2xl forced-colors:outline',
-              'transition duration-100 will-change-transform motion-reduce:transition-none motion-reduce:data-closed:translate-y-0 motion-reduce:data-closed:scale-100 motion-reduce:data-closed:opacity-100 data-closed:translate-y-12 data-closed:opacity-0 data-enter:ease-out data-leave:ease-in sm:data-closed:translate-y-0 sm:data-closed:data-enter:scale-95'
+              'will-change-[opacity,transform] transition-[opacity,transform] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none motion-reduce:data-closed:translate-y-0 motion-reduce:data-closed:scale-100 motion-reduce:data-closed:opacity-100 data-closed:translate-y-8 data-closed:opacity-0 data-enter:ease-[cubic-bezier(0.16,1,0.3,1)] data-leave:duration-150 data-leave:ease-in sm:data-closed:translate-y-2 sm:data-closed:scale-[0.98]'
             )}
           >
             {children}

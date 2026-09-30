@@ -3,6 +3,16 @@ export type DeliveryCheck = {
   passed: boolean
   output?: string
   phase?: 'validation' | 'qa'
+  sandboxLease?: SandboxLease
+}
+
+export type SandboxLease = {
+  runtime: string
+  isolationMode: string
+  status: 'running' | 'completed' | 'failed'
+  taskId?: string
+  leaseId?: string
+  attestation?: { runtime: string; transport: string; evidenceScope: string }
 }
 
 export type DeliveryQAExecutionContract = {
@@ -35,6 +45,8 @@ export type DeliveryImplementationResult = DeliveryImplementationChangeSet & {
 export type DeliveryQAResult = {
   workspace?: string
   testedDirectory?: string
+  partial?: boolean
+  error?: string
   preview?: { url?: string; passed: boolean; status?: number; error?: string }
   commands: DeliveryCheck[]
   repositoryRuns: DeliveryQARepositoryRun[]
@@ -95,6 +107,7 @@ export type DeliveryQARepositoryRun = {
   workspace?: string
   branch?: string
   testedDirectory?: string
+  error?: string
   commands: DeliveryCheck[]
   executionContract?: DeliveryQAExecutionContract
 }
@@ -159,12 +172,30 @@ function commandLabel(value: unknown) {
   return Array.isArray(value) && value.every((part) => typeof part === 'string') ? value.join(' ') : 'Validación local'
 }
 
+function sandboxLease(value: unknown): SandboxLease | undefined {
+  const lease = record(value)
+  const runtime = text(lease?.runtime)
+  const isolationMode = text(lease?.isolation_mode)
+  const status = text(lease?.status)
+  if (!runtime || !isolationMode || (status !== 'running' && status !== 'completed' && status !== 'failed')) return undefined
+  const rawAttestation = record(lease?.sandbox_attestation)
+  const attestationRuntime = text(rawAttestation?.runtime)
+  const attestationTransport = text(rawAttestation?.transport)
+  const evidenceScope = text(rawAttestation?.evidence_scope)
+  const attestation = attestationRuntime === 'firecracker' && attestationTransport === 'virtio_vsock' && evidenceScope
+    ? { runtime: attestationRuntime, transport: attestationTransport, evidenceScope }
+    : undefined
+  return { runtime, isolationMode, status, taskId: text(lease?.task_id), leaseId: text(lease?.lease_id), ...(attestation ? { attestation } : {}) }
+}
+
 function check(value: unknown): DeliveryCheck | null {
   const item = record(value)
   if (!item || typeof item.passed !== 'boolean') return null
   const phase = text(item.phase)
   const parsed = { label: commandLabel(item.command), passed: item.passed, output: text(item.output) }
-  return phase === 'validation' || phase === 'qa' ? { ...parsed, phase } : parsed
+  const lease = sandboxLease(item.sandbox_lease)
+  const withLease = lease ? { ...parsed, sandboxLease: lease } : parsed
+  return phase === 'validation' || phase === 'qa' ? { ...withLease, phase } : withLease
 }
 
 function checks(value: unknown) {
@@ -281,6 +312,7 @@ function repositoryRuns(value: unknown): DeliveryQARepositoryRun[] {
       workspace: text(run.workspace),
       branch: text(run.branch),
       testedDirectory: text(run.tested_directory),
+      error: text(run.error),
       commands: checks(run.commands),
       executionContract,
     }]
@@ -341,6 +373,8 @@ export function deliveryExecutionResult(value: unknown) {
     ? {
         workspace: text(rawQA.workspace),
         testedDirectory: text(rawQA.tested_directory),
+        partial: rawQA.partial === true,
+        error: text(rawQA.error),
         preview: rawPreview && typeof rawPreview.passed === 'boolean'
           ? { url: text(rawPreview.url), passed: rawPreview.passed, status: typeof rawPreview.status === 'number' ? rawPreview.status : undefined, error: text(rawPreview.error) }
           : undefined,

@@ -64,6 +64,8 @@ export function AppLayoutClient({
     productSupportsFeature(product, 'automation') &&
     accessProfile.isPlatformContext &&
     (accessCan(accessProfile, 'automation:view') || accessCan(accessProfile, 'automation:manage'))
+  const canManageAutomationConfiguration =
+    canUseAutomation && accessProfile.platformLevel === 'root_1'
 
   useEffect(() => {
     // ⛔ NO VALIDAR NADA hasta que el perfil esté listo
@@ -102,6 +104,11 @@ export function AppLayoutClient({
       return
     }
 
+    if (pathname.startsWith('/automation/settings') && !canManageAutomationConfiguration) {
+      router.replace('/automation')
+      return
+    }
+
     if (pathname.startsWith('/automation') && !canUseAutomation) {
       router.replace('/')
       return
@@ -127,6 +134,7 @@ export function AppLayoutClient({
     canViewMetrics,
     canViewAudit,
     canUseAutomation,
+    canManageAutomationConfiguration,
     currentClient,
     pathname,
     profileLoaded,
@@ -149,7 +157,7 @@ export function AppLayoutClient({
         }}
       >
         <SessionBootstrap />
-        <ErrorBoundary>
+        <ErrorBoundary resetKey={pathname}>
           <ApplicationLayout tenant={tenant}>
             <StoreHydrationBoundary>{children}</StoreHydrationBoundary>
           </ApplicationLayout>

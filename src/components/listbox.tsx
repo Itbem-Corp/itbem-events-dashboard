@@ -53,6 +53,9 @@ export function Listbox<T>({
             'pr-[calc(--spacing(7)-1px)] pl-[calc(--spacing(3.5)-1px)] sm:pl-[calc(--spacing(3)-1px)]',
             // Typography
             'text-left text-base/6 text-ink placeholder:text-ink-muted sm:text-sm/6 forced-colors:text-[CanvasText]',
+            // A rich option can include a secondary line in the popover. The
+            // selected control stays deliberately compact and one-line.
+            '[&_[data-slot=option-detail]]:hidden',
             // Border
             'border border-border-subtle group-data-active:border-border-strong group-data-hover:border-border-strong',
             // Background color
@@ -82,7 +85,7 @@ export function Listbox<T>({
           // Anchor positioning
           '[--anchor-offset:-1.625rem] [--anchor-padding:--spacing(4)] sm:[--anchor-offset:-1.375rem]',
           // Base styles
-          'isolate w-max min-w-[calc(var(--button-width)+1.75rem)] scroll-py-1 rounded-xl p-1 select-none',
+          'isolate w-[var(--button-width)] min-w-[min(100vw-2rem,var(--button-width))] max-w-[calc(100vw-2rem)] scroll-py-1 rounded-xl p-1 select-none',
           // Invisible border that is only visible in `forced-colors` mode for accessibility purposes
           'outline outline-transparent focus:outline-hidden',
           // Handle scrolling when menu won't fit in viewport

@@ -144,6 +144,42 @@ describe('delivery execution result', () => {
     })])
   })
 
+  it('surfaces a bounded task-scoped sandbox lease without rendering host paths', () => {
+    const result = deliveryExecutionResult({
+      qa_execution: {
+        commands: [{ command: ['go', 'test', './...'], passed: true, sandbox_lease: {
+          lease_id: 'lease-1', task_id: 'task-1', workspace: 'workspace://backend', runtime: 'docker', isolation_mode: 'docker_container', status: 'completed',
+          worktree_digest: 'sha256:private-path-digest', started_at: '2026-09-22T00:00:00Z', finished_at: '2026-09-22T00:00:01Z', sandbox_attestation: { runtime: 'firecracker', transport: 'virtio_vsock', evidence_scope: 'synthetic_guest_fixture', guest_command_verified: true },
+        } }],
+      },
+    })
+    expect(result.qa?.commands).toEqual([{
+      label: 'go test ./...', passed: true, output: undefined,
+      sandboxLease: { leaseId: 'lease-1', taskId: 'task-1', runtime: 'docker', isolationMode: 'docker_container', status: 'completed', attestation: { runtime: 'firecracker', transport: 'virtio_vsock', evidenceScope: 'synthetic_guest_fixture' } },
+    }])
+    expect(JSON.stringify(result)).not.toContain('private-path-digest')
+  })
+
+  it('keeps a partial QA diagnostic visible without treating it as a pass', () => {
+    const result = deliveryExecutionResult({
+      qa_execution: {
+        partial: true,
+        error: 'semantic browser capture failed',
+        repository_execution_order: ['workspace://api', 'workspace://dashboard'],
+        repository_runs: [
+          { workspace: 'workspace://api', commands: [{ phase: 'validation', command: ['go', 'test', './...'], passed: true }] },
+          { workspace: 'workspace://dashboard', commands: [], error: 'QA command could not start' },
+        ],
+      },
+    })
+
+    expect(result.qa).toMatchObject({ partial: true, error: 'semantic browser capture failed' })
+    expect(result.qa?.repositoryRuns).toEqual([
+      expect.objectContaining({ workspace: 'workspace://api', error: undefined }),
+      expect.objectContaining({ workspace: 'workspace://dashboard', error: 'QA command could not start', commands: [] }),
+    ])
+  })
+
   it('ignores malformed artifact sections', () => {
     expect(deliveryExecutionResult({ implementation: 'untrusted', qa_execution: { commands: [{ passed: 'yes' }], repository_runs: [{ commands: 'unsafe' }] } })).toEqual({ implementation: undefined, qa: expect.objectContaining({ commands: [], repositoryRuns: [] }) })
   })

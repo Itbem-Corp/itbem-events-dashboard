@@ -46,7 +46,7 @@ import { productSupportsFeature } from '@/products/core/product-manifest'
 import { getProductManifest } from '@/products/registry'
 import { useStore } from '@/store/useStore'
 import { usePathname, useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
 
 const defaultTenant = tenantPresentationForHostname('dashboard.eventiapp.com.mx')
@@ -82,6 +82,7 @@ export function ApplicationLayout({
   const [clientsRequested, setClientsRequested] = useState(false)
   const [organizationSwitcherOpen, setOrganizationSwitcherOpen] = useState(false)
   const [organizationSearch, setOrganizationSearch] = useState('')
+  const prefetchedRoutesRef = useRef<Set<ApplicationRoute>>(new Set())
   const debouncedOrganizationSearch = useDebounce(organizationSearch, 200)
 
   const currentClient = useStore((s) => s.currentClient)
@@ -123,6 +124,7 @@ export function ApplicationLayout({
     canViewMetrics,
     canViewAudit,
     canUseAutomation,
+    canManageAutomationConfiguration,
     canSwitchOrganizations,
   } = navigation
   // On a cold login, resolve the first organization in parallel with the profile.
@@ -155,19 +157,31 @@ export function ApplicationLayout({
     [scopeFetcherKey, swrCache]
   )
 
+  useEffect(() => {
+    // Route payloads are scoped by tenant and organization. Deduplicate eager
+    // intent within one scope, then allow fresh prefetches after it changes.
+    prefetchedRoutesRef.current.clear()
+  }, [currentClient?.id, isRoot, tenant.code])
+
+  const prefetchRoute = useCallback((href: ApplicationRoute) => {
+    if (prefetchedRoutesRef.current.has(href)) return
+    prefetchedRoutesRef.current.add(href)
+    router.prefetch(href)
+  }, [router])
+
   const preloadRoute = useCallback(
     (href: ApplicationRoute) => {
-      router.prefetch(href)
+      prefetchRoute(href)
       const dataPath = applicationRoutePreloadPath({ href, clientId: currentClient?.id, isRoot })
       if (dataPath) preloadDataIfMissing(dataPath)
     },
-    [currentClient?.id, isRoot, preloadDataIfMissing, router]
+    [currentClient?.id, isRoot, preloadDataIfMissing, prefetchRoute]
   )
 
   function preloadClientPortfolio(clientId: string) {
-    router.prefetch('/')
+    prefetchRoute('/')
     if (!productSupportsFeature(product, 'events')) return
-    router.prefetch('/events')
+    prefetchRoute('/events')
     preloadDataIfMissing(eventsPagePath(clientId, { page: 1, page_size: 12, filter: 'all' }))
     const dashboardPath = scopedEventsDashboardPath(clientId, isRoot)
     if (dashboardPath) preloadDataIfMissing(dashboardPath)
@@ -273,7 +287,7 @@ export function ApplicationLayout({
           </Navbar>
         }
         sidebar={
-          <Sidebar>
+          <Sidebar className="itbem-sidebar">
             <ApplicationWorkspaceHeader
               accessProfile={accessProfile}
               canSwitchOrganizations={canSwitchOrganizations}
@@ -285,11 +299,13 @@ export function ApplicationLayout({
 
             <ApplicationPrimaryNavigation
               pathname={pathname}
+              tenantCode={tenant.code}
               hasEvents={hasEvents}
               canViewMetrics={canViewMetrics}
               canViewUsers={canViewUsers}
               canViewAudit={canViewAudit}
               canUseAutomation={canUseAutomation}
+              canManageAutomationConfiguration={canManageAutomationConfiguration}
               canManageMembers={canManageMembers}
               canViewOrganizations={canViewOrganizations}
               onIntent={preloadRoute}
@@ -329,11 +345,12 @@ export function ApplicationLayout({
           </div>
         )}
         {canUseAutomation && pathname.startsWith('/automation') && (
-          <AutomationSectionNavigation pathname={pathname} onIntent={preloadRoute} />
+          <AutomationSectionNavigation pathname={pathname} onIntent={preloadRoute} canManageConfiguration={canManageAutomationConfiguration} />
         )}
         {children}
         <MobilePrimaryNavigation
           pathname={pathname}
+          tenantCode={tenant.code}
           showEvents={hasEvents}
           showMetrics={canViewMetrics}
           showTeam={canManageMembers && !canViewUsers}

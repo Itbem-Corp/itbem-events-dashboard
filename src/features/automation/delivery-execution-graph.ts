@@ -118,7 +118,7 @@ function browserMetadata(metadata: Record<string, unknown> | undefined, node: De
 function operationLabel(value: string | number | boolean | undefined, fallback: string) {
   if (typeof value !== 'string') return fallback
   const labels: Record<string, string> = {
-    'delivery.plan': 'Plan', 'delivery.implementation': 'Construir', 'delivery.publish': 'Publicar',
+    'delivery.chat': 'Conversación', 'delivery.plan': 'Plan', 'delivery.implementation': 'Construir', 'delivery.publish': 'Publicar',
     'delivery.qa': 'Verificar', 'delivery.summary': 'Entregar',
   }
   return labels[value] ?? fallback
@@ -140,7 +140,7 @@ function nodePresentation(node: DeliveryExecutionGraphNode, trackLabel: string) 
   // The server's safe summary is often just the delivery operation (for
   // example, "Plan"). Preserve it when it carries new information, but add
   // the record type when several autonomous records share that same phase.
-  const isGenericPhase = ['Plan', 'Construir', 'Publicar', 'Verificar', 'Entregar'].includes(summary)
+  const isGenericPhase = ['Conversación', 'Plan', 'Construir', 'Publicar', 'Verificar', 'Entregar'].includes(summary)
   if (node.kind === 'work_item') return 'Resultado en ejecución'
   if (summary !== trackLabel && (node.kind === 'task' || !isGenericPhase)) return summary
   const phase = isGenericPhase ? summary : trackLabel
@@ -207,7 +207,9 @@ export function executionGraphEventsFromDelivery(snapshot: DeliveryExecutionGrap
       // A newer server-side status should remain inspectable without creating
       // a false human incident. The graph reserves `attention` for an
       // explicit execution failure or review condition.
-      status: graphStatusByDeliveryStatus[node.status] ?? 'degraded',
+      // A saved conversation entry is not a pending approval. Older APIs
+      // labelled all messages as decisions, keeping recovered flows blocked.
+      status: node.kind === 'message' ? 'complete' : graphStatusByDeliveryStatus[node.status] ?? 'degraded',
       kind: node.kind,
       attempts,
       parentId: graphNodeParentID(node),

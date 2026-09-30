@@ -4,12 +4,16 @@ import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Dialog, DialogActions, DialogBody, DialogTitle } from '@/components/dialog'
 import type { DeliveryEvidence } from '@/features/automation/delivery-types'
+import { evidenceComparisonScope } from './evidence-comparison'
+import { deliveryEvidencePurpose, deliveryEvidenceTitle } from './delivery-evidence-presentation'
 import { api } from '@/lib/api'
 import { deliveryWorkItemEvidenceAssetPath } from '@/lib/api-paths'
-import { ArrowPathIcon, ArrowTopRightOnSquareIcon, DocumentTextIcon, PhotoIcon, PlayCircleIcon, ShieldCheckIcon } from '@heroicons/react/20/solid'
+import { ArrowPathIcon, ArrowTopRightOnSquareIcon, DocumentTextIcon, ExclamationTriangleIcon, InformationCircleIcon, PhotoIcon, PlayCircleIcon, ShieldCheckIcon } from '@heroicons/react/20/solid'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 type EvidenceAsset = DeliveryEvidence & { url?: string; loading?: boolean; error?: boolean }
+export type EvidenceIntegrityState = 'verified' | 'legacy' | 'invalid'
+export type EvidenceIntegrity = { state: EvidenceIntegrityState; digest: string; size?: number }
 
 function formatDate(value?: string) {
   if (!value) return 'Sin fecha registrada'
@@ -17,12 +21,52 @@ function formatDate(value?: string) {
   return Number.isNaN(date.getTime()) ? 'Sin fecha registrada' : date.toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-function evidenceIntegrity(entry?: DeliveryEvidence) {
-  const digest = typeof entry?.metadata?.sha256 === 'string' ? entry.metadata.sha256.trim().toLowerCase() : ''
+export function evidenceIntegrityStatus(entry?: DeliveryEvidence): EvidenceIntegrity {
+  const rawDigest = typeof entry?.metadata?.sha256 === 'string' ? entry.metadata.sha256.trim().toLowerCase() : ''
+  const digest = /^[a-f0-9]{64}$/.test(rawDigest) ? rawDigest : ''
   const size = typeof entry?.metadata?.size_bytes === 'number' && Number.isFinite(entry.metadata.size_bytes)
     ? Math.max(0, Math.trunc(entry.metadata.size_bytes))
     : undefined
-  return { digest: /^[a-f0-9]{64}$/.test(digest) ? digest : '', size }
+  return { digest, size, state: rawDigest ? (digest ? 'verified' : 'invalid') : 'legacy' }
+}
+
+function evidenceAgentNote(entry?: DeliveryEvidence) {
+  const note = typeof entry?.metadata?.agent_note === 'string' ? entry.metadata.agent_note.trim() : ''
+  return note.length > 280 ? `${note.slice(0, 277)}…` : note
+}
+
+function evidenceAttempt(entry?: DeliveryEvidence) {
+  const value = entry?.metadata?.automation_attempt
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined
+}
+
+export type EvidenceLineage = {
+  status: 'snapshot' | 'unavailable' | 'unknown'
+  repositories: Array<{ repository: string; reviewType: string; revision: string; environment: string }>
+}
+
+export function evidenceLineage(entry?: DeliveryEvidence): EvidenceLineage {
+  const metadata = entry?.metadata
+  const rawStatus = metadata?.repository_context_status
+  const status: EvidenceLineage['status'] = rawStatus === 'snapshot' || rawStatus === 'unavailable' ? rawStatus : 'unknown'
+  const rawContext = metadata?.repository_context
+  if (!Array.isArray(rawContext)) return { status, repositories: [] }
+  const repositories = rawContext.flatMap((value) => {
+    if (!value || typeof value !== 'object') return []
+    const context = value as Record<string, unknown>
+    const repository = typeof context.repository_ref === 'string' ? context.repository_ref.trim() : ''
+    if (!repository) return []
+    const revision = typeof context.commit_sha === 'string' && context.commit_sha.trim()
+      ? context.commit_sha.trim()
+      : typeof context.base_sha === 'string' ? context.base_sha.trim() : ''
+    return [{
+      repository,
+      reviewType: typeof context.review_type === 'string' ? context.review_type : 'desconocido',
+      revision,
+      environment: typeof context.environment === 'string' && context.environment.trim() ? context.environment : 'desconocido',
+    }]
+  })
+  return { status, repositories }
 }
 
 function fileSize(bytes?: number) {
@@ -42,6 +86,14 @@ function isVisual(entry: DeliveryEvidence) {
 
 function phaseLabel(phase: string) {
   return ({ plan: 'Plan', implementation: 'Implementación', qa: 'QA', summary: 'Entrega' }[phase] ?? phase)
+}
+
+function kindLabel(kind: DeliveryEvidence['kind']) {
+  return ({ screenshot: 'Captura', video: 'Video', test_result: 'Resultado de prueba', diff: 'Diff', report: 'Informe', log: 'Registro', artifact: 'Artefacto' }[kind])
+}
+
+export function evidencePurposeLabel(entry: DeliveryEvidence) {
+  return deliveryEvidencePurpose(entry)
 }
 
 type QAComparisonPair = { key: string; before: DeliveryEvidence; after: DeliveryEvidence }
@@ -81,7 +133,8 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
       if (!comparison) continue
       const counterpart = visualEntries.find((candidate) => {
         const candidateComparison = qaComparison(candidate)
-        return candidateComparison?.key === comparison.key && candidateComparison.role !== comparison.role
+        const scope = evidenceComparisonScope(entry)
+        return Boolean(scope && evidenceComparisonScope(candidate) === scope && candidateComparison?.role !== comparison.role)
       })
       if (counterpart) visibleIDs.add(counterpart.id)
     }
@@ -146,10 +199,11 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
     const pairs = new Map<string, Partial<QAComparisonPair>>()
     for (const entry of visibleVisualEntries) {
       const comparison = qaComparison(entry)
-      if (!comparison || !isPrivateVisual(entry)) continue
-      const pair = pairs.get(comparison.key) ?? { key: comparison.key }
+      const scope = evidenceComparisonScope(entry)
+      if (!comparison || !scope || !isPrivateVisual(entry)) continue
+      const pair = pairs.get(scope) ?? { key: scope }
       pair[comparison.role] = entry
-      pairs.set(comparison.key, pair)
+      pairs.set(scope, pair)
     }
     return Array.from(pairs.values()).flatMap((pair) => pair.before && pair.after ? [{ key: pair.key!, before: pair.before, after: pair.after }] : [])
   }, [visibleVisualEntries])
@@ -173,14 +227,14 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
           <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-ink-muted uppercase">
             <ShieldCheckIcon className="size-4 text-(--tenant-accent)" /> Evidencia
           </div>
-          <h2 className="mt-1 text-lg font-semibold text-ink">Pruebas del flujo</h2>
+          <h2 className="mt-1 text-lg font-semibold text-ink">Resultado y evidencia del trabajo</h2>
         </div>
         {entries.length > 0 && (
           <div className="flex min-w-0 items-center gap-2">
             {latestEvidence && (
-              <span title={latestEvidence.title} className="hidden min-w-0 max-w-52 items-center gap-1.5 rounded-full bg-surface-soft px-2.5 py-1 text-[10px] font-semibold text-ink-secondary sm:inline-flex">
-                <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
-                <span className="truncate">Última prueba · {latestEvidence.title}</span>
+                <span title={deliveryEvidenceTitle(latestEvidence)} className="hidden min-w-0 max-w-60 items-center gap-1.5 rounded-full bg-surface-soft px-2.5 py-1 text-[10px] font-semibold text-ink-secondary sm:inline-flex">
+                <DocumentTextIcon className="size-3.5 shrink-0 text-ink-muted" aria-hidden="true" />
+                <span className="truncate">{latestEvidence.phase === 'plan' ? 'Plan propuesto' : latestEvidence.kind === 'test_result' ? 'Última prueba' : 'Último registro'} · {deliveryEvidenceTitle(latestEvidence)}</span>
               </span>
             )}
             {visualEntries.length > 0 && <Badge color="indigo">{visualEntries.length} visual{visualEntries.length === 1 ? '' : 'es'}</Badge>}
@@ -204,7 +258,7 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
               {comparisonPairs.map((pair) => (
                 <article key={pair.key} className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-soft md:col-span-2 xl:col-span-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-4 py-3">
-                    <div><p className="text-sm font-semibold text-ink">Comparación QA · {pair.key.replace('case-', 'Caso ')}</p><p className="mt-0.5 text-xs text-ink-muted">Antes y después del mismo caso comprobado.</p></div>
+                    <div><p className="text-sm font-semibold text-ink">Comparación QA · {qaComparison(pair.before)?.key.replace('case-', 'Caso ')}</p><p className="mt-0.5 text-xs text-ink-muted">Capturas del mismo caso e intento. Consulta los resultados de pruebas para saber si pasó.</p></div>
                     <Badge color="indigo">Antes / Después</Badge>
                   </div>
                   <div className="grid gap-px bg-border-subtle sm:grid-cols-2">
@@ -214,7 +268,7 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
                       return (
                         <button key={entry.id} type="button" onClick={() => source && setSelectedId(entry.id)} disabled={!source} className="group bg-surface-raised text-left transition motion-reduce:transition-none focus:outline-none focus:ring-2 focus:ring-inset focus:ring-(--tenant-accent) disabled:opacity-70">
                           <div className="relative aspect-[16/10] overflow-hidden bg-surface-interactive">
-                            {asset?.loading ? <div className="flex h-full items-center justify-center text-sm text-ink-muted">Preparando captura privada…</div> : source ? <img src={source} alt={`${label}: ${entry.title}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] motion-reduce:transform-none motion-reduce:transition-none" /> : <div className="flex h-full items-center justify-center text-sm text-ink-muted">Captura no disponible</div>}
+                            {asset?.loading ? <div className="flex h-full items-center justify-center text-sm text-ink-muted">Preparando captura privada…</div> : source ? <img src={source} alt={`${label}: ${deliveryEvidenceTitle(entry)}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] motion-reduce:transform-none motion-reduce:transition-none" /> : <div className="flex h-full items-center justify-center text-sm text-ink-muted">Captura no disponible</div>}
                             {source && <span className="absolute left-3 top-3 rounded-lg bg-black/55 px-2 py-1 text-xs font-semibold text-white">{label}</span>}
                           </div>
                           <div className="p-3"><p className="text-xs font-semibold text-ink">{label}</p><p className="mt-1 text-[11px] text-ink-muted">{formatDate(entry.captured_at)}</p></div>
@@ -241,7 +295,7 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
                       {asset?.loading ? (
                         <div className="flex h-full items-center justify-center text-sm text-ink-muted">Preparando evidencia privada…</div>
                       ) : source && !isVideo ? (
-                        <img src={source} alt={entry.title} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] motion-reduce:transform-none motion-reduce:transition-none" />
+                        <img src={source} alt={deliveryEvidenceTitle(entry)} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02] motion-reduce:transform-none motion-reduce:transition-none" />
                       ) : source ? (
                         <video src={source} className="h-full w-full object-cover" muted preload="metadata" />
                       ) : (
@@ -253,11 +307,24 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
                     </div>
                     <div className="p-3">
                         <div className="flex flex-wrap gap-2"><Badge color="indigo">{phaseLabel(entry.phase)}</Badge><Badge color="zinc">{isVideo ? 'Video' : 'Captura'}</Badge></div>
-                        <p className="mt-2 truncate text-sm font-semibold text-ink">{entry.title}</p>
+                        <p className="mt-2 truncate text-sm font-semibold text-ink">{deliveryEvidenceTitle(entry)}</p>
                         <p className="mt-1 text-xs text-ink-muted">{formatDate(entry.captured_at)}</p>
-                        {evidenceIntegrity(entry).digest && (
-                          <p className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-emerald-700"><ShieldCheckIcon className="size-3.5" /> Integridad SHA-256 {fileSize(evidenceIntegrity(entry).size) && `· ${fileSize(evidenceIntegrity(entry).size)}`}</p>
-                        )}
+                        {(() => {
+                          const integrity = evidenceIntegrityStatus(entry)
+                          const note = evidenceAgentNote(entry)
+                          const attempt = evidenceAttempt(entry)
+                          const lineage = evidenceLineage(entry)
+                          return <>
+                            <p className={`mt-2 flex items-center gap-1.5 text-[11px] font-medium ${integrity.state === 'verified' ? 'text-emerald-700' : integrity.state === 'invalid' ? 'text-rose-700' : 'text-ink-muted'}`}>
+                              {integrity.state === 'verified' ? <ShieldCheckIcon className="size-3.5" /> : integrity.state === 'invalid' ? <ExclamationTriangleIcon className="size-3.5" /> : <InformationCircleIcon className="size-3.5" />}
+                              {integrity.state === 'verified' ? `Integridad SHA-256${fileSize(integrity.size) ? ` · ${fileSize(integrity.size)}` : ''}` : integrity.state === 'invalid' ? 'Huella de integridad inválida' : 'Sin huella registrada · evidencia histórica'}
+                              {attempt ? ` · Intento ${attempt}` : ''}
+                            </p>
+                            {lineage.status === 'snapshot' && <p className="mt-1 text-[11px] text-ink-muted">Contexto capturado · {lineage.repositories.length} repositorio{lineage.repositories.length === 1 ? '' : 's'}</p>}
+                            {lineage.status === 'unavailable' && <p className="mt-1 text-[11px] text-amber-700">Contexto de repositorio no disponible</p>}
+                            {note && <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-ink-secondary">Nota del agente: {note}</p>}
+                          </>
+                        })()}
                       </div>
                   </button>
                 )
@@ -287,10 +354,25 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
               </summary>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {secondaryEntries.map((entry) => (
-                  <article key={entry.id} className="flex min-w-0 items-center gap-3 rounded-2xl border border-border-subtle bg-surface-soft p-3">
+                  <article key={entry.id} className="flex min-w-0 items-start gap-3 rounded-2xl border border-border-subtle bg-surface-soft p-3">
                     <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-surface-raised text-(--tenant-accent)"><DocumentTextIcon className="size-5" /></span>
-                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{entry.title}</p><p className="mt-0.5 text-xs text-ink-muted">{phaseLabel(entry.phase)} · {formatDate(entry.captured_at)}</p></div>
-                    <Badge color="zinc" className="shrink-0">{entry.kind.replace('_', ' ')}</Badge>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">{deliveryEvidenceTitle(entry)}</p>
+                      <p className="mt-0.5 text-xs text-ink-muted">{phaseLabel(entry.phase)} · {formatDate(entry.captured_at)}</p>
+                      {(() => {
+                        const integrity = evidenceIntegrityStatus(entry)
+                        const attempt = evidenceAttempt(entry)
+                        const lineage = evidenceLineage(entry)
+                        const isPlanRecord = entry.phase === 'plan'
+                        const tone = isPlanRecord ? 'text-indigo-700' : integrity.state === 'verified' ? 'text-emerald-700' : integrity.state === 'invalid' ? 'text-rose-700' : 'text-ink-muted'
+                        return <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium ${tone}`}>
+                          <span>{isPlanRecord ? evidencePurposeLabel(entry) : integrity.state === 'verified' ? 'Huella SHA-256 registrada' : integrity.state === 'invalid' ? 'Integridad no verificable' : evidencePurposeLabel(entry)}</span>
+                          {attempt ? <span>· Intento {attempt}</span> : null}
+                          {lineage.status === 'snapshot' ? <span>· Contexto capturado</span> : lineage.status === 'unavailable' ? <span>· Contexto no disponible</span> : null}
+                        </div>
+                      })()}
+                    </div>
+                    <Badge color="zinc" className="shrink-0">{kindLabel(entry.kind)}</Badge>
                   </article>
                 ))}
               </div>
@@ -300,19 +382,30 @@ export function DeliveryEvidenceGallery({ workItemId, evidence }: { workItemId: 
       )}
 
       <Dialog open={Boolean(selected)} onClose={() => setSelectedId(null)} size="2xl">
-        <DialogTitle>{selected?.title ?? 'Evidencia visual'}</DialogTitle>
+        <DialogTitle>{selected ? deliveryEvidenceTitle(selected) : 'Evidencia visual'}</DialogTitle>
         <DialogBody className="py-4">
-          {selected?.url && selected.kind === 'screenshot' && <img src={selected.url} alt={selected.title} className="max-h-[70vh] w-full rounded-xl object-contain bg-surface-soft" />}
+          {selected?.url && selected.kind === 'screenshot' && <img src={selected.url} alt={deliveryEvidenceTitle(selected)} className="max-h-[70vh] w-full rounded-xl object-contain bg-surface-soft" />}
           {selected?.url && selected.kind === 'video' && <video src={selected.url} controls className="max-h-[70vh] w-full rounded-xl bg-surface-soft" />}
           <p className="mt-3 text-sm text-ink-muted">{phaseLabel(selected?.phase ?? '')} · {formatDate(selected?.captured_at)}</p>
-          {evidenceIntegrity(selected).digest && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.045] px-3 py-2 text-xs text-emerald-800">
-              <ShieldCheckIcon className="size-4 shrink-0" />
-              <span className="font-semibold">Huella SHA-256 registrada</span>
-              <span className="font-mono text-[11px]">SHA-256 {evidenceIntegrity(selected).digest.slice(0, 12)}…</span>
-              {fileSize(evidenceIntegrity(selected).size) && <span>{fileSize(evidenceIntegrity(selected).size)}</span>}
+          {(() => {
+            const integrity = evidenceIntegrityStatus(selected)
+            const note = evidenceAgentNote(selected)
+            const attempt = evidenceAttempt(selected)
+            const lineage = evidenceLineage(selected)
+            const tone = integrity.state === 'verified' ? 'border-emerald-500/20 bg-emerald-500/[0.045] text-emerald-800' : integrity.state === 'invalid' ? 'border-rose-500/25 bg-rose-500/[0.05] text-rose-800' : 'border-border-subtle bg-surface-soft text-ink-secondary'
+            return <div className={`mt-3 rounded-xl border px-3 py-2 text-xs ${tone}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                {integrity.state === 'verified' ? <ShieldCheckIcon className="size-4 shrink-0" /> : integrity.state === 'invalid' ? <ExclamationTriangleIcon className="size-4 shrink-0" /> : <InformationCircleIcon className="size-4 shrink-0" />}
+                <span className="font-semibold">{integrity.state === 'verified' ? 'Huella SHA-256 registrada' : integrity.state === 'invalid' ? 'Integridad no verificable' : 'Evidencia histórica sin huella'}</span>
+                {integrity.digest && <span className="font-mono text-[11px]">SHA-256 {integrity.digest.slice(0, 12)}…</span>}
+                {fileSize(integrity.size) && <span>{fileSize(integrity.size)}</span>}
+                {attempt && <span>Intento {attempt}</span>}
+              </div>
+              {note && <p className="mt-2 leading-5">Nota del agente: {note}</p>}
+              {lineage.status === 'snapshot' && <div className="mt-3 border-t border-current/10 pt-2"><p className="font-semibold">Contexto de ejecución capturado</p><ul className="mt-1 space-y-1">{lineage.repositories.map((repository) => <li key={`${repository.repository}-${repository.reviewType}`} className="font-mono text-[11px]">{repository.repository} · {repository.reviewType} · {repository.environment}{repository.revision ? ` · ${repository.revision.slice(0, 12)}…` : ''}</li>)}</ul></div>}
+              {lineage.status === 'unavailable' && <p className="mt-3 border-t border-current/10 pt-2">El agente no pudo asociar esta evidencia a una revisión de repositorio verificable.</p>}
             </div>
-          )}
+          })()}
         </DialogBody>
         <DialogActions>
           {selected?.url && <a href={selected.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-medium text-(--tenant-accent) hover:underline"><ArrowTopRightOnSquareIcon className="size-4" /> Abrir en otra pestaña</a>}
