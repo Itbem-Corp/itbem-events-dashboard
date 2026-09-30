@@ -2,6 +2,7 @@ import AutomationSettingsPage from '@/app/(app)/automation/settings/page'
 import { useStore } from '@/store/useStore'
 import {
   automationAIActionPoliciesPath,
+  automationAIActionPolicyPath,
   automationProjectProviderCredentialPath,
   automationProjectProviderUsagePath,
   automationProjectProviderUsageRefreshPath,
