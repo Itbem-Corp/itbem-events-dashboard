@@ -166,6 +166,12 @@ describe('isolated evaluation controls', () => {
     expect(evaluationEvidence({ ...fixture().calls[0], receipt_status: 'accepted', pricing_basis: 'conservative_api_equivalent_not_invoice', reasoning: 'private', arbitrary_extension: 'private', reasoning_tokens: 20 })).toEqual(expect.objectContaining({ reasoning_tokens: 20 }))
     expect(evaluationEvidence({ ...fixture().calls[0], reasoning: 'private' })).not.toHaveProperty('reasoning')
   })
+  it.each([undefined, null, 12, {}, ['answer']])('rejects missing or non-string final content: %s', content => {
+    expect(() => evaluationFinalAnswer({ status: 200, data: { content, reasoning: 'private' } })).toThrow('Final result content is unavailable')
+  })
+  it('preserves a genuinely empty final answer as a reported string', () => {
+    expect(evaluationFinalAnswer({ status: 200, data: { content: '' } })).toBe('')
+  })
   it.each(['', 'reserved', 'ambiguous'])('exports unknown accounting as null for receipt %s', receiptStatus => {
     const evidence = evaluationEvidence({ ...fixture().calls[0], receipt_status: receiptStatus, input_tokens: 0, output_tokens: 0, reasoning_tokens: 0, pricing_basis: 'unpriced' })
     expect(evidence.total_cost_microusd).toBeNull()
@@ -295,6 +301,7 @@ describe('isolated evaluation controls', () => {
     const base = fixture('completed')
     const value = { ...base, private_extension: 'top-private-marker', batch: { ...base.batch, reasoning: 'batch-private-marker' } }
     value.calls[0].result_available = true; value.calls[1].result_available = true
+    value.calls[2].result_available = true; value.calls[3].result_available = true
     let evidenceBlob: Blob | undefined
     const revoke = vi.fn()
     vi.stubGlobal('URL', { createObjectURL: vi.fn((blob: Blob) => { evidenceBlob = blob; return 'blob:fixture' }), revokeObjectURL: revoke })
@@ -303,6 +310,8 @@ describe('isolated evaluation controls', () => {
     get.mockImplementation(async (path: string) => {
       if (path.includes('task-0')) return { data: { status: 200, data: { content: '{"ok":true}', reasoning: 'private-marker' } } }
       if (path.includes('task-1')) throw new Error('unavailable')
+      if (path.endsWith('/task-2/result')) return { data: { status: 200, data: { reasoning: 'private-marker' } } }
+      if (path.endsWith('/task-3/result')) return { data: { status: 200, data: { content: '' } } }
       return { data: { status: 200, data: value } }
     })
     render(<ModelEvaluationPanel />)
@@ -321,6 +330,10 @@ describe('isolated evaluation controls', () => {
     expect(report.calls).toHaveLength(60)
     expect(report.calls[0].final_answer).toBe('{"ok":true}')
     expect(report.calls[1].result_error).toBe('final_result_unavailable')
+    expect(report.calls[2].final_answer).toBe('')
+    expect(report.calls[2].result_error).toBe('final_result_unavailable')
+    expect(report.calls[3].final_answer).toBe('')
+    expect(report.calls[3].result_error).toBe('')
     expect(text).not.toContain('private-marker')
     expect(Object.keys(report).sort()).toEqual(['batch', 'calls', 'screening_only'])
     expect(Object.keys(report.batch).sort()).toEqual(['budget_microusd', 'corpus_version', 'id', 'reservation_microusd', 'status'])

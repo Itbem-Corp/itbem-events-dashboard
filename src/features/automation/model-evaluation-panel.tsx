@@ -34,7 +34,8 @@ export function parseEvaluation(value: unknown): Evaluation {
 // reasoning are never copied from a result object into the downloaded report.
 export function evaluationFinalAnswer(result: unknown): string {
   const data = readApiData(result) as { content?: unknown } | null
-  return typeof data?.content === 'string' ? data.content : ''
+  if (typeof data?.content !== 'string') throw new Error('Final result content is unavailable')
+  return data.content
 }
 
 export function evaluationEvidence(call: EvaluationCall): Record<string, unknown> {
