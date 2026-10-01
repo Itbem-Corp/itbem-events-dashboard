@@ -1,15 +1,28 @@
 // @vitest-environment node
 import { AxiosError } from 'axios'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api, applicationContextDenialKind } from '@/lib/api'
-import { useStore } from '@/store/useStore'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as ApiModule from '@/lib/api'
+import type * as StoreModule from '@/store/useStore'
 
 const { endSession, errorToast, infoToast } = vi.hoisted(() => ({ endSession: vi.fn(), errorToast: vi.fn(), infoToast: vi.fn() }))
 vi.mock('@/lib/end-session', () => ({ endSession }))
 vi.mock('sonner', () => ({ toast: { error: errorToast, info: infoToast } }))
 
 describe('application context denial recovery', () => {
-  afterEach(() => { vi.restoreAllMocks(); vi.clearAllMocks() })
+  let api: typeof ApiModule.api
+  let applicationContextDenialKind: typeof ApiModule.applicationContextDenialKind
+  let useStore: typeof StoreModule.useStore
+  let initialState: ReturnType<typeof StoreModule.useStore.getState>
+  const testTime = 2_000_000_000_000
+  beforeEach(async () => {
+    // Fresh API/store modules reset cooldowns and interceptor state per test.
+    vi.resetModules()
+    ;({ api, applicationContextDenialKind } = await import('@/lib/api'))
+    ;({ useStore } = await import('@/store/useStore'))
+    initialState = useStore.getState()
+    vi.spyOn(Date, 'now').mockImplementation(() => testTime)
+  })
+  afterEach(() => { vi.restoreAllMocks(); useStore.setState(initialState, true); vi.clearAllMocks() })
   it.each(['organization context token is required', 'organization context token is invalid or expired'])('classifies the generic envelope by its recoverable detail: %s', detail => {
     expect(applicationContextDenialKind({ Message: 'Application context denied', Error: detail })).toBe('organization_credential')
   })
@@ -52,7 +65,7 @@ describe('application context denial recovery', () => {
     } finally { useStore.getState().setToken(previous) }
   })
   it('throttles each recovery category independently while clearing every expired credential', async () => {
-    let now = 2_000_000_000_000
+    let now = testTime
     vi.spyOn(Date, 'now').mockImplementation(() => now)
     const previous = useStore.getState().token
     useStore.getState().setToken('synthetic-test-token')
@@ -97,7 +110,6 @@ describe('application context denial recovery', () => {
     ['unknown application boundary detail', true],
     ['platform workspace cannot include an organization', false],
   ])('handles %s without weakening the rejected request', async (detail, mustEndSession) => {
-    vi.spyOn(Date, 'now').mockReturnValue(mustEndSession ? 2_000_000_010_000 : 2_000_000_020_000)
     const previous = useStore.getState().token
     useStore.getState().setToken('synthetic-test-token')
     const clearSession = vi.spyOn(useStore.getState(), 'clearSession').mockImplementation(() => {})
@@ -113,7 +125,6 @@ describe('application context denial recovery', () => {
     } finally { useStore.getState().setToken(previous) }
   })
   it('renews a missing organization credential even without the generic envelope', async () => {
-    vi.spyOn(Date, 'now').mockReturnValue(2_000_000_030_000)
     const previous = useStore.getState().token
     useStore.getState().setToken('synthetic-test-token')
     const state = useStore.getState()
