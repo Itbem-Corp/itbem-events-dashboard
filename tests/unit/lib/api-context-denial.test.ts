@@ -42,6 +42,41 @@ describe('application context denial recovery', () => {
       expect(errorToast).not.toHaveBeenCalled()
     } finally { useStore.getState().setToken(previous) }
   })
+  it('suppresses consecutive recovery notices while clearing every expired credential and allows notices after cooldown', async () => {
+    let now = 2_000_000_000_000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const previous = useStore.getState().token
+    useStore.getState().setToken('synthetic-test-token')
+    const state = useStore.getState()
+    const clearSession = vi.spyOn(state, 'clearSession').mockImplementation(() => {})
+    const clearCredential = vi.spyOn(state, 'setOrganizationContextCredential').mockImplementation(() => {})
+    let detail = 'organization context token is invalid or expired'
+    const adapter = vi.fn(async config => {
+      throw new AxiosError('forbidden', 'ERR_BAD_REQUEST', config, undefined, { status: 403, statusText: 'Forbidden', headers: {}, config, data: { message: 'Application context denied', error: detail } })
+    })
+    try {
+      await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
+      expect(infoToast).toHaveBeenCalledTimes(1)
+      detail = 'platform workspace cannot include an organization'
+      await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
+      expect(infoToast).toHaveBeenCalledTimes(1)
+      expect(errorToast).not.toHaveBeenCalled()
+      detail = 'organization context token is invalid or expired'
+      await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
+      expect(clearCredential).toHaveBeenCalledTimes(2)
+      expect(clearCredential).toHaveBeenNthCalledWith(1, null)
+      expect(clearCredential).toHaveBeenNthCalledWith(2, null)
+      expect(infoToast).toHaveBeenCalledTimes(1)
+      now += 8_000
+      detail = 'platform workspace cannot include an organization'
+      await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
+      expect(errorToast).toHaveBeenCalledExactlyOnceWith('No se pudo validar el espacio de trabajo. Selecciona nuevamente una organización o la vista de plataforma.')
+      expect(adapter).toHaveBeenCalledTimes(4)
+      expect(clearSession).not.toHaveBeenCalled()
+      expect(endSession).not.toHaveBeenCalled()
+      expect(useStore.getState().token).toBe('synthetic-test-token')
+    } finally { useStore.getState().setToken(previous) }
+  })
   it.each([
     ['application header does not match the authenticated tenant', true],
     ['platform workspace cannot include an organization', false],
