@@ -17,6 +17,7 @@ const evaluationProfiles = [
   { version: CACHE_EVALUATION_CORPUS_VERSION, label: 'Caché: 10 pares con prefijo compartido y control' },
 ]
 const storageKey = 'itbem.synthetic-evaluation.id'
+const corpusStorageKey = 'itbem.synthetic-evaluation.corpus'
 type EvaluationCall = {
   task_id: string; case_id: string; candidate: string; status: string
   receipt_id?: string; receipt_status: string; actual_provider: string; actual_model: string
@@ -71,6 +72,8 @@ export function ModelEvaluationPanel() {
   const stop = useRef(true)
   useEffect(() => {
     setId(localStorage.getItem(storageKey) ?? '')
+    const savedCorpus = localStorage.getItem(corpusStorageKey)
+    if (savedCorpus && evaluationProfiles.some(profile => profile.version === savedCorpus)) setCorpusVersion(savedCorpus)
     return () => { stop.current = true; cancelDownload.current = true }
   }, [])
 
@@ -81,6 +84,7 @@ export function ModelEvaluationPanel() {
     if (expectedCorpus && next.batch.corpus_version !== expectedCorpus) throw new Error('Evaluation corpus changed for this batch')
     setEvaluation(next)
     setCorpusVersion(next.batch.corpus_version)
+    localStorage.setItem(corpusStorageKey, next.batch.corpus_version)
     return next
   }
   const act = async (action: () => Promise<void>) => {
@@ -91,6 +95,7 @@ export function ModelEvaluationPanel() {
   const admit = () => act(async () => {
     const batchId = id || crypto.randomUUID()
     setId(batchId); localStorage.setItem(storageKey, batchId)
+    localStorage.setItem(corpusStorageKey, corpusVersion)
     // Repeating admission uses the same idempotency ID; it never starts calls.
     await api.post(automationModelEvaluationsPath(), { id: batchId, corpus_version: corpusVersion })
     await load(batchId, corpusVersion)
@@ -157,7 +162,7 @@ export function ModelEvaluationPanel() {
     {corpusVersion === CACHE_EVALUATION_CORPUS_VERSION && <p className="mt-2 text-sm text-ink-secondary">Cada caso se compara con la misma referencia sintética y dos prefijos. El control cambia al inicio; no garantiza caché fría. El informe incluye calentamiento, tokens nativos y costo de entrada y salida. Seleccionar este perfil no ejecuta llamadas.</p>}
     <Field className="mt-4"><Label>ID de evaluación</Label><Input value={id} disabled={busy || running} onChange={event => { setId(event.target.value); setEvaluation(null) }} placeholder="Se genera al admitir o pega un ID existente" /></Field>
     <div className="mt-4 flex flex-wrap gap-3">
-      <Button outline disabled={busy || running || evaluation?.batch.status === 'active'} onClick={() => { setId(''); setEvaluation(null); localStorage.removeItem(storageKey); setError('') }}>Preparar otro lote</Button>
+      <Button outline disabled={busy || running || evaluation?.batch.status === 'active'} onClick={() => { setId(''); setEvaluation(null); localStorage.removeItem(storageKey); localStorage.removeItem(corpusStorageKey); setError('') }}>Preparar otro lote</Button>
       <Button outline disabled={busy || running || Boolean(evaluation)} onClick={admit}>Admitir evaluación</Button>
       <Button outline disabled={!id || busy || running} onClick={() => void act(async () => { localStorage.setItem(storageKey, id); await load() })}>Consultar evaluación</Button>
       <Button color="indigo" disabled={busy || running || evaluation?.batch.status !== 'active'} onClick={() => void run()}>Ejecutar evaluación</Button>
