@@ -58,15 +58,18 @@ export function ModelEvaluationPanel() {
   const [busy, setBusy] = useState(false)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null)
+  const cancelDownload = useRef(false)
   const stop = useRef(true)
   useEffect(() => {
     setId(localStorage.getItem(storageKey) ?? '')
-    return () => { stop.current = true }
+    return () => { stop.current = true; cancelDownload.current = true }
   }, [])
 
   const load = async (batchId = id) => {
     const response = await api.get(automationModelEvaluationPath(batchId))
     const next = parseEvaluation(response.data)
+    if (next.batch.id !== batchId) throw new Error('Evaluation ID does not match the requested batch')
     setEvaluation(next)
     return next
   }
@@ -105,26 +108,33 @@ export function ModelEvaluationPanel() {
     finally { stop.current = true; setRunning(false) }
   }
   const download = () => act(async () => {
-    const current = await load()
-    const calls = []
-    for (const call of current.calls) {
-      let finalAnswer = '', resultError = ''
-      if (call.result_available) {
-        try { finalAnswer = evaluationFinalAnswer((await api.get(automationTaskResultPath(call.task_id))).data) }
-        catch { resultError = 'final_result_unavailable' }
+    cancelDownload.current = false
+    setDownloadProgress(0)
+    try {
+      const current = await load()
+      const calls = []
+      for (const call of current.calls) {
+        if (cancelDownload.current) return
+        let finalAnswer = '', resultError = ''
+        if (call.result_available) {
+          try { finalAnswer = evaluationFinalAnswer((await api.get(automationTaskResultPath(call.task_id))).data) }
+          catch { resultError = 'final_result_unavailable' }
+        }
+        calls.push({ ...evaluationEvidence(call), final_answer: finalAnswer, result_error: resultError })
+        setDownloadProgress(calls.length)
       }
-      calls.push({ ...evaluationEvidence(call), final_answer: finalAnswer, result_error: resultError })
-    }
-    const blob = new Blob([JSON.stringify({ batch: { id: current.batch.id, status: current.batch.status, corpus_version: current.batch.corpus_version, budget_microusd: current.batch.budget_microusd, reservation_microusd: current.batch.reservation_microusd }, calls, screening_only: true }, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a'); link.href = url; link.download = `itbem-evaluation-${id}.json`
-    document.body.appendChild(link)
-    try { link.click() }
-    finally {
-      link.remove()
-      // Allow the browser to begin the download before releasing its URL.
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
-    }
+      if (cancelDownload.current) return
+      const blob = new Blob([JSON.stringify({ batch: { id: current.batch.id, status: current.batch.status, corpus_version: current.batch.corpus_version, budget_microusd: current.batch.budget_microusd, reservation_microusd: current.batch.reservation_microusd }, calls, screening_only: true }, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a'); link.href = url; link.download = `itbem-evaluation-${current.batch.id}.json`
+      document.body.appendChild(link)
+      try { link.click() }
+      finally {
+        link.remove()
+        // Allow the browser to begin the download before releasing its URL.
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+      }
+    } finally { setDownloadProgress(null) }
   })
   const completed = evaluation?.calls.filter(call => call.status === 'completed').length ?? 0
   return <section aria-label="Evaluación sintética aislada" className="mt-8 rounded-2xl border border-border-subtle bg-surface-raised p-5 sm:p-6">
@@ -138,7 +148,9 @@ export function ModelEvaluationPanel() {
       <Button color="indigo" disabled={busy || running || evaluation?.batch.status !== 'active'} onClick={() => void run()}>Ejecutar evaluación</Button>
       {running && <Button outline onClick={() => { stop.current = true }}>Detener después de esta llamada</Button>}
       <Button outline disabled={!evaluation || busy || running} onClick={download}>Descargar evidencia final</Button>
+      {downloadProgress !== null && <Button outline onClick={() => { cancelDownload.current = true }}>Cancelar descarga</Button>}
     </div>
+    {downloadProgress !== null && <p role="status" className="mt-3 text-sm">Preparando evidencia: {downloadProgress}/60. Cancelar espera la consulta en curso y descarta el archivo incompleto.</p>}
     {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
     {evaluation && <div className="mt-4">
       <p role="status" className="text-sm">Estado: {evaluation.batch.status} · {completed}/60 completadas · reserva ${(evaluation.batch.reservation_microusd / 1_000_000).toFixed(6)} API-equivalente</p>
