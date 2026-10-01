@@ -86,6 +86,22 @@ describe('isolated evaluation controls', () => {
     const value = fixture(); value.batch.budget_microusd = 1_000_001
     expect(() => parseEvaluation({ status: 200, data: value })).toThrow()
   })
+  it('rejects a different corpus version', () => {
+    const value = fixture()
+    expect(() => parseEvaluation({ status: 200, data: { ...value, batch: { ...value.batch, corpus_version: 'other-corpus' } } })).toThrow()
+  })
+  it('rejects null call entries', () => {
+    const value = fixture()
+    expect(() => parseEvaluation({ status: 200, data: { ...value, calls: [null, ...value.calls.slice(1)] } })).toThrow()
+  })
+  it('rejects a zero batch budget', () => {
+    const value = fixture()
+    expect(() => parseEvaluation({ status: 200, data: { ...value, batch: { ...value.batch, budget_microusd: 0 } } })).toThrow()
+  })
+  it('rejects a non-string batch status', () => {
+    const value = fixture()
+    expect(() => parseEvaluation({ status: 200, data: { ...value, batch: { ...value.batch, status: { unexpected: true } } } })).toThrow()
+  })
   it('exports final content and approved provenance while excluding private reasoning', () => {
     expect(evaluationFinalAnswer({ status: 200, data: { content: '{"ok":true}', reasoning: 'private', usage: { arbitrary: 'private' } } })).toBe('{"ok":true}')
     expect(evaluationEvidence({ ...fixture().calls[0], reasoning: 'private', arbitrary_extension: 'private', reasoning_tokens: 20 })).toEqual(expect.objectContaining({ reasoning_tokens: 20 }))
@@ -151,6 +167,7 @@ describe('isolated evaluation controls', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' })) })
     fireEvent.click(screen.getByRole('button', { name: 'Detener después de esta llamada' }))
     await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(get).toHaveBeenCalledTimes(2)
     expect(post).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Detener después de esta llamada' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ejecutar evaluación' })).toBeEnabled()
