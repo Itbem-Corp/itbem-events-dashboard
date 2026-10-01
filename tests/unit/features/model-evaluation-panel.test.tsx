@@ -104,8 +104,27 @@ describe('isolated evaluation controls', () => {
   })
   it('exports final content and approved provenance while excluding private reasoning', () => {
     expect(evaluationFinalAnswer({ status: 200, data: { content: '{"ok":true}', reasoning: 'private', usage: { arbitrary: 'private' } } })).toBe('{"ok":true}')
-    expect(evaluationEvidence({ ...fixture().calls[0], reasoning: 'private', arbitrary_extension: 'private', reasoning_tokens: 20 })).toEqual(expect.objectContaining({ reasoning_tokens: 20 }))
+    expect(evaluationEvidence({ ...fixture().calls[0], receipt_status: 'accepted', pricing_basis: 'conservative_api_equivalent_not_invoice', reasoning: 'private', arbitrary_extension: 'private', reasoning_tokens: 20 })).toEqual(expect.objectContaining({ reasoning_tokens: 20 }))
     expect(evaluationEvidence({ ...fixture().calls[0], reasoning: 'private' })).not.toHaveProperty('reasoning')
+  })
+  it.each(['', 'reserved', 'ambiguous'])('exports unknown accounting as null for receipt %s', receiptStatus => {
+    const evidence = evaluationEvidence({ ...fixture().calls[0], receipt_status: receiptStatus, input_tokens: 0, output_tokens: 0, reasoning_tokens: 0, pricing_basis: 'unpriced' })
+    expect(evidence.total_cost_microusd).toBeNull()
+    expect(evidence.input_tokens).toBeNull()
+    expect(evidence.reasoning_tokens).toBeNull()
+  })
+  it('preserves verified zero and rejects unpriced zero in exported costs', () => {
+    const call = { ...fixture().calls[0], receipt_status: 'accepted', pricing_basis: 'conservative_api_equivalent_not_invoice' }
+    expect(evaluationEvidence(call).total_cost_microusd).toBe(0)
+    expect(evaluationEvidence({ ...call, pricing_basis: 'unpriced' }).total_cost_microusd).toBeNull()
+  })
+  it('renders missing accounting as unverified rather than a zero cost', async () => {
+    render(<ModelEvaluationPanel />)
+    fireEvent.change(screen.getByLabelText('ID de evaluación'), { target: { value: id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    expect(screen.getAllByText('No verificado')).toHaveLength(60)
+    expect(screen.queryByText('0.000000')).not.toBeInTheDocument()
   })
   it.each([50_000_000, -1, NaN, Infinity, 0.5, '400000', undefined])('rejects an invalid reservation: %s', reservation => {
     const value = fixture()

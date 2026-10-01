@@ -39,7 +39,17 @@ export function evaluationFinalAnswer(result: unknown): string {
 
 export function evaluationEvidence(call: EvaluationCall): Record<string, unknown> {
   const keys = ['task_id', 'evaluation_id', 'sequence', 'case_id', 'candidate', 'prompt_sha256', 'messages_sha256', 'route_sha256', 'reservation_microusd', 'created_at', 'status', 'run_id', 'receipt_id', 'receipt_status', 'policy_hash', 'policy_revision', 'sealed_routes_json', 'worker_id', 'agent_key', 'machine_id', 'error_message', 'finish_reason', 'actual_provider', 'actual_model', 'input_tokens', 'output_tokens', 'cached_input_tokens', 'cache_write_tokens', 'reasoning_tokens', 'total_cost_microusd', 'pricing_basis', 'pricing_snapshot_json', 'gateway_latency_ms', 'result_available']
-  return Object.fromEntries(keys.filter(key => key in call).map(key => [key, call[key]]))
+  const evidence = Object.fromEntries(keys.filter(key => key in call).map(key => [key, call[key]]))
+  if (!['accepted', 'rejected'].includes(call.receipt_status)) {
+    for (const key of ['input_tokens', 'output_tokens', 'cached_input_tokens', 'cache_write_tokens', 'reasoning_tokens', 'total_cost_microusd']) evidence[key] = null
+  } else if (!verifiedEvaluationCost(call)) {
+    evidence.total_cost_microusd = null
+  }
+  return evidence
+}
+
+function verifiedEvaluationCost(call: EvaluationCall): boolean {
+  return ['accepted', 'rejected'].includes(call.receipt_status) && typeof call.pricing_basis === 'string' && call.pricing_basis.trim() !== '' && call.pricing_basis !== 'unpriced'
 }
 
 export function ModelEvaluationPanel() {
@@ -132,7 +142,7 @@ export function ModelEvaluationPanel() {
     {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
     {evaluation && <div className="mt-4">
       <p role="status" className="text-sm">Estado: {evaluation.batch.status} · {completed}/60 completadas · reserva ${(evaluation.batch.reservation_microusd / 1_000_000).toFixed(6)} API-equivalente</p>
-      <div className="mt-3 max-h-96 overflow-auto"><table className="w-full text-left text-xs"><caption className="sr-only">Resultados y receipts de las 60 llamadas</caption><thead><tr><th>Caso</th><th>Candidato</th><th>Estado</th><th>Modelo usado</th><th>Costo USD</th></tr></thead><tbody>{evaluation.calls.map(call => <tr key={call.task_id} className="border-t border-border-subtle"><td className="py-2">{call.case_id}</td><td>{call.candidate}</td><td>{call.status} · {call.receipt_status}</td><td>{call.actual_provider} / {call.actual_model}</td><td>{(call.total_cost_microusd / 1_000_000).toFixed(6)}</td></tr>)}</tbody></table></div>
+      <div className="mt-3 max-h-96 overflow-auto"><table className="w-full text-left text-xs"><caption className="sr-only">Resultados y receipts de las 60 llamadas</caption><thead><tr><th>Caso</th><th>Candidato</th><th>Estado</th><th>Modelo usado</th><th>Costo USD</th></tr></thead><tbody>{evaluation.calls.map(call => <tr key={call.task_id} className="border-t border-border-subtle"><td className="py-2">{call.case_id}</td><td>{call.candidate}</td><td>{call.status} · {call.receipt_status}</td><td>{call.actual_provider} / {call.actual_model}</td><td>{verifiedEvaluationCost(call) ? (call.total_cost_microusd / 1_000_000).toFixed(6) : 'No verificado'}</td></tr>)}</tbody></table></div>
     </div>}
   </section>
 }
