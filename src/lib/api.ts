@@ -64,6 +64,8 @@ let sessionRefreshPromise: Promise<ApplicationSession> | null = null
 let lastSessionValidationAt = 0
 let lastNetworkErrorToastAt = 0
 let lastSessionRecoveryToastAt = 0
+let lastOrganizationCredentialToastAt = 0
+let lastWorkspaceContextToastAt = 0
 
 // Background SWR refreshes can fail together when a local API is starting or
 // a connection briefly drops. A toast per request hides the useful UI, so
@@ -294,14 +296,14 @@ api.interceptors.response.use(
                 // instead of leaving the workspace stuck behind repeated 403s.
                 state.setOrganizationContextCredential(null)
                 const now = Date.now()
-                if (now - lastSessionRecoveryToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
-                    lastSessionRecoveryToastAt = now
+                if (now - lastOrganizationCredentialToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
+                    lastOrganizationCredentialToastAt = now
                     toast.info('El contexto del espacio se renovará automáticamente.')
                 }
             } else if (contextDenial === 'workspace') {
                 const now = Date.now()
-                if (now - lastSessionRecoveryToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
-                    lastSessionRecoveryToastAt = now
+                if (now - lastWorkspaceContextToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
+                    lastWorkspaceContextToastAt = now
                     toast.error('No se pudo validar el espacio de trabajo. Selecciona nuevamente una organización o la vista de plataforma.')
                 }
             } else {
