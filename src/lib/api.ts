@@ -64,6 +64,8 @@ let sessionRefreshPromise: Promise<ApplicationSession> | null = null
 let lastSessionValidationAt = 0
 let lastNetworkErrorToastAt = 0
 let lastSessionRecoveryToastAt = 0
+let lastOrganizationCredentialToastAt = 0
+let lastWorkspaceContextToastAt = 0
 
 // Background SWR refreshes can fail together when a local API is starting or
 // a connection briefly drops. A toast per request hides the useful UI, so
@@ -74,6 +76,24 @@ const SESSION_RECOVERY_TOAST_COOLDOWN_MS = 8_000
 
 export const SESSION_REVALIDATE_INTERVAL_MS = 5 * 60 * 1000
 export const SESSION_FOCUS_REVALIDATE_AFTER_MS = 60 * 1000
+
+export function applicationContextDenialKind(payload: unknown): 'organization_credential' | 'product_mismatch' | 'workspace' | null {
+    const body = JSON.stringify(payload ?? '').toLowerCase()
+    if (body.includes('organization context token is required') || body.includes('organization context token is invalid or expired')) return 'organization_credential'
+    if (!body.includes('application context denied')) return null
+    const workspaceDetails = [
+        'workspace mode must be organization or platform',
+        'platform workspace cannot include an organization',
+        'platform workspace is not enabled for this session',
+        'organization header must be a valid uuid',
+        'organization is not enabled for this application session',
+        'organization context token requires an organization workspace',
+    ]
+    if (workspaceDetails.some(detail => body.includes(detail))) return 'workspace'
+    // Only known workspace/credential failures are recoverable. Unknown
+    // envelope details retain the original terminal session handling.
+    return 'product_mismatch'
+}
 
 // Requests made by the local dashboard first ask its BFF for a short-lived
 // application token. That rejection happens before Axios has an HTTP
@@ -262,23 +282,30 @@ api.interceptors.response.use(
                 void endSession()
                 return Promise.reject(error)
             }
-            const responseBody = JSON.stringify(error?.response?.data ?? '').toLowerCase()
-            if (responseBody.includes('application context denied')) {
+            const contextDenial = applicationContextDenialKind(error?.response?.data)
+            if (contextDenial === 'product_mismatch') {
                 // This is a product boundary violation, not an expired
                 // organization credential. Retrying the workspace renewal
                 // would only keep a mismatched token in a visible loop.
                 toast.error('La sesión no corresponde a este producto. Redirigiendo al acceso correcto.')
                 state.clearSession()
                 void endSession()
-            } else if (
-                responseBody.includes('organization context token is required') ||
-                responseBody.includes('organization context token is invalid or expired')
-            ) {
+            } else if (contextDenial === 'organization_credential') {
                 // Context credentials are intentionally short-lived. Clear a stale
                 // credential so the renewal hook can mint a fresh, session-bound one
                 // instead of leaving the workspace stuck behind repeated 403s.
                 state.setOrganizationContextCredential(null)
-                toast.info('El contexto del espacio se renovará automáticamente.')
+                const now = Date.now()
+                if (now - lastOrganizationCredentialToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
+                    lastOrganizationCredentialToastAt = now
+                    toast.info('El contexto del espacio se renovará automáticamente.')
+                }
+            } else if (contextDenial === 'workspace') {
+                const now = Date.now()
+                if (now - lastWorkspaceContextToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
+                    lastWorkspaceContextToastAt = now
+                    toast.error('No se pudo validar el espacio de trabajo. Selecciona nuevamente una organización o la vista de plataforma.')
+                }
             } else {
                 toast.error(getApiErrorMessage(error, 'Sin permisos para realizar esta acción'))
             }
