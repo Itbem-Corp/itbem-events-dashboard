@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { EVALUATION_CORPUS_VERSION, evaluationEvidence, evaluationFinalAnswer, ModelEvaluationPanel, parseEvaluation } from '@/features/automation/model-evaluation-panel'
+import { CACHE_EVALUATION_CORPUS_VERSION, EVALUATION_CORPUS_VERSION, evaluationEvidence, evaluationFinalAnswer, ModelEvaluationPanel, parseEvaluation } from '@/features/automation/model-evaluation-panel'
 
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 vi.mock('@/lib/api', () => ({ api: { get, post } }))
@@ -11,6 +11,62 @@ function fixture(status = 'active') {
 describe('isolated evaluation controls', () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
   beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); get.mockResolvedValue({ data: { status: 200, data: fixture() } }); post.mockResolvedValue({ data: {} }) })
+  it('admits the selected cache profile without executing it or accepting arbitrary prompts', async () => {
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(id)
+    const value = fixture(); value.batch.corpus_version = CACHE_EVALUATION_CORPUS_VERSION
+    get.mockResolvedValue({ data: { status: 200, data: value } })
+    render(<ModelEvaluationPanel />)
+    fireEvent.change(screen.getByLabelText('Perfil de evaluación'), { target: { value: CACHE_EVALUATION_CORPUS_VERSION } })
+    expect(post).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Admitir evaluación' }))
+    await screen.findByRole('status')
+    expect(post).toHaveBeenCalledExactlyOnceWith('/automation/model-evaluations', { id, corpus_version: CACHE_EVALUATION_CORPUS_VERSION })
+    expect(screen.getByLabelText('Perfil de evaluación')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Preparar otro lote' })).toBeDisabled()
+  })
+  it('prepares a new profile only after explicitly clearing the completed batch ID', async () => {
+    get.mockResolvedValue({ data: { status: 200, data: fixture('completed') } })
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    fireEvent.click(screen.getByRole('button', { name: 'Preparar otro lote' }))
+    expect(screen.getByLabelText('ID de evaluación')).toHaveValue('')
+    expect(localStorage.getItem('itbem.synthetic-evaluation.id')).toBeNull()
+    fireEvent.change(screen.getByLabelText('Perfil de evaluación'), { target: { value: CACHE_EVALUATION_CORPUS_VERSION } })
+    expect(screen.getByLabelText('Perfil de evaluación')).toHaveValue(CACHE_EVALUATION_CORPUS_VERSION)
+    expect(post).not.toHaveBeenCalled()
+  })
+  it('consults a saved cache batch and restores its server-owned profile', async () => {
+    const value = fixture('completed'); value.batch.corpus_version = CACHE_EVALUATION_CORPUS_VERSION
+    get.mockResolvedValue({ data: { status: 200, data: value } })
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    expect(screen.getByLabelText('Perfil de evaluación')).toHaveValue(CACHE_EVALUATION_CORPUS_VERSION)
+    expect(post).not.toHaveBeenCalled()
+  })
+  it('stops before dispatch when the same ID returns a different supported corpus', async () => {
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    const value = fixture(); value.batch.corpus_version = CACHE_EVALUATION_CORPUS_VERSION
+    get.mockResolvedValue({ data: { status: 200, data: value } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' }))
+    await screen.findByRole('alert')
+    expect(post).not.toHaveBeenCalled()
+  })
+  it('rejects admission when the returned corpus differs from the selected profile', async () => {
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.change(screen.getByLabelText('Perfil de evaluación'), { target: { value: CACHE_EVALUATION_CORPUS_VERSION } })
+    fireEvent.click(screen.getByRole('button', { name: 'Admitir evaluación' }))
+    await screen.findByRole('alert')
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(post).toHaveBeenCalledTimes(1)
+  })
   it('generates and persists one ID on first admission without dispatch', async () => {
     vi.spyOn(crypto, 'randomUUID').mockReturnValue(id)
     render(<ModelEvaluationPanel />)
