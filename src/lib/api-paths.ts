@@ -254,6 +254,18 @@ export function automationTaskResultPath(taskId: string | number): string {
   return `/automation/tasks/${encodePathSegment(taskId)}/result`
 }
 
+export function automationModelEvaluationsPath(): string {
+  return '/automation/model-evaluations'
+}
+
+export function automationModelEvaluationPath(id: string): string {
+  return `${automationModelEvaluationsPath()}/${encodePathSegment(id)}`
+}
+
+export function automationModelEvaluationDispatchPath(id: string): string {
+  return `${automationModelEvaluationPath(id)}/dispatch-next`
+}
+
 export function automationExecutionInputPath(executionId: string | number): string {
   return `/automation/executions/${encodePathSegment(executionId)}/input`
 }

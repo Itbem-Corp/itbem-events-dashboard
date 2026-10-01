@@ -1,0 +1,343 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { EVALUATION_CORPUS_VERSION, evaluationEvidence, evaluationFinalAnswer, ModelEvaluationPanel, parseEvaluation } from '@/features/automation/model-evaluation-panel'
+
+const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
+vi.mock('@/lib/api', () => ({ api: { get, post } }))
+const id = 'f8e8321b-18e5-451f-8d40-0e7765e944b3'
+function fixture(status = 'active') {
+  return { batch: { id, status, corpus_version: EVALUATION_CORPUS_VERSION, budget_microusd: 1_000_000, reservation_microusd: 400_000 }, calls: Array.from({ length: 60 }, (_, i) => ({ task_id: `task-${i}`, case_id: `case-${i}`, candidate: 'minimax-m3', status: 'pending', receipt_status: '', actual_provider: '', actual_model: '', total_cost_microusd: 0, result_available: false })) }
+}
+describe('isolated evaluation controls', () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
+  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); get.mockResolvedValue({ data: { status: 200, data: fixture() } }); post.mockResolvedValue({ data: {} }) })
+  it('generates and persists one ID on first admission without dispatch', async () => {
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Admitir evaluación' }))
+    await screen.findByRole('status')
+    expect(post).toHaveBeenCalledExactlyOnceWith('/automation/model-evaluations', { id, corpus_version: EVALUATION_CORPUS_VERSION })
+    expect(localStorage.getItem('itbem.synthetic-evaluation.id')).toBe(id)
+    expect(get).toHaveBeenCalledExactlyOnceWith(`/automation/model-evaluations/${id}`)
+  })
+  it('shows consultation failures without dispatching', async () => {
+    get.mockRejectedValue(new Error('unavailable'))
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('alert')
+    expect(post).not.toHaveBeenCalled()
+  })
+  it('rejects a different batch ID before displaying or dispatching its calls', async () => {
+    const value = fixture(); value.batch.id = 'b0da650c-3efe-4c35-bdb0-3d201af67291'
+    get.mockResolvedValue({ data: { status: 200, data: value } })
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('alert')
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ejecutar evaluación' })).toBeDisabled()
+    expect(post).not.toHaveBeenCalled()
+  })
+  it('reports export progress and cancels without fetching further results or downloading a partial file', async () => {
+    const value = fixture('completed')
+    value.calls[0].result_available = true; value.calls[1].result_available = true
+    let finishResult: (value: unknown) => void = () => {}
+    get.mockImplementation((path: string) => path.includes('task-0')
+      ? new Promise(resolve => { finishResult = resolve })
+      : Promise.resolve({ data: { status: 200, data: value } }))
+    const createObjectURL = vi.fn()
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL: vi.fn() })
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar evidencia final' }))
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/automation/tasks/task-0/result'))
+    expect(screen.getByText(/Preparando evidencia: 0\/60/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar descarga' }))
+    await act(async () => { finishResult({ data: { status: 200, data: { content: '{"ok":true}' } } }) })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Descargar evidencia final' })).toBeEnabled())
+    expect(get).not.toHaveBeenCalledWith('/automation/tasks/task-1/result')
+    expect(createObjectURL).not.toHaveBeenCalled()
+    expect(post).not.toHaveBeenCalled()
+  })
+  it('stops execution before dispatch when polling returns another batch', async () => {
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    const other = fixture(); other.batch.id = 'b0da650c-3efe-4c35-bdb0-3d201af67291'
+    get.mockResolvedValue({ data: { status: 200, data: other } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' }))
+    await screen.findByRole('alert')
+    expect(post).not.toHaveBeenCalled()
+  })
+  it('rejects a mismatched batch returned during export without producing a mislabeled artifact', async () => {
+    const createObjectURL = vi.fn()
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL: vi.fn() })
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    const other = fixture('completed'); other.batch.id = 'b0da650c-3efe-4c35-bdb0-3d201af67291'
+    get.mockResolvedValue({ data: { status: 200, data: other } })
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar evidencia final' }))
+    await screen.findByRole('alert')
+    expect(createObjectURL).not.toHaveBeenCalled()
+    expect(post).not.toHaveBeenCalled()
+  })
+  it('stops polling and dispatching when an in-flight panel is unmounted', async () => {
+    const value = fixture(); value.calls[0].status = 'running'
+    get.mockResolvedValue({ data: { status: 200, data: value } })
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    const view = render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' })) })
+    const calls = get.mock.calls.length
+    view.unmount()
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+    expect(get).toHaveBeenCalledTimes(calls)
+    expect(post).not.toHaveBeenCalled()
+  })
+  it.each(['task_id', 'case_id', 'candidate', 'status', 'receipt_status', 'actual_provider', 'actual_model', 'result_available'])('rejects malformed rendered call fields: %s', key => {
+    const value = fixture()
+    const calls = value.calls.map((call, index) => index ? call : { ...call, [key]: { unexpected: true } })
+    expect(() => parseEvaluation({ status: 200, data: { ...value, calls } })).toThrow()
+  })
+  it('restores the saved ID without loading or dispatching automatically', () => {
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    expect(screen.getByLabelText('ID de evaluación')).toHaveValue(id)
+    expect(get).not.toHaveBeenCalled()
+    expect(post).not.toHaveBeenCalled()
+  })
+  it.each([undefined, NaN, Infinity, -1, 0.5, '0'])('rejects invalid recorded call cost: %s', cost => {
+    const value = fixture()
+    const calls = value.calls.map((call, index) => index ? call : { ...call, total_cost_microusd: cost })
+    expect(() => parseEvaluation({ status: 200, data: { ...value, calls } })).toThrow()
+  })
+  it('admits only the published corpus and preserves the ID after an unknown outcome', async () => {
+    post.mockRejectedValue(new Error('unknown response'))
+    render(<ModelEvaluationPanel />)
+    fireEvent.change(screen.getByLabelText('ID de evaluación'), { target: { value: id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Admitir evaluación' }))
+    await screen.findByRole('alert')
+    expect(post).toHaveBeenCalledExactlyOnceWith('/automation/model-evaluations', { id, corpus_version: EVALUATION_CORPUS_VERSION })
+    expect(localStorage.getItem('itbem.synthetic-evaluation.id')).toBe(id)
+    expect(get).not.toHaveBeenCalled()
+  })
+  it('stops after a rejected dispatch without automatically retrying', async () => {
+    render(<ModelEvaluationPanel />)
+    fireEvent.change(screen.getByLabelText('ID de evaluación'), { target: { value: id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    post.mockRejectedValue(new Error('ambiguous'))
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' }))
+    await screen.findByRole('alert')
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
+    expect(post).toHaveBeenCalledWith(`/automation/model-evaluations/${id}/dispatch-next`, {})
+  })
+  it('rejects partial or over-budget provenance', () => {
+    expect(() => parseEvaluation({ status: 200, data: { ...fixture(), calls: [] } })).toThrow()
+    const value = fixture(); value.batch.budget_microusd = 1_000_001
+    expect(() => parseEvaluation({ status: 200, data: value })).toThrow()
+  })
+  it('rejects a different corpus version', () => {
+    const value = fixture()
+    expect(() => parseEvaluation({ status: 200, data: { ...value, batch: { ...value.batch, corpus_version: 'other-corpus' } } })).toThrow()
+  })
+  it('rejects null call entries', () => {
+    const value = fixture()
+    expect(() => parseEvaluation({ status: 200, data: { ...value, calls: [null, ...value.calls.slice(1)] } })).toThrow()
+  })
+  it('rejects a zero batch budget', () => {
+    const value = fixture()
+    expect(() => parseEvaluation({ status: 200, data: { ...value, batch: { ...value.batch, budget_microusd: 0 } } })).toThrow()
+  })
+  it('rejects a non-string batch status', () => {
+    const value = fixture()
+    expect(() => parseEvaluation({ status: 200, data: { ...value, batch: { ...value.batch, status: { unexpected: true } } } })).toThrow()
+  })
+  it('exports final content and approved provenance while excluding private reasoning', () => {
+    expect(evaluationFinalAnswer({ status: 200, data: { content: '{"ok":true}', reasoning: 'private', usage: { arbitrary: 'private' } } })).toBe('{"ok":true}')
+    expect(evaluationEvidence({ ...fixture().calls[0], receipt_status: 'accepted', pricing_basis: 'conservative_api_equivalent_not_invoice', reasoning: 'private', arbitrary_extension: 'private', reasoning_tokens: 20 })).toEqual(expect.objectContaining({ reasoning_tokens: 20 }))
+    expect(evaluationEvidence({ ...fixture().calls[0], reasoning: 'private' })).not.toHaveProperty('reasoning')
+  })
+  it.each([undefined, null, 12, {}, ['answer']])('rejects missing or non-string final content: %s', content => {
+    expect(() => evaluationFinalAnswer({ status: 200, data: { content, reasoning: 'private' } })).toThrow('Final result content is unavailable')
+  })
+  it('preserves a genuinely empty final answer as a reported string', () => {
+    expect(evaluationFinalAnswer({ status: 200, data: { content: '' } })).toBe('')
+  })
+  it.each(['', 'reserved', 'ambiguous'])('exports unknown accounting as null for receipt %s', receiptStatus => {
+    const evidence = evaluationEvidence({ ...fixture().calls[0], receipt_status: receiptStatus, input_tokens: 0, output_tokens: 0, reasoning_tokens: 0, pricing_basis: 'unpriced' })
+    expect(evidence.total_cost_microusd).toBeNull()
+    expect(evidence.input_tokens).toBeNull()
+    expect(evidence.reasoning_tokens).toBeNull()
+  })
+  it('preserves verified zero and rejects unpriced zero in exported costs', () => {
+    const call = { ...fixture().calls[0], receipt_status: 'accepted', pricing_basis: 'conservative_api_equivalent_not_invoice' }
+    expect(evaluationEvidence(call).total_cost_microusd).toBe(0)
+    expect(evaluationEvidence({ ...call, pricing_basis: 'unpriced' }).total_cost_microusd).toBeNull()
+  })
+  it('renders missing accounting as unverified rather than a zero cost', async () => {
+    render(<ModelEvaluationPanel />)
+    fireEvent.change(screen.getByLabelText('ID de evaluación'), { target: { value: id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    expect(screen.getAllByText('No verificado')).toHaveLength(60)
+    expect(screen.queryByText('0.000000')).not.toBeInTheDocument()
+  })
+  it.each([50_000_000, -1, NaN, Infinity, 0.5, '400000', undefined])('rejects an invalid reservation: %s', reservation => {
+    const value = fixture()
+    expect(() => parseEvaluation({ status: 200, data: { ...value, batch: { ...value.batch, reservation_microusd: reservation } } })).toThrow()
+  })
+  it('accepts zero and full-budget reservations without weakening the envelope check', () => {
+    for (const reservation of [0, 1_000_000]) {
+      const value = fixture(); value.batch.reservation_microusd = reservation
+      expect(parseEvaluation({ status: 200, data: value })).toEqual(value)
+    }
+  })
+  it('rejects a reservation exceeding the actual smaller budget', () => {
+    const value = fixture(); value.batch.budget_microusd = 300_000
+    expect(() => parseEvaluation({ status: 200, data: value })).toThrow()
+  })
+  it('paces a successful dispatch and stops if the server reports no progress', async () => {
+    render(<ModelEvaluationPanel />)
+    fireEvent.change(screen.getByLabelText('ID de evaluación'), { target: { value: id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    expect(screen.getAllByRole('row')).toHaveLength(61)
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' })) })
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(get).toHaveBeenCalledTimes(2)
+    await act(async () => { await vi.advanceTimersByTimeAsync(4999) })
+    expect(get).toHaveBeenCalledTimes(2)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    expect(screen.getByRole('alert')).toBeVisible()
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000) })
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(get).toHaveBeenCalledTimes(3)
+  })
+  it.each(['completed', 'failed', 'budget_exhausted'])('exits cleanly when polling reports terminal batch %s', async status => {
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' })) })
+    expect(post).toHaveBeenCalledTimes(1)
+    get.mockResolvedValue({ data: { status: 200, data: fixture(status) } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    const reads = get.mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000) })
+    expect(get).toHaveBeenCalledTimes(reads)
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Detener después de esta llamada' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ejecutar evaluación' })).toBeDisabled()
+  })
+  it('dispatches the next pending call only after the first call completes and stops at batch completion', async () => {
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' })) })
+    expect(post).toHaveBeenCalledTimes(1)
+    const running = fixture(); running.calls[0].status = 'running'
+    get.mockResolvedValue({ data: { status: 200, data: running } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(post).toHaveBeenCalledTimes(1)
+    const pending = fixture(); pending.calls[0].status = 'completed'
+    get.mockResolvedValue({ data: { status: 200, data: pending } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(post).toHaveBeenCalledTimes(2)
+    expect(post.mock.calls.every(([path, payload]) => path === `/automation/model-evaluations/${id}/dispatch-next` && Object.keys(payload).length === 0)).toBe(true)
+    get.mockResolvedValue({ data: { status: 200, data: fixture('completed') } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(25_000) })
+    expect(post).toHaveBeenCalledTimes(2)
+    expect(get).toHaveBeenCalledTimes(5)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+  it('dispatches after an observed in-flight call returns to pending', async () => {
+    const active = fixture(); active.calls[0].status = 'running'
+    get.mockResolvedValue({ data: { status: 200, data: active } })
+    localStorage.setItem('itbem.synthetic-evaluation.id', id)
+    const view = render(<ModelEvaluationPanel />)
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' })) })
+    expect(post).not.toHaveBeenCalled()
+    get.mockResolvedValue({ data: { status: 200, data: fixture() } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(post).toHaveBeenCalledExactlyOnceWith(`/automation/model-evaluations/${id}/dispatch-next`, {})
+    view.unmount()
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(post).toHaveBeenCalledTimes(1)
+  })
+  it('stops after the in-flight polling interval without dispatching another call', async () => {
+    const value = fixture(); value.calls[0].status = 'running'
+    get.mockResolvedValue({ data: { status: 200, data: value } })
+    render(<ModelEvaluationPanel />)
+    fireEvent.change(screen.getByLabelText('ID de evaluación'), { target: { value: id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Ejecutar evaluación' })) })
+    fireEvent.click(screen.getByRole('button', { name: 'Detener después de esta llamada' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(post).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Detener después de esta llamada' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ejecutar evaluación' })).toBeEnabled()
+  })
+  it('downloads final evidence through a connected anchor and records unavailable results', async () => {
+    const base = fixture('completed')
+    const value = { ...base, private_extension: 'top-private-marker', batch: { ...base.batch, reasoning: 'batch-private-marker' } }
+    value.calls[0].result_available = true; value.calls[1].result_available = true
+    value.calls[2].result_available = true; value.calls[3].result_available = true
+    let evidenceBlob: Blob | undefined
+    const revoke = vi.fn()
+    vi.stubGlobal('URL', { createObjectURL: vi.fn((blob: Blob) => { evidenceBlob = blob; return 'blob:fixture' }), revokeObjectURL: revoke })
+    let connected = false, filename = ''
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { connected = this.isConnected; filename = this.download })
+    get.mockImplementation(async (path: string) => {
+      if (path.includes('task-0')) return { data: { status: 200, data: { content: '{"ok":true}', reasoning: 'private-marker' } } }
+      if (path.includes('task-1')) throw new Error('unavailable')
+      if (path.endsWith('/task-2/result')) return { data: { status: 200, data: { reasoning: 'private-marker' } } }
+      if (path.endsWith('/task-3/result')) return { data: { status: 200, data: { content: '' } } }
+      return { data: { status: 200, data: value } }
+    })
+    render(<ModelEvaluationPanel />)
+    fireEvent.change(screen.getByLabelText('ID de evaluación'), { target: { value: id } })
+    fireEvent.click(screen.getByRole('button', { name: 'Consultar evaluación' }))
+    await screen.findByRole('status')
+    fireEvent.click(screen.getByRole('button', { name: 'Descargar evidencia final' }))
+    await waitFor(() => expect(evidenceBlob).toBeDefined())
+    expect(connected).toBe(true)
+    expect(filename).toBe(`itbem-evaluation-${id}.json`)
+    expect(document.querySelector('a[download]')).toBeNull()
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsText(evidenceBlob!)
+    })
+    const report = JSON.parse(text)
+    expect(report.calls).toHaveLength(60)
+    expect(report.calls[0].final_answer).toBe('{"ok":true}')
+    expect(report.calls[1].result_error).toBe('final_result_unavailable')
+    expect(report.calls[2].final_answer).toBe('')
+    expect(report.calls[2].result_error).toBe('final_result_unavailable')
+    expect(report.calls[3].final_answer).toBe('')
+    expect(report.calls[3].result_error).toBe('')
+    expect(text).not.toContain('private-marker')
+    expect(Object.keys(report).sort()).toEqual(['batch', 'calls', 'screening_only'])
+    expect(Object.keys(report.batch).sort()).toEqual(['budget_microusd', 'corpus_version', 'id', 'reservation_microusd', 'status'])
+    expect(report.screening_only).toBe(true)
+    await waitFor(() => expect(revoke).toHaveBeenCalledWith('blob:fixture'), { timeout: 1500 })
+  })
+})
