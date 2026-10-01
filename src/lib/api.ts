@@ -77,10 +77,20 @@ export const SESSION_FOCUS_REVALIDATE_AFTER_MS = 60 * 1000
 
 export function applicationContextDenialKind(payload: unknown): 'organization_credential' | 'product_mismatch' | 'workspace' | null {
     const body = JSON.stringify(payload ?? '').toLowerCase()
-    if (!body.includes('application context denied')) return null
     if (body.includes('organization context token is required') || body.includes('organization context token is invalid or expired')) return 'organization_credential'
-    if (body.includes('application header does not match the authenticated tenant') || body.includes('application session does not match the authenticated tenant')) return 'product_mismatch'
-    return 'workspace'
+    if (!body.includes('application context denied')) return null
+    const workspaceDetails = [
+        'workspace mode must be organization or platform',
+        'platform workspace cannot include an organization',
+        'platform workspace is not enabled for this session',
+        'organization header must be a valid uuid',
+        'organization is not enabled for this application session',
+        'organization context token requires an organization workspace',
+    ]
+    if (workspaceDetails.some(detail => body.includes(detail))) return 'workspace'
+    // Only known workspace/credential failures are recoverable. Unknown
+    // envelope details retain the original terminal session handling.
+    return 'product_mismatch'
 }
 
 // Requests made by the local dashboard first ask its BFF for a short-lived
@@ -270,7 +280,6 @@ api.interceptors.response.use(
                 void endSession()
                 return Promise.reject(error)
             }
-            const responseBody = JSON.stringify(error?.response?.data ?? '').toLowerCase()
             const contextDenial = applicationContextDenialKind(error?.response?.data)
             if (contextDenial === 'product_mismatch') {
                 // This is a product boundary violation, not an expired
@@ -279,11 +288,7 @@ api.interceptors.response.use(
                 toast.error('La sesión no corresponde a este producto. Redirigiendo al acceso correcto.')
                 state.clearSession()
                 void endSession()
-            } else if (
-                contextDenial === 'organization_credential' ||
-                responseBody.includes('organization context token is required') ||
-                responseBody.includes('organization context token is invalid or expired')
-            ) {
+            } else if (contextDenial === 'organization_credential') {
                 // Context credentials are intentionally short-lived. Clear a stale
                 // credential so the renewal hook can mint a fresh, session-bound one
                 // instead of leaving the workspace stuck behind repeated 403s.

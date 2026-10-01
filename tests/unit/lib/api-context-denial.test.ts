@@ -13,14 +13,23 @@ describe('application context denial recovery', () => {
   it.each(['organization context token is required', 'organization context token is invalid or expired'])('classifies the generic envelope by its recoverable detail: %s', detail => {
     expect(applicationContextDenialKind({ Message: 'Application context denied', Error: detail })).toBe('organization_credential')
   })
-  it.each(['application header does not match the authenticated tenant', 'application session does not match the authenticated tenant'])('keeps genuine cross-product denials distinct: %s', detail => {
+  it.each(['application header does not match the authenticated tenant', 'application session does not match the authenticated tenant', 'application context does not match the authenticated tenant'])('keeps genuine cross-product denials distinct: %s', detail => {
     expect(applicationContextDenialKind({ message: 'Application context denied', error: detail })).toBe('product_mismatch')
   })
-  it('does not interpret workspace authorization or an unknown detail as a different product', () => {
-    for (const detail of ['platform workspace cannot include an organization', 'organization is not enabled for this application session', 'unknown']) {
+  it('recovers only known workspace failures and keeps unknown boundary denials terminal', () => {
+    for (const detail of [
+      'workspace mode must be organization or platform',
+      'platform workspace cannot include an organization',
+      'platform workspace is not enabled for this session',
+      'organization header must be a valid UUID',
+      'organization is not enabled for this application session',
+      'organization context token requires an organization workspace',
+    ]) {
       expect(applicationContextDenialKind({ message: 'Application context denied', error: detail })).toBe('workspace')
     }
     expect(applicationContextDenialKind({ message: 'Application access denied' })).toBeNull()
+    expect(applicationContextDenialKind({ message: 'Application context denied', error: 'unknown' })).toBe('product_mismatch')
+    expect(applicationContextDenialKind({ error: 'organization context token is required' })).toBe('organization_credential')
   })
   it('preserves authentication, clears only the organization credential and does not retry rejected writes', async () => {
     const previous = useStore.getState().token
@@ -79,6 +88,8 @@ describe('application context denial recovery', () => {
   })
   it.each([
     ['application header does not match the authenticated tenant', true],
+    ['application context does not match the authenticated tenant', true],
+    ['unknown application boundary detail', true],
     ['platform workspace cannot include an organization', false],
   ])('handles %s without weakening the rejected request', async (detail, mustEndSession) => {
     vi.spyOn(Date, 'now').mockReturnValue(mustEndSession ? 2_000_000_010_000 : 2_000_000_020_000)
@@ -94,6 +105,26 @@ describe('application context denial recovery', () => {
       expect(clearSession).toHaveBeenCalledTimes(mustEndSession ? 1 : 0)
       expect(endSession).toHaveBeenCalledTimes(mustEndSession ? 1 : 0)
       expect(errorToast).toHaveBeenCalledTimes(1)
+    } finally { useStore.getState().setToken(previous) }
+  })
+  it('renews a missing organization credential even without the generic envelope', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(2_000_000_030_000)
+    const previous = useStore.getState().token
+    useStore.getState().setToken('synthetic-test-token')
+    const state = useStore.getState()
+    const clearSession = vi.spyOn(state, 'clearSession').mockImplementation(() => {})
+    const clearCredential = vi.spyOn(state, 'setOrganizationContextCredential').mockImplementation(() => {})
+    const adapter = vi.fn(async config => {
+      throw new AxiosError('forbidden', 'ERR_BAD_REQUEST', config, undefined, { status: 403, statusText: 'Forbidden', headers: {}, config, data: { error: 'organization context token is required' } })
+    })
+    try {
+      await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
+      expect(adapter).toHaveBeenCalledTimes(1)
+      expect(clearCredential).toHaveBeenCalledExactlyOnceWith(null)
+      expect(infoToast).toHaveBeenCalledExactlyOnceWith('El contexto del espacio se renovará automáticamente.')
+      expect(errorToast).not.toHaveBeenCalled()
+      expect(clearSession).not.toHaveBeenCalled()
+      expect(endSession).not.toHaveBeenCalled()
     } finally { useStore.getState().setToken(previous) }
   })
 })
