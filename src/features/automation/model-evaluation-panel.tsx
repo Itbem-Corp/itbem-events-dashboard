@@ -3,6 +3,7 @@
 import { Button } from '@/components/button'
 import { Field, Label } from '@/components/fieldset'
 import { Input } from '@/components/input'
+import { Select } from '@/components/select'
 import { Subheading } from '@/components/heading'
 import { api } from '@/lib/api'
 import { readApiData } from '@/lib/api-envelope'
@@ -10,7 +11,13 @@ import { automationModelEvaluationDispatchPath, automationModelEvaluationPath, a
 import { useEffect, useRef, useState } from 'react'
 
 export const EVALUATION_CORPUS_VERSION = 'synthetic-screening-20-2026-09-30-v1'
+export const CACHE_EVALUATION_CORPUS_VERSION = 'synthetic-prefix-cache-20-2026-10-01-v1'
+const evaluationProfiles = [
+  { version: EVALUATION_CORPUS_VERSION, label: 'Screening inicial: 20 casos distintos' },
+  { version: CACHE_EVALUATION_CORPUS_VERSION, label: 'Caché: 10 pares con prefijo compartido y control' },
+]
 const storageKey = 'itbem.synthetic-evaluation.id'
+const corpusStorageKey = 'itbem.synthetic-evaluation.corpus'
 type EvaluationCall = {
   task_id: string; case_id: string; candidate: string; status: string
   receipt_id?: string; receipt_status: string; actual_provider: string; actual_model: string
@@ -24,7 +31,7 @@ type Evaluation = {
 
 export function parseEvaluation(value: unknown): Evaluation {
   const data = readApiData(value) as Evaluation | null
-  if (!data?.batch || typeof data.batch.id !== 'string' || typeof data.batch.status !== 'string' || !Array.isArray(data.calls) || data.calls.length !== 60 || data.batch.corpus_version !== EVALUATION_CORPUS_VERSION || !Number.isSafeInteger(data.batch.budget_microusd) || data.batch.budget_microusd <= 0 || data.batch.budget_microusd > 1_000_000 || !Number.isSafeInteger(data.batch.reservation_microusd) || data.batch.reservation_microusd < 0 || data.batch.reservation_microusd > data.batch.budget_microusd || data.calls.some(call => !call || ['task_id', 'case_id', 'candidate', 'status', 'receipt_status', 'actual_provider', 'actual_model'].some(key => typeof call[key] !== 'string') || typeof call.result_available !== 'boolean' || !Number.isSafeInteger(call.total_cost_microusd) || call.total_cost_microusd < 0)) {
+  if (!data?.batch || typeof data.batch.id !== 'string' || typeof data.batch.status !== 'string' || !Array.isArray(data.calls) || data.calls.length !== 60 || !evaluationProfiles.some(profile => profile.version === data.batch.corpus_version) || !Number.isSafeInteger(data.batch.budget_microusd) || data.batch.budget_microusd <= 0 || data.batch.budget_microusd > 1_000_000 || !Number.isSafeInteger(data.batch.reservation_microusd) || data.batch.reservation_microusd < 0 || data.batch.reservation_microusd > data.batch.budget_microusd || data.calls.some(call => !call || ['task_id', 'case_id', 'candidate', 'status', 'receipt_status', 'actual_provider', 'actual_model'].some(key => typeof call[key] !== 'string') || typeof call.result_available !== 'boolean' || !Number.isSafeInteger(call.total_cost_microusd) || call.total_cost_microusd < 0)) {
     throw new Error('La evaluación no coincide con el contrato de 60 casos y USD 1.')
   }
   return data
@@ -56,6 +63,7 @@ function verifiedEvaluationCost(call: EvaluationCall): boolean {
 export function ModelEvaluationPanel() {
   const [id, setId] = useState('')
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
+  const [corpusVersion, setCorpusVersion] = useState(EVALUATION_CORPUS_VERSION)
   const [busy, setBusy] = useState(false)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
@@ -64,14 +72,19 @@ export function ModelEvaluationPanel() {
   const stop = useRef(true)
   useEffect(() => {
     setId(localStorage.getItem(storageKey) ?? '')
+    const savedCorpus = localStorage.getItem(corpusStorageKey)
+    if (savedCorpus && evaluationProfiles.some(profile => profile.version === savedCorpus)) setCorpusVersion(savedCorpus)
     return () => { stop.current = true; cancelDownload.current = true }
   }, [])
 
-  const load = async (batchId = id) => {
+  const load = async (batchId = id, expectedCorpus = evaluation?.batch.corpus_version) => {
     const response = await api.get(automationModelEvaluationPath(batchId))
     const next = parseEvaluation(response.data)
     if (next.batch.id !== batchId) throw new Error('Evaluation ID does not match the requested batch')
+    if (expectedCorpus && next.batch.corpus_version !== expectedCorpus) throw new Error('Evaluation corpus changed for this batch')
     setEvaluation(next)
+    setCorpusVersion(next.batch.corpus_version)
+    localStorage.setItem(corpusStorageKey, next.batch.corpus_version)
     return next
   }
   const act = async (action: () => Promise<void>) => {
@@ -82,9 +95,10 @@ export function ModelEvaluationPanel() {
   const admit = () => act(async () => {
     const batchId = id || crypto.randomUUID()
     setId(batchId); localStorage.setItem(storageKey, batchId)
+    localStorage.setItem(corpusStorageKey, corpusVersion)
     // Repeating admission uses the same idempotency ID; it never starts calls.
-    await api.post(automationModelEvaluationsPath(), { id: batchId, corpus_version: EVALUATION_CORPUS_VERSION })
-    await load(batchId)
+    await api.post(automationModelEvaluationsPath(), { id: batchId, corpus_version: corpusVersion })
+    await load(batchId, corpusVersion)
   })
   const run = async () => {
     stop.current = false; setRunning(true); setError('')
@@ -142,8 +156,13 @@ export function ModelEvaluationPanel() {
     <Subheading>Evaluación sintética aislada</Subheading>
     <p className="mt-2 text-sm text-ink-secondary">20 casos por modelo: MiniMax M3 con razonamiento, DeepSeek Flash high y GPT-6 Luna high. Máximo 60 llamadas, una a la vez, 4096 tokens de salida y USD 1 API-equivalente. MiniMax usa cuota de suscripción.</p>
     <p className="mt-2 text-sm text-ink-secondary">La admisión reserva el lote completo. Ejecutar continúa los casos pendientes por el gateway. Detener deja terminar la llamada en curso. Este screening acotado no certifica calidad general.</p>
+    <Field className="mt-4"><Label>Perfil de evaluación</Label><Select value={corpusVersion} disabled={busy || running || Boolean(evaluation) || Boolean(id)} onChange={event => setCorpusVersion(event.target.value)}>
+      {evaluationProfiles.map(profile => <option key={profile.version} value={profile.version}>{profile.label}</option>)}
+    </Select></Field>
+    {corpusVersion === CACHE_EVALUATION_CORPUS_VERSION && <p className="mt-2 text-sm text-ink-secondary">Cada caso se compara con la misma referencia sintética y dos prefijos. El control cambia al inicio; no garantiza caché fría. El informe incluye calentamiento, tokens nativos y costo de entrada y salida. Seleccionar este perfil no ejecuta llamadas.</p>}
     <Field className="mt-4"><Label>ID de evaluación</Label><Input value={id} disabled={busy || running} onChange={event => { setId(event.target.value); setEvaluation(null) }} placeholder="Se genera al admitir o pega un ID existente" /></Field>
     <div className="mt-4 flex flex-wrap gap-3">
+      <Button outline disabled={busy || running || evaluation?.batch.status === 'active'} onClick={() => { setId(''); setEvaluation(null); localStorage.removeItem(storageKey); localStorage.removeItem(corpusStorageKey); setError('') }}>Preparar otro lote</Button>
       <Button outline disabled={busy || running || Boolean(evaluation)} onClick={admit}>Admitir evaluación</Button>
       <Button outline disabled={!id || busy || running} onClick={() => void act(async () => { localStorage.setItem(storageKey, id); await load() })}>Consultar evaluación</Button>
       <Button color="indigo" disabled={busy || running || evaluation?.batch.status !== 'active'} onClick={() => void run()}>Ejecutar evaluación</Button>
