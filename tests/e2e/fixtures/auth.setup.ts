@@ -17,22 +17,50 @@ import path from 'path'
 import fs from 'fs'
 import dotenv from 'dotenv'
 import { assertStorageStateTarget } from './auth-state-target'
+import { localAuthTargets, requireEphemeralIDToken } from './local-auth'
+import { AUTH_COOKIE_NAMES } from '../../../src/lib/auth-session'
 
 // dotenvx intercepts dotenv.config() and doesn't actually set process.env.
 // Bypass it by reading the file directly and assigning vars manually.
 const envPath = path.join(process.cwd(), '.env.local')
-try {
-  const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf8'))
-  for (const [key, val] of Object.entries(parsed)) {
-    if (!process.env[key]) process.env[key] = val
-  }
-} catch { /* .env.local not found — vars must be set externally */ }
+if (!process.env.E2E_ID_TOKEN?.trim()) {
+  try {
+    const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf8'))
+    for (const [key, val] of Object.entries(parsed)) {
+      if (!process.env[key]) process.env[key] = val
+    }
+  } catch { /* .env.local not found — vars must be set externally */ }
+}
 
 const authFile = path.join(__dirname, '../.auth/session.json')
 
 setup.setTimeout(60_000)
 
-setup('authenticate', async ({ page }, testInfo) => {
+setup('authenticate', async ({ page, request }, testInfo) => {
+  if (process.env.E2E_ID_TOKEN?.trim()) {
+    const targets = localAuthTargets(process.env.PLAYWRIGHT_BASE_URL, process.env.E2E_BACKEND_URL)
+    const configuredOrigin = new URL(String(testInfo.project.use.baseURL)).origin
+    if (configuredOrigin !== targets.dashboard.origin) throw new Error('Ephemeral identity project origin mismatch')
+    const token = requireEphemeralIDToken(process.env.E2E_ID_TOKEN)
+    const response = await request.get(new URL('/api/session', targets.backend).toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+      maxRedirects: 0,
+    })
+    // Do not attach the request or token to an assertion failure/report.
+    const status = response.status()
+    await response.dispose()
+    if (status !== 200) throw new Error(`Ephemeral backend identity rejected (${status})`)
+    await page.context().addCookies([{
+      name: AUTH_COOKIE_NAMES.session, value: token, url: targets.dashboard.origin,
+      httpOnly: true, secure: targets.dashboard.protocol === 'https:', sameSite: 'Lax',
+    }])
+    await page.goto('/automation')
+    await expect(page.getByRole('heading', { name: 'Centro de automatización' })).toBeVisible()
+    const storageState = await page.context().storageState()
+    assertStorageStateTarget(storageState, configuredOrigin)
+    await page.context().storageState({ path: authFile })
+    return
+  }
   const email = process.env.TEST_EMAIL
   const password = process.env.TEST_PASSWORD
 
