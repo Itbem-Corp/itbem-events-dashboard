@@ -14,7 +14,7 @@ jobs:
   # ── Unit tests + type check + build (runs on every push & PR) ────────────
   unit:
     name: TypeScript + Unit Tests + Build
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","itbem-wsl-ci"]') }}
 
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -60,7 +60,7 @@ jobs:
   # ── Deploy to Vercel (main branch only, after unit tests pass) ────────────
   deploy:
     name: Deploy to Vercel
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","itbem-wsl-ci"]') }}
     needs: unit
     # A manual dispatch is reserved for the isolated E2E job below; it must not
     # promote production as a side effect.
@@ -244,7 +244,7 @@ jobs:
 # ── Deterministic persona E2E — every production promotion ──────────────────
   persona-e2e:
     name: Persona E2E (production)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","itbem-wsl-ci"]') }}
     needs: deploy
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     timeout-minutes: 12
@@ -289,7 +289,7 @@ jobs:
 # Run manually when you have the staging environment ready.
   e2e:
     name: E2E Tests (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","itbem-wsl-ci"]') }}
     needs: unit
     if: github.event_name == 'workflow_dispatch'
 
