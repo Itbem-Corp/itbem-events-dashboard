@@ -28,7 +28,6 @@ export const DEFAULT_EVENT_MAX_GUESTS = 100
 export function emptyEventFormValues(currentClientId = ''): EventFormValues {
   return {
     name: '',
-    identifier: '',
     description: '',
     client_id: currentClientId,
     event_type_id: '',
