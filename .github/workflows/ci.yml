@@ -14,7 +14,9 @@ jobs:
   # ── Unit tests + type check + build (runs on every push & PR) ────────────
   unit:
     name: TypeScript + Unit Tests + Build
-    runs-on: ubuntu-latest
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: [self-hosted, Linux, X64, itbem-org-ci]
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -60,11 +62,11 @@ jobs:
   # ── Deploy to Vercel (main branch only, after unit tests pass) ────────────
   deploy:
     name: Deploy to Vercel
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, itbem-org-ci]
     needs: unit
     # A manual dispatch is reserved for the isolated E2E job below; it must not
     # promote production as a side effect.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     timeout-minutes: 30
     environment: production
     concurrency:
@@ -244,9 +246,9 @@ jobs:
 # ── Deterministic persona E2E — every production promotion ──────────────────
   persona-e2e:
     name: Persona E2E (production)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, itbem-org-ci]
     needs: deploy
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     timeout-minutes: 12
 
     steps:
@@ -266,7 +268,7 @@ jobs:
           npm ci
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Verify all role workspaces against the promoted UI
         run: npx playwright test --project=personas
@@ -289,9 +291,10 @@ jobs:
 # Run manually when you have the staging environment ready.
   e2e:
     name: E2E Tests (Playwright)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, itbem-org-ci]
+    timeout-minutes: 45
     needs: unit
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (github.event_name == 'workflow_dispatch') }}
 
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -307,7 +310,7 @@ jobs:
           npm ci
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Validate isolated E2E configuration
         env:
