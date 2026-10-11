@@ -1,6 +1,7 @@
 import { EventSectionsManager } from '@/components/events/event-sections-manager'
+import { CONFIRM_ALERT_OPEN_GUARD_MS } from '@/components/ui/confirm-alert'
 import type { EventSection } from '@/models/EventSection'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -140,6 +141,8 @@ describe('EventSectionsManager media integration', () => {
     expect(apiMock.delete).not.toHaveBeenCalled()
     expect(screen.getByRole('alertdialog')).toHaveTextContent('Hero de graduación')
 
+    // ConfirmAlert ignores clicks during its post-open double-click guard.
+    await act(() => new Promise((resolve) => setTimeout(resolve, CONFIRM_ALERT_OPEN_GUARD_MS + 20)))
     fireEvent.click(screen.getByRole('button', { name: 'Eliminar sección' }))
 
     await waitFor(() => expect(apiMock.delete).toHaveBeenCalledWith('/sections/GraduationHero-section'))

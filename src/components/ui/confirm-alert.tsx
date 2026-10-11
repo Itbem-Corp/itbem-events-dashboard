@@ -3,7 +3,14 @@
 import { Alert, AlertActions, AlertDescription, AlertTitle } from '@/components/alert'
 import { Button } from '@/components/button'
 import { ArrowPathIcon } from '@heroicons/react/16/solid'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
+
+/**
+ * Right after opening, ignore dismiss and confirm for the OS double-click interval (Windows default 500 ms):
+ * the second click of a double click on the trigger lands on the dialog backdrop (Headless UI closes on
+ * outside click) or on a button that now sits where the trigger was.
+ */
+export const CONFIRM_ALERT_OPEN_GUARD_MS = 500
 
 interface ConfirmAlertProps {
   open: boolean
@@ -29,18 +36,16 @@ export function ConfirmAlert({
   onConfirm,
 }: ConfirmAlertProps) {
   const confirmingRef = useRef(false)
-  const openingRef = useRef(false)
+  const openedAtRef = useRef(0)
 
-  useEffect(() => {
-    if (!open) return
-    openingRef.current = true
-    queueMicrotask(() => {
-      openingRef.current = false
-    })
+  useLayoutEffect(() => {
+    if (open) openedAtRef.current = Date.now()
   }, [open])
 
+  const justOpened = () => Date.now() - openedAtRef.current < CONFIRM_ALERT_OPEN_GUARD_MS
+
   const close = () => {
-    if (!busy && !confirmingRef.current && !openingRef.current) onClose()
+    if (!busy && !confirmingRef.current && !justOpened()) onClose()
   }
 
   return (
@@ -61,7 +66,7 @@ export function ConfirmAlert({
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            void onConfirm()
+            if (!justOpened()) void onConfirm()
             queueMicrotask(() => {
               confirmingRef.current = false
             })

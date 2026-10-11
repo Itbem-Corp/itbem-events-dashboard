@@ -4,6 +4,7 @@
  * processing status badges, and empty states.
  */
 
+import { CONFIRM_ALERT_OPEN_GUARD_MS } from '@/components/ui/confirm-alert'
 import type { Moment } from '@/models/Moment'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ComponentProps } from 'react'
@@ -170,8 +171,12 @@ async function renderWall(moments: Moment[] = [], isLoading = false, props: Part
   )
 }
 
+// ConfirmAlert ignores clicks during its post-open double-click guard.
+const waitForConfirmGuard = () => new Promise((resolve) => setTimeout(resolve, CONFIRM_ALERT_OPEN_GUARD_MS + 20))
+
 async function confirmAlert(label: RegExp) {
   const button = await screen.findByRole('button', { name: label })
+  await act(waitForConfirmGuard)
   await act(async () => {
     fireEvent.click(button)
   })
@@ -1177,9 +1182,15 @@ describe('MomentsWall — multi-select', () => {
     })
 
     expect(await screen.findByText('¿Aprobar 2 momentos pendientes?')).toBeInTheDocument()
+    // The second click of a real double click lands on the dialog backdrop: it must not dismiss it.
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' })
+    })
+    expect(screen.getByText('¿Aprobar 2 momentos pendientes?')).toBeInTheDocument()
     expect(vi.mocked(api.post)).not.toHaveBeenCalledWith('/moments/bulk-approve', expect.anything())
 
     const confirm = await screen.findByRole('button', { name: /^Aprobar momentos$/i })
+    await act(waitForConfirmGuard)
     await act(async () => {
       fireEvent.click(confirm)
       fireEvent.click(confirm)

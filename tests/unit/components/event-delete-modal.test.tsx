@@ -1,6 +1,7 @@
 import { EventDeleteModal } from '@/components/events/event-delete-modal'
+import { CONFIRM_ALERT_OPEN_GUARD_MS } from '@/components/ui/confirm-alert'
 import { api } from '@/lib/api'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { success, error } = vi.hoisted(() => ({
@@ -35,6 +36,8 @@ describe('EventDeleteModal', () => {
       />
     )
 
+    // ConfirmAlert ignores clicks during its post-open double-click guard.
+    await act(() => new Promise((resolve) => setTimeout(resolve, CONFIRM_ALERT_OPEN_GUARD_MS + 20)))
     fireEvent.click(screen.getByRole('button', { name: 'Eliminar evento' }))
 
     await waitFor(() => expect(api.delete).toHaveBeenCalledWith('/events/evt-1'))
