@@ -1131,6 +1131,59 @@ describe('MomentsWall — multi-select', () => {
       })
     })
   })
+
+  it('Aprobar todos asks for confirmation with the count and ignores a second click', async () => {
+    vi.mocked(api.post).mockClear()
+    await renderWall([
+      makeMoment({ id: 'all-001', is_approved: false }),
+      makeMoment({ id: 'all-002', is_approved: false }),
+    ])
+    const approveAll = screen.getAllByRole('button', { name: /Aprobar todos/i })[0]
+    await act(async () => {
+      fireEvent.click(approveAll)
+      fireEvent.click(approveAll)
+    })
+
+    expect(await screen.findByText('¿Aprobar 2 momentos pendientes?')).toBeInTheDocument()
+    expect(vi.mocked(api.post)).not.toHaveBeenCalledWith('/moments/bulk-approve', expect.anything())
+
+    const confirm = await screen.findByRole('button', { name: /^Aprobar momentos$/i })
+    await act(async () => {
+      fireEvent.click(confirm)
+      fireEvent.click(confirm)
+    })
+
+    await waitFor(() => {
+      expect(vi.mocked(api.post)).toHaveBeenCalledWith('/moments/bulk-approve', {
+        ids: ['all-001', 'all-002'],
+        is_approved: true,
+      })
+    })
+    const approveCalls = vi.mocked(api.post).mock.calls.filter(([path]) => path === '/moments/bulk-approve')
+    expect(approveCalls).toHaveLength(1)
+  })
+
+  it('Rechazar todos deletes exactly the ids shown in the confirmation', async () => {
+    vi.mocked(api.delete).mockClear()
+    await renderWall([
+      makeMoment({ id: 'rej-001', is_approved: false }),
+      makeMoment({ id: 'rej-002', is_approved: false }),
+      makeMoment({ id: 'rej-keep', is_approved: true }),
+    ])
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /Rechazar todos/i })[0])
+    })
+    expect(await screen.findByText('¿Eliminar 2 momentos pendientes?')).toBeInTheDocument()
+
+    await confirmAlert(/^Eliminar momentos$/i)
+
+    await waitFor(() => {
+      expect(vi.mocked(api.delete)).toHaveBeenCalledWith('/moments/bulk', {
+        data: { ids: ['rej-001', 'rej-002'] },
+      })
+    })
+    expect(vi.mocked(api.delete)).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('MomentsWall — lightbox note display', () => {
