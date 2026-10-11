@@ -1549,6 +1549,12 @@ function chunkIds(ids: string[], size: number): string[][] {
   return chunks
 }
 
+function withoutIds(selected: Set<string>, ids: string[]): Set<string> {
+  const next = new Set(selected)
+  for (const id of ids) next.delete(id)
+  return next
+}
+
 type MomentDashboardPage = {
   data: Moment[]
   in_flight?: Moment[]
@@ -2230,17 +2236,22 @@ export function MomentsWall({
         approved: toApprove.length,
       })
     )
+    const appliedIds: string[] = []
     try {
-      await api.post(momentsBulkApprovePath(), {
-        ids: toApprove.map((m) => m.id),
-        is_approved: true,
-      })
+      for (const ids of chunkIds([...approveIds], BULK_MOMENT_CHUNK_SIZE)) {
+        await api.post(momentsBulkApprovePath(), { ids, is_approved: true })
+        appliedIds.push(...ids)
+      }
       refreshMomentStreams()
       notifyPublicContentChanged()
       setSelectedIds(new Set())
       toast.success(`${toApprove.length} momento${toApprove.length !== 1 ? 's' : ''} aprobados`)
     } catch (err: unknown) {
-      await mutateMomentPages(snapshot, { revalidate: false })
+      // After a partial success the snapshot is stale: refetch the real state instead.
+      if (appliedIds.length > 0) {
+        await mutateMomentPages()
+        setSelectedIds((prev) => withoutIds(prev, appliedIds))
+      } else await mutateMomentPages(snapshot, { revalidate: false })
       toast.error(getApiErrorMessage(err, 'Error al aprobar momentos'))
     }
   }
@@ -2258,15 +2269,23 @@ export function MomentsWall({
         deletionCountDelta(deletedMoments)
       )
     )
+    const appliedIds: string[] = []
     try {
-      await api.delete(momentsBulkDeletePath(), { data: { ids: [...deleteIds] } })
+      for (const ids of chunkIds([...deleteIds], BULK_MOMENT_CHUNK_SIZE)) {
+        await api.delete(momentsBulkDeletePath(), { data: { ids } })
+        appliedIds.push(...ids)
+      }
       refreshMomentStreams()
       notifyPublicContentChanged()
       setSelectedIds(new Set())
       setSelectMode(false)
       toast.success(`${deleteCount} momento${deleteCount !== 1 ? 's' : ''} eliminados`)
     } catch (err: unknown) {
-      await mutateMomentPages(snapshot, { revalidate: false })
+      // Deleted ids leave the selection so a retry does not resend them (the backend 404s unknown ids).
+      if (appliedIds.length > 0) {
+        await mutateMomentPages()
+        setSelectedIds((prev) => withoutIds(prev, appliedIds))
+      } else await mutateMomentPages(snapshot, { revalidate: false })
       toast.error(getApiErrorMessage(err, 'Error al eliminar momentos'))
     }
   }

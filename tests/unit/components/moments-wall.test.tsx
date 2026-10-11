@@ -1132,6 +1132,38 @@ describe('MomentsWall — multi-select', () => {
     })
   })
 
+  it('Aprobar y Eliminar selección split selections over the backend cap into chunks of 500', async () => {
+    vi.mocked(api.post).mockClear()
+    vi.mocked(api.delete).mockClear()
+    const many = Array.from({ length: 501 }, (_, i) =>
+      makeMoment({ id: `cap-${String(i).padStart(3, '0')}`, is_approved: false })
+    )
+    await renderWall(many)
+    fireEvent.click(screen.getByTitle('Seleccionar momentos'))
+    await waitFor(() => expect(screen.getByText('Seleccionar todo')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('checkbox'))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Aprobar selección/i })[0]).toBeInTheDocument())
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /Aprobar selección/i })[0])
+    })
+    await waitFor(() => {
+      const approveCalls = vi.mocked(api.post).mock.calls.filter(([path]) => path === '/moments/bulk-approve')
+      expect(approveCalls.map(([, body]) => (body as { ids: string[] }).ids.length)).toEqual([500, 1])
+    })
+
+    fireEvent.click(screen.getByRole('checkbox'))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Eliminar selección/i })[0]).toBeInTheDocument())
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /Eliminar selección/i })[0])
+    })
+    await confirmAlert(/^Eliminar momentos$/i)
+    await waitFor(() => {
+      const deleteCalls = vi.mocked(api.delete).mock.calls.filter(([path]) => path === '/moments/bulk')
+      expect(deleteCalls.map(([, cfg]) => (cfg as { data: { ids: string[] } }).data.ids.length)).toEqual([500, 1])
+    })
+  }, 30000)
+
   it('Aprobar todos asks for confirmation with the count and ignores a second click', async () => {
     vi.mocked(api.post).mockClear()
     await renderWall([
