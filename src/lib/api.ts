@@ -15,7 +15,10 @@ import type { ApplicationSession } from '@/models/ApplicationSession'
 // 1. Leemos la URL base pública y le pegamos "/api" al final.
 // Si no existe la variable, usamos localhost como fallback.
 const configuredBaseUrl = normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, "http://localhost:8080");
+// The automation bridge only answers in development builds (see
+// src/lib/automation-bridge.ts), so a production build always talks to the API.
 const isLocalDashboardHost = typeof window !== 'undefined' &&
+    process.env.NODE_ENV !== 'production' &&
     (window.location.hostname === 'localhost' ||
         window.location.hostname === '127.0.0.1' ||
         window.location.hostname.endsWith('.localhost'))
