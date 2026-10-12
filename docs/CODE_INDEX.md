@@ -183,8 +183,7 @@ Backend `GET /moments?event_id=X` already filters out `pending` and `processing`
 | `/events/[id]`         | `(app)/events/[id]/page.tsx`         | Event detail tabs: guests, moments, analytics, config, seating |
 | `/events/[id]/studio`  | `(app)/events/[id]/studio/page.tsx`  | Section builder / studio                                       |
 | `/events/[id]/checkin` | `(app)/events/[id]/checkin/page.tsx` | QR check-in scanner                                            |
-| `/orders`              | `(app)/orders/page.tsx`              | Legacy server redirect to `/events`                            |
-| `/orders/[id]`         | `(app)/orders/[id]/page.tsx`         | Legacy server redirect to `/events`                            |
+| `/orders`, `/orders/*` | — (`next.config.mjs` `redirects()`)  | Permanent redirect to `/events`; no page                       |
 | `/clients`             | `(app)/clients/page.tsx`             | Client management (root only)                                  |
 | `/users`               | `(app)/users/page.tsx`               | User management (root only)                                    |
 | `/users/[id]/clients`  | `(app)/users/[id]/clients/page.tsx`  | User identity, searchable memberships, and deferred management |

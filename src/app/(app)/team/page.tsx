@@ -4,14 +4,24 @@ import { Button } from '@/components/button'
 import { PageHeader } from '@/components/product/page-header'
 import { EmptyState } from '@/components/ui/empty-state'
 import { IntentModalSkeleton } from '@/components/ui/intent-modal-skeleton'
+import { accessCan } from '@/lib/access-profile'
+import { useAccessProfile } from '@/lib/use-access-profile'
+import { useProductManifest, useProductShell } from '@/products/core/product-context'
+import { productSupportsFeature } from '@/products/core/product-manifest'
 import { teamPageCards } from '@/features/workspace/team-copy'
-import { useProductShell } from '@/products/core/product-context'
 import { useStore } from '@/store/useStore'
 import { ShieldCheckIcon, Squares2X2Icon, UserGroupIcon } from '@heroicons/react/20/solid'
 import dynamic from 'next/dynamic'
 import { useState } from 'react'
 
 const loadClientMembersModal = () => import('@/components/clients/client-members-modal')
+const OrganizationEventClientsPanel = dynamic(
+  () =>
+    import('@/components/events/organization-event-clients-panel').then(
+      (module) => module.OrganizationEventClientsPanel
+    ),
+  { ssr: false }
+)
 const ClientMembersModal = dynamic(() => loadClientMembersModal().then((module) => module.ClientMembersModal), {
   ssr: false,
   loading: () => <IntentModalSkeleton title="Preparando equipo" />,
@@ -21,6 +31,11 @@ export default function TeamPage() {
   const currentClient = useStore((state) => state.currentClient)
   const [open, setOpen] = useState(false)
   const [rolesCard, accessCard] = teamPageCards(useProductShell())
+  const accessProfile = useAccessProfile()
+  const product = useProductManifest()
+  // Event-client oversight: products with events (EventiApp) and team admins only.
+  const showEventClients =
+    Boolean(product && productSupportsFeature(product, 'events')) && accessCan(accessProfile, 'members:manage')
 
   if (!currentClient) {
     return (
@@ -70,6 +85,10 @@ export default function TeamPage() {
           <p className="mt-2 text-sm leading-6 text-ink-muted">{accessCard.text}</p>
         </div>
       </section>
+
+      {showEventClients && (
+        <OrganizationEventClientsPanel organizationId={currentClient.id} organizationName={currentClient.name} />
+      )}
 
       <ClientMembersModal
         isOpen={open}

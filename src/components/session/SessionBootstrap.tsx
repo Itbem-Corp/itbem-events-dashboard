@@ -47,9 +47,10 @@ export default function SessionBootstrap() {
 
   useEffect(() => {
     const status = requestStatus(error)
-    if (status === 401 || status === 403) {
-      void endSession(clearSession)
-    }
+    // 403 from /api/session: no organization, event grant or root applies any
+    // more (for example every event-client grant was revoked).
+    if (status === 403) void endSession(clearSession, 'no_access')
+    else if (status === 401) void endSession(clearSession)
   }, [clearSession, error])
 
   useEffect(() => {
@@ -61,7 +62,8 @@ export default function SessionBootstrap() {
         await refreshApplicationSession(minAgeMs)
       } catch (reason) {
         const status = requestStatus(reason)
-        if (active && (status === 401 || status === 403)) void endSession(clearSession)
+        if (active && status === 403) void endSession(clearSession, 'no_access')
+        else if (active && status === 401) void endSession(clearSession)
       }
     }
     // The Zustand state can survive Fast Refresh and client navigations. Treat

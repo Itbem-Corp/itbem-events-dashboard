@@ -709,9 +709,21 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 - Full-screen overlay (`fixed inset-0 z-50`) optimized for phone/tablet
 - Auto-refreshes guest list every 10 seconds
 - Filter: Todos / Esperados / Llegaron
-- "Llegó" button calls PUT `/guests/:id` with `CONFIRMED` status_id
+- "Llegó" and the QR scan send `PATCH /guests/bulk/status` with `action: 'checkin'`
+  (`buildCheckinPayload`, `src/features/events/checkin/checkin-actions.ts`), which needs
+  only `checkin:run`. The endpoint returns no guest: caches are patched optimistically
+  (with `checked_in_at`) and revalidated.
+- "Desmarcar" appears only while `guest.checked_in_at` is set (a door check-in) and sends
+  `action: 'undo_checkin'`. A 409 rolls back and explains that the guest confirmed on
+  their own or an organizer confirmed them. Otherwise the row reads "Confirmado".
+- Search: name or table substring; email and phone only as the complete value (the
+  placeholder and empty state say so).
+- Permissions: `capabilityErrorKind()` — network/5xx shows `EventCapabilityError` with
+  Reintentar, 404 'Evento no encontrado', 403 the lock card.
 - Sticky header with QR scanner button + search + progress bar + stats footer
-- **QR Scanner button** ("Escanear QR") opens `QRScanner` overlay; on scan matches guest by `rsvp_token_id`, `email`, or `first_name-last_name`; calls PUT `/guests/:id` then mutates SWR cache; toast success or not-found
+- **QR Scanner button** ("Escanear QR") parses the code with `parseCheckinQrPayload` and asks
+  the server (`GET /guests/checkin:<id>?qr=`) for the exact guest; the browser never matches
+  tokens or contact data itself.
 
 ### QRScanner (`events/qr-scanner.tsx`)
 
@@ -819,3 +831,58 @@ Reusable tappable row for use inside a `BottomSheet`.
 - Product briefs are contract-validated by the worker and render as a comparison of directions plus a clearly marked human recommendation, so the result remains actionable even when the agent is not allowed to act on it.
 - The project Delivery policy surface exposes approved release workflow, environment and the names of required GitHub Environment secrets and variables. It never requests or renders their values. Release proposals serialize both reference lists explicitly—even when empty—so the operator can distinguish an approved empty requirement from inherited or missing configuration. Names are canonical uppercase identifiers; `GITHUB_*`, malformed names and lists over 64 entries fail closed before submission.
 - Repository onboarding shows a sealed policy baseline beside the Vault diff. It always starts `review_only`, pins only the observed default branch and detected test kinds, and can only prefill a normal Policy Ledger draft after the matching Vault revision is approved. The ledger still creates a separate immutable revision that needs an independent approval.
+
+## Event clients (EventiApp, `EVENT_CLIENT_ACCESS`)
+
+### EventClientsModal (`events/event-clients-modal.tsx`)
+
+Opened from the event detail ('Clientes del evento', outline + `UserPlusIcon`) only when
+`GET /events/:id/capabilities` returns `event:clients:manage` and the event has a
+`client_id`; it mounts only then, so clients and editors never request `/clients`.
+
+- 'Con acceso': name, email, 'Desde {fecha}'; 'Gestionar eventos', 'Reenviar invitación'
+  (hidden only when `invitation_pending === false`) and 'Quitar acceso' with inline
+  confirmation.
+- 'Cliente existente' (candidates search) and 'Nuevo cliente' (Correo, Nombre, Apellido,
+  'Invitar y asignar'). Toasts for created / existing / already assigned.
+- 'Gestionar eventos' sub-panel: paged org events, rows with `can_manage: false` disabled
+  with 'No puedes gestionar clientes en este evento'; 'Guardar cambios' sends only the
+  delta; a 422 keeps the panel open and marks the rejected events.
+- Errors: `eventClientErrorMessage()` (`src/features/events/event-clients.ts`) maps every
+  code and 429 to Spanish. A 404 `event_client_access_disabled` (flag off) renders no
+  actions.
+- Data: `src/features/events/use-event-clients.ts` (SWR only while open;
+  `refreshEventClientCaches` after writes).
+
+### OrganizationEventClientsPanel (`events/organization-event-clients-panel.tsx`)
+
+'Clientes de eventos' on `/team`, mounted only when the product has the `events` feature
+and the profile has `members:manage`. Table Cliente · Evento · Asignado por · Desde
+(stacked below md), 'Quitar todos sus accesos' with confirmation, empty state 'Nadie tiene
+acceso como cliente en esta organización.' Renders nothing when the flag is off.
+
+### EventCapabilityError, EventNotFoundCard, EventAccessLost (`events/event-capability-error.tsx`)
+
+`EventCapabilityError` is the "we could not check your permissions" state with
+Reintentar / 'Reintentando…' (inline on the event detail, full-page with 'Volver al
+evento' in Studio and check-in). `EventNotFoundCard` is the 404 card. `EventAccessLost`
+is the 403 panel of the event detail ('Ya no tienes acceso a este evento', 'Volver a
+{eventsLabel}').
+
+### event-access-summary (`events/event-access-summary.ts`)
+
+`eventAccessSummary(caps, { isEventClient })` builds the 'Tu alcance' line (members,
+client, editor, guests + check-in, guests, check-in only, analytics, read-only).
+`isEventClientViewer(event, session, profile)` uses `viewer_access` or infers it from the
+session.
+
+### MomentsWall defaults
+
+`canManage` now defaults to `false` in `MomentsWall`, its cards and `NoteCard`; the failed
+retry and the bulk approve/reject buttons need it. 'Aprobar todos' and 'Rechazar todos'
+send ids in chunks of 5000 (`src/features/events/moment-bulk-chunks.ts`).
+
+### EventMembersModal
+
+Role labels come from `eventRoleLabel` ('Responsable del evento', 'Gestor del evento',
+'Analista', 'Solo lectura'); a failed save or removal shows a toast.
