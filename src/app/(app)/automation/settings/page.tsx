@@ -14,7 +14,7 @@ import { ModelEvaluationPanel } from '@/features/automation/model-evaluation-pan
 import type { ProviderUsageSnapshot } from '@/features/automation/provider-account-usage-panel'
 import { api } from '@/lib/api'
 import { automationAIActionPoliciesPath, automationAIActionPolicyPath, automationOpenCodeUsageCredentialPath, automationOpenCodeUsagePath, automationProjectProviderCredentialPath, automationProjectProviderUsagePath, automationProjectProviderUsageRefreshPath, automationProviderCatalogPath, automationProviderCredentialPath, automationProviderModelsPath, deliveryProjectsPath } from '@/lib/api-paths'
-import { createAccessProfile } from '@/lib/access-profile'
+import { useAccessProfile } from '@/lib/use-access-profile'
 import type { DeliveryProject } from '@/features/automation/delivery-types'
 import { useStore } from '@/store/useStore'
 import {
@@ -336,11 +336,8 @@ function policySaveError(error: unknown): string {
 }
 
 export default function AutomationSettingsPage() {
-  const applicationSession = useStore((state) => state.applicationSession)
-  const workspaceMode = useStore((state) => state.workspaceMode)
-  const currentClient = useStore((state) => state.currentClient)
   const profileLoaded = useStore((state) => state.profileLoaded)
-  const access = createAccessProfile(applicationSession, workspaceMode, currentClient?.id)
+  const access = useAccessProfile()
   const canManage = access.isPlatformContext && access.platformLevel === 'root_1'
   const [apiKeys, setAPIKeys] = useState<ProviderKeys>(emptyKeys)
   const [credentialStates, setCredentialStates] = useState<ProviderStates>(emptyStates)

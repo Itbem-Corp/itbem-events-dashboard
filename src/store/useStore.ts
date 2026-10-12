@@ -42,6 +42,16 @@ interface Client {
 interface TenantWorkspaceContext {
   mode: WorkspaceMode
   organization: Client | null
+  /** The caller-access workspace (organization mode, no organization). */
+  portfolio?: boolean
+}
+
+export interface ActivateTenantWorkspaceOptions {
+  canUsePlatformMode: boolean
+  /** The shell forces the caller-access workspace for this user. */
+  portfolio?: boolean
+  /** The user may choose the caller-access workspace and restore it. */
+  allowPortfolioSelection?: boolean
 }
 
 /* =========================
@@ -60,6 +70,8 @@ interface AppState {
   activeTenantCode: TenantCode | null
   workspaceContexts: Partial<Record<TenantCode, TenantWorkspaceContext>>
   organizationContext: OrganizationContextCredential | null
+  /** In memory only: the active workspace is the caller-access list. */
+  workspacePortfolio: boolean
 
   // Bootstrap control
   profileLoaded: boolean
@@ -71,7 +83,8 @@ interface AppState {
   invalidateProfile: () => void
 
   setCurrentClient: (client: Client | null) => void
-  activateTenantWorkspace: (tenantCode: TenantCode, canUsePlatformMode: boolean) => void
+  activateTenantWorkspace: (tenantCode: TenantCode, options: ActivateTenantWorkspaceOptions) => void
+  selectPortfolioWorkspace: (tenantCode: TenantCode) => void
   selectPlatformWorkspace: (tenantCode: TenantCode) => void
   selectOrganizationWorkspace: (tenantCode: TenantCode, client: Client, credential?: OrganizationContextCredential) => void
   setOrganizationContextCredential: (credential: OrganizationContextCredential | null) => void
@@ -81,6 +94,23 @@ interface AppState {
 /* =========================
  * STORE
  * ========================= */
+
+// Caller-access workspace: organization mode with no organization, so no
+// X-Organization-ID is sent and no organization credential is ever issued.
+// It also overwrites a persisted organization from an earlier visit.
+function portfolioWorkspaceState(state: AppState, tenantCode: TenantCode): Partial<AppState> {
+  return {
+    activeTenantCode: tenantCode,
+    workspaceMode: 'organization',
+    currentClient: null,
+    organizationContext: null,
+    workspacePortfolio: true,
+    workspaceContexts: {
+      ...state.workspaceContexts,
+      [tenantCode]: { mode: 'organization', organization: null, portfolio: true },
+    },
+  }
+}
 
 export const useStore = create<AppState>()(
   persist(
@@ -94,6 +124,7 @@ export const useStore = create<AppState>()(
       activeTenantCode: null,
       workspaceContexts: {},
       organizationContext: null,
+      workspacePortfolio: false,
       profileLoaded: false,
 
       // --- ACTIONS ---
@@ -143,6 +174,7 @@ export const useStore = create<AppState>()(
           return {
             currentClient: client,
             organizationContext: null,
+            workspacePortfolio: client ? false : state.workspacePortfolio,
             workspaceMode: client ? 'organization' : state.workspaceMode,
             workspaceContexts: {
               ...state.workspaceContexts,
@@ -154,9 +186,13 @@ export const useStore = create<AppState>()(
           }
         }),
 
-      activateTenantWorkspace: (tenantCode, canUsePlatformMode) =>
+      activateTenantWorkspace: (tenantCode, { canUsePlatformMode, portfolio = false, allowPortfolioSelection = false }) =>
         set((state) => {
           const saved = state.workspaceContexts[tenantCode]
+          if (portfolio || (allowPortfolioSelection && saved?.portfolio)) {
+            return portfolioWorkspaceState(state, tenantCode)
+          }
+
           const mode =
             saved?.mode === 'platform' && canUsePlatformMode
               ? 'platform'
@@ -165,22 +201,25 @@ export const useStore = create<AppState>()(
                 : canUsePlatformMode
                   ? 'platform'
                   : 'organization'
-          const currentClient = mode === 'organization' ? (saved?.organization ?? null) : null
+          const organization = mode === 'organization' ? (saved?.organization ?? null) : null
+          // Re-activating the workspace that is already active (for example
+          // after the session revalidates) keeps its organization credential.
+          // Dropping it forced a new POST /session/organization-context on
+          // every revalidation even though nothing had changed.
+          const keepsCredential =
+            state.activeTenantCode === tenantCode &&
+            organization !== null &&
+            state.organizationContext?.organizationId === organization.id
           return {
             activeTenantCode: tenantCode,
             workspaceMode: mode,
-            currentClient,
-            // Session revalidation re-runs this activation. Keep a credential
-            // that is still bound to the same organization; dropping it would
-            // only force every next request to wait for a new one.
-            organizationContext:
-              currentClient &&
-              state.activeTenantCode === tenantCode &&
-              state.organizationContext?.organizationId === currentClient.id
-                ? state.organizationContext
-                : null,
+            currentClient: organization,
+            organizationContext: keepsCredential ? state.organizationContext : null,
+            workspacePortfolio: false,
           }
         }),
+
+      selectPortfolioWorkspace: (tenantCode) => set((state) => portfolioWorkspaceState(state, tenantCode)),
 
       selectPlatformWorkspace: (tenantCode) =>
         set((state) => ({
@@ -188,6 +227,7 @@ export const useStore = create<AppState>()(
           workspaceMode: 'platform',
           currentClient: null,
           organizationContext: null,
+          workspacePortfolio: false,
           workspaceContexts: {
             ...state.workspaceContexts,
             [tenantCode]: { mode: 'platform', organization: null },
@@ -200,6 +240,7 @@ export const useStore = create<AppState>()(
           workspaceMode: 'organization',
           currentClient: client,
           organizationContext: credential ?? null,
+          workspacePortfolio: false,
           workspaceContexts: {
             ...state.workspaceContexts,
             [tenantCode]: { mode: 'organization', organization: client },
@@ -227,6 +268,7 @@ export const useStore = create<AppState>()(
           activeTenantCode: null,
           workspaceContexts: {},
           organizationContext: null,
+          workspacePortfolio: false,
           profileLoaded: false,
         }),
     }),

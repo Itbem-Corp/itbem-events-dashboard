@@ -42,6 +42,19 @@ describe('application request context', () => {
     expect(organizationContextHeaders({ ...context, workspaceMode: 'platform' }, credential, 0)).toEqual({})
   })
 
+  it('sends the caller-access scope with no organization ID and no credential', () => {
+    // Organization mode without an organization ID is the caller-access
+    // workspace: the headers stay non-authorizing, and a credential left over
+    // from an earlier organization is never attached.
+    const callerAccess = { tenantCode: 'eventiapp', workspaceMode: 'organization', organizationId: null } as const
+    expect(requestContextHeaders(callerAccess)).toEqual({
+      'X-Application-Code': 'eventiapp',
+      'X-Workspace-Mode': 'organization',
+    })
+    const leftover = { token: 'signed', organizationId: 'org-7', expiresAt: '2099-01-01T00:00:00Z' }
+    expect(organizationContextHeaders(callerAccess, leftover, 0)).toEqual({})
+  })
+
   it('stops sending a credential before it expires', () => {
     const expiresAt = new Date(20_000).toISOString()
     expect(organizationContextHeaders(context, { token: 'signed', organizationId: 'org-7', expiresAt }, 5_001)).toEqual({})

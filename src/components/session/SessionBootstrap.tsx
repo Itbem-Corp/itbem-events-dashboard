@@ -47,11 +47,12 @@ export default function SessionBootstrap() {
   }, [session, setApplicationSession])
 
   useEffect(() => {
-    // A 403 ends the session only when the BFF says the access was revoked;
-    // its same-origin guard also answers 403 but leaves the session intact.
-    if (authFailureEndsSession(error)) {
-      void endSession(clearSession)
-    }
+    // 401, or a 403 the BFF tagged access_revoked (no organization, event
+    // grant or root applies any more), ends the session. Its same-origin guard
+    // also answers 403 but leaves the session intact.
+    if (!authFailureEndsSession(error)) return
+    if (requestStatus(error) === 403) void endSession(clearSession, 'no_access')
+    else void endSession(clearSession)
   }, [clearSession, error])
 
   useEffect(() => {
@@ -62,7 +63,9 @@ export default function SessionBootstrap() {
       try {
         await refreshApplicationSession(minAgeMs)
       } catch (reason) {
-        if (active && authFailureEndsSession(reason)) void endSession(clearSession)
+        if (!active || !authFailureEndsSession(reason)) return
+        if (requestStatus(reason) === 403) void endSession(clearSession, 'no_access')
+        else void endSession(clearSession)
       }
     }
     // The Zustand state can survive Fast Refresh and client navigations. Treat

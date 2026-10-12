@@ -14,7 +14,7 @@ import { automationAgentsPath, automationTraceHistoryPath, deliveryProjectPath, 
 import { deliveryEpicDetailPath } from '@/features/automation/delivery-epics'
 import { fetcher } from '@/lib/fetcher'
 import { useStore } from '@/store/useStore'
-import { createAccessProfile } from '@/lib/access-profile'
+import { useAccessProfile } from '@/lib/use-access-profile'
 import { InferenceDiagnosticsPanel } from '@/features/automation/inference-diagnostics-panel'
 import {
   ArrowPathIcon,
@@ -186,9 +186,7 @@ export default function AutomationTracesPage() {
   const [applied, setApplied] = useState<AutomationTraceHistoryFilters>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const workspaceMode = useStore((state) => state.workspaceMode)
-  const session = useStore((state) => state.applicationSession)
-  const client = useStore((state) => state.currentClient)
-  const access = createAccessProfile(session, workspaceMode, client?.id)
+  const access = useAccessProfile()
   const directory = useSWR<AutomationAgentDirectorySnapshot>(workspaceMode === 'platform' ? automationAgentsPath() : null, async (path) =>
     parseAutomationAgentDirectory(await fetcher<unknown>(path)), { refreshInterval: 60_000, revalidateOnFocus: true })
   const projectList = useSWR<DeliveryProject[]>(deliveryProjectsPath(), fetcher, {

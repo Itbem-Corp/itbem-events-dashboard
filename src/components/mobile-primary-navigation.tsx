@@ -2,6 +2,7 @@
 
 import { Link } from '@/components/link'
 import type { ApplicationRoute } from '@/lib/application-navigation'
+import { useProductShell } from '@/products/core/product-context'
 import {
   BuildingOfficeIcon,
   ChartBarSquareIcon,
@@ -14,16 +15,23 @@ import clsx from 'clsx'
 
 type PrimaryHref = Exclude<ApplicationRoute, '/audit'>
 
-interface MobilePrimaryNavigationProps {
-  pathname: string
-  /** Keep the ITBEM platform directory distinct from Delivery clients on mobile too. */
-  tenantCode?: string
+type MobilePrimaryNavigationFlags = {
+  /** Inicio is shown unless the product's route policy removes it. */
+  showHome?: boolean
   showEvents: boolean
   showMetrics: boolean
   showTeam: boolean
   showUsers: boolean
   showOrganizations: boolean
   showAutomation: boolean
+}
+
+interface MobilePrimaryNavigationProps extends MobilePrimaryNavigationFlags {
+  pathname: string
+  /** Keep the ITBEM platform directory distinct from Delivery clients on mobile too. */
+  tenantCode?: string
+  /** 'Mis eventos' for client-only accounts. */
+  eventsLabel?: string
   onIntent: (href: PrimaryHref) => void
 }
 
@@ -37,20 +45,18 @@ const PRIMARY_ITEMS = [
   { href: '/automation', label: 'Centro', icon: SparklesIcon, rootOnly: true },
 ] as const
 
-export function MobilePrimaryNavigation({
-  pathname,
-  tenantCode,
+export function mobilePrimaryNavigationItems({
+  showHome = true,
   showEvents,
   showMetrics,
   showTeam,
   showUsers,
   showOrganizations,
   showAutomation,
-  onIntent,
-}: MobilePrimaryNavigationProps) {
-  const items = PRIMARY_ITEMS.filter((item) =>
+}: MobilePrimaryNavigationFlags) {
+  return PRIMARY_ITEMS.filter((item) =>
     item.href === '/'
-      ? true
+      ? showHome
       : item.href === '/events'
         ? showEvents
         : item.href === '/metrics'
@@ -63,17 +69,33 @@ export function MobilePrimaryNavigation({
                 ? showOrganizations
                 : showAutomation
   )
+}
+
+export function MobilePrimaryNavigation({
+  pathname,
+  tenantCode,
+  eventsLabel = 'Eventos',
+  onIntent,
+  ...flags
+}: MobilePrimaryNavigationProps) {
+  const accessibleShell = Boolean(useProductShell()?.accessibleShell)
+  const items = mobilePrimaryNavigationItems(flags)
+
+  // A bar with a single destination only covers content: that destination is
+  // already the page the user is on.
+  if (accessibleShell && items.length < 2) return null
 
   return (
     <nav
-      aria-label="Navegación principal"
+      aria-label={accessibleShell ? 'Navegación inferior' : 'Navegación principal'}
       className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-30 grid w-[calc(100%-1rem)] max-w-md -translate-x-1/2 rounded-2xl border border-[var(--app-border-subtle)] bg-[var(--app-surface-raised)]/95 p-1 shadow-[0_8px_24px_var(--app-shadow-strong)] lg:hidden"
       style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
       {items.map((item) => {
         const { href, label: defaultLabel, icon: Icon } = item
-        const label = href === '/clients' && tenantCode === 'itbem' ? 'Organizaciones' : defaultLabel
-        const compactLabel = href === '/clients' && tenantCode === 'itbem' ? ('mobileLabel' in item ? item.mobileLabel ?? label : label) : defaultLabel
+        const baseLabel = href === '/events' ? eventsLabel : defaultLabel
+        const label = href === '/clients' && tenantCode === 'itbem' ? 'Organizaciones' : baseLabel
+        const compactLabel = href === '/clients' && tenantCode === 'itbem' ? ('mobileLabel' in item ? item.mobileLabel ?? label : label) : baseLabel
         const current = href === '/' ? pathname === '/' : pathname.startsWith(href)
         const accessibleLabel = href === '/automation' ? 'Centro de automatización' : label
 
@@ -87,7 +109,7 @@ export function MobilePrimaryNavigation({
             onPointerDown={() => onIntent(href)}
             onFocus={() => onIntent(href)}
             className={clsx(
-              'group relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl px-0.5 text-[10px] leading-none font-medium transition-[color,background-color,box-shadow,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) active:scale-[0.98] motion-reduce:transition-none max-[359px]:gap-0',
+              `group relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl px-0.5 ${accessibleShell ? 'text-xs' : 'text-[10px]'} leading-none font-medium transition-[color,background-color,box-shadow,transform] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) active:scale-[0.98] motion-reduce:transition-none max-[359px]:gap-0`,
               current
                 ? 'bg-(--tenant-accent)/10 text-[var(--app-text-primary)] ring-1 ring-(--tenant-accent)/18'
                 : 'text-[var(--app-text-secondary)] hover:bg-(--tenant-accent)/7 hover:text-[var(--app-text-primary)]'

@@ -59,12 +59,20 @@ export interface Event extends BaseEntity {
 
   // Relaciones
   client_id?: string | null
+  /**
+   * How a non-root caller sees this row in a list without client_id, with
+   * EVENT_CLIENT_ACCESS on: through an organization membership or as an event
+   * client (a direct grant). Absent for roots, org-scoped lists and flag off.
+   */
+  viewer_access?: EventViewerAccess
   client?: ClientSummary | null
   event_type_id: string
   event_type?: EventType | null
   event_config?: EventConfig | null // JSON key from backend: "event_config"
   config?: EventConfig | null // alias — populated by separate /config fetch
 }
+
+export type EventViewerAccess = 'organization' | 'event_client'
 
 export type EventResponse = Event
 

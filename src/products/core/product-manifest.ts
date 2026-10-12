@@ -26,6 +26,30 @@ export type PublicExperience =
       }
     }
 
+/**
+ * Optional shell policy. Every key is opt-in: an absent key (or an absent
+ * `shell`) keeps today's behaviour, so a product only changes when its own
+ * manifest says so. Components read it through useProductManifest().
+ */
+export type ProductShellPolicy = {
+  /** Who sees the workspace block and the organization switcher. */
+  workspaceSwitcher?: 'all-multi-organization' | 'organization-admins'
+  /**
+   * 'caller-access': members without an Owner/Admin role work in one list of
+   * everything their memberships and event grants allow (organization mode
+   * without an organization ID), instead of choosing an organization.
+   */
+  memberWorkspace?: 'organization' | 'caller-access'
+  /** Where the switcher list comes from for non-root users. */
+  workspaceSource?: 'clients-api' | 'clients-api-session-filtered'
+  /** Show Spanish role names instead of the raw role codes. */
+  localizedRoleLabels?: boolean
+  /** 12px minimum text and 44px touch targets in the shell. */
+  accessibleShell?: boolean
+  /** Hold guarded routes behind a skeleton until the route policy decides. */
+  guardBeforeRender?: boolean
+}
+
 export type ProductManifest = {
   code: TenantCode
   identity: {
@@ -46,6 +70,7 @@ export type ProductManifest = {
   backendModules: readonly TenantModule[]
   features: readonly ProductFeature[]
   routes: readonly ProductRouteDefinition[]
+  shell?: ProductShellPolicy
   login: {
     index: string
     discipline: string
