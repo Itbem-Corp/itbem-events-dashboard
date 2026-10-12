@@ -562,6 +562,21 @@ export function EventDesignPicker({ eventId, compact = false, initialConfig, onS
         </div>
       )}
 
+      {fontSets.length === 0 && hasCatalogs && (
+        <div>
+          <div className="mb-4">
+            <p className="text-sm font-semibold text-ink">Tipografía</p>
+          </div>
+          <p
+            role="status"
+            className="rounded-xl border border-dashed border-white/10 px-4 py-3 text-xs leading-5 text-ink-muted"
+          >
+            Todavía no hay tipografías disponibles para elegir. La invitación usa la fuente de la plantilla
+            {selectedTemplate?.default_font_set?.name ? ` (${selectedTemplate.default_font_set.name})` : ''}.
+          </p>
+        </div>
+      )}
+
       {!hasCatalogs && catalogError && (
         <div role="alert" className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-8 text-center">
           <SwatchIcon className="mx-auto mb-3 size-10 text-amber-500/60" />

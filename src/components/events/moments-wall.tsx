@@ -8,6 +8,7 @@ import useSWRInfinite from 'swr/infinite'
 
 import { BottomSheet, SheetRow } from '@/components/ui/bottom-sheet'
 import { ConfirmAlert } from '@/components/ui/confirm-alert'
+import { GUEST_MOMENT_UPLOAD_LIMIT_TEXT } from '@/lib/resource-upload-policy'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useLazyVisible } from '@/hooks/useLazyVisible'
@@ -15,6 +16,11 @@ import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { usePageActivity } from '@/hooks/usePageActivity'
 import { usePreviewToken } from '@/hooks/usePreviewToken'
 import { useVideoThumbnail } from '@/hooks/useVideoThumbnail'
+import {
+  momentReorderPayload,
+  sortMomentsByWallOrder,
+  useMomentReorderDraft,
+} from '@/features/events/moment-wall-order'
 import { api } from '@/lib/api'
 import { readApiData } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
@@ -87,7 +93,7 @@ import {
 } from '@heroicons/react/24/outline'
 import clsx from 'clsx'
 import dynamic from 'next/dynamic'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/safe-image'
 import { toast } from 'sonner'
 import { dashboardBackendBaseUrl } from '@/lib/base-url'
 
@@ -108,9 +114,30 @@ const MomentDragGrid = dynamic(
   { ssr: false, loading: () => <div className="h-72 animate-pulse rounded-2xl bg-surface-raised/40" /> }
 )
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number | null | undefined): string | null {
+  if (typeof bytes !== 'number' || !Number.isFinite(bytes) || bytes <= 0) return null
   if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`
-  return `${Math.round(bytes / 1_000)} KB`
+  return `${Math.max(1, Math.round(bytes / 1_000))} KB`
+}
+
+// Processing errors come from the media Lambdas/queue in English. Never show
+// them raw: map the known causes to Spanish and fall back to a generic line.
+export function describeMomentProcessingError(message: string | null | undefined): string {
+  const text = (message ?? '').toLowerCase()
+  if (!text.trim()) return 'No pudimos procesar este archivo.'
+  if (/queue|sqs|unavailable|connection refused|dial tcp|timeout|timed out|throttl/.test(text)) {
+    return 'El servicio de procesamiento no estaba disponible. Puedes reintentarlo.'
+  }
+  if (/unsupported|unknown format|invalid (image|video|file)|decode|corrupt|not an? (image|video)|codec/.test(text)) {
+    return 'El archivo no es una foto o video válido. Pide a quien lo subió que lo comparta de nuevo.'
+  }
+  if (/too large|exceeds|size limit|file size/.test(text)) {
+    return 'El archivo es demasiado grande para procesarlo.'
+  }
+  if (/not found|no such key|nosuchkey|missing/.test(text)) {
+    return 'No encontramos el archivo original. Pide que lo suban de nuevo.'
+  }
+  return 'No pudimos procesar este archivo.'
 }
 
 function formatDurationMs(durationMs?: number): string | null {
@@ -586,6 +613,7 @@ function QRModal({ url, onClose }: { url: string; onClose: () => void }) {
 
         <div className="w-full space-y-2 pt-1">
           <p className="px-2 text-center text-xs break-all text-ink-muted">{url}</p>
+          <p className="px-2 text-center text-[11px] leading-4 text-ink-muted">{GUEST_MOMENT_UPLOAD_LIMIT_TEXT}</p>
           <a
             href={url}
             target="_blank"
@@ -795,7 +823,7 @@ function ReoptimizingSection({ moments, resolveUrl }: ReoptimizingSectionProps) 
                 const thumb = video ? resolveMomentThumbnailUrl(m) : url
                 return (
                   <div key={m.id} className="relative aspect-square overflow-hidden rounded-lg bg-surface-raised">
-                    {thumb && <Image src={thumb} alt="" fill className="object-cover" sizes="96px" unoptimized />}
+                    {thumb && <SafeImage src={thumb} alt="" fill className="object-cover" sizes="96px" unoptimized />}
                     {/* Spinner overlay */}
                     <div className="absolute inset-0 flex items-center justify-center bg-surface/60">
                       <ArrowPathIcon className="size-5 animate-spin text-indigo-400" />
@@ -919,9 +947,15 @@ interface FailedSectionProps {
   moments: Moment[]
   resolveUrl: (m: Moment) => string
   onRetried: () => void
+  /** ROLES-N1: retrying needs event:manage; read-only roles only see the list. */
+  canManage: boolean
 }
 
-function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
+function momentsCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'momento' : 'momentos'}`
+}
+
+function FailedSection({ moments, resolveUrl, onRetried, canManage }: FailedSectionProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [visibleCount, setVisibleCount] = useState(STATUS_SECTION_PAGE)
   const [retrying, setRetrying] = useState<Set<string>>(new Set())
@@ -954,7 +988,7 @@ function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
   async function retryAll() {
     if (retryingAll) return
     setRetryingAll(true)
-    const toastId = toast.loading(`Reintentando ${moments.length} momentos…`)
+    const toastId = toast.loading(`Reintentando ${momentsCountLabel(moments.length)}…`)
     const rawMoments = moments.filter((m) => isRawMomentMediaPath(m.content_url))
     const optMoments = moments.filter((m) => !isRawMomentMediaPath(m.content_url))
     let succeeded = 0
@@ -991,7 +1025,9 @@ function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
       const detail = firstError ? `: ${firstError}` : ''
       toast.error(`${succeeded} reencolados, ${failed} con error${detail}`, { id: toastId })
     } else {
-      toast.success(`${succeeded} momentos reencolados`, { id: toastId })
+      toast.success(`${momentsCountLabel(succeeded)} ${succeeded === 1 ? 'reencolado' : 'reencolados'}`, {
+        id: toastId,
+      })
     }
     onRetried()
   }
@@ -1012,18 +1048,23 @@ function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
           className="flex flex-1 items-center gap-2 text-left transition-opacity hover:opacity-80"
         >
           <ExclamationTriangleIcon className="size-3.5 shrink-0 text-red-400" />
-          <span className="flex-1 text-xs font-medium text-red-300">Fallidos ({moments.length})</span>
-          <span className="text-[10px] text-red-400/60">{collapsed ? 'mostrar' : 'ocultar'}</span>
+          <span className="flex-1 text-xs font-medium text-red-700 dark:text-red-300">
+            No se pudieron procesar ({moments.length})
+          </span>
+          <span className="text-[10px] text-red-700/70 dark:text-red-400/60">{collapsed ? 'Mostrar' : 'Ocultar'}</span>
         </button>
-        <button
-          type="button"
-          onClick={retryAll}
-          disabled={retryingAll}
-          className="flex shrink-0 items-center gap-1.5 rounded-md bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
-        >
-          {retryingAll ? <ArrowPathIcon className="size-3 animate-spin" /> : <ArrowPathIcon className="size-3" />}
-          Reintentar todos
-        </button>
+        {canManage && (
+          <button
+            type="button"
+            onClick={retryAll}
+            disabled={retryingAll}
+            className="flex min-h-9 shrink-0 items-center gap-1.5 rounded-md bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-500/20 disabled:opacity-50 dark:text-red-300"
+            title="Vuelve a enviar todos estos archivos a procesamiento"
+          >
+            {retryingAll ? <ArrowPathIcon className="size-3 animate-spin" /> : <ArrowPathIcon className="size-3" />}
+            Reintentar todos
+          </button>
+        )}
       </div>
 
       {/* Cards grid */}
@@ -1036,54 +1077,49 @@ function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="grid grid-cols-3 gap-2 px-4 pb-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+            <p className="px-4 pb-3 text-xs text-red-800/80 dark:text-red-200/75">
+              {canManage
+                ? 'Estos archivos no aparecen en el muro. «Reintentar» los vuelve a enviar a procesamiento.'
+                : 'Estos archivos no aparecen en el muro. Quien administra el evento puede reintentar su procesamiento.'}
+            </p>
+            <div className="grid grid-cols-2 gap-2 px-4 pb-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
               {visibleMoments.map((m) => {
                 const url = resolveUrl(m)
                 const video = isBackendVideoMedia(url, m.content_type)
                 const thumb = video ? resolveMomentThumbnailUrl(m) : url
                 const spinning = retrying.has(m.id)
                 const processingDuration = formatDurationMs(m.processing_duration_ms)
+                const reason = describeMomentProcessingError(m.error_message)
                 return (
-                  <div key={m.id} className="group relative aspect-square overflow-hidden rounded-lg bg-surface">
-                    {thumb ? (
-                      <Image src={thumb} alt="" fill className="object-cover opacity-40" sizes="96px" unoptimized />
-                    ) : (
-                      <div className="absolute inset-0 bg-surface-raised" />
-                    )}
-
-                    {/* Error message — shown on hover */}
-                    {(m.error_message || processingDuration) && (
-                      <div className="absolute inset-x-0 bottom-0 z-10 translate-y-full bg-black/80 px-1.5 py-1 transition-transform duration-150 group-hover:translate-y-0">
-                        {m.error_message && (
-                          <p className="line-clamp-3 text-[9px] leading-tight text-red-300">{m.error_message}</p>
-                        )}
-                        {processingDuration && (
-                          <p className="mt-0.5 text-[9px] leading-tight text-red-200/75">
-                            Tiempo: {processingDuration}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Retry button overlay */}
-                    <button
-                      type="button"
-                      onClick={() => retryOne(m)}
-                      disabled={spinning}
-                      className="absolute inset-0 flex items-center justify-center bg-black/30 transition-colors hover:bg-black/50"
-                      title={m.error_message ?? 'Lambda falló — click para reintentar'}
-                    >
-                      {spinning ? (
-                        <ArrowPathIcon className="size-5 animate-spin text-white" />
-                      ) : (
-                        <div className="flex flex-col items-center gap-1">
-                          <ExclamationTriangleIcon className="size-4 text-red-400" />
-                          <span className="text-[9px] font-medium text-white/70 transition-colors group-hover:text-white">
-                            retry
-                          </span>
-                        </div>
+                  <div
+                    key={m.id}
+                    className="flex flex-col overflow-hidden rounded-lg border border-red-500/15 bg-surface"
+                  >
+                    <div className="relative aspect-square">
+                      <SafeImage src={thumb} alt="" fill className="object-cover opacity-40" sizes="96px" unoptimized />
+                      <ExclamationTriangleIcon
+                        className="absolute top-1.5 left-1.5 size-4 text-red-600 dark:text-red-400"
+                        aria-hidden="true"
+                      />
+                    </div>
+                    <div className="flex flex-1 flex-col gap-1.5 p-1.5">
+                      <p className="line-clamp-3 text-[10px] leading-tight text-ink-secondary">{reason}</p>
+                      {processingDuration && (
+                        <p className="text-[10px] leading-tight text-ink-muted">Tiempo: {processingDuration}</p>
                       )}
-                    </button>
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => retryOne(m)}
+                          disabled={spinning}
+                          aria-label={`Reintentar procesamiento: ${reason}`}
+                          className="mt-auto flex min-h-8 items-center justify-center gap-1 rounded-md bg-red-500/10 px-2 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-500/20 disabled:opacity-50 dark:text-red-300"
+                        >
+                          <ArrowPathIcon className={clsx('size-3', spinning && 'animate-spin')} aria-hidden="true" />
+                          {spinning ? 'Reintentando…' : 'Reintentar'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -1154,6 +1190,9 @@ const MomentCard = memo(function MomentCard({
   const [actioning, setActioning] = useState<'approve' | 'unapprove' | 'delete' | null>(null)
   const url = resolveUrl(moment)
   const hasMedia = !!url
+  // Badges drawn over the photo/video keep their light-on-dark colors in the light
+  // theme (see the `on-media` opt-out in tailwind.css); without media they sit on the card.
+  const onMedia = hasMedia ? ' on-media' : ''
   const video = hasMedia && isBackendVideoMedia(url, moment.content_type)
   const isProcessing = moment.processing_status === 'pending' || moment.processing_status === 'processing'
   const isFailed = moment.processing_status === 'failed'
@@ -1268,7 +1307,7 @@ const MomentCard = memo(function MomentCard({
             className="absolute inset-0 cursor-pointer text-left focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none focus-visible:ring-inset disabled:cursor-default"
             onClick={() => onOpenLightbox(moment)}
           >
-            <Image
+            <SafeImage
               src={url}
               alt="Momento del evento"
               fill
@@ -1297,11 +1336,11 @@ const MomentCard = memo(function MomentCard({
       {!isProcessing && !isFailed && (
         <div className="absolute top-2 left-2 z-10">
           {approved ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-lime-500/25 px-2 py-0.5 text-[10px] font-semibold text-lime-300 ring-1 ring-lime-500/30 backdrop-blur-sm">
+            <span className={`inline-flex items-center gap-1 rounded-full bg-lime-500/25 px-2 py-0.5 text-[10px] font-semibold text-lime-300 ring-1 ring-lime-500/30 backdrop-blur-sm${onMedia}`}>
               <CheckIcon className="size-2.5" /> Aprobado
             </span>
           ) : (
-            <span className="inline-flex items-center rounded-full bg-amber-500/25 px-2 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/30 backdrop-blur-sm">
+            <span className={`inline-flex items-center rounded-full bg-amber-500/25 px-2 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/30 backdrop-blur-sm${onMedia}`}>
               Pendiente
             </span>
           )}
@@ -1309,11 +1348,14 @@ const MomentCard = memo(function MomentCard({
       )}
 
       {/* ── Oversized badge (top-right) ─────────────────────── */}
-      {isOversized(moment) && (
+      {isOversized(moment) && formatBytes(moment.optimized_size_bytes) && (
         <div className="absolute top-2 right-2 z-10">
-          <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-            <ExclamationTriangleIcon className="h-3 w-3" />
-            {formatBytes(moment.optimized_size_bytes!)}
+          <span
+            className={`inline-flex items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-400${onMedia}`}
+            title="Archivo pesado: optimízalo para que el muro cargue más rápido"
+          >
+            <ExclamationTriangleIcon className="h-3 w-3" aria-hidden="true" />
+            {formatBytes(moment.optimized_size_bytes)}
           </span>
         </div>
       )}
@@ -1437,7 +1479,7 @@ function NoteCard({ moment, canManage = true, onApprove, onDelete, resolveUrl }:
               </svg>
             </div>
           ) : (
-            <Image src={url} alt="Momento" width={56} height={56} className="size-full object-cover" />
+            <SafeImage src={url} alt="Momento" width={56} height={56} className="size-full object-cover" />
           )}
         </div>
       )}
@@ -1537,6 +1579,7 @@ type MomentConfirmation =
   | { kind: 'delete-one'; moment: Moment }
   | { kind: 'delete-selected'; count: number }
   | { kind: 'reject-pending'; count: number }
+  | { kind: 'approve-pending'; count: number }
   | { kind: 'toggle-publish'; publish: boolean }
 
 type MomentDashboardPage = {
@@ -1785,47 +1828,65 @@ export function MomentsWall({
     onPublicContentChanged?.()
   }, [onPublicContentChanged])
 
-  // Local ordered copy used only while drag mode is active
-  const [orderedMoments, setOrderedMoments] = useState<Moment[]>([])
-  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Sync orderedMoments whenever approved moments change externally
-  useEffect(() => {
-    if (!dragMode) return
-    setOrderedMoments(moments.filter((m) => m.is_approved))
-  }, [moments, dragMode])
-
-  const enterDragMode = useCallback(async () => {
-    const allMoments = await loadAllMoments()
-    setOrderedMoments(allMoments.filter((moment) => moment.is_approved))
-    setDragMode(true)
-  }, [loadAllMoments])
-
-  const exitDragMode = useCallback(() => {
-    setDragMode(false)
-    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
-  }, [])
-
-  // Debounced save — fires 800ms after last drag ends
-  useEffect(() => {
-    if (!dragMode || orderedMoments.length === 0) return
-    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
-    saveDebounceRef.current = setTimeout(async () => {
+  // Local ordered copy used only while drag mode is active. It is seeded from
+  // the wall order and saved only after a user drag (MOM-1/MOM-2): no save on
+  // open, no refetch while reorder mode is open, so nothing can loop.
+  const saveWallOrder = useCallback(
+    async (ordered: Moment[]) => {
       const toastId = toast.loading('Guardando orden…')
       try {
-        const payload = orderedMoments.map((m, i) => ({ id: m.id, order: i + 1 }))
-        await api.patch(momentsReorderPath(), payload)
-        await mutateMomentPages()
+        await api.patch(momentsReorderPath(), momentReorderPayload(ordered))
         notifyPublicContentChanged()
         toast.success('Orden guardado', { id: toastId })
       } catch (err: unknown) {
         toast.error(getApiErrorMessage(err, 'Error al guardar el orden'), { id: toastId })
+        throw err
       }
-    }, 800)
-    return () => {
-      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current)
+    },
+    [notifyPublicContentChanged]
+  )
+  const {
+    ordered: orderedMoments,
+    seed: seedOrderedMoments,
+    reorder: reorderMoments,
+    sync: syncOrderedMoments,
+    flush: flushMomentOrder,
+    cancel: cancelMomentOrderSave,
+  } = useMomentReorderDraft(saveWallOrder)
+  const dragModeRef = useRef(false)
+  const [enteringDragMode, setEnteringDragMode] = useState(false)
+
+  // Card data (approval, signed URLs) can change while reordering; keep the local order.
+  useEffect(() => {
+    if (!dragMode) return
+    syncOrderedMoments(moments)
+  }, [moments, dragMode, syncOrderedMoments])
+
+  const enterDragMode = useCallback(async () => {
+    if (dragModeRef.current || enteringDragMode) return
+    setEnteringDragMode(true)
+    try {
+      // Every page, so the saved order covers all approved moments, not only the loaded ones.
+      const allMoments = await loadAllMoments()
+      seedOrderedMoments(allMoments.filter((moment) => moment.is_approved))
+      dragModeRef.current = true
+      setDragMode(true)
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'No se pudieron cargar todos los momentos para reordenar'))
+    } finally {
+      setEnteringDragMode(false)
     }
-  }, [orderedMoments, dragMode, mutateMomentPages, notifyPublicContentChanged])
+  }, [enteringDragMode, loadAllMoments, seedOrderedMoments])
+
+  const exitDragMode = useCallback(() => {
+    if (!dragModeRef.current) return
+    dragModeRef.current = false
+    setDragMode(false)
+    // Send a drag made just before leaving, then reload the dashboard list once.
+    void flushMomentOrder().finally(() => {
+      void mutateMomentPages()
+    })
+  }, [flushMomentOrder, mutateMomentPages])
 
   // Reset drag mode when filter changes away from approved
   useEffect(() => {
@@ -1858,7 +1919,7 @@ export function MomentsWall({
     notesCount,
     legacyCount,
   } = useMemo(() => {
-    const filteredMoments = moments
+    const matchingMoments = moments
       .filter((m) => {
         if (filter === 'pending') return !m.is_approved && m.processing_status !== 'failed'
         if (filter === 'approved') return m.is_approved
@@ -1879,6 +1940,12 @@ export function MomentsWall({
         const [th, tm] = timeRange.to.split(':').map(Number)
         return mins >= fh * 60 + fm && mins <= th * 60 + tm
       })
+    // STU-62: once every page is loaded, "Aprobados" shows the saved wall order (same rule as
+    // the public wall). With pages still to load the list stays newest first and says so.
+    const filteredMoments =
+      filter === 'approved' && !timeRange && !hasMoreMomentPages
+        ? sortMomentsByWallOrder(matchingMoments)
+        : matchingMoments
 
     const pendingCount =
       momentCounts?.pending ?? moments.filter((m) => !m.is_approved && m.processing_status !== 'failed').length
@@ -1913,7 +1980,7 @@ export function MomentsWall({
       notesCount,
       legacyCount,
     }
-  }, [filter, momentCounts, moments, resolveUrl, timeRange])
+  }, [filter, hasMoreMomentPages, momentCounts, moments, resolveUrl, timeRange])
 
   const filteredTotal = timeRange
     ? filteredMoments.length
@@ -1930,6 +1997,7 @@ export function MomentsWall({
               : filter === 'notes'
                 ? notesCount
                 : Math.max(0, totalMoments - failedCount)
+  const mobileToolbarCount = filter === 'all' && !timeRange ? totalMoments : filteredTotal
   const isDiscoveringFilteredMoments =
     !timeRange && filteredMoments.length === 0 && filteredTotal > 0 && hasMoreMomentPages
 
@@ -2268,7 +2336,15 @@ export function MomentsWall({
 
   const [approvingAll, setApprovingAll] = useState(false)
 
-  const handleApproveAll = async () => {
+  // STU-60: approving every pending moment publishes them at once, so confirm with the count first.
+  const handleApproveAll = () => {
+    const pendingCount =
+      momentCounts?.pending ?? moments.filter((m) => !m.is_approved && m.processing_status !== 'failed').length
+    if (pendingCount === 0) return
+    setConfirmation({ kind: 'approve-pending', count: pendingCount })
+  }
+
+  const executeApproveAll = async () => {
     const allMoments = await loadAllMoments()
     const pending = allMoments.filter((m) => !m.is_approved && m.processing_status !== 'failed')
     if (pending.length === 0) return
@@ -2374,6 +2450,7 @@ export function MomentsWall({
       if (pending.kind === 'delete-one') await executeDelete(pending.moment)
       if (pending.kind === 'delete-selected') await executeDeleteSelected()
       if (pending.kind === 'reject-pending') await executeRejectAll()
+      if (pending.kind === 'approve-pending') await executeApproveAll()
       if (pending.kind === 'toggle-publish') await executeTogglePublish(pending.publish)
     } finally {
       setConfirmationBusy(false)
@@ -2527,7 +2604,11 @@ export function MomentsWall({
         {/* ── Mobile compact toolbar (hidden on md+) ─────────────────── */}
         <div className="flex items-center gap-2 border-b border-white/5 px-3 py-2 md:hidden">
           {/* Count */}
-          <span className="min-w-0 flex-1 truncate text-xs text-ink-secondary">{filteredTotal} momentos</span>
+          <span className="min-w-0 flex-1 truncate text-xs text-ink-secondary">
+            {/* STU-70: under "Todos" show the same total as the desktop toolbar (failed ones included). */}
+            {mobileToolbarCount} momento{mobileToolbarCount !== 1 ? 's' : ''}
+            {filter === 'all' && failedCount > 0 ? ` · ${failedCount} con error` : ''}
+          </span>
 
           {canManage && (
             <>
@@ -2645,13 +2726,13 @@ export function MomentsWall({
               <span className="ml-2 inline-flex items-center gap-1.5 text-xs text-ink-muted">
                 {photoCount > 0 && (
                   <span>
-                    {photoCount} foto{photoCount !== 1 ? 's' : ''}
+                    {photoCount} foto{photoCount !== 1 ? 's' : ''} aprobada{photoCount !== 1 ? 's' : ''}
                   </span>
                 )}
                 {photoCount > 0 && videoCount > 0 && <span className="text-ink-muted">·</span>}
                 {videoCount > 0 && (
                   <span>
-                    {videoCount} video{videoCount !== 1 ? 's' : ''}
+                    {videoCount} video{videoCount !== 1 ? 's' : ''} aprobado{videoCount !== 1 ? 's' : ''}
                   </span>
                 )}
               </span>
@@ -2663,7 +2744,9 @@ export function MomentsWall({
             {/* Drag & drop reorder toggle — only for approved flat view */}
             {filter === 'approved' && !groupByTime && (
               <button
-                onClick={dragMode ? exitDragMode : enterDragMode}
+                onClick={dragMode ? exitDragMode : () => void enterDragMode()}
+                disabled={enteringDragMode}
+                aria-busy={enteringDragMode || undefined}
                 className={clsx(
                   'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                   dragMode
@@ -2687,11 +2770,11 @@ export function MomentsWall({
             {dragMode && (
               <button
                 onClick={async () => {
+                  cancelMomentOrderSave()
                   const toastId = toast.loading('Restableciendo orden…')
                   try {
                     const payload = orderedMoments.map((m) => ({ id: m.id, order: 0 }))
                     await api.patch(momentsReorderPath(), payload)
-                    await mutateMomentPages()
                     notifyPublicContentChanged()
                     toast.success('Orden restablecido', { id: toastId })
                   } catch (err: unknown) {
@@ -3068,7 +3151,7 @@ export function MomentsWall({
         >
           {(
             [
-              { value: 'all', label: 'Todos', count: moments.length },
+              { value: 'all', label: 'Todos', count: Math.max(0, totalMoments - failedCount) },
               { value: 'pending', label: 'Pendientes', count: pendingCount },
               { value: 'approved', label: 'Aprobados', count: approvedCount },
               ...(photoCount > 0 ? [{ value: 'photos', label: 'Fotos', count: photoCount }] : []),
@@ -3084,8 +3167,8 @@ export function MomentsWall({
               className={clsx(
                 'min-h-10 flex-shrink-0 rounded-lg px-3 py-2 text-center text-xs font-medium whitespace-nowrap transition-colors sm:flex-1',
                 filter === f.value
-                  ? 'bg-indigo-400/15 text-indigo-100 ring-1 ring-indigo-300/20'
-                  : 'text-ink-secondary hover:bg-white/5 hover:text-ink'
+                  ? 'bg-(--tenant-accent)/12 font-semibold text-ink ring-1 ring-(--tenant-accent)/35'
+                  : 'text-ink-secondary hover:bg-surface-soft hover:text-ink'
               )}
             >
               {f.label}
@@ -3093,7 +3176,7 @@ export function MomentsWall({
                 <span
                   className={clsx(
                     'ml-1 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums',
-                    filter === f.value ? 'bg-white/20' : 'bg-surface-raised text-ink-muted'
+                    filter === f.value ? 'bg-(--tenant-accent)/15 text-ink' : 'bg-surface-raised text-ink-muted'
                   )}
                 >
                   {f.count}
@@ -3275,7 +3358,12 @@ export function MomentsWall({
       {/* ── Failed moments section ──────────────────────────────────────── */}
       <AnimatePresence>
         {failedMoments.length > 0 && (
-          <FailedSection moments={failedMoments} resolveUrl={resolveUrl} onRetried={refreshMomentStreams} />
+          <FailedSection
+            moments={failedMoments}
+            resolveUrl={resolveUrl}
+            onRetried={refreshMomentStreams}
+            canManage={canManage}
+          />
         )}
       </AnimatePresence>
 
@@ -3435,7 +3523,7 @@ export function MomentsWall({
         dragMode ? (
           <MomentDragGrid
             moments={orderedMoments}
-            onOrderChange={setOrderedMoments}
+            onOrderChange={reorderMoments}
             renderCard={(moment) => (
               <MomentCard
                 moment={moment}
@@ -3452,25 +3540,34 @@ export function MomentsWall({
             )}
           />
         ) : (
-          <motion.div className="grid grid-cols-2 gap-1 sm:grid-cols-3 sm:gap-1.5 md:grid-cols-4 xl:grid-cols-5" layout>
-            <AnimatePresence>
-              {visibleMoments.map((moment) => (
-                <MomentCard
-                  key={moment.id}
-                  moment={moment}
-                  canManage={canManage}
-                  onApprove={handleApprove}
-                  onUnapprove={handleUnapprove}
-                  onDelete={handleDelete}
-                  onOpenLightbox={handleOpenLightbox}
-                  resolveUrl={resolveUrl}
-                  selectMode={selectMode}
-                  selected={selectedIds.has(moment.id)}
-                  onToggleSelect={toggleSelect}
-                />
-              ))}
-            </AnimatePresence>
-          </motion.div>
+          <>
+            {filter === 'approved' && !timeRange && (
+              <p data-testid="approved-order-note" className="mb-2 text-xs text-ink-muted">
+                {hasMoreMomentPages
+                  ? 'Más recientes primero. Usa «Reordenar» para ver y cambiar el orden del muro.'
+                  : 'En el orden del muro de momentos.'}
+              </p>
+            )}
+            <motion.div className="grid grid-cols-2 gap-1 sm:grid-cols-3 sm:gap-1.5 md:grid-cols-4 xl:grid-cols-5" layout>
+              <AnimatePresence>
+                {visibleMoments.map((moment) => (
+                  <MomentCard
+                    key={moment.id}
+                    moment={moment}
+                    canManage={canManage}
+                    onApprove={handleApprove}
+                    onUnapprove={handleUnapprove}
+                    onDelete={handleDelete}
+                    onOpenLightbox={handleOpenLightbox}
+                    resolveUrl={resolveUrl}
+                    selectMode={selectMode}
+                    selected={selectedIds.has(moment.id)}
+                    onToggleSelect={toggleSelect}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          </>
         )}
       </div>
 
@@ -3531,7 +3628,9 @@ export function MomentsWall({
       <ConfirmAlert
         open={Boolean(confirmation)}
         title={
-          confirmation?.kind === 'toggle-publish'
+          confirmation?.kind === 'approve-pending'
+            ? `¿Aprobar ${confirmation.count} ${confirmation.count === 1 ? 'momento pendiente' : 'momentos pendientes'}?`
+            : confirmation?.kind === 'toggle-publish'
             ? confirmation.publish
               ? '¿Publicar el muro?'
               : '¿Despublicar el muro?'
@@ -3542,20 +3641,24 @@ export function MomentsWall({
                 : `¿Eliminar ${confirmation?.count ?? 0} momento${confirmation?.count !== 1 ? 's' : ''} pendientes?`
         }
         description={
-          confirmation?.kind === 'toggle-publish'
+          confirmation?.kind === 'approve-pending'
+            ? 'Pasarán a Aprobados y se mostrarán en el muro de momentos cuando esté publicado. Puedes desaprobarlos después uno por uno.'
+            : confirmation?.kind === 'toggle-publish'
             ? confirmation.publish
               ? 'El muro será visible y se cerrará la subida de fotos para los invitados.'
               : 'El muro dejará de ser visible y los invitados podrán volver a subir fotos.'
             : 'Los archivos desaparecerán permanentemente. Esta acción no se puede deshacer.'
         }
         confirmLabel={
-          confirmation?.kind === 'toggle-publish'
+          confirmation?.kind === 'approve-pending'
+            ? 'Aprobar todos'
+            : confirmation?.kind === 'toggle-publish'
             ? confirmation.publish
               ? 'Publicar muro'
               : 'Despublicar muro'
             : 'Eliminar momentos'
         }
-        tone={confirmation?.kind === 'toggle-publish' ? 'primary' : 'danger'}
+        tone={confirmation?.kind === 'toggle-publish' || confirmation?.kind === 'approve-pending' ? 'primary' : 'danger'}
         busy={confirmationBusy}
         onClose={() => setConfirmation(null)}
         onConfirm={confirmPendingAction}

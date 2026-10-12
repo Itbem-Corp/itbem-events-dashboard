@@ -1,17 +1,15 @@
 'use client'
 
-import { fetcher } from '@/lib/fetcher'
-import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState } from 'react'
-import useSWR from 'swr'
 
 import { api } from '@/lib/api'
 import { readApiData } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { eventSectionsPath, eventSectionsReorderPath, sectionPath } from '@/lib/api-paths'
 import { cacheRecordId } from '@/lib/cache-record'
+import { countdownTargetDateInputValue, hasCountdownTargetDate } from '@/lib/countdown-target-date'
 import {
   removeEventSectionCacheValue,
   reorderEventSectionsCacheValue,
@@ -19,16 +17,19 @@ import {
 } from '@/lib/event-section-cache'
 import { hasEventSectionConfig, readEventSectionConfig } from '@/lib/event-section-config'
 import { sortEventSectionsByRenderOrder } from '@/lib/event-section-order'
+import { useEventSectionsSWR } from '@/lib/event-sections-swr'
+import { sectionHiddenByEventConfig, type SectionConfigHiddenReason } from '@/lib/section-config-visibility'
 import { canonicalSectionType } from '@/lib/section-type-aliases'
+import type { EventConfig } from '@/models/EventConfig'
 import type { EventSection } from '@/models/EventSection'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/button'
-import { sectionImageSlotsForType } from '@/lib/section-image-slots'
 import { Subheading } from '@/components/heading'
 import { ConfirmAlert } from '@/components/ui/confirm-alert'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
+import { sectionImageSlotsForType } from '@/lib/section-image-slots'
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -145,7 +146,7 @@ const SECTION_TYPES = [
     type: 'Hosts',
     label: 'Anfitriones',
     icon: UserGroupIcon,
-    description: 'Lista publica de anfitriones o personas destacadas',
+    description: 'Lista pública de anfitriones o personas destacadas',
     color: 'sky',
     hasConfig: true,
   },
@@ -153,7 +154,7 @@ const SECTION_TYPES = [
     type: 'Contact',
     label: 'Contacto',
     icon: DocumentTextIcon,
-    description: 'Texto de contacto o informacion adicional',
+    description: 'Texto de contacto o información adicional',
     color: 'zinc',
     hasConfig: true,
   },
@@ -194,7 +195,7 @@ const SECTION_TYPES = [
     type: 'SCHEDULE',
     label: 'Agenda legacy',
     icon: CalendarDaysIcon,
-    description: 'Seccion antigua de agenda con texto libre',
+    description: 'Sección antigua de agenda con texto libre',
     color: 'zinc',
     hasConfig: true,
   },
@@ -296,13 +297,49 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
   }
 
   switch (canonicalSectionType(componentType)) {
-    case 'CountdownHeader':
+    case 'CountdownHeader': {
+      const hasOwnDate = hasCountdownTargetDate(value.targetDate)
       return (
         <div className="grid gap-3 sm:grid-cols-2">
           {field('heading', 'Encabezado / Título del evento')}
-          {field('targetDate', 'Fecha objetivo del evento', 'datetime-local')}
+          <div>
+            <label htmlFor="countdown-target-date" className="mb-1 block text-xs font-medium text-ink-secondary">
+              Fecha y hora de la cuenta regresiva
+            </label>
+            <input
+              id="countdown-target-date"
+              type="datetime-local"
+              value={countdownTargetDateInputValue(value.targetDate)}
+              onChange={(e) => {
+                const next = { ...value }
+                if (e.target.value) next.targetDate = e.target.value
+                else delete next.targetDate
+                onChange(next)
+              }}
+              className="w-full rounded-lg border border-white/10 bg-canvas px-3 py-2 text-sm text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+            />
+            <p className="mt-1 text-[11px] text-ink-muted">
+              {hasOwnDate
+                ? 'Usa esta fecha, en la hora del evento.'
+                : 'Sin fecha propia: la cuenta regresiva usa la fecha del evento.'}
+            </p>
+            {hasOwnDate && (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = { ...value }
+                  delete next.targetDate
+                  onChange(next)
+                }}
+                className="mt-1 text-xs font-medium text-indigo-400 hover:text-indigo-300"
+              >
+                Usar la fecha del evento
+              </button>
+            )}
+          </div>
         </div>
       )
+    }
 
     case 'GraduationHero':
       return (
@@ -343,7 +380,8 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
     case 'Hosts':
     case 'HostsSection':
       return (
-        <div>
+        <div className="space-y-3">
+          {field('title', 'Encabezado (vacío: «Anfitriones» o «Graduados»)')}
           {field('closing', 'Texto de cierre (ej. "¡Celebremos juntos!")')}
           <p className="mt-2 text-xs text-ink-muted">
             La lista de nombres se gestiona en la pestaña <span className="text-ink-secondary">Invitados</span>.
@@ -374,7 +412,7 @@ function ConfigForm({ componentType, value, onChange }: ConfigFormProps) {
       return (
         <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            {field('title', 'Titulo del mapa')}
+            {field('title', 'Título del mapa')}
             {field('mapUrl', 'URL embed de Google Maps (iframe src)', 'url')}
           </div>
           {field('content', 'Texto de apoyo', 'textarea')}
@@ -666,15 +704,21 @@ function ConfigEditDrawer({ section, onSave, onClose }: ConfigEditDrawerProps) {
   const componentType = section.component_type || section.type || ''
   const [config, setConfig] = useState<Record<string, unknown>>(() => readEventSectionConfig(section))
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const handleSave = async () => {
     setSaving(true)
+    setSaveError(null)
     try {
       await onSave(config)
-      onClose()
+    } catch (err: unknown) {
+      // Keep the drawer open with the user's edits so they can retry.
+      setSaveError(getApiErrorMessage(err, 'No se pudo guardar la configuración.'))
+      return
     } finally {
       setSaving(false)
     }
+    onClose()
   }
 
   const def = getSectionTypeDef(componentType)
@@ -705,6 +749,12 @@ function ConfigEditDrawer({ section, onSave, onClose }: ConfigEditDrawerProps) {
         <ConfigForm componentType={componentType} value={config} onChange={setConfig} />
       </div>
 
+      {saveError && (
+        <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">
+          {saveError} Tus cambios siguen aquí; inténtalo de nuevo.
+        </p>
+      )}
+
       {/* Actions */}
       <div className="flex justify-end gap-2 border-t border-white/5 pt-4">
         <Button plain onClick={onClose} disabled={saving}>
@@ -734,6 +784,7 @@ interface SectionRowProps {
   onToggleMedia: () => void
   onSaveConfig: (config: Record<string, unknown>) => Promise<void>
   onResourcesChanged?: () => void
+  hiddenReason?: SectionConfigHiddenReason | null
 }
 
 function SectionRow({
@@ -750,8 +801,11 @@ function SectionRow({
   onToggleMedia,
   onSaveConfig,
   onResourcesChanged,
+  hiddenReason,
 }: SectionRowProps) {
   const componentType = section.component_type || section.type || 'CUSTOM'
+  const hiddenByConfig = section.is_visible && Boolean(hiddenReason)
+  const hintId = hiddenByConfig ? `section-manager-hidden-reason-${section.id}` : undefined
   const def = getSectionTypeDef(componentType)
   const Icon = def.icon
   const colorCls = COLOR_MAP[def.color] ?? COLOR_MAP.zinc
@@ -805,9 +859,7 @@ function SectionRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p
-              className={['truncate text-sm font-medium', section.is_visible ? 'text-ink' : 'text-ink-muted'].join(
-                ' '
-              )}
+              className={['truncate text-sm font-medium', section.is_visible ? 'text-ink' : 'text-ink-muted'].join(' ')}
             >
               {section.name}
             </p>
@@ -819,6 +871,11 @@ function SectionRow({
             )}
           </div>
           <p className="text-xs text-ink-muted">{def.label}</p>
+          {hiddenByConfig && hiddenReason && (
+            <p id={hintId} className="mt-0.5 text-xs text-amber-700 dark:text-amber-300">
+              {hiddenReason.message}
+            </p>
+          )}
         </div>
 
         {/* Actions */}
@@ -829,7 +886,9 @@ function SectionRow({
               onClick={onToggleMedia}
               className={[
                 'rounded-lg p-1.5 transition-colors',
-                isMediaOpen ? 'bg-pink-500/10 text-pink-400' : 'text-ink-muted hover:bg-pink-500/10 hover:text-pink-400',
+                isMediaOpen
+                  ? 'bg-pink-500/10 text-pink-400'
+                  : 'text-ink-muted hover:bg-pink-500/10 hover:text-pink-400',
               ].join(' ')}
               aria-label="Gestionar imágenes"
               title="Gestionar imágenes"
@@ -862,8 +921,14 @@ function SectionRow({
                 : 'text-ink-muted hover:bg-white/5 hover:text-ink-secondary',
             ].join(' ')}
             aria-label={section.is_visible ? 'Ocultar sección' : 'Mostrar sección'}
+            aria-describedby={hintId}
+            title={hiddenByConfig && hiddenReason ? hiddenReason.message : undefined}
           >
-            {section.is_visible ? <EyeIcon className="size-4" /> : <EyeSlashIcon className="size-4" />}
+            {section.is_visible && !hiddenByConfig ? (
+              <EyeIcon className="size-4" />
+            ) : (
+              <EyeSlashIcon className="size-4" />
+            )}
           </button>
           <button
             onClick={onDelete}
@@ -921,11 +986,19 @@ function SectionRow({
 interface Props {
   eventId: string
   initialSections?: EventSection[]
+  /** Event config, to flag sections hidden by an event-level switch (STU-54). */
+  eventConfig?: EventConfig
   onResourcesChanged?: () => void
   onPublicContentChanged?: () => void
 }
 
-export function EventSectionsManager({ eventId, initialSections, onResourcesChanged, onPublicContentChanged }: Props) {
+export function EventSectionsManager({
+  eventId,
+  initialSections,
+  eventConfig,
+  onResourcesChanged,
+  onPublicContentChanged,
+}: Props) {
   const [showAdd, setShowAdd] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [mediaId, setMediaId] = useState<string | null>(null)
@@ -938,15 +1011,7 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
     isValidating,
     error: sectionsError,
     mutate: retrySections,
-  } = useSWR<EventSection[]>(
-    eventId ? eventSectionsPath(eventId) : null,
-    fetcher,
-    {
-      ...responsiveListSwrOptions,
-      fallbackData: initialSections,
-      revalidateOnMount: !initialSections,
-    }
-  )
+  } = useEventSectionsSWR(eventId, initialSections)
 
   const sectionsErrorState = getDataErrorState(sectionsError, rawSections)
   const sorted = useMemo(() => sortEventSectionsByRenderOrder(rawSections ?? []), [rawSections])
@@ -987,8 +1052,7 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
     const nextVisible = !section.is_visible
     const snapshot = rawSections
     await retrySections(
-      (current) =>
-        upsertEventSectionCacheValue(current, { ...section, is_visible: nextVisible }) as EventSection[],
+      (current) => upsertEventSectionCacheValue(current, { ...section, is_visible: nextVisible }) as EventSection[],
       false
     )
     try {
@@ -1046,7 +1110,10 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
       const updated = readApiData<EventSection | null>(res.data)
       await retrySections(
         (current: unknown) =>
-          upsertEventSectionCacheValue(current, cacheRecordId(updated) ? updated : { ...section, config }) as EventSection[],
+          upsertEventSectionCacheValue(
+            current,
+            cacheRecordId(updated) ? updated : { ...section, config }
+          ) as EventSection[],
         false
       )
       notifyPublicContentChanged()
@@ -1054,6 +1121,8 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
     } catch (err: unknown) {
       await retrySections(snapshot, false)
       toast.error(getApiErrorMessage(err, 'Error al guardar la configuración'))
+      // Let the drawer stay open with the edits (STU-22).
+      throw err
     }
   }
 
@@ -1084,16 +1153,18 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
     )
   }
 
-  const visibleCount = sorted.filter((s) => s.is_visible).length
+  // STU-N1: count what the public page really shows — a visible section hidden by a
+  // "Mostrar …" switch of the event settings is not visible to guests.
+  const hiddenBySwitchCount = sorted.filter(
+    (s) => s.is_visible && sectionHiddenByEventConfig(s.component_type || s.type, eventConfig)
+  ).length
+  const visibleCount = sorted.filter((s) => s.is_visible).length - hiddenBySwitchCount
+  const configuredCount = sorted.filter((s) => hasEventSectionConfig(s)).length
 
   return (
     <div className="space-y-4">
       {sectionsErrorState === 'stale' && (
-        <StaleDataNotice
-          label="las secciones"
-          onRetry={() => void retrySections()}
-          retrying={isValidating}
-        />
+        <StaleDataNotice label="las secciones" onRetry={() => void retrySections()} retrying={isValidating} />
       )}
 
       {/* Sections list */}
@@ -1129,6 +1200,7 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
                 }}
                 onSaveConfig={(config) => handleSaveConfig(section, config)}
                 onResourcesChanged={notifyPublicContentChanged}
+                hiddenReason={sectionHiddenByEventConfig(section.component_type || section.type, eventConfig)}
               />
             ))}
           </AnimatePresence>
@@ -1170,22 +1242,18 @@ export function EventSectionsManager({ eventId, initialSections, onResourcesChan
 
       {sorted.length > 0 && (
         <p className="text-center text-xs text-ink-muted">
-          {sorted.length} sección{sorted.length !== 1 ? 'es' : ''} · {visibleCount} visible
+          {sorted.length} {sorted.length === 1 ? 'sección' : 'secciones'} · {visibleCount} visible
           {visibleCount !== 1 ? 's' : ''}
-          {sorted.filter((s) => {
-            return hasEventSectionConfig(s)
-          }).length > 0 && (
+          {hiddenBySwitchCount > 0 && (
             <>
               {' '}
-              ·{' '}
-              <span className="text-lime-600">
-                {
-                  sorted.filter((s) => {
-                    return hasEventSectionConfig(s)
-                  }).length
-                }{' '}
-                con config
-              </span>
+              · {hiddenBySwitchCount} {hiddenBySwitchCount === 1 ? 'oculta' : 'ocultas'} por los ajustes del evento
+            </>
+          )}
+          {configuredCount > 0 && (
+            <>
+              {' '}
+              · <span className="text-lime-600">{configuredCount} con configuración</span>
             </>
           )}
         </p>

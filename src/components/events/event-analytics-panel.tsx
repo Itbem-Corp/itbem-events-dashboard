@@ -431,11 +431,11 @@ export function EventAnalyticsPanel({
 
       {/* ── Capacity Bar ───────────────────────────────────────────────────── */}
       <div className={cardCls}>
-        <SectionTitle>Capacidad del evento</SectionTitle>
+        <SectionTitle>Distribución de asistencia</SectionTitle>
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs text-ink-muted">
             <span>{estimatedAttendees} asistentes estimados</span>
-            <span>{capacityTotal} capacidad</span>
+            <span>{capacityTotal} lugares</span>
           </div>
           <div className="flex h-4 overflow-hidden rounded-full bg-surface-raised">
             {confirmedPrimary > 0 && (

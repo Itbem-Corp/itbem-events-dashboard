@@ -61,7 +61,7 @@ describe('DraggableSectionList media integration', () => {
       />
     )
 
-    fireEvent.click(screen.getByTitle('Editar imagenes'))
+    fireEvent.click(screen.getByTitle('Editar imágenes'))
     expect(screen.getByText('Media manager')).toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Notify media change'))
@@ -79,6 +79,74 @@ describe('DraggableSectionList media integration', () => {
       />
     )
 
-    expect(screen.queryByTitle('Editar imagenes')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Editar imágenes')).not.toBeInTheDocument()
+  })
+
+  it('flags a visible section hidden by an event-level switch (STU-54)', () => {
+    render(
+      <DraggableSectionList
+        sections={[section('CountdownHeader'), section('Agenda')]}
+        isLoading={false}
+        onReorder={vi.fn()}
+        onToggleVisible={vi.fn()}
+        onSaveConfig={vi.fn()}
+        eventConfig={{
+          id: 'cfg-1',
+          event_id: 'event-1',
+          created_at: '2026-07-05T00:00:00.000Z',
+          updated_at: '2026-07-05T00:00:00.000Z',
+          is_public: true,
+          visibility_configured: true,
+          show_countdown: false,
+          show_event_schedule: true,
+        }}
+      />
+    )
+
+    expect(screen.getByText(/Oculta desde Ajustes \(Cuenta regresiva\)/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Oculta desde Ajustes/)).toHaveLength(1)
+  })
+
+  it('links to the sections manager when Studio has no sections (STU-6)', () => {
+    render(
+      <DraggableSectionList
+        sections={[]}
+        isLoading={false}
+        onReorder={vi.fn()}
+        onToggleVisible={vi.fn()}
+        onSaveConfig={vi.fn()}
+        manageSectionsHref="/events/event-1?tab=configuracion"
+      />
+    )
+
+    expect(screen.getByText('Aún no hay secciones.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Agregar secciones' })).toHaveAttribute(
+      'href',
+      '/events/event-1?tab=configuracion'
+    )
+  })
+
+  it('counts sections with the right Spanish plural', () => {
+    const { rerender } = render(
+      <DraggableSectionList
+        sections={[section('Agenda')]}
+        isLoading={false}
+        onReorder={vi.fn()}
+        onToggleVisible={vi.fn()}
+        onSaveConfig={vi.fn()}
+      />
+    )
+    expect(screen.getByText('1 sección')).toBeInTheDocument()
+
+    rerender(
+      <DraggableSectionList
+        sections={[section('Agenda'), section('MomentWall')]}
+        isLoading={false}
+        onReorder={vi.fn()}
+        onToggleVisible={vi.fn()}
+        onSaveConfig={vi.fn()}
+      />
+    )
+    expect(screen.getByText('2 secciones')).toBeInTheDocument()
   })
 })

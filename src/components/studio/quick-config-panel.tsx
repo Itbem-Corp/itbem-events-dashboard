@@ -142,29 +142,31 @@ export function QuickConfigPanel({ config, eventId, onSaved }: QuickConfigPanelP
   const publicUploadsOpen = momentWallState.personalUploadsOpen
 
   const toggleRows = [
-    { field: 'is_public' as const, label: 'Pagina publica', value: effectiveConfig.is_public },
+    { field: 'is_public' as const, label: 'Página pública', value: effectiveConfig.is_public },
     { field: 'show_header' as const, label: 'Portada', value: effectiveConfig.show_header ?? true },
     {
       field: 'show_rsvp_section' as const,
       label: 'Mostrar RSVP',
       value: effectiveConfig.show_rsvp_section ?? effectiveConfig.show_rsvp ?? true,
+      hint: 'Si ocultas este bloque, los invitados no podrán confirmar.',
     },
     { field: 'show_countdown' as const, label: 'Cuenta regresiva', value: effectiveConfig.show_countdown ?? true },
     {
       field: 'show_event_location' as const,
-      label: 'Ubicacion',
+      label: 'Ubicación',
       value: effectiveConfig.show_event_location ?? effectiveConfig.show_location ?? true,
     },
-    { field: 'show_second_location' as const, label: 'Recepcion', value: effectiveConfig.show_second_location ?? true },
+    { field: 'show_second_location' as const, label: 'Recepción', value: effectiveConfig.show_second_location ?? true },
     {
       field: 'show_photo_gallery' as const,
-      label: 'Galeria',
+      label: 'Galería',
       value: effectiveConfig.show_photo_gallery ?? effectiveConfig.show_gallery ?? true,
     },
     {
       field: 'show_moment_wall' as const,
       label: 'Momentos',
       value: resolveEventConfigMomentWallPublished(effectiveConfig),
+      hint: 'Muestra el muro de momentos aprobados. Mientras esté publicado, las subidas de fotos quedan cerradas.',
     },
     { field: 'show_hosts_section' as const, label: 'Anfitriones', value: effectiveConfig.show_hosts_section ?? true },
     {
@@ -177,18 +179,34 @@ export function QuickConfigPanel({ config, eventId, onSaved }: QuickConfigPanelP
       label: 'Agenda',
       value: effectiveConfig.show_event_schedule ?? effectiveConfig.show_schedule ?? true,
     },
-    { field: 'show_footer' as const, label: 'Footer', value: effectiveConfig.show_footer ?? true },
-    { field: 'allow_uploads' as const, label: 'Subir fotos', value: publicUploadsOpen, disabled: wallPublished },
-    { field: 'allow_messages' as const, label: 'Mensajes de guests', value: effectiveConfig.allow_messages ?? false },
+    { field: 'show_footer' as const, label: 'Pie de página', value: effectiveConfig.show_footer ?? true },
+    {
+      field: 'allow_uploads' as const,
+      label: 'Subir fotos',
+      value: publicUploadsOpen,
+      disabled: wallPublished,
+      // STU-55: explain why the switch is greyed out instead of leaving it silently disabled.
+      hint: wallPublished
+        ? 'No disponible mientras «Momentos» esté publicado. Apaga «Momentos» para abrir las subidas de los invitados.'
+        : undefined,
+    },
+    { field: 'allow_messages' as const, label: 'Mensajes de invitados', value: effectiveConfig.allow_messages ?? false },
   ]
 
   return (
     <div className="space-y-4">
       {/* Toggle rows */}
       <div className="space-y-0.5">
-        {toggleRows.map(({ field, label, value, disabled }) => (
-          <div key={field} className="flex items-center justify-between px-1 py-1.5">
-            <span className="text-xs text-ink-secondary">{label}</span>
+        {toggleRows.map(({ field, label, value, disabled, hint }: (typeof toggleRows)[number] & { hint?: string }) => (
+          <div key={field} className="flex items-center justify-between gap-3 px-1 py-1.5">
+            <span className="min-w-0 text-xs text-ink-secondary">
+              {label}
+              {hint && (
+                <span className="mt-0.5 block text-[10px] text-ink-muted">
+                  {hint}
+                </span>
+              )}
+            </span>
             <div className="flex items-center gap-1.5">
               {saving === field && <ArrowPathIcon className="size-3 animate-spin text-ink-muted" />}
               <Switch

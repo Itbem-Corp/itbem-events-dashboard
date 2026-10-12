@@ -31,12 +31,14 @@ export interface EventConfig extends BaseEntity {
   max_uploads_per_guest?: number // per-IP upload limit used by public uploads
   auto_approve_uploads?: boolean // moments skip review when true
 
-  // Notifications
+  // Notifications. Legacy: stored but never used by the backend; the dashboard
+  // no longer shows or sends it (SET-8).
   notify_on_moment_upload?: boolean
 
   // Scheduling
   active_from?: string | null // ISO date — when public page becomes visible
   active_until?: string | null // ISO date — when public page expires
+  rsvp_deadline?: string | null // RFC3339 UTC — after it guests can no longer confirm (null = no deadline)
 
   // Custom messages
   default_welcome_message?: string
@@ -91,6 +93,7 @@ export type EventConfigPatch = Partial<
     | 'font_set_id'
     | 'active_from'
     | 'active_until'
+    | 'rsvp_deadline'
     | 'default_welcome_message'
     | 'default_moment_request_message'
     | 'default_thank_you_message'

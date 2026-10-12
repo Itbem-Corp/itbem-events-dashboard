@@ -196,12 +196,7 @@ describe('MomentsWall - live refresh policy', () => {
     mockSWR([], false, { in_flight: [makeMoment({ processing_status: 'processing' })], reoptimizing: [] })
     const { MomentsWall } = await import('@/components/events/moments-wall')
     render(
-      <MomentsWall
-        eventId="evt-001"
-        eventIdentifier="evento-test"
-        eventName="Evento Test"
-        liveRefreshEnabled={false}
-      />
+      <MomentsWall eventId="evt-001" eventIdentifier="evento-test" eventName="Evento Test" liveRefreshEnabled={false} />
     )
 
     const [key, , options] = vi.mocked(useSWR).mock.calls.at(-1) ?? []
@@ -271,7 +266,7 @@ describe('MomentsWall - failed moment retry routing', () => {
     ])
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^retry$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^Reintentar procesamiento/i }))
     })
 
     await waitFor(() => {
@@ -293,7 +288,7 @@ describe('MomentsWall - failed moment retry routing', () => {
     ])
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^retry$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^Reintentar procesamiento/i }))
     })
 
     await waitFor(() => {
@@ -732,7 +727,7 @@ describe('MomentsWall — moment card content', () => {
 
   it('shows failed moment in FailedSection instead of main grid', async () => {
     await renderWall([makeMoment({ processing_status: 'failed' })])
-    expect(screen.getByText('Fallidos (1)')).toBeInTheDocument()
+    expect(screen.getByText('No se pudieron procesar (1)')).toBeInTheDocument()
   })
 
   it('shows worker duration for failed moments', async () => {
@@ -743,7 +738,10 @@ describe('MomentsWall — moment card content', () => {
         processing_duration_ms: 1234,
       }),
     ])
-    expect(screen.getByText('timeout from optimizer')).toBeInTheDocument()
+    expect(
+      screen.getByText('El servicio de procesamiento no estaba disponible. Puedes reintentarlo.')
+    ).toBeInTheDocument()
+    expect(screen.queryByText('timeout from optimizer')).not.toBeInTheDocument()
     expect(screen.getByText('Tiempo: 1.2 s')).toBeInTheDocument()
   })
 
@@ -844,6 +842,14 @@ describe('MomentsWall — QR modal', () => {
     await waitFor(() => {
       expect(screen.getByTestId('branded-qr')).toBeInTheDocument()
     })
+  })
+
+  it('states the guest upload limits in the upload QR modal (STU-67)', async () => {
+    await renderWall([makeMoment()])
+    fireEvent.click(screen.getByTitle('Generar QR para subida compartida'))
+    expect(
+      await screen.findByText('Los invitados pueden subir fotos de hasta 25 MB y videos de hasta 200 MB.')
+    ).toBeInTheDocument()
   })
 
   it('shows Abrir enlace link in QR modal', async () => {
@@ -1318,5 +1324,111 @@ describe('MomentsWall — BottomSheet contents', () => {
       expect(screen.getByText('Ver muro público')).toBeInTheDocument()
       expect(screen.getAllByText('Compartir muro').length).toBeGreaterThanOrEqual(1)
     })
+  })
+})
+
+describe('MomentsWall - wave 3 QA follow-ups', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('hides the retry actions of failed moments from read-only roles (ROLES-N1)', async () => {
+    await renderWall(
+      [makeMoment({ id: 'failed-raw', processing_status: 'failed', content_url: 'moments/e/raw/p.jpg' })],
+      false,
+      { canManage: false }
+    )
+
+    expect(screen.getByText(/No se pudieron procesar \(1\)/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Reintentar todos/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Reintentar procesamiento/ })).toBeNull()
+    expect(screen.getByText(/Quien administra el evento puede reintentar/)).toBeInTheDocument()
+  })
+
+  it('asks for confirmation with the count before approving every pending moment (STU-60)', async () => {
+    await renderWall([makeMoment({ id: 'p1' }), makePhotoMoment({ id: 'p2' })])
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Aprobar todos \(2\)/ }))
+    })
+    expect(vi.mocked(api.post)).not.toHaveBeenCalled()
+
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('¿Aprobar 2 momentos pendientes?')).toBeInTheDocument()
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Aprobar todos' }))
+    })
+
+    await waitFor(() => {
+      expect(vi.mocked(api.post)).toHaveBeenCalledWith('/moments/bulk-approve', {
+        ids: ['p1', 'p2'],
+        is_approved: true,
+      })
+    })
+  })
+
+  it('does not approve anything when the approve-all confirmation is cancelled (STU-60)', async () => {
+    await renderWall([makeMoment({ id: 'p1' })])
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Aprobar todos \(1\)/ }))
+    })
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('¿Aprobar 1 momento pendiente?')).toBeInTheDocument()
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+    })
+
+    expect(vi.mocked(api.post)).not.toHaveBeenCalled()
+  })
+
+  it('shows the same total on the mobile toolbar as on desktop, failed ones included (STU-70)', async () => {
+    await renderWall([
+      makeMoment({ id: 'ok-1' }),
+      makePhotoMoment({ id: 'ok-2' }),
+      makeMoment({ id: 'bad-1', processing_status: 'failed' }),
+    ])
+
+    expect(screen.getByText(/3 momentos en total/)).toBeInTheDocument()
+    expect(screen.getByText('3 momentos · 1 con error')).toBeInTheDocument()
+  })
+
+  it('shows approved moments in the saved wall order once every page is loaded (STU-62)', async () => {
+    await renderWall([
+      makePhotoMoment({
+        id: 'newest',
+        is_approved: true,
+        order: 0,
+        content_url: 'https://cdn.example.com/a.jpg',
+        created_at: '2026-01-15T14:00:00Z',
+      }),
+      makePhotoMoment({
+        id: 'second',
+        is_approved: true,
+        order: 2,
+        content_url: 'https://cdn.example.com/b.jpg',
+        created_at: '2026-01-15T13:00:00Z',
+      }),
+      makePhotoMoment({
+        id: 'first',
+        is_approved: true,
+        order: 1,
+        content_url: 'https://cdn.example.com/c.jpg',
+        created_at: '2026-01-15T12:00:00Z',
+      }),
+    ])
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Aprobados/ }))
+    })
+
+    expect(screen.getByTestId('approved-order-note')).toHaveTextContent('En el orden del muro de momentos.')
+    const srcs = screen
+      .getAllByRole('img')
+      .map((img) => img.getAttribute('src') ?? '')
+      .filter((src) => src.includes('cdn.example.com/'))
+    expect(srcs.slice(0, 3)).toEqual([
+      'https://cdn.example.com/c.jpg',
+      'https://cdn.example.com/b.jpg',
+      'https://cdn.example.com/a.jpg',
+    ])
   })
 })
