@@ -1,5 +1,6 @@
 'use client'
 
+import { useProductShell } from '@/products/core/product-context'
 import * as Headless from '@headlessui/react'
 import clsx from 'clsx'
 import React, { forwardRef } from 'react'
@@ -34,9 +35,12 @@ export const NavbarItem = forwardRef(function NavbarItem(
   ),
   ref: React.ForwardedRef<HTMLAnchorElement | HTMLButtonElement>
 ) {
+  const accessibleShell = Boolean(useProductShell()?.accessibleShell)
   let classes = clsx(
     // Base
     'relative flex min-w-0 items-center gap-3 rounded-lg p-2 text-left text-base/6 font-medium text-ink sm:text-sm/5',
+    // 44px touch targets on touch layouts in the accessible shell
+    accessibleShell && 'max-lg:min-h-11 max-lg:min-w-11',
     // Leading icon/icon-only
     '*:data-[slot=icon]:size-6 *:data-[slot=icon]:shrink-0 *:data-[slot=icon]:fill-ink-muted sm:*:data-[slot=icon]:size-5',
     // Trailing icon (down chevron or similar)

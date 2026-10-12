@@ -1,4 +1,6 @@
 import { NotificationBell } from '@/components/ui/notification-bell'
+import { ProductProvider } from '@/products/core/product-context'
+import { getProductManifest } from '@/products/registry'
 import { useStore } from '@/store/useStore'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -83,5 +85,69 @@ describe('NotificationBell loading', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('No pudimos cargar tus notificaciones')
     expect(swrState.mutate).toHaveBeenCalledOnce()
+  })
+})
+
+describe('NotificationBell sizing per product shell', () => {
+  function eventsToday(count: number) {
+    const now = new Date().toISOString()
+    return Array.from({ length: count }, (_, index) => ({
+      id: `event-${index}`,
+      name: `Evento ${index}`,
+      identifier: `evento-${index}`,
+      is_active: true,
+      event_date_time: now,
+      timezone: 'UTC',
+    }))
+  }
+
+  beforeEach(() => {
+    swrState.data = undefined
+    swrState.error = undefined
+    swrState.isLoading = false
+  })
+
+  it('fits a two-digit count at 12px with a 44px button on EventiApp', () => {
+    swrState.data = eventsToday(99)
+    render(
+      <ProductProvider product={getProductManifest('eventiapp')}>
+        <NotificationBell />
+      </ProductProvider>
+    )
+
+    const button = screen.getByRole('button', { name: 'Notificaciones' })
+    expect(button).toHaveClass('size-11', 'lg:size-9')
+    expect(button.className).not.toMatch(/(^|\s)size-8(\s|$)/)
+    const badge = screen.getByTestId('notification-count')
+    expect(badge).toHaveTextContent('99')
+    expect(badge).toHaveClass('h-5', 'min-w-5', 'px-1', 'text-xs')
+    expect(badge.className).not.toContain('text-[9px]')
+  })
+
+  it('caps the EventiApp badge above two digits', () => {
+    swrState.data = eventsToday(120)
+    render(
+      <ProductProvider product={getProductManifest('eventiapp')}>
+        <NotificationBell />
+      </ProductProvider>
+    )
+
+    expect(screen.getByTestId('notification-count')).toHaveTextContent('99+')
+  })
+
+  it('keeps the Cafetton House bell and badge as before', () => {
+    swrState.data = eventsToday(12)
+    render(
+      <ProductProvider product={getProductManifest('cafettonhouse')}>
+        <NotificationBell />
+      </ProductProvider>
+    )
+
+    const button = screen.getByRole('button', { name: 'Notificaciones' })
+    expect(button).toHaveClass('size-8')
+    expect(button.className).not.toContain('size-11')
+    const badge = button.querySelector('span')
+    expect(badge).toHaveTextContent('9+')
+    expect(badge).toHaveClass('size-4', 'text-[9px]')
   })
 })

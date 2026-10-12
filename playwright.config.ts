@@ -31,6 +31,17 @@ export default defineConfig({
       testMatch: '**/role-capability-matrix.spec.ts',
     },
     {
+      // Opt-in visual and request parity for Cafetton House against a
+      // baseline recorded from the previous build on the same machine.
+      name: 'cafetton-parity',
+      use: {
+        ...devices['Desktop Chrome'],
+        ...chromiumLoopbackLaunchOptions,
+      },
+      testMatch: '**/cafetton-shell-parity.spec.ts',
+      snapshotPathTemplate: '.playwright-baselines/{projectName}/{arg}{ext}',
+    },
+    {
       name: 'setup',
       testMatch: '**/fixtures/auth.setup.ts',
     },

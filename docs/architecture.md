@@ -2,7 +2,7 @@
 
 ## Frontend and backend contract boundary
 
-Language-neutral integration contracts live in `itbem-product-contract`. The dashboard keeps a checked-in runtime projection under `src/contracts` and verifies it against the pinned `.contracts` revision in CI. Pages and product modules consume typed exports from that projection; they must not redefine transport header names or backend workspace semantics.
+Language-neutral integration contracts live in `itbem-product-contract`. The dashboard keeps a checked-in runtime projection under `src/contracts` and verifies it against the pinned `.contracts` revision in CI (`npm run contract:check`, which also requires the pinned request-context rules to declare the `caller-access` scope the dashboard sends). Pages and product modules consume typed exports from that projection; they must not redefine transport header names or backend workspace semantics.
 
 Keep page-specific composition in `app`, reusable workflow UI in `components/<feature>`, product availability in `products`, and cross-page transport/cache primitives in `lib` or `contracts`. A product package may select a feature, but core transport code must never import a concrete product.
 
