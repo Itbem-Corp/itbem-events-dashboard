@@ -23,11 +23,27 @@ function applyTheme(theme: ColorTheme) {
   })
 }
 
+export function resolveInitialTheme(): ColorTheme {
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY)
+    if (saved === 'dark' || saved === 'light') return saved
+  } catch {
+    // Storage can be unavailable (private mode); fall back to the system preference.
+  }
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<ColorTheme>('dark')
 
   useEffect(() => {
-    setThemeState(document.documentElement.classList.contains('dark') ? 'dark' : 'light')
+    // Re-apply on mount so data-theme is always set, even if the boot script did
+    // not run (CSP, extensions). The light-theme bridge in tailwind.css keys off it.
+    // Keep what the boot script already applied; recompute only when it did not run.
+    const booted = document.documentElement.dataset.theme
+    const initialTheme: ColorTheme = booted === 'dark' || booted === 'light' ? booted : resolveInitialTheme()
+    applyTheme(initialTheme)
+    setThemeState(initialTheme)
 
     const media = window.matchMedia('(prefers-color-scheme: dark)')
     const syncSystemTheme = (event: MediaQueryListEvent) => {
