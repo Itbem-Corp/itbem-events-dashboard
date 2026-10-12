@@ -25,9 +25,11 @@ vi.mock('next/dynamic', () => ({
   default: (loader: () => Promise<unknown>) => {
     const source = loader.toString()
     if (source.includes('organization-event-clients-panel')) {
-      return (props: { organizationId: string; organizationName: string }) => (
+      const Panel = (props: { organizationId: string; organizationName: string }) => (
         <div data-testid="event-clients-panel">{props.organizationName}</div>
       )
+      Panel.displayName = 'OrganizationEventClientsPanelMock'
+      return Panel
     }
     return () => null
   },
