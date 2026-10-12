@@ -22,13 +22,23 @@ import {
 } from '@dnd-kit/core'
 import { ChevronDownIcon, RectangleGroupIcon } from '@heroicons/react/20/solid'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import useSWR from 'swr'
 
 import { AssignBottomSheet } from './assign-bottom-sheet'
 import { GuestChip } from './guest-chip'
+import {
+  checkSeat,
+  isSeatable,
+  readSeatingPlanStaleError,
+  readTableOverCapacityError,
+  seatRefusalMessage,
+} from './seating-capacity'
+import { seatingCollisionDetection } from './seating-collision'
 import { SeatingMiniMap } from './seating-mini-map'
 import { SeatingToolbar } from './seating-toolbar'
+import { SEATING_UNSAVED_CHANGES_MESSAGE } from './seating-unsaved-guard'
 import { TableCard } from './table-card'
 import { TableFormModal } from './table-form-modal'
 import { UnassignedPanel } from './unassigned-panel'
@@ -40,6 +50,26 @@ import type { Table } from '@/models/Table'
 interface Props {
   eventId: string
   eventIdentifier?: string
+  /** Called with true while the plan has unsaved changes, so the page can confirm before leaving the tab. */
+  onUnsavedChangesChange?: (hasUnsavedChanges: boolean) => void
+}
+
+const STALE_PLAN_MESSAGE =
+  'El plano cambió mientras lo editabas (se eliminaron invitados o mesas). Quitamos esos cambios del borrador; revisa y vuelve a guardar.'
+
+// One toast id for every "the plan changed" notice so a server refusal and the reconcile never stack.
+const STALE_PLAN_TOAST_ID = 'seating-plan-stale'
+
+function readServerMessage(error: unknown): string {
+  const data = (error as { response?: { data?: { message?: unknown } } })?.response?.data
+  return typeof data?.message === 'string' ? data.message.trim() : ''
+}
+
+function httpStatusOf(error: unknown): number | null {
+  if (!error || typeof error !== 'object') return null
+  const record = error as { status?: unknown; response?: { status?: unknown } }
+  const status = record.response?.status ?? record.status
+  return typeof status === 'number' ? status : null
 }
 
 interface SeatingWorkspace {
@@ -47,19 +77,14 @@ interface SeatingWorkspace {
   guests: Guest[]
 }
 
-export function SeatingPlanV2({ eventId }: Props) {
+export function SeatingPlanV2({ eventId, onUnsavedChangesChange }: Props) {
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(null)
   const highlightedTableRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     return () => {
       if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
-      highlightedTableRef.current?.classList.remove(
-        'ring-2',
-        'ring-violet-400',
-        'ring-offset-2',
-        'ring-offset-canvas'
-      )
+      highlightedTableRef.current?.classList.remove('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-canvas')
     }
   }, [])
   // ─── Data fetching ──────────────────────────────────────────────────
@@ -92,12 +117,61 @@ export function SeatingPlanV2({ eventId }: Props) {
   const [activeDragGuest, setActiveDragGuest] = useState<Guest | null>(null)
   const [unassignedOpen, setUnassignedOpen] = useState(false)
   const [miniMapOpen, setMiniMapOpen] = useState(true)
+  const [overCapacityTableIds, setOverCapacityTableIds] = useState<Set<string>>(() => new Set())
   const tableRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
+  // ─── Keyboard undo/redo (GST-54) ────────────────────────────────────
+  const { undo: undoSeating, redo: redoSeating } = seating
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+      const target = event.target as HTMLElement | null
+      if (target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return
+      const key = event.key.toLowerCase()
+      if (key === 'z' && !event.shiftKey) {
+        event.preventDefault()
+        undoSeating()
+      } else if ((key === 'z' && event.shiftKey) || key === 'y') {
+        event.preventDefault()
+        redoSeating()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [undoSeating, redoSeating])
+
+  // ─── Unsaved changes guard (SEAT-5) ─────────────────────────────────
+  const hasUnsavedChanges = seating.pendingChangeCount > 0
+  useEffect(() => {
+    onUnsavedChangesChange?.(hasUnsavedChanges)
+  }, [hasUnsavedChanges, onUnsavedChangesChange])
+  useEffect(() => () => onUnsavedChangesChange?.(false), [onUnsavedChangesChange])
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = SEATING_UNSAVED_CHANGES_MESSAGE
+      return SEATING_UNSAVED_CHANGES_MESSAGE
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [hasUnsavedChanges])
+
+  // A server capacity refusal stays highlighted until the draft changes again.
+  useEffect(() => {
+    setOverCapacityTableIds((current) => (current.size > 0 ? new Set() : current))
+  }, [seating.state.assignments, seating.state.updatedTables, seating.state.createdTables])
+
+  // ─── Stale draft notice (SEAT-4) ────────────────────────────────────
+  useEffect(() => {
+    if (seating.lastReconciledCount > 0) toast.warning(STALE_PLAN_MESSAGE, { id: STALE_PLAN_TOAST_ID })
+  }, [seating.lastReconciledCount])
+
   // ─── Derived data ───────────────────────────────────────────────────
-  const { tableGuests, unassignedGuests, tableOccupancy } = useMemo(() => {
+  const { tableGuests, unassignedGuests, declinedUnassignedCount, tableOccupancy } = useMemo(() => {
     const map = new Map<string, Guest[]>()
     const unassigned: Guest[] = []
+    let declinedUnassigned = 0
     const occupancy = new Map<string, number>()
 
     for (const table of seating.tables) {
@@ -110,14 +184,24 @@ export function SeatingPlanV2({ eventId }: Props) {
       if (assignedTableId && map.has(assignedTableId)) {
         map.get(assignedTableId)!.push(guest)
         occupancy.set(assignedTableId, (occupancy.get(assignedTableId) ?? 0) + getGuestPartySize(guest))
-      } else {
+      } else if (isSeatable(guest)) {
         // Guest is unassigned OR assigned to a deleted table
         unassigned.push(guest)
+      } else {
+        // Declined guests need no seat; they are counted apart instead of "sin mesa" (SEAT-6).
+        declinedUnassigned++
       }
     }
 
-    return { tableGuests: map, unassignedGuests: unassigned, tableOccupancy: occupancy }
+    return {
+      tableGuests: map,
+      unassignedGuests: unassigned,
+      declinedUnassignedCount: declinedUnassigned,
+      tableOccupancy: occupancy,
+    }
   }, [guests, seating.tables, seating.guestTableMap])
+
+  const tableByID = useMemo(() => new Map(seating.tables.map((table) => [table.id, table])), [seating.tables])
 
   const totalSeated = useMemo(
     () => Array.from(tableOccupancy.values()).reduce((sum, n) => sum + n, 0),
@@ -143,6 +227,27 @@ export function SeatingPlanV2({ eventId }: Props) {
     [guestByID]
   )
 
+  // Every move goes through the strict capacity rule (SEAT-1), on desktop and mobile alike.
+  const assignWithinCapacity = useCallback(
+    (guestId: string, tableId: string | null): boolean => {
+      if (tableId === null) {
+        seating.assignGuest(guestId, null)
+        return true
+      }
+      const guest = guestByID.get(guestId)
+      const table = tableByID.get(tableId)
+      if (!guest || !table) return false
+      const check = checkSeat(table, tableOccupancy, guest, seating.guestTableMap.get(guestId))
+      if (!check.ok) {
+        toast.error(seatRefusalMessage(table.name, check))
+        return false
+      }
+      seating.assignGuest(guestId, tableId)
+      return true
+    },
+    [guestByID, seating, tableByID, tableOccupancy]
+  )
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       setActiveDragGuest(null)
@@ -153,18 +258,18 @@ export function SeatingPlanV2({ eventId }: Props) {
       const overData = over.data.current
 
       if (overData?.type === 'table') {
-        seating.assignGuest(guestId, overData.tableId)
+        assignWithinCapacity(guestId, overData.tableId)
       } else if (overData?.type === 'unassigned') {
-        seating.assignGuest(guestId, null)
+        assignWithinCapacity(guestId, null)
       } else if (overData?.type === 'guest') {
         const targetGuest = overData.guest as Guest
         const targetTableId = seating.guestTableMap.get(targetGuest.id)
         if (targetTableId) {
-          seating.assignGuest(guestId, targetTableId)
+          assignWithinCapacity(guestId, targetTableId)
         }
       }
     },
-    [seating]
+    [assignWithinCapacity, seating]
   )
 
   // ─── Table CRUD ─────────────────────────────────────────────────────
@@ -219,18 +324,77 @@ export function SeatingPlanV2({ eventId }: Props) {
         seating.reset()
         void mutateWorkspace()
       }
+      setOverCapacityTableIds(new Set())
       toast.success('Cambios guardados')
     } catch (err) {
+      const overCapacity = readTableOverCapacityError(err)
+      if (overCapacity) {
+        // Strict capacity on the server (SEAT-1): show its Spanish message and highlight the tables it refused.
+        const ids = new Set([...overCapacity.tableIds, ...overCapacity.tables.map((table) => table.tableId)])
+        const detail =
+          overCapacity.tables.length > 0
+            ? overCapacity.tables
+                .map((table) => {
+                  const name = tableByID.get(table.tableId)?.name || table.name || 'Mesa'
+                  return `«${name}» (${table.seats} de ${table.capacity} lugares)`
+                })
+                .join(', ')
+            : Array.from(ids)
+                .flatMap((id) => {
+                  const table = tableByID.get(id)
+                  return table ? [`«${table.name}»`] : []
+                })
+                .join(', ')
+        setOverCapacityTableIds(ids)
+        toast.error(
+          readServerMessage(err)
+            ? `${overCapacity.message} Mueve invitados o aumenta la capacidad.`
+            : detail
+              ? `No se guardó: no hay lugar suficiente en ${detail}. Mueve invitados o aumenta la capacidad.`
+              : overCapacity.message
+        )
+        const first = Array.from(ids).find((id) => tableRefs.current.has(id))
+        if (first) tableRefs.current.get(first)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+      const stalePlan = readSeatingPlanStaleError(err)
+      if (stalePlan) {
+        // The server says a guest or table of the draft left the event (SEAT-4): reload the workspace,
+        // which reconciles the draft, and show the server's Spanish message once.
+        await mutateWorkspace().catch(() => undefined)
+        toast.warning(stalePlan.message, { id: STALE_PLAN_TOAST_ID })
+        return
+      }
+      const status = httpStatusOf(err)
+      if (status !== null && status >= 400 && status < 500 && status !== 401 && status !== 403) {
+        // Older backends refuse a stale draft with a plain 4xx instead of seating_plan_stale: refresh the
+        // workspace so the draft is reconciled; the reconcile notice explains what was dropped (SEAT-4).
+        const fresh = await mutateWorkspace().catch(() => undefined)
+        const freshGuestIds = new Set((fresh?.guests ?? []).map((guest) => guest.id))
+        const freshTableIds = new Set([
+          ...(fresh?.tables ?? []).map((table) => table.id),
+          ...seating.state.createdTables.map((table) => table.id),
+        ])
+        const stale =
+          fresh !== undefined &&
+          (Array.from(seating.state.assignments).some(
+            ([guestId, tableId]) => !freshGuestIds.has(guestId) || (tableId !== null && !freshTableIds.has(tableId))
+          ) ||
+            Array.from(seating.state.updatedTables.keys()).some((id) => !freshTableIds.has(id)) ||
+            Array.from(seating.state.deletedTableIds).some((id) => !freshTableIds.has(id)))
+        if (stale) return
+      }
       toast.error(getApiErrorMessage(err, 'Error al guardar cambios'))
     } finally {
       setSaving(false)
     }
-  }, [seating, eventId, mutateWorkspace])
+  }, [seating, eventId, mutateWorkspace, tableByID])
 
   const handleAutoAssign = useCallback(() => {
     // Local mutable copy so mid-loop assignments reflect immediately
     const localOccupancy = new Map(tableOccupancy)
-    const unassigned = [...unassignedGuests].sort((a, b) => getGuestPartySize(b) - getGuestPartySize(a))
+    // Only seatable guests are candidates: declined guests are never auto-seated (SEAT-6).
+    const unassigned = unassignedGuests.filter(isSeatable).sort((a, b) => getGuestPartySize(b) - getGuestPartySize(a))
     for (const guest of unassigned) {
       const partySize = getGuestPartySize(guest)
       let bestTable: { id: string; remaining: number } | null = null
@@ -254,12 +418,7 @@ export function SeatingPlanV2({ eventId }: Props) {
     const el = tableRefs.current.get(tableId)
     if (el) {
       if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
-      highlightedTableRef.current?.classList.remove(
-        'ring-2',
-        'ring-violet-400',
-        'ring-offset-2',
-        'ring-offset-canvas'
-      )
+      highlightedTableRef.current?.classList.remove('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-canvas')
       el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       el.classList.add('ring-2', 'ring-violet-400', 'ring-offset-2', 'ring-offset-canvas')
       highlightedTableRef.current = el
@@ -314,7 +473,12 @@ export function SeatingPlanV2({ eventId }: Props) {
 
   // ─── Render ─────────────────────────────────────────────────────────
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={seatingCollisionDetection}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
       <div className="space-y-4">
         {workspaceStaleError && (
           <StaleDataNotice
@@ -327,12 +491,17 @@ export function SeatingPlanV2({ eventId }: Props) {
         <SeatingToolbar
           pendingCount={seating.pendingChangeCount}
           canUndo={seating.canUndo}
+          canRedo={seating.canRedo}
           saving={saving}
           canAutoAssign={unassignedGuests.length > 0 && seating.tables.length > 0}
           onCreateTable={() => setTableModal({ open: true, table: null })}
           onSave={handleSave}
-          onDiscard={seating.reset}
+          onDiscard={() => {
+            seating.reset()
+            setOverCapacityTableIds(new Set())
+          }}
           onUndo={seating.undo}
+          onRedo={seating.redo}
           onAutoAssign={handleAutoAssign}
           onPrint={handlePrint}
           totalSeated={totalSeated}
@@ -369,6 +538,13 @@ export function SeatingPlanV2({ eventId }: Props) {
                   guests={unassignedGuests}
                   onMobileAssign={(guest) => setBottomSheet({ open: true, guest })}
                 />
+                {declinedUnassignedCount > 0 && (
+                  <p className="mt-2 px-1 text-xs text-ink-muted">
+                    {declinedUnassignedCount === 1
+                      ? '1 invitado declinó la invitación y no necesita mesa.'
+                      : `${declinedUnassignedCount} invitados declinaron la invitación y no necesitan mesa.`}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -381,7 +557,9 @@ export function SeatingPlanV2({ eventId }: Props) {
                 <p className="mt-1 text-xs text-ink-muted">Crea tu primera mesa para comenzar a organizar invitados</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              // Columns follow the space left by the "Sin mesa" panel, not the viewport, so cards
+              // never shrink to a few characters of the table name (GST-64).
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(15rem,1fr))]">
                 {seating.tables.map((table, i) => (
                   <div
                     key={table.id}
@@ -398,6 +576,9 @@ export function SeatingPlanV2({ eventId }: Props) {
                       onDelete={(id) => seating.deleteTable(id)}
                       onMobileAssign={(guest) => setBottomSheet({ open: true, guest })}
                       index={i}
+                      overCapacity={
+                        overCapacityTableIds.has(table.id) || (tableOccupancy.get(table.id) ?? 0) > table.capacity
+                      }
                     />
                   </div>
                 ))}
@@ -407,19 +588,27 @@ export function SeatingPlanV2({ eventId }: Props) {
         </div>
       </div>
 
-      <DragOverlay>
-        {activeDragGuest && (
-          <div className="pointer-events-none opacity-80">
-            <GuestChip guest={activeDragGuest} isDraggable={false} />
-          </div>
+      {/* The overlay is position:fixed; render it in <body> so a transformed ancestor (the page
+          transition wrapper) cannot become its containing block and shift the preview and the
+          drop target away from the cursor (GST-61). */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <DragOverlay>
+            {activeDragGuest && (
+              <div className="pointer-events-none rounded-lg bg-surface shadow-lg shadow-black/20">
+                <GuestChip guest={activeDragGuest} isDraggable={false} />
+              </div>
+            )}
+          </DragOverlay>,
+          document.body
         )}
-      </DragOverlay>
 
       <TableFormModal
         isOpen={tableModal.open}
         onClose={() => setTableModal({ open: false, table: null })}
         onSubmit={handleTableSubmit}
         table={tableModal.table}
+        minCapacity={tableModal.table ? (tableOccupancy.get(tableModal.table.id) ?? 0) : 0}
       />
 
       <AssignBottomSheet
@@ -429,7 +618,7 @@ export function SeatingPlanV2({ eventId }: Props) {
         currentTableId={bottomSheet.guest ? (seating.guestTableMap.get(bottomSheet.guest.id) ?? null) : null}
         tables={seating.tables}
         tableOccupancy={tableOccupancy}
-        onAssign={seating.assignGuest}
+        onAssign={assignWithinCapacity}
         onCreateTable={() => {
           setBottomSheet({ open: false, guest: null })
           setTableModal({ open: true, table: null })

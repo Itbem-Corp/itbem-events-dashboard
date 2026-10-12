@@ -62,8 +62,8 @@ describe('Team page copy', () => {
 describe('Home workspace copy', () => {
   it('uses the shared organizationWorkspaceCopy instead of a local duplicate', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/app/(app)/page.tsx'), 'utf8')
-    expect(source).toContain("import { organizationWorkspaceCopy } from '@/features/workspace/workspace-copy'")
+    expect(source).toMatch(/import \{[^}]*organizationWorkspaceCopy[^}]*\} from '@\/features\/workspace\/workspace-copy'/)
     expect(source).not.toMatch(/function organizationWorkspaceCopy\(/)
-    expect(source.match(/localizedRoleLabels \}\)/g)).toHaveLength(2)
+    expect(source.match(/localizedRoleLabels,?\s*\}\)/g)).toHaveLength(2)
   })
 })

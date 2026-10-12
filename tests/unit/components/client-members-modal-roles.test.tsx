@@ -95,11 +95,11 @@ describe('ClientMembersModal member actions follow the backend hierarchy', () =>
   it('offers edit/remove only on members ranked below the caller and never on self', () => {
     renderModal('eventiapp')
 
-    expect(within(rowFor('max@example.com')).getByRole('button', { name: 'Editar rol' })).toBeInTheDocument()
-    expect(within(rowFor('olga@example.com')).queryByRole('button', { name: 'Editar rol' })).not.toBeInTheDocument()
-    expect(within(rowFor('ada@example.com')).queryByRole('button', { name: 'Editar rol' })).not.toBeInTheDocument()
+    expect(within(rowFor('max@example.com')).getByRole('button', { name: /^Editar rol/ })).toBeInTheDocument()
+    expect(within(rowFor('olga@example.com')).queryByRole('button', { name: /^Editar rol/ })).not.toBeInTheDocument()
+    expect(within(rowFor('ada@example.com')).queryByRole('button', { name: /^Editar rol/ })).not.toBeInTheDocument()
     // Same assignable role as the caller would allow, but it is the caller.
-    expect(within(rowFor('me@example.com')).queryByRole('button', { name: 'Editar rol' })).not.toBeInTheDocument()
+    expect(within(rowFor('me@example.com')).queryByRole('button', { name: /^Editar rol/ })).not.toBeInTheDocument()
     expect(
       within(rowFor('me@example.com')).queryByRole('button', { name: /Administrar aplicaciones/ })
     ).not.toBeInTheDocument()

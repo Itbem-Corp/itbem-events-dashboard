@@ -25,6 +25,7 @@ import {
   clientRolesPath,
   clientsPagePath,
   clientsPath,
+  clientTypesForParentPath,
   clientTypesPath,
   colorPalettesPath,
   designTemplatePath,
@@ -286,6 +287,7 @@ describe('api-paths', () => {
     expect(clientMembersPath('client/1')).toBe('/clients/members?client_id=client%2F1')
     expect(clientTypesPath()).toBe('/catalogs/client-types')
     expect(clientTypesPath('AGENCY')).toBe('/catalogs/client-types?parent_type_code=AGENCY')
+    expect(clientTypesForParentPath('p-1')).toBe('/catalogs/client-types?parent_id=p-1')
     expect(guestStatusesPath()).toBe('/catalogs/guest-statuses')
     expect(clientRolesPath('client 1')).toBe('/catalogs/roles?client_id=client+1')
     expect(clientMemberPath('user/1', 'client/1')).toBe('/clients/members/user%2F1?client_id=client%2F1')

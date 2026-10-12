@@ -67,6 +67,10 @@ export interface UserClientsPageResponse {
   page: number;
   page_size: number;
   total_pages: number;
-  active: number;
-  inactive: number;
+  // Counters over one set (backend w2/be-admin-orgs-users): total = direct + inherited,
+  // active + inactive = total. Omitted when zero, so read a missing one as 0.
+  active?: number;
+  inactive?: number;
+  direct?: number;
+  inherited?: number;
 }

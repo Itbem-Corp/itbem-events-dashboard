@@ -419,8 +419,8 @@ function GuestInvitationRow({ guest, event, index, onGuestUpdated }: GuestInvita
           )}
         </div>
 
-        {/* Actions */}
-        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+        {/* Actions: the same set on every width, hosts send from the phone too (GST-77). */}
+        <div className="flex shrink-0 flex-wrap items-center gap-1 sm:gap-1.5">
           {!hasPersonalLink && (
             <button
               type="button"
@@ -483,7 +483,7 @@ function GuestInvitationRow({ guest, event, index, onGuestUpdated }: GuestInvita
               type="button"
               onClick={resend}
               disabled={resending}
-              className="hidden size-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-amber-500/10 hover:text-amber-400 disabled:opacity-40 sm:flex"
+              className="flex size-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-amber-500/10 hover:text-amber-400 disabled:opacity-40"
               aria-label="Registrar reenvío"
               title="Registrar reenvío de invitación"
             >

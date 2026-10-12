@@ -1,18 +1,20 @@
 'use client'
 
 import { motion, AnimatePresence } from 'motion/react'
-import { PlusIcon, ArrowUturnLeftIcon, SparklesIcon, PrinterIcon } from '@heroicons/react/20/solid'
+import { PlusIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, SparklesIcon, PrinterIcon } from '@heroicons/react/20/solid'
 import { Button } from '@/components/button'
 
 interface SeatingToolbarProps {
   pendingCount: number
   canUndo: boolean
+  canRedo?: boolean
   saving: boolean
   canAutoAssign: boolean
   onCreateTable: () => void
   onSave: () => void
   onDiscard: () => void
   onUndo: () => void
+  onRedo?: () => void
   onAutoAssign: () => void
   onPrint: () => void
   // Stats
@@ -25,12 +27,14 @@ interface SeatingToolbarProps {
 export function SeatingToolbar({
   pendingCount,
   canUndo,
+  canRedo = false,
   saving,
   canAutoAssign,
   onCreateTable,
   onSave,
   onDiscard,
   onUndo,
+  onRedo,
   onAutoAssign,
   onPrint,
   totalSeated,
@@ -49,9 +53,15 @@ export function SeatingToolbar({
               Nueva Mesa
             </Button>
             {canUndo && (
-              <Button plain onClick={onUndo}>
+              <Button plain onClick={onUndo} title="Deshacer (Ctrl+Z)" aria-label="Deshacer">
                 <ArrowUturnLeftIcon className="size-4" />
                 <span className="hidden sm:inline">Deshacer</span>
+              </Button>
+            )}
+            {canRedo && onRedo && (
+              <Button plain onClick={onRedo} title="Rehacer (Ctrl+Shift+Z)" aria-label="Rehacer">
+                <ArrowUturnRightIcon className="size-4" />
+                <span className="hidden sm:inline">Rehacer</span>
               </Button>
             )}
             {canAutoAssign && (
@@ -108,6 +118,8 @@ export function SeatingToolbar({
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
+            // Sits above the mobile tab bar through the shell's offset (GST-N3).
+            data-testid="seating-mobile-save-bar"
             className="fixed bottom-[var(--app-mobile-nav-offset,0px)] inset-x-0 z-30 border-t border-white/10 bg-surface/95 backdrop-blur-sm px-4 py-3 in-data-[mobile-nav=hidden]:pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex items-center justify-between md:hidden print:hidden"
           >
             <span className="text-xs text-ink-secondary">

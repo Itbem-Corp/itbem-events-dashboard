@@ -15,6 +15,7 @@ import { clientMembersPagePath, clientRolesPath, userClientsPagePath } from '@/l
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
+import { isInheritedMembership, membershipCounters } from '@/lib/user-client-memberships'
 import type { Client } from '@/models/Client'
 import type { UserClientsPageResponse } from '@/models/User'
 import {
@@ -93,8 +94,8 @@ export default function UserClientsPage() {
   const clients = useMemo(() => clientsPage?.data ?? [], [clientsPage?.data])
   const clientsErrorState = getDataErrorState(clientsError, clientsPage)
   const totalClients = clientsPage?.total ?? 0
-  const summary = { total: totalClients, active: clientsPage?.active ?? 0, inactive: clientsPage?.inactive ?? 0 }
-  const fullName = user ? `${user.first_name} ${user.last_name}`.trim() : 'Usuario'
+  const summary = membershipCounters(clientsPage)
+  const fullName = user ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email || 'Usuario' : 'Usuario'
   const initials = user ? `${user.first_name?.[0] ?? ''}${user.last_name?.[0] ?? ''}`.toUpperCase() || 'U' : 'U'
 
   if (clientsErrorState === 'fatal') {
@@ -145,10 +146,12 @@ export default function UserClientsPage() {
         )}
 
         {Boolean(clientsPage) && (
-          <section aria-label="Resumen de membresías" className="grid grid-cols-3 gap-3">
+          <section aria-label="Resumen de membresías" className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             {[
               { label: 'Asignadas', value: summary.total, color: 'text-ink' },
-              { label: 'Activas', value: summary.active, color: 'text-lime-400' },
+              { label: 'Directas', value: summary.direct, color: 'text-ink' },
+              { label: 'Heredadas', value: summary.inherited, color: 'text-ink-secondary' },
+              { label: 'Activas', value: summary.active, color: 'text-lime-700 dark:text-lime-400' },
               { label: 'Inactivas', value: summary.inactive, color: 'text-ink-muted' },
             ].map((item) => (
               <div key={item.label} className="rounded-2xl border border-white/7 bg-white/[0.025] p-4 sm:p-5">
@@ -217,6 +220,7 @@ export default function UserClientsPage() {
                     <Badge color={client.is_active !== false ? 'lime' : 'zinc'}>
                       {client.is_active !== false ? 'ACTIVA' : 'INACTIVA'}
                     </Badge>
+                    {isInheritedMembership(client) && <Badge color="indigo">Heredada</Badge>}
                   </div>
                   <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-ink-muted">
                     <span>{membershipType(client)}</span>
@@ -228,6 +232,11 @@ export default function UserClientsPage() {
                     )}
                   </div>
                 </div>
+                {isInheritedMembership(client) ? (
+                  <span className="hidden max-w-40 text-right text-xs text-ink-muted sm:block">
+                    Acceso desde la organización superior
+                  </span>
+                ) : (
                 <Button
                   outline
                   onClick={() => setSelectedClient(client)}
@@ -239,6 +248,7 @@ export default function UserClientsPage() {
                   <UserGroupIcon />
                   <span className="hidden sm:inline">Gestionar</span>
                 </Button>
+                )}
               </article>
             ))}
           </div>

@@ -17,7 +17,7 @@ import { UploadStatus } from '@/components/ui/upload-status'
 import { useUploadTask } from '@/hooks/use-upload-task'
 import { api } from '@/lib/api'
 import { readApiData } from '@/lib/api-envelope'
-import { clientPath, clientsPath, clientTypesPath } from '@/lib/api-paths'
+import { clientPath, clientsPath, clientTypesForParentPath, clientTypesPath } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
 import { prepareImageForUpload } from '@/lib/image-upload-optimization'
 import { SECTION_IMAGE_UPLOAD_HELP_TEXT } from '@/lib/resource-upload-policy'
@@ -33,6 +33,9 @@ const clientSchema = z.object({
 })
 
 type ClientFormValues = z.infer<typeof clientSchema>
+
+// The type is fixed after creation, so an edit never blocks on it.
+const editClientSchema = clientSchema.extend({ client_type_id: z.string() })
 
 interface ClientFormModalProps {
   isOpen: boolean
@@ -57,7 +60,11 @@ export function ClientFormModal({
     isLoading: clientTypesLoading,
     isValidating: clientTypesValidating,
     mutate: retryClientTypes,
-  } = useSWR<ClientType[]>(clientTypesPath(), fetcher)
+  } = useSWR<ClientType[]>(
+    // With a parent, the API returns exactly the types allowed under it ([] for a Customer).
+    parentId && !client?.id ? clientTypesForParentPath(parentId) : clientTypesPath(),
+    fetcher
+  )
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isLogoRemoved, setIsLogoRemoved] = useState(false)
@@ -67,7 +74,11 @@ export function ClientFormModal({
   const resetUpload = upload.reset
   const isSubmitting = upload.isUploading || isFinalizing
   const clientTypesBusy = clientTypesLoading || clientTypesValidating
-  const creatingWithoutClientTypes = !client && (clientTypesBusy || Boolean(clientTypesError))
+  const selectableClientTypes = clientTypes.filter((t) => !restrictTypeCode || t.code === restrictTypeCode)
+  const noChildTypesAllowed =
+    !client && Boolean(parentId) && !clientTypesBusy && !clientTypesError && selectableClientTypes.length === 0
+  const creatingWithoutClientTypes =
+    !client && (clientTypesBusy || Boolean(clientTypesError) || noChildTypesAllowed)
 
   const {
     register,
@@ -75,7 +86,7 @@ export function ClientFormModal({
     reset,
     formState: { errors },
   } = useForm<ClientFormValues>({
-    resolver: zodResolver(clientSchema),
+    resolver: zodResolver(client?.id ? editClientSchema : clientSchema),
     defaultValues: {
       name: '',
       client_type_id: '',
@@ -101,11 +112,17 @@ export function ClientFormModal({
     }
   }, [client, isOpen, reset, resetUpload])
 
+  const isEditing = Boolean(client?.id)
+  const currentTypeName =
+    client?.client_type?.name ??
+    clientTypes.find((type: ClientType) => type.id === client?.client_type_id)?.name ??
+    'Sin tipo asignado'
+
   const onSubmit: SubmitHandler<ClientFormValues> = async (data) => {
     const result = await upload.start(async (requestConfig) => {
       const formData = new FormData()
       formData.append('name', data.name)
-      formData.append('client_type_id', data.client_type_id)
+      if (!client?.id) formData.append('client_type_id', data.client_type_id)
       if (parentId) formData.append('parent_id', parentId)
 
       if (selectedFile instanceof File) {
@@ -123,7 +140,6 @@ export function ClientFormModal({
       const response = client?.id
         ? await api.put(clientPath(client.id), formData, requestConfig)
         : await api.post(clientsPath(), formData, requestConfig)
-      if (requestConfig.signal?.aborted) throw new DOMException('Upload canceled', 'AbortError')
       return readApiData<Client | null>(response.data)
     })
 
@@ -170,32 +186,51 @@ export function ClientFormModal({
             <Field aria-busy={clientTypesBusy}>
               <Label>Tipo de Organización</Label>
               <Description>Define la jerarquía y permisos de esta cuenta.</Description>
-              <Select
-                {...register('client_type_id')}
-                disabled={isSubmitting || clientTypesBusy || Boolean(clientTypesError)}
-              >
-                <option value="">
-                  {clientTypesBusy
-                    ? 'Cargando tipos de organización…'
-                    : clientTypesError
-                      ? 'No se pudieron cargar los tipos'
-                      : 'Selecciona una categoría...'}
-                </option>
-                {clientTypes
-                  .filter((t) => !restrictTypeCode || t.code === restrictTypeCode)
-                  .map((type: ClientType) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
-              </Select>
+              {isEditing ? (
+                // The API keeps the type fixed after creation (it ignores
+                // client_type_id on update), so editing shows it read-only.
+                <>
+                  <Input
+                    value={currentTypeName}
+                    disabled
+                    readOnly
+                    aria-describedby="client-type-locked"
+                  />
+                  <p id="client-type-locked" className="mt-2 text-xs text-ink-muted">
+                    El tipo no se puede cambiar después de crear la organización.
+                  </p>
+                </>
+              ) : (
+                <Select
+                  {...register('client_type_id')}
+                  disabled={isSubmitting || clientTypesBusy || Boolean(clientTypesError)}
+                >
+                  <option value="">
+                    {clientTypesBusy
+                      ? 'Cargando tipos de organización…'
+                      : clientTypesError
+                        ? 'No se pudieron cargar los tipos'
+                        : 'Selecciona una categoría...'}
+                  </option>
+                  {selectableClientTypes.map((type: ClientType) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                </Select>
+              )}
               {errors.client_type_id && <ErrorMessage>{errors.client_type_id.message}</ErrorMessage>}
+              {noChildTypesAllowed && (
+                <p role="status" className="mt-3 rounded-xl border border-border-subtle bg-surface-soft p-3 text-sm text-ink-secondary">
+                  No se pueden crear sub-organizaciones aquí.
+                </p>
+              )}
               {clientTypesError && (
                 <div
                   role="alert"
                   className="mt-3 flex flex-col gap-3 rounded-xl border border-red-400/15 bg-red-400/[0.055] p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <p className="text-sm text-red-200">
+                  <p className="text-sm text-red-700 dark:text-red-200">
                     No pudimos cargar los tipos de organización. Reintenta para continuar.
                   </p>
                   <Button

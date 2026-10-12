@@ -1,5 +1,5 @@
 import type { AccessProfile } from '@/lib/access-profile'
-import { organizationWorkspaceCopy } from '@/features/workspace/workspace-copy'
+import { operationalRootSupportCopy, organizationWorkspaceCopy } from '@/features/workspace/workspace-copy'
 import { describe, expect, it } from 'vitest'
 
 const profile = (overrides: Partial<AccessProfile>): AccessProfile =>
@@ -49,6 +49,31 @@ describe('organizationWorkspaceCopy', () => {
     // Unknown roles keep the neutral eyebrow.
     expect(organizationWorkspaceCopy(profile({ organizationRole: undefined }), 'Acme', options).eyebrow).toBe(
       'Vista de consulta'
+    )
+  })
+})
+
+// QA ROLES-119 / ROLES-85: ITBEM and Cafetton House have no events module.
+describe('product-aware workspace copy', () => {
+  it('never talks about events for products without the events module', () => {
+    for (const role of ['OWNER', 'EVENT_MANAGER', 'EDITOR', 'CHECKIN', 'ANALYST', 'MEMBER', 'VIEWER']) {
+      const copy = organizationWorkspaceCopy(profile({ organizationRole: role }), undefined, { productHasEvents: false })
+      expect(`${copy.eyebrow} ${copy.title} ${copy.description}`).not.toMatch(/evento|invitado/i)
+    }
+    const root = organizationWorkspaceCopy(profile({ platformLevel: 'root_2' }), 'Acme', { productHasEvents: false })
+    expect(root.description).not.toMatch(/invitado|check-in/i)
+  })
+
+  it('keeps the event language for EventiApp', () => {
+    expect(organizationWorkspaceCopy(profile({ organizationRole: 'MEMBER' })).title).toBe('Tus eventos asignados')
+  })
+
+  it('only promises user support where the product has a users module', () => {
+    expect(operationalRootSupportCopy({ productHasEvents: true, productHasUsers: false })).toMatch(
+      /^Este nivel puede asistir invitados y check-in\./
+    )
+    expect(operationalRootSupportCopy({ productHasEvents: false, productHasUsers: true })).toMatch(
+      /^Este nivel puede asistir usuarios\. Los usuarios root/
     )
   })
 })

@@ -3,7 +3,7 @@
 import { Alert, AlertActions, AlertDescription, AlertTitle } from '@/components/alert'
 import { Button } from '@/components/button'
 import { api } from '@/lib/api'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { apiErrorStatus, getApiErrorMessage, ORGANIZATION_HAS_CHILDREN_MESSAGE } from '@/lib/api-error'
 import { clientPath } from '@/lib/api-paths'
 import type { Client } from '@/models/Client'
 import { useState } from 'react'
@@ -40,7 +40,10 @@ export function DeleteClientModal({
       toast.success('Cliente eliminado')
     } catch (err: unknown) {
       await onDeleteRollback?.(client)
-      toast.error(getApiErrorMessage(err, 'Error al eliminar el cliente'))
+      // The only conflict when deleting an organization is that it still
+      // has sub-organizations (backend 409).
+      const fallback = apiErrorStatus(err) === 409 ? ORGANIZATION_HAS_CHILDREN_MESSAGE : 'No se pudo eliminar la organización.'
+      toast.error(getApiErrorMessage(err, fallback))
     } finally {
       setIsDeleting(false)
     }

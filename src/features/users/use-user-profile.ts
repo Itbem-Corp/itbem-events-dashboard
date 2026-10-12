@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 import useSWR from 'swr'
 
 type ComparableProfile = Pick<UserProfileResponse, 'id' | 'email' | 'first_name' | 'last_name'> &
-  Partial<Pick<UserProfileResponse, 'profile_image' | 'is_active' | 'is_root'>>
+  Partial<Pick<UserProfileResponse, 'profile_image' | 'is_active' | 'is_root' | 'root_level'>>
 
 function isSameProfile(current: ComparableProfile | null, next: UserProfileResponse): boolean {
   return Boolean(
@@ -25,7 +25,8 @@ function isSameProfile(current: ComparableProfile | null, next: UserProfileRespo
       current.last_name === next.last_name &&
       (current.profile_image ?? '') === (next.profile_image ?? '') &&
       current.is_active === next.is_active &&
-      current.is_root === next.is_root
+      current.is_root === next.is_root &&
+      current.root_level === next.root_level
   )
 }
 
@@ -39,6 +40,24 @@ function toProfileResponse(user: ComparableProfile | null): UserProfileResponse 
     profile_image: user.profile_image ?? '',
     is_active: user.is_active ?? true,
     is_root: user.is_root ?? false,
+    ...(user.root_level !== undefined ? { root_level: user.root_level } : {}),
+  }
+}
+
+/**
+ * The profile endpoints may answer without root fields (PUT returns the
+ * edited user). Keep the known root level so a Root 2 never turns into a
+ * Root 1 in the UI after saving a name.
+ */
+export function mergeProfileResponse(
+  previous: UserProfileResponse | undefined,
+  next: UserProfileResponse
+): UserProfileResponse {
+  if (!previous || previous.id !== next.id) return next
+  return {
+    ...next,
+    is_root: next.is_root ?? previous.is_root,
+    root_level: next.root_level ?? previous.root_level,
   }
 }
 
@@ -56,7 +75,10 @@ export function useUserProfile() {
     ...responsiveListSwrOptions,
     fallbackData: persistedProfile,
   })
-  const user = freshProfile ?? persistedProfile
+  const user = useMemo(
+    () => (freshProfile ? mergeProfileResponse(persistedProfile, freshProfile) : persistedProfile),
+    [freshProfile, persistedProfile]
+  )
   const profileErrorState = getDataErrorState(profileError, user)
 
   const [firstName, setFirstName] = useState('')
@@ -71,7 +93,9 @@ export function useUserProfile() {
   }, [isDirty, loading, user])
 
   useEffect(() => {
-    if (freshProfile && !isSameProfile(storedUser, freshProfile)) setProfile(freshProfile)
+    if (!freshProfile) return
+    const merged = mergeProfileResponse(toProfileResponse(storedUser), freshProfile)
+    if (!isSameProfile(storedUser, merged)) setProfile(merged)
   }, [freshProfile, setProfile, storedUser])
 
   const updateFirstName = useCallback((value: string) => {
@@ -113,7 +137,7 @@ export function useUserProfile() {
         first_name: normalizedFirstName,
         last_name: normalizedLastName,
       })
-      const nextProfile = readApiData<UserProfileResponse>(response.data)
+      const nextProfile = mergeProfileResponse(snapshot, readApiData<UserProfileResponse>(response.data))
       setProfile(nextProfile)
       await retryProfile(nextProfile, { revalidate: false })
       setIsDirty(false)
