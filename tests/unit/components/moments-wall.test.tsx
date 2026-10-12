@@ -1440,7 +1440,7 @@ describe('MomentsWall - wave 3 QA follow-ups', () => {
     const srcs = screen
       .getAllByRole('img')
       .map((img) => img.getAttribute('src') ?? '')
-      .filter((src) => src.includes('cdn.example.com/'))
+      .filter((src) => src.startsWith('https://cdn.example.com/'))
     expect(srcs.slice(0, 3)).toEqual([
       'https://cdn.example.com/c.jpg',
       'https://cdn.example.com/b.jpg',
