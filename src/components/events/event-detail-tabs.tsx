@@ -116,7 +116,7 @@ export function EventDetailTabs({
         role="tablist"
         aria-label="Secciones del evento"
         aria-orientation="horizontal"
-        className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] md:flex-wrap md:gap-y-2 md:overflow-x-visible [&::-webkit-scrollbar]:hidden"
       >
         {visibleGroups.map(({ group, tabs }, groupIndex) => (
           <div
@@ -171,7 +171,7 @@ export function EventDetailTabs({
                       </span>
                     )}
                     {id === 'invitaciones' && pendingInvitationCount > 0 && (
-                      <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-xs text-amber-300 ring-1 ring-amber-300/15">
+                      <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-xs text-amber-700 ring-1 ring-amber-300/15 dark:text-amber-300">
                         {pendingInvitationCount}
                       </span>
                     )}

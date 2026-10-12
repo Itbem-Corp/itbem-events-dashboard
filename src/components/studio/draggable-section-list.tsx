@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import Link from 'next/link'
+import { useCallback, useMemo, useState } from 'react'
 import { Reorder, AnimatePresence, motion } from 'motion/react'
 import {
   Bars3Icon,
@@ -8,6 +9,8 @@ import {
   Squares2X2Icon,
 } from '@heroicons/react/20/solid'
 import { DraggableSectionRow } from '@/components/studio/draggable-section-row'
+import { sectionHiddenByEventConfig } from '@/lib/section-config-visibility'
+import type { EventConfig } from '@/models/EventConfig'
 import type { EventSection } from '@/models/EventSection'
 
 // ─── Onboarding Hint ─────────────────────────────────────────────────────────
@@ -35,7 +38,7 @@ function OnboardingHint() {
           <p className="text-xs font-medium text-indigo-300">Arrastra las secciones</p>
           <p className="text-[10px] text-ink-muted">
             Usa el icono <Bars3Icon className="inline size-3 text-ink-secondary" /> para arrastrar y reordenar.
-            Los cambios se guardan automaticamente.
+            Los cambios se guardan automáticamente.
           </p>
         </div>
         <button
@@ -59,8 +62,18 @@ interface DraggableSectionListProps {
   isLoading: boolean
   onReorder: (newOrder: EventSection[]) => void
   onToggleVisible: (section: EventSection) => void
-  onSaveConfig: (section: EventSection, config: Record<string, unknown>) => Promise<void>
+  onSaveConfig: (
+    section: EventSection,
+    config: Record<string, unknown>,
+    expectedUpdatedAt?: string | null
+  ) => Promise<EventSection | null | void>
+  /** The user chose to drop a section's unsaved (failed or conflicting) edits. */
+  onDiscardFailedSave?: (sectionId: string) => void
   onResourcesChanged?: () => void
+  /** Event config, to flag sections hidden by an event-level switch (STU-54). */
+  eventConfig?: EventConfig
+  /** Where sections are added and deleted (Configuración > Secciones de la página). */
+  manageSectionsHref?: string
 }
 
 export function DraggableSectionList({
@@ -69,7 +82,10 @@ export function DraggableSectionList({
   onReorder,
   onToggleVisible,
   onSaveConfig,
+  onDiscardFailedSave,
   onResourcesChanged,
+  eventConfig,
+  manageSectionsHref,
 }: DraggableSectionListProps) {
   const [expandedPanel, setExpandedPanel] = useState<{ id: string; panel: 'config' | 'media' } | null>(null)
 
@@ -80,6 +96,15 @@ export function DraggableSectionList({
   const handleToggleMedia = useCallback((id: string) => {
     setExpandedPanel((prev) => (prev?.id === id && prev.panel === 'media' ? null : { id, panel: 'media' }))
   }, [])
+
+  const hiddenReasons = useMemo(() => {
+    const reasons = new Map<string, ReturnType<typeof sectionHiddenByEventConfig>>()
+    for (const section of sections) {
+      const reason = sectionHiddenByEventConfig(section.component_type || section.type, eventConfig)
+      if (reason) reasons.set(section.id, reason)
+    }
+    return reasons
+  }, [sections, eventConfig])
 
   const handleDragStart = useCallback(() => {
     setExpandedPanel(null)
@@ -101,10 +126,18 @@ export function DraggableSectionList({
     return (
       <div className="py-8 text-center">
         <Squares2X2Icon className="mx-auto size-8 text-ink-muted mb-3" />
-        <p className="text-xs text-ink-muted">Sin secciones aun.</p>
+        <p className="text-xs text-ink-muted">Aún no hay secciones.</p>
         <p className="text-[10px] text-ink-muted mt-1">
-          Agrega secciones desde la pestana del evento.
+          Se agregan en el evento, en Configuración &gt; Secciones de la página.
         </p>
+        {manageSectionsHref && (
+          <Link
+            href={manageSectionsHref}
+            className="mt-3 inline-flex min-h-9 items-center justify-center rounded-lg border border-white/10 bg-surface px-3 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink"
+          >
+            Agregar secciones
+          </Link>
+        )}
       </div>
     )
   }
@@ -114,7 +147,7 @@ export function DraggableSectionList({
       {/* Header */}
       <div className="flex items-center justify-between px-1 mb-2">
         <p className="text-[10px] text-ink-muted">
-          {sections.length} seccion{sections.length !== 1 ? 'es' : ''}
+          {sections.length} {sections.length === 1 ? 'sección' : 'secciones'}
         </p>
         <span className="text-[10px] text-ink-muted">
           Arrastra para reordenar
@@ -143,8 +176,10 @@ export function DraggableSectionList({
             onToggleMedia={handleToggleMedia}
             onToggleVisible={onToggleVisible}
             onSaveConfig={onSaveConfig}
+            onDiscardFailedSave={onDiscardFailedSave}
             onResourcesChanged={onResourcesChanged}
             onDragStart={handleDragStart}
+            hiddenReason={hiddenReasons.get(section.id) ?? null}
           />
         ))}
       </Reorder.Group>

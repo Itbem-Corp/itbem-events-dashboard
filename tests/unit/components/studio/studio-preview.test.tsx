@@ -1,7 +1,9 @@
-import { StudioPreview } from '@/components/studio/studio-preview'
-import { fireEvent, render, screen } from '@testing-library/react'
+// @vitest-environment-options {"settings":{"disableIframePageLoading":true}}
+
+import { STUDIO_PREVIEW_READY_MESSAGE, STUDIO_PREVIEW_STALL_MS, StudioPreview } from '@/components/studio/studio-preview'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('motion/react', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -42,7 +44,7 @@ describe('StudioPreview', () => {
       signedPreviewUrl
     )
 
-    expect(screen.getByTitle('Abrir en nueva pestana')).toHaveAttribute(
+    expect(screen.getByTitle('Abrir en una pestaña nueva')).toHaveAttribute(
       'href',
       signedPreviewUrl
     )
@@ -92,5 +94,60 @@ describe('StudioPreview', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('No se pudo generar el preview')
     fireEvent.click(screen.getByRole('button', { name: /reintentar/i }))
     expect(refreshPreview).toHaveBeenCalledTimes(1)
+  })
+
+  describe('blocked frame fallback (STU-5 / STU-69)', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    const fallbackText = /La vista previa se ve en blanco/
+
+    it('explains a blank frame and offers a new tab when the public site never reports ready', () => {
+      vi.useFakeTimers()
+      renderPreview({ eventName: 'Mi evento' })
+
+      expect(screen.queryByText(fallbackText)).not.toBeInTheDocument()
+      act(() => {
+        vi.advanceTimersByTime(STUDIO_PREVIEW_STALL_MS)
+      })
+
+      expect(screen.getByText(fallbackText)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Abrir vista previa' })).toHaveAttribute(
+        'href',
+        'https://www.eventiapp.com.mx/e/mi-evento?preview=1&t=99&preview_token=secret-token'
+      )
+    })
+
+    it('stays quiet when the public site posts the ready message', () => {
+      vi.useFakeTimers()
+      renderPreview({ eventName: 'Mi evento' })
+
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            origin: 'https://www.eventiapp.com.mx',
+            data: { type: STUDIO_PREVIEW_READY_MESSAGE },
+          })
+        )
+        vi.advanceTimersByTime(STUDIO_PREVIEW_STALL_MS)
+      })
+
+      expect(screen.queryByText(fallbackText)).not.toBeInTheDocument()
+    })
+
+    it('ignores ready messages from other origins', () => {
+      vi.useFakeTimers()
+      renderPreview({ eventName: 'Mi evento' })
+
+      act(() => {
+        window.dispatchEvent(
+          new MessageEvent('message', { origin: 'https://evil.example', data: STUDIO_PREVIEW_READY_MESSAGE })
+        )
+        vi.advanceTimersByTime(STUDIO_PREVIEW_STALL_MS)
+      })
+
+      expect(screen.getByText(fallbackText)).toBeInTheDocument()
+    })
   })
 })

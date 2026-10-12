@@ -159,6 +159,19 @@ describe('EventDesignPicker', () => {
     )
   })
 
+  it('says why there is no font choice when the font catalog is empty (STU-52)', () => {
+    mocks.useSWR.mockImplementation((key: string | null) => {
+      if (key === '/events/event-1/config') return { data: { ...config, design_template_id: 'tpl-2' }, error: null }
+      if (key === '/catalogs/design-workspace') return { data: { templates, palettes, font_sets: [] }, error: null }
+      return { data: undefined, error: null }
+    })
+
+    render(<EventDesignPicker eventId="event-1" />)
+
+    expect(screen.getByText('Tipografía')).toBeInTheDocument()
+    expect(screen.getByText(/Todavía no hay tipografías disponibles/)).toHaveTextContent('(Elegante)')
+  })
+
   it('does not show a false empty state while design catalogs are still loading', () => {
     mocks.useSWR.mockImplementation((key: string | null) => {
       if (key === '/events/event-1/config') return { data: config, error: null, isLoading: false }

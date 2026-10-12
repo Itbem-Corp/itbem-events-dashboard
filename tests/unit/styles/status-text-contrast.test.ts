@@ -122,6 +122,12 @@ describe('light theme status text contrast', () => {
     expect(textRules.length).toBe(Object.keys(HUE_500).length * 2)
     for (const rule of textRules) expect(rule).toContain("[class~='on-media']")
 
-    // The moments-wall photo badges adopt on-media in the eventiapp moments PR.
+    // The moments wall status/size badges sit on the photo when the card has media.
+    const wall = readFileSync(join(process.cwd(), 'src', 'components', 'events', 'moments-wall.tsx'), 'utf8')
+    expect(wall).toMatch(/const onMedia = hasMedia \? ' on-media' : ''/)
+    for (const badge of ['text-lime-300 ring-1', 'text-amber-300 ring-1', 'font-medium text-amber-400']) {
+      const line = wall.split('\n').find((candidate) => candidate.includes(badge))
+      expect(line, badge).toContain('${onMedia}')
+    }
   })
 })

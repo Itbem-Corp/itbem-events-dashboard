@@ -218,5 +218,32 @@ describe('QuickConfigPanel', () => {
 
     expect(uploadSwitch).toBeDisabled()
     expect(uploadSwitch).not.toBeChecked()
+    // STU-55: the disabled switch says why and how to open it.
+    expect(
+      screen.getByText(
+        'No disponible mientras «Momentos» esté publicado. Apaga «Momentos» para abrir las subidas de los invitados.'
+      )
+    ).toBeInTheDocument()
+  })
+
+  it('does not show the closed-uploads hint once the wall is unpublished', () => {
+    render(
+      <QuickConfigPanel config={{ ...config, allow_uploads: true, show_moment_wall: false }} eventId="event-1" onSaved={vi.fn()} />
+    )
+    expect(screen.queryByText(/No disponible mientras «Momentos»/)).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Subir fotos' })).toBeEnabled()
+  })
+
+  it('labels the switches with correct Spanish accents', () => {
+    render(<QuickConfigPanel config={config} eventId="event-1" onSaved={vi.fn()} />)
+    for (const name of ['Página pública', 'Ubicación', 'Recepción', 'Galería', 'Mensajes de invitados']) {
+      expect(screen.getByRole('switch', { name })).toBeInTheDocument()
+    }
+  })
+
+  it('says that hiding the RSVP block closes confirmations', () => {
+    render(<QuickConfigPanel config={config} eventId="event-1" onSaved={vi.fn()} />)
+    expect(screen.getByRole('switch', { name: 'Mostrar RSVP' })).toBeInTheDocument()
+    expect(screen.getByText('Si ocultas este bloque, los invitados no podrán confirmar.')).toBeInTheDocument()
   })
 })

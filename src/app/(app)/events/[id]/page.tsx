@@ -19,7 +19,8 @@ import {
   UsersIcon,
 } from '@heroicons/react/20/solid'
 import dynamic from 'next/dynamic'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/safe-image'
+import { MediaErrorBoundary } from '@/components/ui/media-error-boundary'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { mutate, preload, useSWRConfig } from 'swr'
@@ -34,9 +35,11 @@ import { eventAccessSummary, isEventClientViewer } from '@/components/events/eve
 import { EventAccessLost, EventCapabilityError } from '@/components/events/event-capability-error'
 import { EventDetailPanelSkeleton } from '@/components/events/event-detail-panel-skeleton'
 import { getAvailableEventDetailTabs } from '@/components/events/event-detail-tab-state'
+import { isOrganizationContextFailure } from '@/lib/api'
 import { EventDetailTabs, type EventDetailTabId } from '@/components/events/event-detail-tabs'
 import { EventErrorBoundary } from '@/components/events/event-error-boundary'
 import { EventGuestSummary } from '@/components/events/event-guest-summary'
+import { confirmLeaveSeating } from '@/components/events/seating/seating-unsaved-guard'
 import { eventDetailGuestPagePath, preloadEventDetailPanel } from '@/components/events/preload-event-detail-panel'
 import { loadEventFormModal, preloadEventFormIntent } from '@/components/events/preload-event-form'
 import { eventWorkspaceCache } from '@/components/events/preload-event-workspace'
@@ -54,7 +57,8 @@ import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFet
 import { checkinWorkspacePath, eventCapabilitiesPath, eventDetailPath, eventGuestSummaryPath } from '@/lib/api-paths'
 import { findEventInListCache } from '@/lib/event-cache'
 import { sanitizeEvent } from '@/lib/sanitize-event'
-import { getDataErrorState } from '@/lib/swr-data-state'
+import { getDataErrorState, isMissingResourceError } from '@/lib/swr-data-state'
+import { isUuid } from '@/lib/uuid'
 import { useAccessProfile } from '@/lib/use-access-profile'
 import { httpStatusOf } from '@/features/events/capability-error'
 import { useStore } from '@/store/useStore'
@@ -192,8 +196,11 @@ export default function EventDetailPage() {
 
   // Event modals
   const [isEditOpen, setIsEditOpen] = useState(false)
-  const eventRequestKey = useScopedFetcherKey(id ? eventDetailPath(id) : null)
-  const capabilitiesRequestKey = useScopedFetcherKey(id ? eventCapabilitiesPath(id) : null)
+  // A malformed id (/events/not-a-uuid) is answered 400 by the backend; it is
+  // "not found" for the user, so it never leaves the browser (EVT-36).
+  const validEventId = isUuid(id)
+  const eventRequestKey = useScopedFetcherKey(validEventId ? eventDetailPath(id) : null)
+  const capabilitiesRequestKey = useScopedFetcherKey(validEventId ? eventCapabilitiesPath(id) : null)
 
   // Data fetching — protected detail endpoint returns a single event object.
   const {
@@ -215,7 +222,9 @@ export default function EventDetailPage() {
     mutate: retryEventCapabilities,
   } = useSWR<EventCapabilities>(capabilitiesRequestKey, fetcher, {
     revalidateOnFocus: false,
-    shouldRetryOnError: false,
+    // A failure of the organization credential is not a role answer: retry it
+    // instead of keeping the page on "Resumen" with no permissions.
+    shouldRetryOnError: isOrganizationContextFailure,
   })
   const eventErrorState = getDataErrorState(error, rawEvent)
   const availableTabs = useMemo(() => getAvailableEventDetailTabs(eventCapabilities), [eventCapabilities])
@@ -246,7 +255,10 @@ export default function EventDetailPage() {
   }, [event, eventRequestKey])
 
   // Self-healing: detect and repair data issues transparently
-  useEventHealthCheck(rawEvent)
+  useEventHealthCheck(rawEvent, {
+    canRepair: eventCapabilities?.['event:manage'] === true,
+    eventKey: eventRequestKey,
+  })
 
   // The protected detail response embeds config, avoiding a tab-change waterfall.
   const eventConfig = event?.event_config ?? event?.config ?? undefined
@@ -275,9 +287,12 @@ export default function EventDetailPage() {
   }, [coverRefreshDelay, coverRefreshKey, mutateEvent])
 
   useEffect(() => {
-    if (!eventCapabilities && !eventCapabilitiesError) return
+    // Only a real capabilities answer may drop a deep-linked ?tab=. While the
+    // capabilities are loading or failed (and will be retried) the requested
+    // tab stays in the URL so it opens as soon as they arrive.
+    if (!eventCapabilities) return
     if (!availableTabs.includes(requestedTab)) replaceActiveTab('resumen')
-  }, [availableTabs, eventCapabilities, eventCapabilitiesError, replaceActiveTab, requestedTab])
+  }, [availableTabs, eventCapabilities, replaceActiveTab, requestedTab])
 
   const {
     summary: guestSummary,
@@ -285,6 +300,25 @@ export default function EventDetailPage() {
     summaryLoading: guestSummaryLoading,
     retrySummary: retryGuestSummary,
   } = useEventDetailGuestData(id, activeTab, liveRefreshEnabled, rawEvent ? (event?.guest_summary ?? null) : undefined)
+
+  // Unsaved seating changes live in the seating tab, which unmounts on tab change (SEAT-5).
+  const seatingUnsavedRef = useRef(false)
+  const handleSeatingUnsavedChange = useCallback((hasUnsavedChanges: boolean) => {
+    seatingUnsavedRef.current = hasUnsavedChanges
+  }, [])
+  const handleTabChange = useCallback(
+    (tab: EventDetailTabId) => {
+      if (
+        activeTab === 'asientos' &&
+        tab !== 'asientos' &&
+        !confirmLeaveSeating(seatingUnsavedRef.current, (message) => window.confirm(message))
+      ) {
+        return
+      }
+      setActiveTab(tab)
+    },
+    [activeTab, setActiveTab]
+  )
 
   const handleTabIntent = useCallback(
     (tab: EventDetailTabId) => {
@@ -304,6 +338,26 @@ export default function EventDetailPage() {
   }
 
   if (!event) {
+    if (!validEventId || isMissingResourceError(error)) {
+      return (
+        <PageDataError
+          eyebrow="Evento no disponible"
+          title="No encontramos este evento"
+          description={
+            validEventId
+              ? 'Puede que se haya eliminado o que no tengas acceso. Vuelve a la lista de eventos o reintenta si acabas de recibir acceso.'
+              : 'El enlace no corresponde a ningún evento. Revisa la dirección o vuelve a la lista de eventos.'
+          }
+          onRetry={validEventId ? () => void mutateEvent() : undefined}
+          retrying={isValidating}
+          action={
+            <Button href="/events" outline>
+              Ver eventos
+            </Button>
+          }
+        />
+      )
+    }
     return (
       <PageDataError
         title="No pudimos cargar este evento"
@@ -338,7 +392,11 @@ export default function EventDetailPage() {
         {/* Banner header with cover image */}
         <div className="app-shell-panel relative overflow-hidden rounded-2xl border sm:rounded-3xl">
           {/* Cover image background */}
-          {coverImageUrl && <Image src={coverImageUrl} alt="" fill priority sizes="100vw" className="object-cover" />}
+          {coverImageUrl && (
+            <MediaErrorBoundary resetKey={coverImageUrl} fallback={null}>
+              <SafeImage src={coverImageUrl} alt="" fill priority sizes="100vw" className="object-cover" fallback={null} />
+            </MediaErrorBoundary>
+          )}
 
           {/* Gradient overlay */}
           <div
@@ -368,7 +426,9 @@ export default function EventDetailPage() {
               Centro de operación
             </p>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <Heading className="text-2xl/8 tracking-tight sm:text-3xl/9 lg:text-4xl/10">{event.name}</Heading>
+              <Heading className="max-w-full min-w-0 text-2xl/8 tracking-tight [overflow-wrap:anywhere] sm:text-3xl/9 lg:text-4xl/10">
+                {event.name}
+              </Heading>
               <Badge color={event.is_active ? 'lime' : 'zinc'}>{event.is_active ? 'Activo' : 'Inactivo'}</Badge>
               {(() => {
                 const typeLabel = eventTypeLabel(event.event_type?.name)
@@ -413,7 +473,7 @@ export default function EventDetailPage() {
               aria-live="polite"
               className={`mt-3 inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${
                 eventCapabilitiesError
-                  ? 'border-amber-400/25 bg-amber-400/10 text-amber-100'
+                  ? 'border-amber-500/30 bg-amber-400/10 text-amber-800 dark:text-amber-100'
                   : eventCapabilitiesLoading
                     ? 'border-white/10 bg-white/5 text-ink-secondary'
                     : 'border-indigo-500/20 bg-indigo-500/8 text-indigo-700 dark:text-indigo-200'
@@ -538,7 +598,7 @@ export default function EventDetailPage() {
             availableTabs={availableTabs}
             guestCount={guestSummary?.total ?? 0}
             pendingInvitationCount={guestSummary?.pending ?? 0}
-            onTabChange={setActiveTab}
+            onTabChange={handleTabChange}
             onTabIntent={handleTabIntent}
           />
         </div>
@@ -558,8 +618,8 @@ export default function EventDetailPage() {
               <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                 {[
                   {
-                    label: 'Máx. invitados',
-                    value: event.max_guests != null ? String(event.max_guests) : 'Sin límite',
+                    label: 'Invitados',
+                    value: guestSummaryLoading ? '—' : guestSummary ? String(guestSummary.total) : 'No disponible',
                   },
                   {
                     label: 'Confirmados',
@@ -583,7 +643,7 @@ export default function EventDetailPage() {
                     className="min-w-0 rounded-2xl border border-white/7 bg-white/[0.025] p-4 transition-colors hover:border-white/12 hover:bg-white/[0.04] sm:p-5"
                   >
                     <p className="text-[11px] leading-4 font-medium text-ink-muted sm:text-xs">{stat.label}</p>
-                    <p className="mt-3 text-lg font-semibold tracking-tight break-words text-white tabular-nums sm:mt-5 sm:text-2xl">
+                    <p className="mt-3 text-lg font-semibold tracking-tight break-words text-ink tabular-nums sm:mt-5 sm:text-2xl">
                       {stat.value}
                     </p>
                   </div>
@@ -635,7 +695,7 @@ export default function EventDetailPage() {
                 <div className="overflow-hidden rounded-2xl border border-white/7 bg-white/[0.02] sm:flex sm:items-center">
                   <div className="relative aspect-[16/9] w-full shrink-0 overflow-hidden bg-canvas sm:w-56">
                     {coverImageUrl ? (
-                      <Image
+                      <SafeImage
                         src={coverImageUrl}
                         alt="Portada actual del evento"
                         fill
@@ -692,7 +752,11 @@ export default function EventDetailPage() {
 
           {/* ── ASIENTOS (MESAS) ────────────────────────────────────────────── */}
           {activeTab === 'asientos' && eventCapabilities?.['guest:manage'] && (
-            <SeatingPlanV2 eventId={event.id} eventIdentifier={event.identifier} />
+            <SeatingPlanV2
+              eventId={event.id}
+              eventIdentifier={event.identifier}
+              onUnsavedChangesChange={handleSeatingUnsavedChange}
+            />
           )}
 
           {/* ── RSVP ────────────────────────────────────────────────────────── */}
@@ -702,6 +766,7 @@ export default function EventDetailPage() {
 
           {/* ── MOMENTOS ────────────────────────────────────────────────────── */}
           {activeTab === 'momentos' && (
+            <MediaErrorBoundary resetKey={event.id}>
             <MomentsWall
               eventId={event.id}
               canManage={Boolean(eventCapabilities?.['event:manage'])}
@@ -714,6 +779,7 @@ export default function EventDetailPage() {
               liveRefreshEnabled={liveRefreshEnabled}
               onPublicContentChanged={handlePublicPageContentChanged}
             />
+            </MediaErrorBoundary>
           )}
 
           {/* ── ANALÍTICAS ──────────────────────────────────────────────────── */}

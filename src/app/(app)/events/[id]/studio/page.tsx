@@ -5,7 +5,7 @@ import { getApiErrorMessage } from '@/lib/api-error'
 import type { EventConfig } from '@/models/EventConfig'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type MouseEvent } from 'react'
 import { toast } from 'sonner'
 import { mutate as globalMutate } from 'swr'
 
@@ -32,13 +32,25 @@ import { capabilityErrorKind } from '@/features/events/capability-error'
 import { EventCapabilityError, EventNotFoundCard } from '@/components/events/event-capability-error'
 import { useStudioWorkspace } from '@/features/events/studio/use-studio-workspace'
 import { readApiData } from '@/lib/api-envelope'
-import { eventConfigPath } from '@/lib/api-paths'
+import { eventConfigPath, eventPath } from '@/lib/api-paths'
+import { isEventCacheKey, isEventOverviewCacheKey, patchEventCacheValue } from '@/lib/event-cache'
+import {
+  PUBLISH_ACTIVATES_EVENT_CONFIRMATION,
+  publishResultMessage,
+  studioPublishState,
+} from '@/features/events/studio/publish-state'
+import {
+  STUDIO_UNSAVED_CHANGES_MESSAGE,
+  useUnsavedChangesWarning,
+} from '@/components/studio/use-unsaved-changes-warning'
+import type { Event } from '@/models/Event'
 import {
   hasEventConfigCacheIdentity,
   isEventConfigBackedEventCacheKey,
   patchEventConfigIntoEventCacheValue,
 } from '@/lib/event-config-cache'
 import { getEventPreviewUrl, getEventPublicUrl } from '@/lib/public-urls'
+import { eventSectionsSettingsHref } from '@/lib/event-settings-anchor'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 
@@ -181,6 +193,8 @@ export default function StudioPage() {
     handleReorder,
     handleToggleVisible,
     handleSaveConfig,
+    discardFailedSave,
+    hasUnsavedChanges,
     refreshPreview: refreshPreviewDebounced,
     refreshPreviewNow,
   } = useStudioSections(workspace ? id : undefined, refreshPreview, workspace?.sections)
@@ -197,7 +211,13 @@ export default function StudioPage() {
 
   // ── Publish ────────────────────────────────────────────────────────────────
 
-  const isPublic = config?.is_public ?? false
+  useUnsavedChangesWarning(hasUnsavedChanges)
+
+  // "Publicado" means guests can open it: is_public alone is not enough, an
+  // inactive event (every duplicate starts inactive) still answers 403.
+  const publishState = studioPublishState(event, config)
+  const isPublic = publishState.isPublic
+  const isPublished = publishState.published
   const workspaceLoading = workspaceBootstrapLoading || sectionsLoading
   const workspaceBootstrapErrorState = getDataErrorState(workspaceError, workspace)
   const workspaceFatalError = workspaceBootstrapErrorState === 'fatal' || sectionsErrorState === 'fatal'
@@ -218,52 +238,104 @@ export default function StudioPage() {
 
   const handlePublish = async () => {
     if (!event || !config || workspaceFatalError) return
+    const needsActivation = !event.is_active
+    if (needsActivation && !window.confirm(PUBLISH_ACTIVATES_EVENT_CONFIRMATION)) return
     const snapshot = workspace
-    const optimisticConfig: EventConfig = { ...config, is_public: true }
     setPublishing(true)
-    await mutateWorkspace(
-      (current) => (current ? { ...current, config: optimisticConfig } : current),
-      { revalidate: false }
-    )
-    await globalMutate(eventConfigPath(event.id), optimisticConfig, { revalidate: false })
-    await globalMutate(
-      (key) => isEventConfigBackedEventCacheKey(key, event.id),
-      (current: unknown) => patchEventConfigIntoEventCacheValue(current, event.id, optimisticConfig),
-      { revalidate: false }
-    )
-    refreshPreviewNow()
+    let finalConfig: EventConfig = config
+    let finalActive = event.is_active
+
     try {
-      const res = await api.put<EventConfig>(eventConfigPath(event.id), { is_public: true })
-      const updated = readApiData<EventConfig | null>(res.data)
-      if (hasEventConfigCacheIdentity(updated)) {
-        await globalMutate(eventConfigPath(event.id), updated, { revalidate: false })
+      if (!config.is_public) {
+        const optimisticConfig: EventConfig = { ...config, is_public: true }
         await mutateWorkspace(
-          (current) => (current ? { ...current, config: { ...current.config, ...updated } } : current),
+          (current) => (current ? { ...current, config: optimisticConfig } : current),
           { revalidate: false }
         )
+        await globalMutate(eventConfigPath(event.id), optimisticConfig, { revalidate: false })
         await globalMutate(
           (key) => isEventConfigBackedEventCacheKey(key, event.id),
-          (current: unknown) => patchEventConfigIntoEventCacheValue(current, event.id, updated),
+          (current: unknown) => patchEventConfigIntoEventCacheValue(current, event.id, optimisticConfig),
           { revalidate: false }
         )
-      } else {
-        await mutateWorkspace()
-        await globalMutate((key) => isEventConfigBackedEventCacheKey(key, event.id))
+        refreshPreviewNow()
+        try {
+          const res = await api.put<EventConfig>(eventConfigPath(event.id), { is_public: true })
+          const updated = readApiData<EventConfig | null>(res.data)
+          if (hasEventConfigCacheIdentity(updated)) {
+            finalConfig = { ...optimisticConfig, ...updated }
+            await globalMutate(eventConfigPath(event.id), updated, { revalidate: false })
+            await mutateWorkspace(
+              (current) => (current ? { ...current, config: { ...current.config, ...updated } } : current),
+              { revalidate: false }
+            )
+            await globalMutate(
+              (key) => isEventConfigBackedEventCacheKey(key, event.id),
+              (current: unknown) => patchEventConfigIntoEventCacheValue(current, event.id, updated),
+              { revalidate: false }
+            )
+          } else {
+            finalConfig = optimisticConfig
+            await mutateWorkspace()
+            await globalMutate((key) => isEventConfigBackedEventCacheKey(key, event.id))
+          }
+        } catch (err) {
+          await mutateWorkspace(snapshot, { revalidate: false })
+          await globalMutate(eventConfigPath(event.id), config, { revalidate: false })
+          await globalMutate(
+            (key) => isEventConfigBackedEventCacheKey(key, event.id),
+            (current: unknown) => patchEventConfigIntoEventCacheValue(current, event.id, config),
+            { revalidate: false }
+          )
+          refreshPreviewNow()
+          toast.error(getApiErrorMessage(err, 'Error al publicar el evento'))
+          return
+        }
       }
-      setPublished(true)
-      toast.success('¡Evento publicado! Ya esta visible al publico.')
-    } catch (err) {
-      await mutateWorkspace(snapshot, { revalidate: false })
-      await globalMutate(eventConfigPath(event.id), config, { revalidate: false })
-      await globalMutate(
-        (key) => isEventConfigBackedEventCacheKey(key, event.id),
-        (current: unknown) => patchEventConfigIntoEventCacheValue(current, event.id, config),
-        { revalidate: false }
-      )
-      refreshPreviewNow()
-      toast.error(getApiErrorMessage(err, 'Error al publicar el evento'))
+
+      if (needsActivation) {
+        try {
+          const res = await api.put<Event>(eventPath(event.id), { is_active: true })
+          const updated = readApiData<Event | null>(res.data)
+          finalActive = true
+          await mutateWorkspace(
+            (current) =>
+              current ? { ...current, event: { ...current.event, ...(updated ?? {}), is_active: true } } : current,
+            { revalidate: false }
+          )
+          await globalMutate(
+            (key) => isEventCacheKey(key, event.id),
+            (current: unknown) =>
+              patchEventCacheValue(current, event.id, updated ? { ...updated, is_active: true } : { is_active: true }),
+            { revalidate: false }
+          )
+          void globalMutate(isEventOverviewCacheKey)
+        } catch (err) {
+          toast.error(
+            getApiErrorMessage(
+              err,
+              'El evento quedó público, pero no se pudo activar: los invitados aún no pueden abrirlo. Inténtalo de nuevo.'
+            )
+          )
+          return
+        }
+      }
+
+      const result = publishResultMessage(studioPublishState({ is_active: finalActive }, finalConfig))
+      if (result.tone === 'success') {
+        setPublished(true)
+        toast.success(result.message)
+      } else {
+        toast.warning(result.message)
+      }
     } finally {
       setPublishing(false)
+    }
+  }
+
+  const handleBackClick = (clickEvent: MouseEvent) => {
+    if (hasUnsavedChanges && !window.confirm(STUDIO_UNSAVED_CHANGES_MESSAGE)) {
+      clickEvent.preventDefault()
     }
   }
 
@@ -309,7 +381,7 @@ export default function StudioPage() {
           <span className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-amber-400/15 bg-amber-400/[0.06] text-amber-300">
             <LockClosedIcon className="size-5" />
           </span>
-          <h1 className="mt-6 text-xl font-semibold tracking-tight text-white">Studio no disponible</h1>
+          <h1 className="mt-6 text-xl font-semibold tracking-tight text-ink">Studio no disponible</h1>
           <p className="mt-2 text-sm leading-6 text-ink-muted">
             Tu rol puede consultar este evento, pero no modificar su contenido, diseño o publicación.
           </p>
@@ -337,6 +409,7 @@ export default function StudioPage() {
         <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
           <Link
             href={`/events/${id}`}
+            onClick={handleBackClick}
             className="flex shrink-0 items-center gap-1 text-xs text-ink-muted transition-colors hover:text-ink-secondary"
           >
             <ChevronLeftIcon className="size-3.5" />
@@ -377,7 +450,10 @@ export default function StudioPage() {
                   onReorder={handleReorder}
                   onToggleVisible={handleToggleVisible}
                   onSaveConfig={handleSaveConfig}
+                  onDiscardFailedSave={discardFailedSave}
                   onResourcesChanged={refreshPreviewDebounced}
+                  eventConfig={config}
+                  manageSectionsHref={eventSectionsSettingsHref(id)}
                 />
               </div>
             )}
@@ -407,7 +483,7 @@ export default function StudioPage() {
                 className="space-y-4"
               >
                 <p className="px-1 text-[10px] text-ink-muted">
-                  Guarda el diseno para refrescar la vista previa publica.
+                  Guarda el diseño para refrescar la vista previa pública.
                 </p>
                 {event?.id && (
                   <EventDesignPicker
@@ -422,7 +498,7 @@ export default function StudioPage() {
                   className="flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-surface px-3 py-2.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-raised hover:text-ink"
                 >
                   <PaintBrushIcon className="size-4" />
-                  Abrir editor de diseno completo
+                  Abrir editor de diseño completo
                 </Link>
               </div>
             )}
@@ -475,12 +551,12 @@ export default function StudioPage() {
           <button
             type="button"
             onClick={handlePublish}
-            disabled={workspaceLoading || workspaceFatalError || publishing || isPublic}
+            disabled={workspaceLoading || workspaceFatalError || publishing || isPublished}
             className={[
               'flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-all',
               workspaceLoading || workspaceFatalError
                 ? 'cursor-wait border border-white/10 bg-surface text-ink-muted'
-                : isPublic
+                : isPublished
                 ? 'cursor-default border border-lime-500/30 bg-lime-500/20 text-lime-400'
                 : 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 active:bg-indigo-700',
             ].join(' ')}
@@ -493,7 +569,7 @@ export default function StudioPage() {
               <>
                 <ArrowPathIcon className="size-4 animate-spin" /> Publicando...
               </>
-            ) : isPublic ? (
+            ) : isPublished ? (
               <>
                 <CheckIcon className="size-4" /> Publicado
               </>

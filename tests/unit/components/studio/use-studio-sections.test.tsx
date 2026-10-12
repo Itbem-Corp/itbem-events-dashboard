@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useStudioSections } from '@/components/studio/use-studio-sections'
 import { api } from '@/lib/api'
+import { SectionConflictError } from '@/lib/section-conflict'
+import { toast } from 'sonner'
 import type { EventSection } from '@/models/EventSection'
 
 vi.mock('swr', () => ({
@@ -54,6 +56,108 @@ describe('useStudioSections', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('revalidates the sections when the tab gets focus again, at most every 2 s (STU-N3)', () => {
+    renderHook(() => useStudioSections('event-1'))
+    expect(mutate).not.toHaveBeenCalled()
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    expect(mutate).toHaveBeenCalledTimes(1)
+    expect(mutate).toHaveBeenCalledWith()
+  })
+
+  it('returns the saved section so the editor can track its version (STU-N3)', async () => {
+    const saved = { ...sectionB, updated_at: '2026-07-05T00:09:00.000Z' }
+    vi.mocked(api.put).mockResolvedValueOnce({ data: { status: 200, message: 'Section updated', data: saved } })
+    const { result } = renderHook(() => useStudioSections('event-1'))
+
+    let returned: unknown
+    await act(async () => {
+      returned = await result.current.handleSaveConfig(sectionB, { title: 'x' })
+    })
+
+    expect(returned).toMatchObject({ id: 'section-b', updated_at: '2026-07-05T00:09:00.000Z' })
+  })
+
+  it('sends expected_updated_at exactly as the API returned it (STU-N3)', async () => {
+    const { result } = renderHook(() => useStudioSections('event-1'))
+
+    await act(async () => {
+      await result.current.handleSaveConfig(sectionB, { title: 'x' }, '2026-07-05T00:00:00.123456-06:00')
+    })
+
+    expect(vi.mocked(api.put)).toHaveBeenCalledWith('/sections/section-b', {
+      config: { title: 'x' },
+      expected_updated_at: '2026-07-05T00:00:00.123456-06:00',
+    })
+  })
+
+  it('turns a 409 section_conflict into SectionConflictError with the current section, without an error toast (STU-N3)', async () => {
+    const current = { ...sectionB, updated_at: '2026-07-05T00:07:00.000Z', config: { title: 'otra pestaña' } }
+    vi.mocked(api.put).mockRejectedValueOnce({
+      response: {
+        status: 409,
+        data: {
+          status: 409,
+          message: 'Esta sección cambió en otra pestaña o por otra persona.',
+          error: 'section_conflict',
+          code: 'section_conflict',
+          data: current,
+        },
+      },
+    })
+    const { result } = renderHook(() => useStudioSections('event-1'))
+
+    let caught: unknown
+    await act(async () => {
+      caught = await result.current
+        .handleSaveConfig(sectionB, { title: 'x' }, '2026-07-05T00:00:00.000Z')
+        .catch((error: unknown) => error)
+    })
+
+    expect(caught).toBeInstanceOf(SectionConflictError)
+    expect((caught as SectionConflictError).current).toMatchObject({ updated_at: '2026-07-05T00:07:00.000Z' })
+    expect(mutate).toHaveBeenCalledWith(expect.any(Function), { revalidate: false })
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('logs a 400 invalid_expected_updated_at as a client bug (STU-N3)', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(api.put).mockRejectedValueOnce({
+      response: { status: 400, data: { error: 'invalid_expected_updated_at' } },
+    })
+    const { result } = renderHook(() => useStudioSections('event-1'))
+
+    await act(async () => {
+      await result.current.handleSaveConfig(sectionB, { title: 'x' }, 'not-a-date').catch(() => undefined)
+    })
+
+    expect(consoleError).toHaveBeenCalledWith(
+      '[studio] PUT /sections rejected expected_updated_at',
+      expect.objectContaining({ sectionId: 'section-b', expectedUpdatedAt: 'not-a-date' })
+    )
+    expect(toast.error).toHaveBeenCalled()
+    consoleError.mockRestore()
+  })
+
+  it('refetches the sections after a reorder so updated_at is current (STU-N3)', async () => {
+    vi.useFakeTimers()
+    const { result } = renderHook(() => useStudioSections('event-1'))
+
+    await act(async () => {
+      await result.current.handleReorder([sectionB, sectionA])
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400)
+    })
+
+    expect(vi.mocked(api.patch)).toHaveBeenCalled()
+    expect(mutate).toHaveBeenCalledWith()
   })
 
   it('exposes sections sorted by render order with a stable id tie-break', () => {
@@ -226,5 +330,52 @@ describe('useStudioSections', () => {
     })
 
     expect(refreshPreview).not.toHaveBeenCalled()
+  })
+
+  it('tracks in-flight and failed config saves as unsaved changes (STU-20)', async () => {
+    let rejectPut: (reason: unknown) => void = () => undefined
+    vi.mocked(api.put).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectPut = reject
+        })
+    )
+    const { result } = renderHook(() => useStudioSections('event-1'))
+    expect(result.current.hasUnsavedChanges).toBe(false)
+
+    let savePromise: Promise<unknown> = Promise.resolve()
+    act(() => {
+      savePromise = result.current.handleSaveConfig(sectionB, { title: 'x' }).catch(() => undefined)
+    })
+    expect(result.current.hasUnsavedChanges).toBe(true)
+
+    await act(async () => {
+      rejectPut(new Error('offline'))
+      await savePromise
+    })
+    // Still unsaved: the last save of this section failed.
+    expect(result.current.hasUnsavedChanges).toBe(true)
+
+    vi.mocked(api.put).mockResolvedValueOnce({ data: {} })
+    await act(async () => {
+      await result.current.handleSaveConfig(sectionB, { title: 'x' })
+    })
+    expect(result.current.hasUnsavedChanges).toBe(false)
+  })
+  it('stops reporting unsaved changes once the user discards a failed save (review F11)', async () => {
+    vi.mocked(api.put).mockRejectedValueOnce(new Error('offline'))
+    const { result } = renderHook(() => useStudioSections('event-1'))
+
+    await act(async () => {
+      await result.current.handleSaveConfig(sectionB, { title: 'x' }).catch(() => undefined)
+    })
+    expect(result.current.hasUnsavedChanges).toBe(true)
+
+    // Discarding another section leaves this failure in place.
+    act(() => result.current.discardFailedSave('section-a'))
+    expect(result.current.hasUnsavedChanges).toBe(true)
+
+    act(() => result.current.discardFailedSave('section-b'))
+    expect(result.current.hasUnsavedChanges).toBe(false)
   })
 })

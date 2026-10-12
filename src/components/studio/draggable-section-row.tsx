@@ -9,10 +9,12 @@ import {
   ChevronDownIcon,
   ArrowPathIcon,
   PhotoIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/20/solid'
 import { EventSectionResources, sectionImageSlotsForType } from '@/components/events/event-section-resources'
 import { getTypeMeta } from '@/components/studio/studio-constants'
 import SectionConfigEditor from '@/components/studio/section-config-editor'
+import type { SectionConfigHiddenReason } from '@/lib/section-config-visibility'
 import type { EventSection } from '@/models/EventSection'
 
 interface DraggableSectionRowProps {
@@ -22,9 +24,16 @@ interface DraggableSectionRowProps {
   onToggleExpand: (id: string) => void
   onToggleMedia: (id: string) => void
   onToggleVisible: (section: EventSection) => void
-  onSaveConfig: (section: EventSection, config: Record<string, unknown>) => Promise<void>
+  onSaveConfig: (
+    section: EventSection,
+    config: Record<string, unknown>,
+    expectedUpdatedAt?: string | null
+  ) => Promise<EventSection | null | void>
+  onDiscardFailedSave?: (sectionId: string) => void
   onResourcesChanged?: () => void
   onDragStart?: () => void
+  /** Set when an event-level switch hides this section on the public page (STU-54). */
+  hiddenReason?: SectionConfigHiddenReason | null
 }
 
 export const DraggableSectionRow = memo(function DraggableSectionRow({
@@ -35,8 +44,10 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
   onToggleMedia,
   onToggleVisible,
   onSaveConfig,
+  onDiscardFailedSave,
   onResourcesChanged,
   onDragStart,
+  hiddenReason,
 }: DraggableSectionRowProps) {
   const controls = useDragControls()
   const [togglingVisible, setTogglingVisible] = useState(false)
@@ -44,6 +55,8 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
   const meta = getTypeMeta(typeName)
   const Icon = meta.icon
   const hasMediaSlots = sectionImageSlotsForType(typeName).length > 0
+  const hiddenByConfig = section.is_visible && Boolean(hiddenReason)
+  const hintId = hiddenByConfig ? `section-hidden-reason-${section.id}` : undefined
 
   const handleToggleVisible = async () => {
     setTogglingVisible(true)
@@ -69,7 +82,9 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
       <div
         className={[
           'flex items-center gap-2 rounded-xl border px-2.5 py-2.5 transition-colors',
-          section.is_visible
+          hiddenByConfig
+            ? 'border-dashed border-amber-400/30 bg-surface/40 hover:bg-surface/60'
+            : section.is_visible
             ? 'border-white/10 bg-surface/60 hover:bg-surface/80'
             : 'border-dashed border-white/5 bg-canvas/40 opacity-50',
           isExpanded ? 'rounded-b-none border-indigo-500/30 bg-indigo-500/5' : '',
@@ -80,6 +95,7 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
           onPointerDown={(e) => controls.start(e)}
           className="shrink-0 cursor-grab active:cursor-grabbing touch-none p-1 rounded text-ink-muted hover:text-ink-secondary transition-colors"
           title="Arrastra para reordenar"
+          aria-label="Arrastra para reordenar"
         >
           <Bars3Icon className="size-4" />
         </button>
@@ -91,8 +107,19 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
 
         {/* Name + type label */}
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-ink truncate">{section.name}</p>
+          <p className="text-xs font-medium text-ink truncate" title={section.name}>
+            {section.name}
+          </p>
           <p className="text-[10px] text-ink-muted">{meta.label}</p>
+          {hiddenByConfig && hiddenReason && (
+            <p id={hintId} className="mt-0.5 flex items-start gap-1 text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+              <ExclamationTriangleIcon aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+              <span>
+                Oculta desde Ajustes ({hiddenReason.switchLabel})
+                <span className="sr-only">. {hiddenReason.message}</span>
+              </span>
+            </p>
+          )}
         </div>
 
         {/* Visibility toggle */}
@@ -105,11 +132,19 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
               ? 'text-ink-secondary hover:text-ink hover:bg-white/5'
               : 'text-ink-muted hover:text-ink-muted hover:bg-white/5',
           ].join(' ')}
-          title={section.is_visible ? 'Ocultar seccion' : 'Mostrar seccion'}
+          title={
+            hiddenByConfig && hiddenReason
+              ? hiddenReason.message
+              : section.is_visible
+                ? 'Ocultar sección'
+                : 'Mostrar sección'
+          }
+          aria-label={section.is_visible ? 'Ocultar sección' : 'Mostrar sección'}
+          aria-describedby={hintId}
         >
           {togglingVisible ? (
             <ArrowPathIcon className="size-3.5 animate-spin" />
-          ) : section.is_visible ? (
+          ) : section.is_visible && !hiddenByConfig ? (
             <EyeIcon className="size-3.5" />
           ) : (
             <EyeSlashIcon className="size-3.5" />
@@ -125,7 +160,8 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
                 ? 'bg-pink-500/10 text-pink-400'
                 : 'text-ink-muted hover:bg-pink-500/10 hover:text-pink-400',
             ].join(' ')}
-            title="Editar imagenes"
+            title="Editar imágenes"
+            aria-label="Editar imágenes"
           >
             <PhotoIcon className="size-3.5" />
           </button>
@@ -138,7 +174,9 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
             'shrink-0 p-1 rounded transition-colors',
             isExpanded ? 'text-indigo-400' : 'text-ink-muted hover:text-ink-secondary',
           ].join(' ')}
-          title="Editar configuracion"
+          title="Editar configuración"
+          aria-label="Editar configuración"
+          aria-expanded={isExpanded}
         >
           <ChevronDownIcon
             className={['size-3.5 transition-transform', isExpanded ? 'rotate-180' : ''].join(' ')}
@@ -152,6 +190,7 @@ export const DraggableSectionRow = memo(function DraggableSectionRow({
           <SectionConfigEditor
             section={section}
             onSave={onSaveConfig}
+            onDiscardFailedSave={onDiscardFailedSave}
             onClose={() => onToggleExpand(section.id)}
           />
         )}

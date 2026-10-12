@@ -131,6 +131,62 @@ describe('EventSectionsManager media integration', () => {
     expect(apiMock.put).toHaveBeenCalledWith('/sections/GraduationHero-section', { is_visible: false })
   })
 
+  it('explains when an event-level switch hides a visible section (STU-54)', () => {
+    render(
+      <EventSectionsManager
+        eventId="event-1"
+        eventConfig={{
+          id: 'cfg-1',
+          event_id: 'event-1',
+          created_at: '2026-07-05T00:00:00.000Z',
+          updated_at: '2026-07-05T00:00:00.000Z',
+          is_public: true,
+          visibility_configured: true,
+          show_header: false,
+        }}
+      />
+    )
+
+    expect(screen.getByText(/el interruptor «Portada» está apagado/)).toBeInTheDocument()
+  })
+
+  it('counts sections with the right Spanish plural (STU-38)', () => {
+    swrMock.useSWR.mockReturnValue({
+      data: [section('GraduationHero'), section('Agenda', { id: 'agenda', order: 2 })],
+      isLoading: false,
+      mutate: vi.fn(),
+    })
+
+    render(<EventSectionsManager eventId="event-1" />)
+
+    expect(screen.getByText(/2 secciones · 2 visibles/)).toBeInTheDocument()
+  })
+
+  it('does not count a section hidden by an event settings switch as visible (STU-N1)', () => {
+    swrMock.useSWR.mockReturnValue({
+      data: [section('GraduationHero'), section('Agenda', { id: 'agenda', order: 2 })],
+      isLoading: false,
+      mutate: vi.fn(),
+    })
+
+    render(
+      <EventSectionsManager
+        eventId="event-1"
+        eventConfig={{
+          id: 'config-1',
+          event_id: 'event-1',
+          created_at: '2026-07-05T00:00:00.000Z',
+          updated_at: '2026-07-05T00:00:00.000Z',
+          is_public: true,
+          visibility_configured: true,
+          show_header: false,
+        }}
+      />
+    )
+
+    expect(screen.getByText(/2 secciones · 1 visible · 1 oculta por los ajustes del evento/)).toBeInTheDocument()
+  })
+
   it('requires confirmation before deleting a section', async () => {
     apiMock.delete.mockResolvedValueOnce({ data: {} })
 
@@ -143,5 +199,62 @@ describe('EventSectionsManager media integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Eliminar sección' }))
 
     await waitFor(() => expect(apiMock.delete).toHaveBeenCalledWith('/sections/GraduationHero-section'))
+  })
+
+  it('keeps the config drawer open with the edits and a Spanish error when the save fails (STU-22)', async () => {
+    swrMock.useSWR.mockReturnValue({
+      data: [section('GraduationHero', { config: { title: 'Generación 2025' } })],
+      isLoading: false,
+      mutate: vi.fn().mockResolvedValue(undefined),
+    })
+    apiMock.put.mockRejectedValueOnce(new Error('offline'))
+
+    render(<EventSectionsManager eventId="event-1" />)
+
+    fireEvent.click(screen.getByLabelText('Editar configuración'))
+    fireEvent.change(screen.getByDisplayValue('Generación 2025'), { target: { value: 'Generación 2026' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar config' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Tus cambios siguen aquí')
+    expect(screen.getByDisplayValue('Generación 2026')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardar config' })).toBeEnabled()
+  })
+
+  it('closes the config drawer after a successful save', async () => {
+    swrMock.useSWR.mockReturnValue({
+      data: [section('GraduationHero', { config: { title: 'Generación 2025' } })],
+      isLoading: false,
+      mutate: vi.fn().mockResolvedValue(undefined),
+    })
+    apiMock.put.mockResolvedValueOnce({ data: {} })
+
+    render(<EventSectionsManager eventId="event-1" />)
+
+    fireEvent.click(screen.getByLabelText('Editar configuración'))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar config' }))
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Guardar config' })).not.toBeInTheDocument())
+  })
+
+  it('lets the countdown go back to the event date', async () => {
+    const config = { heading: 'Hola', targetDate: '2026-12-01T18:00' }
+    swrMock.useSWR.mockReturnValue({
+      data: [section('CountdownHeader', { config })],
+      isLoading: false,
+      mutate: vi.fn().mockResolvedValue(undefined),
+    })
+    apiMock.put.mockResolvedValueOnce({ data: {} })
+
+    render(<EventSectionsManager eventId="event-1" />)
+    fireEvent.click(screen.getByLabelText('Editar configuración'))
+
+    expect(screen.getByLabelText('Fecha y hora de la cuenta regresiva')).toHaveValue('2026-12-01T18:00')
+    fireEvent.click(screen.getByRole('button', { name: 'Usar la fecha del evento' }))
+    expect(screen.getByText('Sin fecha propia: la cuenta regresiva usa la fecha del evento.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar config' }))
+
+    await waitFor(() =>
+      expect(apiMock.put).toHaveBeenCalledWith('/sections/CountdownHeader-section', { config: { heading: 'Hola' } })
+    )
   })
 })

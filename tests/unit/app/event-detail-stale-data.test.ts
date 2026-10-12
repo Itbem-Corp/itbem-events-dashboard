@@ -17,4 +17,10 @@ describe('event detail stale-data policy', () => {
       'revalidateOnMount: eventRequestKey ? !eventWorkspaceCache.hasAuthoritative(eventRequestKey) : true'
     )
   })
+
+  it('treats a malformed event id as not found without requesting it (EVT-36)', () => {
+    expect(page).toContain('useScopedFetcherKey(validEventId ? eventDetailPath(id) : null)')
+    expect(page).toContain('useScopedFetcherKey(validEventId ? eventCapabilitiesPath(id) : null)')
+    expect(page).toContain('if (!validEventId || isMissingResourceError(error))')
+  })
 })

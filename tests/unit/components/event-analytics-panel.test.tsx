@@ -224,7 +224,8 @@ describe('EventAnalyticsPanel — KPI cards', () => {
     const { EventAnalyticsPanel } = await import('@/components/events/event-analytics-panel')
     render(<EventAnalyticsPanel eventId="evt-001" eventIdentifier="test-event" eventCapacity={100} />)
 
-    expect(screen.getByText('100 capacidad')).toBeInTheDocument()
+    expect(screen.getByText('100 lugares')).toBeInTheDocument()
+    expect(screen.queryByText('Capacidad del evento')).not.toBeInTheDocument()
   })
 
   it('displays view count from analytics', async () => {
