@@ -526,6 +526,663 @@
   --tw-ring-color: var(--app-border-subtle) !important;
 }
 
+/* Light theme: status text written for dark surfaces (text-amber-200, text-red-100,
+   text-emerald-400…) is light-on-light on white cards (1.2–2.5:1). Remap the 50–500
+   text shades of each hue to its AA-safe 700/800 shade (≥ 5:1 on white and on the
+   matching /5–/15 tint). Exact class tokens only, so hover:/dark: variants and solid
+   buttons keep their own colors. tests/unit/styles/status-text-contrast.test.ts */
+[data-theme='light']
+  body
+  :where(
+    [class~='text-amber-50'],
+    [class^='text-amber-50/'],
+    [class*=' text-amber-50/'],
+    [class~='text-amber-100'],
+    [class^='text-amber-100/'],
+    [class*=' text-amber-100/'],
+    [class~='text-amber-200'],
+    [class^='text-amber-200/'],
+    [class*=' text-amber-200/'],
+    [class~='text-amber-300'],
+    [class^='text-amber-300/'],
+    [class*=' text-amber-300/'],
+    [class~='text-amber-400'],
+    [class^='text-amber-400/'],
+    [class*=' text-amber-400/'],
+    [class~='text-amber-500'],
+    [class^='text-amber-500/'],
+    [class*=' text-amber-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #92400e !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-yellow-50'],
+    [class^='text-yellow-50/'],
+    [class*=' text-yellow-50/'],
+    [class~='text-yellow-100'],
+    [class^='text-yellow-100/'],
+    [class*=' text-yellow-100/'],
+    [class~='text-yellow-200'],
+    [class^='text-yellow-200/'],
+    [class*=' text-yellow-200/'],
+    [class~='text-yellow-300'],
+    [class^='text-yellow-300/'],
+    [class*=' text-yellow-300/'],
+    [class~='text-yellow-400'],
+    [class^='text-yellow-400/'],
+    [class*=' text-yellow-400/'],
+    [class~='text-yellow-500'],
+    [class^='text-yellow-500/'],
+    [class*=' text-yellow-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #854d0e !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-orange-50'],
+    [class^='text-orange-50/'],
+    [class*=' text-orange-50/'],
+    [class~='text-orange-100'],
+    [class^='text-orange-100/'],
+    [class*=' text-orange-100/'],
+    [class~='text-orange-200'],
+    [class^='text-orange-200/'],
+    [class*=' text-orange-200/'],
+    [class~='text-orange-300'],
+    [class^='text-orange-300/'],
+    [class*=' text-orange-300/'],
+    [class~='text-orange-400'],
+    [class^='text-orange-400/'],
+    [class*=' text-orange-400/'],
+    [class~='text-orange-500'],
+    [class^='text-orange-500/'],
+    [class*=' text-orange-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #9a3412 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-lime-50'],
+    [class^='text-lime-50/'],
+    [class*=' text-lime-50/'],
+    [class~='text-lime-100'],
+    [class^='text-lime-100/'],
+    [class*=' text-lime-100/'],
+    [class~='text-lime-200'],
+    [class^='text-lime-200/'],
+    [class*=' text-lime-200/'],
+    [class~='text-lime-300'],
+    [class^='text-lime-300/'],
+    [class*=' text-lime-300/'],
+    [class~='text-lime-400'],
+    [class^='text-lime-400/'],
+    [class*=' text-lime-400/'],
+    [class~='text-lime-500'],
+    [class^='text-lime-500/'],
+    [class*=' text-lime-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #3f6212 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-green-50'],
+    [class^='text-green-50/'],
+    [class*=' text-green-50/'],
+    [class~='text-green-100'],
+    [class^='text-green-100/'],
+    [class*=' text-green-100/'],
+    [class~='text-green-200'],
+    [class^='text-green-200/'],
+    [class*=' text-green-200/'],
+    [class~='text-green-300'],
+    [class^='text-green-300/'],
+    [class*=' text-green-300/'],
+    [class~='text-green-400'],
+    [class^='text-green-400/'],
+    [class*=' text-green-400/'],
+    [class~='text-green-500'],
+    [class^='text-green-500/'],
+    [class*=' text-green-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #166534 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-emerald-50'],
+    [class^='text-emerald-50/'],
+    [class*=' text-emerald-50/'],
+    [class~='text-emerald-100'],
+    [class^='text-emerald-100/'],
+    [class*=' text-emerald-100/'],
+    [class~='text-emerald-200'],
+    [class^='text-emerald-200/'],
+    [class*=' text-emerald-200/'],
+    [class~='text-emerald-300'],
+    [class^='text-emerald-300/'],
+    [class*=' text-emerald-300/'],
+    [class~='text-emerald-400'],
+    [class^='text-emerald-400/'],
+    [class*=' text-emerald-400/'],
+    [class~='text-emerald-500'],
+    [class^='text-emerald-500/'],
+    [class*=' text-emerald-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #047857 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-teal-50'],
+    [class^='text-teal-50/'],
+    [class*=' text-teal-50/'],
+    [class~='text-teal-100'],
+    [class^='text-teal-100/'],
+    [class*=' text-teal-100/'],
+    [class~='text-teal-200'],
+    [class^='text-teal-200/'],
+    [class*=' text-teal-200/'],
+    [class~='text-teal-300'],
+    [class^='text-teal-300/'],
+    [class*=' text-teal-300/'],
+    [class~='text-teal-400'],
+    [class^='text-teal-400/'],
+    [class*=' text-teal-400/'],
+    [class~='text-teal-500'],
+    [class^='text-teal-500/'],
+    [class*=' text-teal-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #0f766e !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-cyan-50'],
+    [class^='text-cyan-50/'],
+    [class*=' text-cyan-50/'],
+    [class~='text-cyan-100'],
+    [class^='text-cyan-100/'],
+    [class*=' text-cyan-100/'],
+    [class~='text-cyan-200'],
+    [class^='text-cyan-200/'],
+    [class*=' text-cyan-200/'],
+    [class~='text-cyan-300'],
+    [class^='text-cyan-300/'],
+    [class*=' text-cyan-300/'],
+    [class~='text-cyan-400'],
+    [class^='text-cyan-400/'],
+    [class*=' text-cyan-400/'],
+    [class~='text-cyan-500'],
+    [class^='text-cyan-500/'],
+    [class*=' text-cyan-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #0e7490 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-sky-50'],
+    [class^='text-sky-50/'],
+    [class*=' text-sky-50/'],
+    [class~='text-sky-100'],
+    [class^='text-sky-100/'],
+    [class*=' text-sky-100/'],
+    [class~='text-sky-200'],
+    [class^='text-sky-200/'],
+    [class*=' text-sky-200/'],
+    [class~='text-sky-300'],
+    [class^='text-sky-300/'],
+    [class*=' text-sky-300/'],
+    [class~='text-sky-400'],
+    [class^='text-sky-400/'],
+    [class*=' text-sky-400/'],
+    [class~='text-sky-500'],
+    [class^='text-sky-500/'],
+    [class*=' text-sky-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #0369a1 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-blue-50'],
+    [class^='text-blue-50/'],
+    [class*=' text-blue-50/'],
+    [class~='text-blue-100'],
+    [class^='text-blue-100/'],
+    [class*=' text-blue-100/'],
+    [class~='text-blue-200'],
+    [class^='text-blue-200/'],
+    [class*=' text-blue-200/'],
+    [class~='text-blue-300'],
+    [class^='text-blue-300/'],
+    [class*=' text-blue-300/'],
+    [class~='text-blue-400'],
+    [class^='text-blue-400/'],
+    [class*=' text-blue-400/'],
+    [class~='text-blue-500'],
+    [class^='text-blue-500/'],
+    [class*=' text-blue-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #1d4ed8 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-indigo-50'],
+    [class^='text-indigo-50/'],
+    [class*=' text-indigo-50/'],
+    [class~='text-indigo-100'],
+    [class^='text-indigo-100/'],
+    [class*=' text-indigo-100/'],
+    [class~='text-indigo-200'],
+    [class^='text-indigo-200/'],
+    [class*=' text-indigo-200/'],
+    [class~='text-indigo-300'],
+    [class^='text-indigo-300/'],
+    [class*=' text-indigo-300/'],
+    [class~='text-indigo-400'],
+    [class^='text-indigo-400/'],
+    [class*=' text-indigo-400/'],
+    [class~='text-indigo-500'],
+    [class^='text-indigo-500/'],
+    [class*=' text-indigo-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #4338ca !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-violet-50'],
+    [class^='text-violet-50/'],
+    [class*=' text-violet-50/'],
+    [class~='text-violet-100'],
+    [class^='text-violet-100/'],
+    [class*=' text-violet-100/'],
+    [class~='text-violet-200'],
+    [class^='text-violet-200/'],
+    [class*=' text-violet-200/'],
+    [class~='text-violet-300'],
+    [class^='text-violet-300/'],
+    [class*=' text-violet-300/'],
+    [class~='text-violet-400'],
+    [class^='text-violet-400/'],
+    [class*=' text-violet-400/'],
+    [class~='text-violet-500'],
+    [class^='text-violet-500/'],
+    [class*=' text-violet-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #6d28d9 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-purple-50'],
+    [class^='text-purple-50/'],
+    [class*=' text-purple-50/'],
+    [class~='text-purple-100'],
+    [class^='text-purple-100/'],
+    [class*=' text-purple-100/'],
+    [class~='text-purple-200'],
+    [class^='text-purple-200/'],
+    [class*=' text-purple-200/'],
+    [class~='text-purple-300'],
+    [class^='text-purple-300/'],
+    [class*=' text-purple-300/'],
+    [class~='text-purple-400'],
+    [class^='text-purple-400/'],
+    [class*=' text-purple-400/'],
+    [class~='text-purple-500'],
+    [class^='text-purple-500/'],
+    [class*=' text-purple-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #7e22ce !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-fuchsia-50'],
+    [class^='text-fuchsia-50/'],
+    [class*=' text-fuchsia-50/'],
+    [class~='text-fuchsia-100'],
+    [class^='text-fuchsia-100/'],
+    [class*=' text-fuchsia-100/'],
+    [class~='text-fuchsia-200'],
+    [class^='text-fuchsia-200/'],
+    [class*=' text-fuchsia-200/'],
+    [class~='text-fuchsia-300'],
+    [class^='text-fuchsia-300/'],
+    [class*=' text-fuchsia-300/'],
+    [class~='text-fuchsia-400'],
+    [class^='text-fuchsia-400/'],
+    [class*=' text-fuchsia-400/'],
+    [class~='text-fuchsia-500'],
+    [class^='text-fuchsia-500/'],
+    [class*=' text-fuchsia-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #a21caf !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-pink-50'],
+    [class^='text-pink-50/'],
+    [class*=' text-pink-50/'],
+    [class~='text-pink-100'],
+    [class^='text-pink-100/'],
+    [class*=' text-pink-100/'],
+    [class~='text-pink-200'],
+    [class^='text-pink-200/'],
+    [class*=' text-pink-200/'],
+    [class~='text-pink-300'],
+    [class^='text-pink-300/'],
+    [class*=' text-pink-300/'],
+    [class~='text-pink-400'],
+    [class^='text-pink-400/'],
+    [class*=' text-pink-400/'],
+    [class~='text-pink-500'],
+    [class^='text-pink-500/'],
+    [class*=' text-pink-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #be185d !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-rose-50'],
+    [class^='text-rose-50/'],
+    [class*=' text-rose-50/'],
+    [class~='text-rose-100'],
+    [class^='text-rose-100/'],
+    [class*=' text-rose-100/'],
+    [class~='text-rose-200'],
+    [class^='text-rose-200/'],
+    [class*=' text-rose-200/'],
+    [class~='text-rose-300'],
+    [class^='text-rose-300/'],
+    [class*=' text-rose-300/'],
+    [class~='text-rose-400'],
+    [class^='text-rose-400/'],
+    [class*=' text-rose-400/'],
+    [class~='text-rose-500'],
+    [class^='text-rose-500/'],
+    [class*=' text-rose-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #be123c !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='text-red-50'],
+    [class^='text-red-50/'],
+    [class*=' text-red-50/'],
+    [class~='text-red-100'],
+    [class^='text-red-100/'],
+    [class*=' text-red-100/'],
+    [class~='text-red-200'],
+    [class^='text-red-200/'],
+    [class*=' text-red-200/'],
+    [class~='text-red-300'],
+    [class^='text-red-300/'],
+    [class*=' text-red-300/'],
+    [class~='text-red-400'],
+    [class^='text-red-400/'],
+    [class*=' text-red-400/'],
+    [class~='text-red-500'],
+    [class^='text-red-500/'],
+    [class*=' text-red-500/']
+  ):not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #b91c1c !important;
+}
+
+/* Light theme, hover: a dark-surface hover shade (hover:text-indigo-300,
+   hover:text-rose-100…) on a white card is unreadable too. Remap it on hover to the
+   same AA-safe shade as the base text. Elements over a photo or video opt out of
+   both bridges with the `on-media` class (or a bg-black tint): their light text
+   sits on dark media, not on the light card.
+   tests/unit/styles/status-text-contrast.test.ts */
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-amber-50'],
+    [class~='hover:text-amber-100'],
+    [class~='hover:text-amber-200'],
+    [class~='hover:text-amber-300'],
+    [class~='hover:text-amber-400'],
+    [class~='hover:text-amber-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #92400e !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-yellow-50'],
+    [class~='hover:text-yellow-100'],
+    [class~='hover:text-yellow-200'],
+    [class~='hover:text-yellow-300'],
+    [class~='hover:text-yellow-400'],
+    [class~='hover:text-yellow-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #854d0e !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-orange-50'],
+    [class~='hover:text-orange-100'],
+    [class~='hover:text-orange-200'],
+    [class~='hover:text-orange-300'],
+    [class~='hover:text-orange-400'],
+    [class~='hover:text-orange-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #9a3412 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-lime-50'],
+    [class~='hover:text-lime-100'],
+    [class~='hover:text-lime-200'],
+    [class~='hover:text-lime-300'],
+    [class~='hover:text-lime-400'],
+    [class~='hover:text-lime-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #3f6212 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-green-50'],
+    [class~='hover:text-green-100'],
+    [class~='hover:text-green-200'],
+    [class~='hover:text-green-300'],
+    [class~='hover:text-green-400'],
+    [class~='hover:text-green-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #166534 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-emerald-50'],
+    [class~='hover:text-emerald-100'],
+    [class~='hover:text-emerald-200'],
+    [class~='hover:text-emerald-300'],
+    [class~='hover:text-emerald-400'],
+    [class~='hover:text-emerald-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #047857 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-teal-50'],
+    [class~='hover:text-teal-100'],
+    [class~='hover:text-teal-200'],
+    [class~='hover:text-teal-300'],
+    [class~='hover:text-teal-400'],
+    [class~='hover:text-teal-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #0f766e !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-cyan-50'],
+    [class~='hover:text-cyan-100'],
+    [class~='hover:text-cyan-200'],
+    [class~='hover:text-cyan-300'],
+    [class~='hover:text-cyan-400'],
+    [class~='hover:text-cyan-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #0e7490 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-sky-50'],
+    [class~='hover:text-sky-100'],
+    [class~='hover:text-sky-200'],
+    [class~='hover:text-sky-300'],
+    [class~='hover:text-sky-400'],
+    [class~='hover:text-sky-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #0369a1 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-blue-50'],
+    [class~='hover:text-blue-100'],
+    [class~='hover:text-blue-200'],
+    [class~='hover:text-blue-300'],
+    [class~='hover:text-blue-400'],
+    [class~='hover:text-blue-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #1d4ed8 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-indigo-50'],
+    [class~='hover:text-indigo-100'],
+    [class~='hover:text-indigo-200'],
+    [class~='hover:text-indigo-300'],
+    [class~='hover:text-indigo-400'],
+    [class~='hover:text-indigo-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #4338ca !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-violet-50'],
+    [class~='hover:text-violet-100'],
+    [class~='hover:text-violet-200'],
+    [class~='hover:text-violet-300'],
+    [class~='hover:text-violet-400'],
+    [class~='hover:text-violet-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #6d28d9 !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-purple-50'],
+    [class~='hover:text-purple-100'],
+    [class~='hover:text-purple-200'],
+    [class~='hover:text-purple-300'],
+    [class~='hover:text-purple-400'],
+    [class~='hover:text-purple-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #7e22ce !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-fuchsia-50'],
+    [class~='hover:text-fuchsia-100'],
+    [class~='hover:text-fuchsia-200'],
+    [class~='hover:text-fuchsia-300'],
+    [class~='hover:text-fuchsia-400'],
+    [class~='hover:text-fuchsia-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #a21caf !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-pink-50'],
+    [class~='hover:text-pink-100'],
+    [class~='hover:text-pink-200'],
+    [class~='hover:text-pink-300'],
+    [class~='hover:text-pink-400'],
+    [class~='hover:text-pink-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #be185d !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-rose-50'],
+    [class~='hover:text-rose-100'],
+    [class~='hover:text-rose-200'],
+    [class~='hover:text-rose-300'],
+    [class~='hover:text-rose-400'],
+    [class~='hover:text-rose-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #be123c !important;
+}
+
+[data-theme='light']
+  body
+  :where(
+    [class~='hover:text-red-50'],
+    [class~='hover:text-red-100'],
+    [class~='hover:text-red-200'],
+    [class~='hover:text-red-300'],
+    [class~='hover:text-red-400'],
+    [class~='hover:text-red-500']
+  ):hover:not([class*='--btn-bg'], [class*='bg-black'], [class~='on-media']) {
+  color: #b91c1c !important;
+}
+
 .dark body :where([class~='bg-zinc-950']) {
   background-color: var(--app-canvas) !important;
 }
@@ -547,6 +1204,9 @@
   }
 }
 
+/* The end frame is `transform: none`, not translate3d(0,0,0): with fill-mode `both` the end value
+   stays applied, and any transform other than none makes the wrapper the containing block of every
+   position:fixed descendant (drag overlays, sticky save bars) (GST-61). */
 @keyframes page-enter {
   from {
     opacity: 0;
@@ -554,16 +1214,22 @@
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: none;
   }
 }
 
+/*
+ * fill-mode backwards, not both: interpolating translate3d(...) -> none yields an
+ * identity translate3d(0,0,0) at the end, and a held (forwards) identity transform
+ * still makes the wrapper the containing block of position:fixed descendants
+ * (dnd-kit DragOverlay, sheets). After the animation the element has no transform.
+ */
 .page-transition {
-  animation: page-enter 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: page-enter 160ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .dashboard-reveal {
-  animation: dashboard-reveal 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: dashboard-reveal 320ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @keyframes dashboard-reveal {
@@ -573,7 +1239,7 @@
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: none;
   }
 }
 

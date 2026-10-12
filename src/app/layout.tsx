@@ -49,6 +49,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     ?? requestHeaders.get('host')
     ?? 'dashboard.eventiapp.com.mx'
   const tenant = tenantPresentationForHostname(hostname)
+  // proxy.ts issues a per-request nonce; without it the CSP blocks this boot
+  // script, the light theme never gets data-theme and dark-first text stays white.
+  const nonce = requestHeaders.get('x-nonce') ?? undefined
 
   return (
     <html
@@ -57,7 +60,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className="bg-[var(--app-canvas)] text-[var(--app-text-primary)] antialiased"
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <meta name="application-name" content={`${tenant.name} Dashboard`} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
