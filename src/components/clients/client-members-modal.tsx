@@ -8,6 +8,10 @@ import useSWR, { mutate as globalMutate } from 'swr'
 
 import { api } from '@/lib/api'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { apiErrorStatus, canManageClientMember } from '@/lib/member-management'
+import { organizationRoleLabel } from '@/lib/role-labels'
+import { useProductShell } from '@/products/core/product-context'
+import { useStore } from '@/store/useStore'
 import {
   clientInvitePath,
   clientMemberApplicationPath,
@@ -62,9 +66,33 @@ const ORGANIZATION_ROLE_GUIDANCE: Record<string, string> = {
   guest: 'Acceso de solo lectura.',
 }
 
-function roleGuidance(roles: ClientRole[], roleId: string) {
+// EventiApp (shell.localizedRoleLabels): CHECKIN has checkin:run but not
+// guest:manage (backend authz.go), so it operates the door, not RSVPs.
+const LOCALIZED_ROLE_GUIDANCE: Record<string, string> = {
+  ...ORGANIZATION_ROLE_GUIDANCE,
+  checkin: 'Opera el check-in.',
+}
+
+function roleGuidance(roles: ClientRole[], roleId: string, localized = false) {
   const role = roles.find((candidate) => candidate.id === roleId)
-  return role ? ORGANIZATION_ROLE_GUIDANCE[role.code.toLowerCase()] ?? 'Acceso definido por la organización.' : ''
+  const guidance = localized ? LOCALIZED_ROLE_GUIDANCE : ORGANIZATION_ROLE_GUIDANCE
+  return role ? guidance[role.code.toLowerCase()] ?? 'Acceso definido por la organización.' : ''
+}
+
+/** Display name of a role: Spanish label on EventiApp, the catalog name elsewhere. */
+function roleDisplayName(role: Pick<ClientRole, 'code' | 'name'>, localized: boolean) {
+  if (!localized) return role.name
+  const label = organizationRoleLabel(role.code)
+  return label && label !== role.code ? label : role.name || role.code
+}
+
+/**
+ * A 403 is already shown by the global API interceptor (with Spanish copy for
+ * member-management denials), so the modal only toasts other failures.
+ */
+function toastMemberError(err: unknown, fallback: string) {
+  if (apiErrorStatus(err) === 403) return
+  toast.error(getApiErrorMessage(err, fallback))
 }
 
 function getDefaultRoleId(roles: ClientRole[]) {
@@ -91,6 +119,7 @@ interface CreateUserFormProps {
 }
 
 function CreateUserForm({ clientId, roles, onDone }: CreateUserFormProps) {
+  const localizedRoles = Boolean(useProductShell()?.localizedRoleLabels)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -129,7 +158,7 @@ function CreateUserForm({ clientId, roles, onDone }: CreateUserFormProps) {
       toast.success('Usuario invitado y vinculado')
       onDone()
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, 'Error al crear el usuario'))
+      toastMemberError(err, 'Error al crear el usuario')
     } finally {
       setLoading(false)
     }
@@ -189,11 +218,13 @@ function CreateUserForm({ clientId, roles, onDone }: CreateUserFormProps) {
           <Select aria-label="Rol" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}
+                {roleDisplayName(r, localizedRoles)}
               </option>
             ))}
           </Select>
-          {roleGuidance(roles, roleId) && <p className="mt-1 text-xs text-ink-muted">{roleGuidance(roles, roleId)}</p>}
+          {roleGuidance(roles, roleId, localizedRoles) && (
+            <p className="mt-1 text-xs text-ink-muted">{roleGuidance(roles, roleId, localizedRoles)}</p>
+          )}
           {errors.roleId && <ErrorMessage>{errors.roleId}</ErrorMessage>}
         </Field>
         <Button onClick={handleCreate} disabled={loading || !roleId} color="emerald">
@@ -246,7 +277,7 @@ function MemberApplicationsDialog({
       toast.success(nextValue ? `Acceso a ${application.name} activado` : `Acceso a ${application.name} retirado`)
     } catch (reason) {
       await mutate(previous, { revalidate: false })
-      toast.error(getApiErrorMessage(reason, 'No pudimos actualizar el acceso a la aplicación'))
+      toastMemberError(reason, 'No pudimos actualizar el acceso a la aplicación')
     } finally {
       setSavingCode(null)
     }
@@ -321,6 +352,7 @@ interface InviteFormProps {
 }
 
 function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
+  const localizedRoles = Boolean(useProductShell()?.localizedRoleLabels)
   const [email, setEmail] = useState('')
   const [roleId, setRoleId] = useState(getDefaultRoleId(roles))
   const [loading, setLoading] = useState(false)
@@ -354,7 +386,7 @@ function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
       toast.success('Invitación enviada')
       onDone()
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, 'Error al enviar la invitación'))
+      toastMemberError(err, 'Error al enviar la invitación')
     } finally {
       setLoading(false)
     }
@@ -389,11 +421,13 @@ function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
           <Select aria-label="Rol" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}
+                {roleDisplayName(r, localizedRoles)}
               </option>
             ))}
           </Select>
-          {roleGuidance(roles, roleId) && <p className="mt-1 text-xs text-ink-muted">{roleGuidance(roles, roleId)}</p>}
+          {roleGuidance(roles, roleId, localizedRoles) && (
+            <p className="mt-1 text-xs text-ink-muted">{roleGuidance(roles, roleId, localizedRoles)}</p>
+          )}
         </Field>
         <Button onClick={handleInvite} disabled={loading || !roleId}>
           {loading ? 'Enviando…' : 'Invitar'}
@@ -423,6 +457,8 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
   const [editingRole, setEditingRole] = useState('')
   const [saving, setSaving] = useState(false)
   const [applicationsMember, setApplicationsMember] = useState<ClientMember | null>(null)
+  const localizedRoles = Boolean(useProductShell()?.localizedRoleLabels)
+  const currentUser = useStore((state) => state.user)
 
   const {
     data: rawMembers,
@@ -449,6 +485,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
   const members = useMemo(() => rawMembers?.data ?? [], [rawMembers])
   const membersTotal = rawMembers?.total ?? 0
   const roles = useMemo(() => rawRoles ?? [], [rawRoles])
+  const assignableRoleIds = useMemo(() => new Set(roles.map((role) => role.id)), [roles])
   const membersErrorState = getDataErrorState(membersError, rawMembers)
   const rolesErrorState = getDataErrorState(rolesError, rawRoles)
   const workspaceFatalError = membersErrorState === 'fatal' || rolesErrorState === 'fatal'
@@ -486,7 +523,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
       if (previousMembers) {
         await mutateMembers(previousMembers, { revalidate: false })
       }
-      toast.error(getApiErrorMessage(err, 'Error al remover el miembro'))
+      toastMemberError(err, 'Error al remover el miembro')
     }
   }
 
@@ -526,7 +563,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
         await mutateMembers(previousMembers, { revalidate: false })
       }
       setEditingMemberId(member.id || member.user_id)
-      toast.error(getApiErrorMessage(err, 'Error al actualizar el rol'))
+      toastMemberError(err, 'Error al actualizar el rol')
     } finally {
       setSaving(false)
     }
@@ -644,11 +681,18 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
                   const email = member.user?.email ?? member.email
                   const profileImage = member.user?.profile_image ?? member.profile_image
                   const roleCode = member.role_code ?? member.role
-                  const roleLabel = member.role_name ?? roleCode ?? 'Miembro'
+                  const localizedRoleLabel = localizedRoles && roleCode ? organizationRoleLabel(roleCode) : ''
+                  const roleLabel =
+                    (localizedRoleLabel && localizedRoleLabel !== roleCode ? localizedRoleLabel : '') ||
+                    (member.role_name ?? roleCode ?? 'Miembro')
                   const isEditing = editingMemberId === memberKey
                   const displayName = `${firstName} ${lastName}`.trim() || email || 'Usuario'
                   const initials = `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || '?'
-                  const canManageMember = roles.some((role) => role.id === member.role_id)
+                  const canManageMember = canManageClientMember({
+                    member,
+                    assignableRoleIds,
+                    requester: currentUser,
+                  })
 
                   return (
                     <motion.div
@@ -674,7 +718,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
                           >
                             {roles.map((r) => (
                               <option key={r.id} value={r.id}>
-                                {r.name}
+                                {roleDisplayName(r, localizedRoles)}
                               </option>
                             ))}
                           </Select>

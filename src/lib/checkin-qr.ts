@@ -1,5 +1,9 @@
 import { PUBLIC_INVITATION_TOKEN_QUERY_KEYS } from '@/lib/public-access-params'
-import type { Guest } from '@/models/Guest'
+
+// Parses a scanned QR into the value the server matches. The guest lookup
+// itself happens on the server (GET /guests/checkin:<eventID>?qr=), which
+// matches the guest id or invitation token exactly, so the door projection
+// never needs tokens or contact data in the browser.
 
 const LEGACY_INVITATION_PREFIX = 'invitation_'
 const TOKEN_FIELD_KEYS = [
@@ -36,17 +40,6 @@ function firstRecordString(source: unknown, keys: readonly string[]): string {
     if (value) return value
   }
   return ''
-}
-
-function recordStringValues(source: unknown, keys: readonly string[]): string[] {
-  if (source === null || typeof source !== 'object') return []
-  const record = source as Record<string, unknown>
-  const values: string[] = []
-  for (const key of keys) {
-    const value = cleanRecordString(record[key])
-    if (value && !values.includes(value)) values.push(value)
-  }
-  return values
 }
 
 function asObjectRecord(value: unknown): Record<string, unknown> | null {
@@ -147,27 +140,4 @@ export function parseCheckinQrPayload(raw: string): CheckinQrPayload {
     (token.startsWith(LEGACY_INVITATION_PREFIX) ? token.slice(LEGACY_INVITATION_PREFIX.length).trim() : token)
 
   return { raw: scanned, token, guestId }
-}
-
-export function findGuestByCheckinQr(guests: Guest[], raw: string): { guest?: Guest; payload: CheckinQrPayload } {
-  const payload = parseCheckinQrPayload(raw)
-  const scannedLower = payload.raw.toLowerCase()
-  const nameKey = scannedLower.replace(/\s+/g, '-')
-
-  const guest = guests.find((g) => {
-    const guestId = firstRecordString(g, GUEST_ID_FIELD_KEYS)
-    const tokens = recordStringValues(g, TOKEN_FIELD_KEYS)
-    const email = firstRecordString(g, ['email', 'Email'])
-    const firstName = firstRecordString(g, ['first_name', 'firstName', 'FirstName'])
-    const lastName = firstRecordString(g, ['last_name', 'lastName', 'LastName'])
-    const fullName = `${firstName}-${lastName}`.toLowerCase()
-    return (
-      guestId === payload.guestId ||
-      tokens.includes(payload.token) ||
-      email.toLowerCase() === scannedLower ||
-      fullName === nameKey
-    )
-  })
-
-  return { guest, payload }
 }

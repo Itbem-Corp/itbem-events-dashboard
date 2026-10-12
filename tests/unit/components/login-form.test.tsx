@@ -208,3 +208,23 @@ describe('LoginForm', () => {
     )
   })
 })
+
+describe('LoginForm after a revoked session', () => {
+  afterEach(() => window.history.replaceState(null, '', '/'))
+
+  it("shows the no-access copy for ?reason=no_access", async () => {
+    window.history.replaceState(null, '', '/login?reason=no_access')
+    render(<LoginForm tenant={tenant} />)
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain(
+        'Tu cuenta ya no tiene eventos ni organizaciones activas en EventiApp. Si crees que es un error, contacta a quien te invitó.'
+      )
+    )
+  })
+
+  it('shows nothing without the reason', () => {
+    window.history.replaceState(null, '', '/login')
+    render(<LoginForm tenant={tenant} />)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+})

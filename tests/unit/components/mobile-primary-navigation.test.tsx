@@ -1,4 +1,6 @@
-import { MobilePrimaryNavigation } from '@/components/mobile-primary-navigation'
+import { MobilePrimaryNavigation, mobilePrimaryNavigationItems } from '@/components/mobile-primary-navigation'
+import { ProductProvider } from '@/products/core/product-context'
+import { getProductManifest } from '@/products/registry'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -38,5 +40,80 @@ describe('MobilePrimaryNavigation', () => {
     expect(automation).toHaveAttribute('aria-current', 'page')
     fireEvent.pointerEnter(automation)
     expect(onIntent).toHaveBeenCalledWith('/automation')
+  })
+})
+
+describe('MobilePrimaryNavigation per product shell', () => {
+  const memberFlags = {
+    showHome: false,
+    showEvents: true,
+    showMetrics: false,
+    showTeam: false,
+    showUsers: false,
+    showOrganizations: false,
+    showAutomation: false,
+  }
+
+  it('hides the EventiApp bar when only the event list remains', () => {
+    render(
+      <ProductProvider product={getProductManifest('eventiapp')}>
+        <MobilePrimaryNavigation pathname="/events" eventsLabel="Mis eventos" {...memberFlags} onIntent={vi.fn()} />
+      </ProductProvider>
+    )
+
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+    expect(mobilePrimaryNavigationItems(memberFlags)).toHaveLength(1)
+  })
+
+  it('labels the EventiApp bar for assistive technology and uses 12px text', () => {
+    render(
+      <ProductProvider product={getProductManifest('eventiapp')}>
+        <MobilePrimaryNavigation
+          pathname="/events"
+          eventsLabel="Mis eventos"
+          {...memberFlags}
+          showHome
+          onIntent={vi.fn()}
+        />
+      </ProductProvider>
+    )
+
+    const navigation = screen.getByRole('navigation', { name: 'Navegación inferior' })
+    const events = screen.getByRole('link', { name: 'Mis eventos' })
+    expect(navigation.getElementsByTagName('a')).toHaveLength(2)
+    expect(events).toHaveClass('text-xs')
+    expect(events.className).not.toContain('text-[10px]')
+  })
+
+  it('keeps Cafetton House classes and label exactly as before', () => {
+    // Generated from the component at 94f16b8 (before the shell policy).
+    const { container } = render(
+      <ProductProvider product={getProductManifest('cafettonhouse')}>
+        <MobilePrimaryNavigation
+          pathname="/"
+          tenantCode="cafettonhouse"
+          showEvents={false}
+          showMetrics
+          showTeam
+          showUsers={false}
+          showOrganizations={false}
+          showAutomation={false}
+          onIntent={vi.fn()}
+        />
+      </ProductProvider>
+    )
+
+    expect(screen.getByRole('navigation', { name: 'Navegación principal' })).toBeInTheDocument()
+    expect(container.innerHTML).toMatchSnapshot()
+  })
+
+  it('still renders a single-item bar for Cafetton House, as before', () => {
+    render(
+      <ProductProvider product={getProductManifest('cafettonhouse')}>
+        <MobilePrimaryNavigation pathname="/" {...memberFlags} showHome showEvents={false} onIntent={vi.fn()} />
+      </ProductProvider>
+    )
+
+    expect(screen.getByRole('navigation', { name: 'Navegación principal' }).getElementsByTagName('a')).toHaveLength(1)
   })
 })

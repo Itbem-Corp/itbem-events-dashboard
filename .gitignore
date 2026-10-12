@@ -13,6 +13,7 @@
 /tests/e2e/.auth/session.json
 /playwright-report/
 /test-results/
+/.playwright-baselines/
 
 # next.js
 /.next/

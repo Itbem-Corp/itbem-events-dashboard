@@ -85,6 +85,54 @@ export function eventCapabilitiesPath(eventId: string | number): string {
 	return eventApiPath(eventId, 'capabilities')
 }
 
+// Event clients (EVENT_CLIENT_ACCESS). 404 event_client_access_disabled when off.
+export function eventClientsPath(eventId: string | number): string {
+  return eventApiPath(eventId, 'clients')
+}
+
+export function eventClientPath(eventId: string | number, userId: string | number): string {
+  return eventApiPath(eventId, `clients/${encodePathSegment(userId)}`)
+}
+
+/**
+ * Re-sends the standard Cognito invitation to a client account that has not
+ * completed its first sign-in (FORCE_CHANGE_PASSWORD). Matches the backend
+ * route POST /api/events/:id/clients/:user_id/resend-invitation (rate-limited,
+ * audited, 409 event_client_invitation_not_pending otherwise).
+ */
+export function eventClientResendInvitationPath(eventId: string | number, userId: string | number): string {
+  return eventApiPath(eventId, `clients/${encodePathSegment(userId)}/resend-invitation`)
+}
+
+export function eventClientCandidatesPath(eventId: string | number, search?: string | null): string {
+  return eventApiPath(eventId, 'clients/candidates', { search: search?.trim() || null })
+}
+
+export type EventClientAssignmentsPathQuery = {
+  page?: number | null
+  page_size?: number | null
+  search?: string | null
+}
+
+export function eventClientAssignmentsPath(
+  eventId: string | number,
+  userId: string | number,
+  query?: EventClientAssignmentsPathQuery
+): string {
+  return eventApiPath(eventId, `clients/${encodePathSegment(userId)}/assignments`, query)
+}
+
+export function organizationEventClientsPath(
+  organizationId: string | number,
+  query: { page: number; page_size?: number | null }
+): string {
+  return apiPath(`/clients/${encodePathSegment(organizationId)}/members/event-clients`, query)
+}
+
+export function organizationEventClientPath(organizationId: string | number, userId: string | number): string {
+  return apiPath(`/clients/${encodePathSegment(organizationId)}/members/event-clients/${encodePathSegment(userId)}`)
+}
+
 export function eventsPath(clientId?: string | number | null): string {
   return clientId ? apiPath('/events', { client_id: clientId }) : '/events'
 }

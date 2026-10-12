@@ -132,3 +132,57 @@ Use `Alert` (not `Dialog`) for destructive confirmations (delete).
 Focus rings: `focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-zinc-950`
 Semantic HTML: `<nav>` `<main>` `<section>` `<button>`
 Keyboard trapping in modals: Headless UI Dialog/Alert handle this automatically.
+
+### Accessible shell (`manifest.shell.accessibleShell`)
+
+Products opt in through their manifest; EventiApp does, Cafetton House and
+ITBEM do not. Shell components read the flag with
+`useProductManifest()?.shell?.accessibleShell` (or `useProductShell()`) and
+pick classes with a ternary inside the original class string, so a product
+without the flag renders today's exact class strings.
+
+| Rule | Accessible shell | Without the flag |
+| --- | --- | --- |
+| Minimum text | `text-xs` (12px) in the workspace header, switcher, trigger, navbar sub-head, search shortcut, bottom navigation and notification bell | `text-[9px]` / `text-[10px]` as before |
+| Touch targets below `lg` | 44px: theme toggle and notification buttons `size-11 lg:size-9`, search button `min-h-11 min-w-11`, `NavbarItem` `max-lg:min-h-11 max-lg:min-w-11` | Unchanged sizes |
+| Notification badge | `h-5 min-w-5 px-1 text-xs`, up to `99+` | `size-4 text-[9px]`, up to `9+` |
+| Bottom navigation | Hidden when it has fewer than two destinations; `aria-label="Navegación inferior"` | Always rendered; `Navegación principal` |
+| Mobile sub-head | `tenant.productLabel` | `Dashboard` |
+
+`clsx` does not merge Tailwind classes, so callers must not pass a competing
+size class: `ThemeToggle` sizes itself in the accessible shell and the layout
+and sidebar footer stop passing `size-9` / `size-8` there.
+
+### Role labels (`manifest.shell.localizedRoleLabels`)
+
+`src/lib/role-labels.ts` maps raw role codes to Spanish names; only the presentation changes,
+authorization keeps the raw code. Products without the flag show the raw code or catalog name.
+
+| Code | Label |
+| --- | --- |
+| OWNER | Propietario |
+| ADMIN | Administrador |
+| EVENT_MANAGER | Gestor de eventos |
+| EDITOR | Editor |
+| CHECKIN | Check-in |
+| ANALYST | Analista |
+| MEMBER | Colaborador |
+| GUEST / VIEWER | Solo lectura |
+| EVENT_CLIENT | Cliente del evento |
+| `INHERITED_X` | label of X + ` (heredado)` |
+
+Used by the organization switcher, the members modal on `/team`, the home eyebrows
+(`organizationWorkspaceCopy(..., { localizedRoleLabels })`: ADMIN `Administrador`, GUEST/VIEWER
+`Solo lectura`) and the `/team` cards (`teamPageCards(shell)` in `src/features/workspace/team-copy.ts`,
+which drop the mention of the other products). On `/metrics`, `accessibleShell` (not this flag)
+switches the chart and the row labels (`acciones`, `activos`) to `text-xs`.
+
+**Overlays above the bottom navigation.** In the accessible shell the
+`SidebarLayout` root carries `data-mobile-nav="visible" | "hidden"`, and
+`src/styles/tailwind.css` sets `--app-mobile-nav-offset` to
+`calc(env(safe-area-inset-bottom) + 4.5rem)` below `lg` when the bar is visible
+and `0px` otherwise. Fixed overlays (check-in footer, Studio publish overlay,
+seating bar) position themselves with
+`bottom-[var(--app-mobile-nav-offset,0px)]`; products without the attribute keep
+the `0px` fallback. The main padding (`pb-[calc(env(safe-area-inset-bottom)+6rem)] sm:pb-28`)
+already clears the bar and is unchanged.

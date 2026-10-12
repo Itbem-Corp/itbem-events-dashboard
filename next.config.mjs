@@ -70,6 +70,15 @@ const nextConfig = {
     ],
   },
 
+  // The retired orders module answers with a permanent redirect so old
+  // bookmarks land on the events list instead of a 404.
+  async redirects() {
+    return [
+      { source: '/orders', destination: '/events', permanent: true },
+      { source: '/orders/:path*', destination: '/events', permanent: true },
+    ]
+  },
+
   async headers() {
     return [
       {

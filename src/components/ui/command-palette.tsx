@@ -43,11 +43,25 @@ interface CommandItem {
 interface Props {
   open: boolean
   onClose: () => void
+  /** Root-only entries (users). */
   isRoot?: boolean
+  /** Event search may run without client_id (platform roots, caller access). */
+  listsAcrossOrganizations?: boolean
+  /** 'Ir al Dashboard' follows the route policy. */
+  showHome?: boolean
+  eventsLabel?: string
   clientId?: string
 }
 
-export function CommandPalette({ open, onClose, isRoot = false, clientId }: Props) {
+export function CommandPalette({
+  open,
+  onClose,
+  isRoot = false,
+  listsAcrossOrganizations = isRoot,
+  showHome = true,
+  eventsLabel = 'Eventos',
+  clientId,
+}: Props) {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -56,7 +70,7 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
 
   const debouncedQuery = useDebounce(query.trim(), 180)
   const eventsKey = open
-    ? scopedEventsPagePath(clientId, isRoot, {
+    ? scopedEventsPagePath(clientId, listsAcrossOrganizations, {
         page: 1,
         page_size: 6,
         search: debouncedQuery,
@@ -97,13 +111,16 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
       {
         id: 'new-event',
         type: 'action',
-        title: 'Ir a Eventos',
+        title: `Ir a ${eventsLabel}`,
         subtitle: 'Lista de todos los eventos',
         href: '/events',
         icon: Square2StackIcon,
         color: 'text-indigo-400',
       },
-      {
+    ]
+
+    if (showHome) {
+      actions.push({
         id: 'dashboard',
         title: 'Ir al Dashboard',
         type: 'action',
@@ -111,8 +128,8 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
         href: '/',
         icon: CalendarDaysIcon,
         color: 'text-violet-400',
-      },
-    ]
+      })
+    }
 
     if (isRoot) {
       actions.push({
@@ -127,7 +144,7 @@ export function CommandPalette({ open, onClose, isRoot = false, clientId }: Prop
     }
 
     return actions
-  }, [isRoot])
+  }, [eventsLabel, isRoot, showHome])
 
   const items = useMemo<CommandItem[]>(() => {
     const q = query.toLowerCase().trim()

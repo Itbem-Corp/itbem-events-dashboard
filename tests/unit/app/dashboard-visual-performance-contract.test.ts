@@ -13,10 +13,12 @@ describe('dashboard visual and loading contracts', () => {
     expect(readAppFile('metrics', 'page.tsx')).not.toContain("from 'motion/react'")
   })
 
-  it('lets the mobile audit grid shrink without clipping its result column', () => {
+  it('stacks audit entries below md instead of squeezing a clipped grid', () => {
     const source = readAppFile('audit', 'page.tsx')
 
-    expect(source).toContain('grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)_auto]')
+    expect(source).toContain('space-y-2 md:hidden')
+    expect(source).toContain('break-all')
+    expect(source).not.toContain('grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)_auto]')
     expect(source).not.toContain('grid-cols-[minmax(8rem,0.8fr)_minmax(10rem,1.4fr)_minmax(7rem,0.7fr)]')
   })
 })

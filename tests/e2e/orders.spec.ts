@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test.use({ storageState: 'tests/e2e/.auth/session.json' })
 
+// /orders is a permanent redirect in next.config.mjs (no page remains).
 test.describe('Rutas heredadas de órdenes', () => {
   test('/orders redirige al módulo operativo de eventos', async ({ page }) => {
     await page.goto('/orders')
