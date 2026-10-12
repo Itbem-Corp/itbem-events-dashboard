@@ -25,6 +25,8 @@ import { readResourceMediaUrl, safeResourceImageUrl } from '@/lib/resource-media
 import {
   SECTION_IMAGE_UPLOAD_ACCEPT,
   SECTION_IMAGE_UPLOAD_LIMIT_HELP_TEXT,
+  SECTION_IMAGE_UPLOAD_SCOPE_TEXT,
+  sectionImageUploadContentError,
   sectionImageUploadValidationError,
 } from '@/lib/resource-upload-policy'
 import { canonicalSectionType } from '@/lib/section-type-aliases'
@@ -32,7 +34,7 @@ import { getUploadErrorMessage } from '@/lib/upload-transport'
 import type { EventSection } from '@/models/EventSection'
 import type { Resource, ResourceFileMutationResponse } from '@/models/Resource'
 import { AnimatePresence, motion } from 'motion/react'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/safe-image'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import useSWR from 'swr'
@@ -131,7 +133,7 @@ function ImageSlot({ slot, resource, sectionId, resourceTypeId, onCreated, onRep
     const file = e.target.files?.[0]
     if (!file) return
 
-    const validationError = sectionImageUploadValidationError(file)
+    const validationError = sectionImageUploadValidationError(file) ?? (await sectionImageUploadContentError(file))
     if (validationError) {
       toast.error(validationError)
       e.target.value = ''
@@ -242,7 +244,7 @@ function ImageSlot({ slot, resource, sectionId, resourceTypeId, onCreated, onRep
       <div className="group relative">
         {imgSrc ? (
           <div className="relative h-32 overflow-hidden rounded-lg border border-white/10">
-            <Image
+            <SafeImage
               src={imgSrc}
               alt={slot.label}
               fill
@@ -293,7 +295,9 @@ function ImageSlot({ slot, resource, sectionId, resourceTypeId, onCreated, onRep
               <>
                 <ArrowUpTrayIcon className="size-5 text-ink-muted" />
                 <span className="text-xs text-ink-muted">Subir imagen</span>
-                <span className="text-[10px] text-ink-muted">{SECTION_IMAGE_UPLOAD_LIMIT_HELP_TEXT}</span>
+                <span className="text-[10px] text-ink-muted" title={SECTION_IMAGE_UPLOAD_SCOPE_TEXT}>
+                  {SECTION_IMAGE_UPLOAD_LIMIT_HELP_TEXT} · imágenes de la invitación
+                </span>
               </>
             )}
           </button>
