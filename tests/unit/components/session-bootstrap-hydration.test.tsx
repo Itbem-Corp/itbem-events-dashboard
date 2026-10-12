@@ -9,6 +9,13 @@ const mocks = vi.hoisted(() => ({
   clearSession: vi.fn(),
   refreshApplicationSession: vi.fn().mockResolvedValue(undefined),
   swrKeys: [] as Array<string | null>,
+  swrError: undefined as unknown,
+  endSession: vi.fn(),
+}))
+
+vi.mock('@/lib/end-session', () => ({
+  SESSION_SYNC_STORAGE_KEY: 'eventi:session-sync',
+  endSession: mocks.endSession,
 }))
 
 vi.mock('@/hooks/useStoreHydration', () => ({
@@ -34,7 +41,7 @@ vi.mock('@/lib/api', () => ({
 vi.mock('swr', () => ({
   default: (key: string | null) => {
     mocks.swrKeys.push(key)
-    return { data: undefined }
+    return { data: undefined, error: mocks.swrError }
   },
 }))
 
@@ -46,6 +53,8 @@ describe('SessionBootstrap hydration ordering', () => {
     mocks.clearSession.mockClear()
     mocks.refreshApplicationSession.mockClear()
     mocks.swrKeys = []
+    mocks.swrError = undefined
+    mocks.endSession.mockClear()
   })
 
   it('waits for persisted state before resolving the verified application session', () => {
@@ -89,5 +98,19 @@ describe('SessionBootstrap hydration ordering', () => {
     window.dispatchEvent(event)
 
     expect(mocks.clearSession).toHaveBeenCalledTimes(1)
+  })
+
+  it("ends the session with the 'no_access' reason when /api/session answers 403", () => {
+    mocks.hydrated = true
+    mocks.swrError = { response: { status: 403 } }
+    render(<SessionBootstrap />)
+    expect(mocks.endSession).toHaveBeenCalledWith(mocks.clearSession, 'no_access')
+  })
+
+  it('ends the session without a reason on 401', () => {
+    mocks.hydrated = true
+    mocks.swrError = { response: { status: 401 } }
+    render(<SessionBootstrap />)
+    expect(mocks.endSession).toHaveBeenCalledWith(mocks.clearSession)
   })
 })
