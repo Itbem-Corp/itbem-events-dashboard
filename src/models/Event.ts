@@ -60,7 +60,7 @@ export interface Event extends BaseEntity {
   // Relaciones
   client_id?: string | null
   client?: ClientSummary | null
-  event_type_id: string
+  event_type_id: string | null // null when the event has no type (backend sends null)
   event_type?: EventType | null
   event_config?: EventConfig | null // JSON key from backend: "event_config"
   config?: EventConfig | null // alias — populated by separate /config fetch

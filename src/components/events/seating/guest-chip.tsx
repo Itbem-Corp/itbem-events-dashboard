@@ -51,7 +51,10 @@ export function GuestChip({ guest, onMobileTap, isDraggable = true }: GuestChipP
       ].join(' ')}
     >
       <div className="flex items-center gap-2 min-w-0">
-        <span className="font-medium text-ink truncate">
+        <span
+          className="line-clamp-2 break-words font-medium text-ink [overflow-wrap:anywhere]"
+          title={`${guest.first_name} ${guest.last_name}`.trim()}
+        >
           {guest.first_name} {guest.last_name}
         </span>
         {companionCount > 0 && (

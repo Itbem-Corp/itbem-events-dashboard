@@ -3,6 +3,7 @@
 import { Button } from '@/components/button'
 import type { EventDetailGuestsViewState, GuestListSortColumn } from '@/components/events/event-detail-guests-state'
 import { EventDetailPanelSkeleton } from '@/components/events/event-detail-panel-skeleton'
+import { GuestCellNote } from '@/components/guests/guest-cell-note'
 import { GuestStatusBadge } from '@/components/guests/guest-status-badge'
 import { GuestStatusSelect } from '@/components/guests/guest-status-select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
@@ -253,7 +254,7 @@ export function EventDetailGuestsPanel({
       anchor.download = `invitados-${event.name?.replace(/\s+/g, '-').toLowerCase() || 'evento'}.csv`
       anchor.click()
       URL.revokeObjectURL(url)
-      toast.success(`${totalGuests} invitado${totalGuests !== 1 ? 's' : ''} exportados`)
+      toast.success(totalGuests === 1 ? '1 invitado exportado' : `${totalGuests} invitados exportados`)
     } catch (error) {
       toast.error(getApiErrorMessage(error, 'No pudimos exportar los invitados'))
     } finally {
@@ -322,7 +323,9 @@ export function EventDetailGuestsPanel({
         })
         void retryGuests()
         onPublicContentChanged()
-        toast.success(`${selectedGuestIds.length} invitado${selectedGuestIds.length !== 1 ? 's' : ''} actualizados`)
+        toast.success(
+          selectedGuestIds.length === 1 ? '1 invitado actualizado' : `${selectedGuestIds.length} invitados actualizados`
+        )
         setSelectedIds(new Set())
       } catch (error) {
         await retryGuests(previousGuests, { revalidate: false })
@@ -613,7 +616,7 @@ export function EventDetailGuestsPanel({
                 <div key={guest.id} className="rounded-xl border border-white/10 bg-surface/50 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-ink">
+                      <p className="truncate text-sm font-medium text-ink" title={`${guest.first_name} ${guest.last_name}`.trim()}>
                         {guest.first_name} {guest.last_name}
                       </p>
                       {guest.email && <p className="mt-0.5 truncate text-xs text-ink-muted">{guest.email}</p>}
@@ -737,19 +740,29 @@ export function EventDetailGuestsPanel({
                               className="rounded border-border-subtle bg-surface text-indigo-500 focus:ring-indigo-500 focus:ring-offset-canvas"
                             />
                           </TableCell>
+                          {/* Bounded widths: one long unbroken name or e-mail must not push the other
+                              columns and the actions out of view (GST-9). Full text stays in the tooltip. */}
                           <TableCell className="font-medium">
-                            <span className="text-ink">
+                            <span
+                              data-testid="guest-name-cell"
+                              className="line-clamp-2 max-w-[16rem] whitespace-normal text-ink [overflow-wrap:anywhere]"
+                              title={`${guest.first_name} ${guest.last_name}`.trim()}
+                            >
                               {guest.first_name} {guest.last_name}
                             </span>
                             {dietaryRestrictions && (
-                              <p className="mt-0.5 max-w-full truncate text-xs text-ink-muted">{dietaryRestrictions}</p>
+                              <GuestCellNote text={dietaryRestrictions} />
                             )}
                             {rsvpNotes && (
-                              <p className="mt-0.5 max-w-full truncate text-xs text-ink-muted">RSVP: {rsvpNotes}</p>
+                              <GuestCellNote prefix="RSVP: " text={rsvpNotes} />
                             )}
                           </TableCell>
                           <TableCell className="text-ink-secondary">
-                            {guest.email ? <p className="text-xs">{guest.email}</p> : null}
+                            {guest.email ? (
+                              <p className="max-w-[14rem] truncate text-xs" title={guest.email}>
+                                {guest.email}
+                              </p>
+                            ) : null}
                             {guest.phone ? <p className="text-xs text-ink-muted">{guest.phone}</p> : null}
                             {!guest.email && !guest.phone && <span className="text-ink-muted">—</span>}
                           </TableCell>
