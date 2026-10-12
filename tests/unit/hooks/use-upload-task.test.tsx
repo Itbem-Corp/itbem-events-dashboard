@@ -74,3 +74,25 @@ describe('useUploadTask', () => {
     expect(result.current.canRetry).toBe(false)
   })
 })
+
+describe('useUploadTask after the server answered', () => {
+  it('reports success when the cancel arrives after the response', async () => {
+    const { result } = renderHook(() => useUploadTask('No pudimos subir'))
+    let resolveUpload!: (value: string) => void
+    let pending!: Promise<{ ok: boolean }>
+
+    act(() => {
+      pending = result.current.start(() => new Promise<string>((resolve) => (resolveUpload = resolve)))
+    })
+    // The response is already on its way when the user presses cancel.
+    act(() => {
+      resolveUpload('saved')
+      result.current.cancel()
+    })
+    const outcome = await act(async () => pending)
+
+    expect(outcome).toEqual({ ok: true, value: 'saved' })
+    expect(result.current.status).toBe('success')
+    expect(result.current.error).toBeNull()
+  })
+})

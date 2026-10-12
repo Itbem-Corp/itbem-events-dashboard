@@ -2,7 +2,7 @@
 import { useStore } from "@/store/useStore";
 import { readApiData } from "@/lib/api-envelope";
 import { normalizeBackendBaseUrl } from "@/lib/base-url";
-import { getApiErrorMessage } from "@/lib/api-error";
+import { getApiErrorMessage, isCanceledRequest, NETWORK_ERROR_MESSAGE } from "@/lib/api-error";
 import { memberAccessDenialMessage } from "@/lib/member-management";
 import { backendBaseUrlForHostname, tenantCodeForHostname } from "@/lib/tenant-config";
 import { releaseMutationKey, reserveMutationKey } from "@/lib/idempotency-key";
@@ -12,6 +12,7 @@ import { endSession } from '@/lib/end-session'
 import { organizationContextHeaders, requestContextHeaders } from '@/lib/request-context'
 import type { TenantCode } from '@/products/core/product-manifest'
 import type { ApplicationSession } from '@/models/ApplicationSession'
+import { AUTH_TOKEN_ERROR_CODES, authFailureEndsSession, readAuthTokenErrorCode } from '@/lib/auth-token-errors'
 
 // 1. Leemos la URL base pública y le pegamos "/api" al final.
 // Si no existe la variable, usamos localhost como fallback.
@@ -70,6 +71,7 @@ let lastNetworkErrorToastAt = 0
 let lastSessionRecoveryToastAt = 0
 let lastOrganizationCredentialToastAt = 0
 let lastWorkspaceContextToastAt = 0
+let lastForbiddenToastAt = 0
 
 // Background SWR refreshes can fail together when a local API is starting or
 // a connection briefly drops. A toast per request hides the useful UI, so
@@ -80,6 +82,17 @@ const SESSION_RECOVERY_TOAST_COOLDOWN_MS = 8_000
 
 export const SESSION_REVALIDATE_INTERVAL_MS = 5 * 60 * 1000
 export const SESSION_FOCUS_REVALIDATE_AFTER_MS = 60 * 1000
+
+const LOCAL_NETWORK_ERROR_MESSAGE = 'No se pudo conectar con la API local. Revisa que el backend local esté activo.'
+
+function isLocalHostname(hostname: string): boolean {
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.localhost')
+}
+
+// Only a developer on a local host can act on "start the local API".
+export function networkErrorMessage(hostname = typeof window === 'undefined' ? '' : window.location.hostname): string {
+    return isLocalHostname(hostname) ? LOCAL_NETWORK_ERROR_MESSAGE : NETWORK_ERROR_MESSAGE
+}
 
 export function applicationContextDenialKind(payload: unknown): 'organization_credential' | 'product_mismatch' | 'workspace' | null {
     const body = JSON.stringify(payload ?? '').toLowerCase()
@@ -103,7 +116,10 @@ export function applicationContextDenialKind(payload: unknown): 'organization_cr
 // application token. That rejection happens before Axios has an HTTP
 // `response`, so it must not be presented as if the Automation API were down.
 export function localSessionRecoveryMessage(error: unknown): string | null {
-    const status = (error as { status?: unknown } | null)?.status
+    const { status, code } = (error as { status?: unknown; code?: unknown } | null) ?? {}
+    if (status === 403 && code === AUTH_TOKEN_ERROR_CODES.invalidOrigin) {
+        return 'No se pudo validar la solicitud. Actualiza la página e intenta de nuevo.'
+    }
     if (status === 401 || status === 403) {
         return 'No se pudo validar tu sesión local. Inicia sesión de nuevo.'
     }
@@ -124,10 +140,11 @@ export const getAuthToken = async (forceRefresh = false) => {
         method: "POST",
         cache: "no-store",
     })
-        .then((res) => {
+        .then(async (res) => {
             if (!res.ok) {
-                const error = new Error("No session") as Error & { status?: number }
+                const error = new Error("No session") as Error & { status?: number; code?: string }
                 error.status = res.status
+                error.code = await readAuthTokenErrorCode(res)
                 throw error
             }
             return res.json();
@@ -195,8 +212,9 @@ export async function refreshApplicationSession(minAgeMs = 0): Promise<Applicati
     })
         .then(async (response) => {
             if (!response.ok) {
-                const error = new Error('No session') as Error & { status?: number }
+                const error = new Error('No session') as Error & { status?: number; code?: string }
                 error.status = response.status
+                error.code = await readAuthTokenErrorCode(response)
                 throw error
             }
             return response.json() as Promise<{ token?: string; session?: ApplicationSession }>
@@ -270,8 +288,12 @@ api.interceptors.response.use(
                     return api.request(requestConfig)
                 }
             } catch (refreshError) {
-                const refreshStatus = (refreshError as Error & { status?: number }).status
-                if (refreshStatus !== 401) return Promise.reject(error)
+                // 401: the refresh token is gone. 403 + access_revoked: the BFF
+                // verified the session, the product access was revoked and the
+                // cookies are already cleared. Both are final. Anything else
+                // (503, network, the same-origin guard's 403) may recover, so
+                // keep the session.
+                if (!authFailureEndsSession(refreshError)) return Promise.reject(error)
             }
 
             useStore.getState().clearSession()
@@ -311,13 +333,20 @@ api.interceptors.response.use(
                     toast.error('No se pudo validar el espacio de trabajo. Selecciona nuevamente una organización o la vista de plataforma.')
                 }
             } else {
+                // Background revalidations can fail together; one toast is enough.
                 // Known member-management denials arrive as English reasons;
                 // show the Spanish copy instead (the backend stays the authority).
-                toast.error(
-                    memberAccessDenialMessage(error) ??
-                        getApiErrorMessage(error, 'Sin permisos para realizar esta acción')
-                )
+                const now = Date.now()
+                if (now - lastForbiddenToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
+                    lastForbiddenToastAt = now
+                    toast.error(
+                        memberAccessDenialMessage(error) ??
+                            getApiErrorMessage(error, 'No tienes permiso para realizar esta acción.')
+                    )
+                }
             }
+        } else if (!error?.response && isCanceledRequest(error)) {
+            // The user or the screen cancelled the request: not a failure.
         } else if (!error?.response) {
             const sessionMessage = localSessionRecoveryMessage(error)
             if (sessionMessage) {
@@ -334,7 +363,7 @@ api.interceptors.response.use(
                         toast.error(sessionMessage)
                     }
                 }
-                if (sessionStatus === 401 || sessionStatus === 403) {
+                if (authFailureEndsSession(error)) {
                     useStore.getState().clearSession()
                     void endSession()
                 }
@@ -344,7 +373,7 @@ api.interceptors.response.use(
             const now = Date.now()
             if (now - lastNetworkErrorToastAt >= NETWORK_ERROR_TOAST_COOLDOWN_MS) {
                 lastNetworkErrorToastAt = now
-                toast.error('No se pudo conectar con el backend. Revisa que la API local esté activa.')
+                toast.error(networkErrorMessage())
             }
         }
 

@@ -3,6 +3,7 @@ import { AUTH_COOKIE_NAMES, PRIVATE_NO_STORE_HEADERS, REFRESH_TOKEN_MAX_AGE_SECO
 import { authRequestIsSameOrigin, getCognitoClient } from '@/lib/cognito-direct'
 import { verifyApplicationAccess } from '@/lib/application-access'
 import { tenantForRequest } from '@/lib/tenant-config'
+import { AUTH_TOKEN_ERROR_CODES } from '@/lib/auth-token-errors'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -11,6 +12,14 @@ export const revalidate = 0
 function privateJson(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: PRIVATE_NO_STORE_HEADERS })
 }
+
+function accessDenied(access: { status: number; error: string }) {
+  if (access.status === 403) {
+    return clearSession(privateJson({ error: access.error, code: AUTH_TOKEN_ERROR_CODES.accessRevoked }, 403))
+  }
+  return clearSession(privateJson({ error: access.error }, access.status))
+}
+
 function clearSession(response: NextResponse) {
   response.cookies.set(AUTH_COOKIE_NAMES.session, '', { path: '/', maxAge: 0 })
   response.cookies.set(AUTH_COOKIE_NAMES.refreshToken, '', { path: '/', maxAge: 0 })
@@ -29,7 +38,7 @@ async function issueToken(request: NextRequest) {
     // carries a token issued by an earlier client configuration. Keep a real
     // authorization denial fail-closed, but use the opaque refresh cookie to
     // obtain a fresh ID token before declaring the session unavailable.
-    if (access.status === 403) return clearSession(privateJson({ error: access.error }, access.status))
+    if (access.status === 403) return accessDenied(access)
   }
   if (!refreshToken) return clearSession(privateJson({ error: 'No session' }, 401))
 
@@ -43,7 +52,7 @@ async function issueToken(request: NextRequest) {
     const idToken = result.AuthenticationResult?.IdToken
     if (!idToken) return clearSession(privateJson({ error: 'Session expired' }, 401))
     const access = await verifyApplicationAccess(request, idToken)
-    if (!access.ok) return clearSession(privateJson({ error: access.error }, access.status))
+    if (!access.ok) return accessDenied(access)
     const response = privateJson({ token: idToken, session: access.session })
     response.cookies.set(AUTH_COOKIE_NAMES.session, idToken, {
       ...authCookieOptions(), maxAge: sessionMaxAge(result.AuthenticationResult?.ExpiresIn),
@@ -75,6 +84,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!authRequestIsSameOrigin(request)) return privateJson({ error: 'Solicitud no válida.' }, 403)
+  if (!authRequestIsSameOrigin(request)) {
+    return privateJson({ error: 'Solicitud no válida.', code: AUTH_TOKEN_ERROR_CODES.invalidOrigin }, 403)
+  }
   return issueToken(request)
 }

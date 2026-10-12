@@ -36,7 +36,6 @@ export function ProfileAvatarModal({ open, value, onClose, onAvatarChange }: Pro
     const result = await upload.start(async (requestConfig) => {
       if (!file) {
         await api.delete(userAvatarPath(), requestConfig)
-        if (requestConfig.signal?.aborted) throw new DOMException('Upload canceled', 'AbortError')
         onAvatarChange(null)
         toast.success('Foto de perfil eliminada')
         onClose()
@@ -52,7 +51,6 @@ export function ProfileAvatarModal({ open, value, onClose, onAvatarChange }: Pro
       const formData = new FormData()
       formData.append('avatar', prepared.file)
       const response = await api.post<AvatarResponse>(userAvatarPath(), formData, requestConfig)
-      if (requestConfig.signal?.aborted) throw new DOMException('Upload canceled', 'AbortError')
       const avatar = readApiData<AvatarResponse>(response.data)
       if (!avatar?.url || typeof avatar.url !== 'string') {
         throw new Error('El servidor no confirmó la nueva foto. Reintenta la carga.')

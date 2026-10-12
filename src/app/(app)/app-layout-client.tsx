@@ -6,6 +6,7 @@ import { RouteGuardSkeleton } from '@/components/session/route-guard-skeleton'
 import SessionBootstrap from '@/components/session/SessionBootstrap'
 import { StoreHydrationBoundary } from '@/components/session/StoreHydrationBoundary'
 import { NavigationProgress } from '@/components/ui/navigation-progress'
+import { swrOnErrorRetry } from '@/lib/swr-error-retry'
 import { ConnectionStatusBanner } from '@/components/ui/connection-status-banner'
 import {
   createApplicationNavigation,
@@ -107,6 +108,7 @@ function AppLayoutShell({ children, product, tenant }: AppLayoutClientProps) {
           revalidateOnFocus: false,
           revalidateOnReconnect: true,
           errorRetryCount: 3,
+          onErrorRetry: swrOnErrorRetry,
         }}
       >
         <SessionBootstrap />

@@ -13,8 +13,8 @@ const mocks = vi.hoisted(() => ({
   endSession: vi.fn(),
 }))
 
-vi.mock('@/lib/end-session', () => ({
-  SESSION_SYNC_STORAGE_KEY: 'eventi:session-sync',
+vi.mock('@/lib/end-session', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/end-session')>()),
   endSession: mocks.endSession,
 }))
 
@@ -51,10 +51,11 @@ describe('SessionBootstrap hydration ordering', () => {
     mocks.profileLoaded = false
     mocks.setApplicationSession.mockClear()
     mocks.clearSession.mockClear()
-    mocks.refreshApplicationSession.mockClear()
+    mocks.refreshApplicationSession.mockReset()
+    mocks.refreshApplicationSession.mockResolvedValue(undefined)
+    mocks.endSession.mockClear()
     mocks.swrKeys = []
     mocks.swrError = undefined
-    mocks.endSession.mockClear()
   })
 
   it('waits for persisted state before resolving the verified application session', () => {
@@ -99,10 +100,32 @@ describe('SessionBootstrap hydration ordering', () => {
 
     expect(mocks.clearSession).toHaveBeenCalledTimes(1)
   })
-
-  it("ends the session with the 'no_access' reason when /api/session answers 403", () => {
+  it('keeps the session when revalidation hits the same-origin guard (403 invalid_origin)', async () => {
     mocks.hydrated = true
-    mocks.swrError = { response: { status: 403 } }
+    mocks.profileLoaded = true
+    mocks.refreshApplicationSession.mockRejectedValue(Object.assign(new Error('No session'), { status: 403, code: 'invalid_origin' }))
+    await act(async () => {
+      render(<SessionBootstrap />)
+    })
+
+    expect(mocks.refreshApplicationSession).toHaveBeenCalled()
+    expect(mocks.endSession).not.toHaveBeenCalled()
+  })
+
+  it('ends the session when revalidation reports the access was revoked', async () => {
+    mocks.hydrated = true
+    mocks.profileLoaded = true
+    mocks.refreshApplicationSession.mockRejectedValue(Object.assign(new Error('No session'), { status: 403, code: 'access_revoked' }))
+    await act(async () => {
+      render(<SessionBootstrap />)
+    })
+
+    expect(mocks.endSession).toHaveBeenCalledWith(mocks.clearSession, 'no_access')
+  })
+
+  it("ends the session with the 'no_access' reason when /api/session reports the access was revoked", () => {
+    mocks.hydrated = true
+    mocks.swrError = { status: 403, code: 'access_revoked' }
     render(<SessionBootstrap />)
     expect(mocks.endSession).toHaveBeenCalledWith(mocks.clearSession, 'no_access')
   })

@@ -6,8 +6,13 @@ import { ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/20/soli
 interface PageDataErrorProps {
   title: string
   description: string
-  onRetry: () => void
+  /** Omit when retrying cannot help (for example a malformed id in the URL). */
+  onRetry?: () => void
   retrying?: boolean
+  /** Extra action next to "Reintentar", such as a link back to the list. */
+  action?: React.ReactNode
+  /** Small uppercase label above the title; defaults to the connection wording. */
+  eyebrow?: string
   icon?: React.ComponentType<{ className?: string }>
 }
 
@@ -16,6 +21,8 @@ export function PageDataError({
   description,
   onRetry,
   retrying = false,
+  action,
+  eyebrow = 'Conexión interrumpida',
   icon: Icon = ExclamationTriangleIcon,
 }: PageDataErrorProps) {
   return (
@@ -26,13 +33,18 @@ export function PageDataError({
           <span className="mx-auto flex size-11 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-700 dark:text-red-300">
             <Icon className="size-5" />
           </span>
-          <p className="mt-6 text-[11px] font-semibold tracking-[0.18em] text-red-700 uppercase dark:text-red-300">Conexión interrumpida</p>
+          <p className="mt-6 text-[11px] font-semibold tracking-[0.18em] text-red-700 uppercase dark:text-red-300">{eyebrow}</p>
           <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink sm:text-2xl">{title}</h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-ink-secondary">{description}</p>
-          <Button color="indigo" className="mt-7" onClick={onRetry} disabled={retrying} aria-busy={retrying}>
-            <ArrowPathIcon className={retrying ? 'animate-spin motion-reduce:animate-none' : undefined} />
-            {retrying ? 'Reintentando…' : 'Reintentar'}
-          </Button>
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+            {onRetry && (
+              <Button color="indigo" onClick={onRetry} disabled={retrying} aria-busy={retrying}>
+                <ArrowPathIcon className={retrying ? 'animate-spin motion-reduce:animate-none' : undefined} />
+                {retrying ? 'Reintentando…' : 'Reintentar'}
+              </Button>
+            )}
+            {action}
+          </div>
         </div>
       </div>
     </section>
