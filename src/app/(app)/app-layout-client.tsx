@@ -3,13 +3,15 @@
 import { ApplicationLayout } from '@/components/application-layout'
 import { ErrorBoundary } from '@/components/error-boundary'
 import SessionBootstrap from '@/components/session/SessionBootstrap'
-import { StoreHydrationBoundary } from '@/components/session/StoreHydrationBoundary'
 import { NavigationProgress } from '@/components/ui/navigation-progress'
 import { swrOnErrorRetry } from '@/lib/swr-error-retry'
 import { ConnectionStatusBanner } from '@/components/ui/connection-status-banner'
-import { accessCan, createAccessProfile } from '@/lib/access-profile'
+import { RouteAccessDenied } from '@/components/session/route-access-denied'
+import { HydrationSkeleton, StoreHydrationBoundary } from '@/components/session/StoreHydrationBoundary'
+import { createAccessProfile } from '@/lib/access-profile'
+import { resolveRouteAccess, routeNeedsAccessDecision } from '@/lib/route-access'
 import type { TenantConfig } from '@/lib/tenant-config'
-import { productSupportsFeature, productSupportsPath, type ProductManifest } from '@/products/core/product-manifest'
+import type { ProductManifest } from '@/products/core/product-manifest'
 import { useStore } from '@/store/useStore'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
@@ -40,108 +42,34 @@ export function AppLayoutClient({
       applicationSession.organizations.length > 0 &&
       !currentClient
   )
-  const canViewEvents =
-    productSupportsFeature(product, 'events') &&
-    accessProfile.isOrganizationContext &&
-    accessCan(accessProfile, 'events:view')
-  const canViewUsers =
-    productSupportsFeature(product, 'users') &&
-    accessProfile.isPlatformContext &&
-    accessCan(accessProfile, 'platform:users:view')
-  const canViewOrganizations =
-    productSupportsFeature(product, 'organizations') &&
-    accessProfile.isPlatformContext &&
-    accessCan(accessProfile, 'organizations:view')
-  const canManageMembers =
-    productSupportsFeature(product, 'team') &&
-    accessProfile.isOrganizationContext &&
-    accessCan(accessProfile, 'members:manage')
-  const canViewMetrics = productSupportsFeature(product, 'metrics') && accessCan(accessProfile, 'metrics:view')
-  const canViewAudit =
-    productSupportsFeature(product, 'audit') &&
-    accessProfile.isPlatformContext &&
-    accessCan(accessProfile, 'audit:view')
-  const canUseAutomation =
-    productSupportsFeature(product, 'automation') &&
-    accessProfile.isPlatformContext &&
-    (accessCan(accessProfile, 'automation:view') || accessCan(accessProfile, 'automation:manage'))
-  const canManageAutomationConfiguration =
-    canUseAutomation && accessProfile.platformLevel === 'root_1'
+  const routeDecision = resolveRouteAccess({
+    pathname,
+    product,
+    accessProfile,
+    organizationContextPending,
+    currentClientTypeCode: currentClient?.client_type?.code ?? null,
+  })
+  // Until the verified session (and, for members, their organization) is
+  // known, a route that depends on the role is not mounted: its first requests
+  // would otherwise leave before the decision and end in 403 toasts for pages
+  // the user cannot open. The session survives token refreshes, so a mounted
+  // page is never torn down by one.
+  const awaitingAccessDecision =
+    routeNeedsAccessDecision(pathname) &&
+    (!applicationSession || (organizationContextPending && routeDecision.kind === 'deny'))
+  const redirectTo = !awaitingAccessDecision && routeDecision.kind === 'redirect' ? routeDecision.to : null
 
   useEffect(() => {
-    // ⛔ NO VALIDAR NADA hasta que el perfil esté listo
-    if (!profileLoaded) return
+    if (redirectTo) router.replace(redirectTo)
+  }, [redirectTo, router])
 
-    // Product manifests are a client-side ceiling. Even if a future backend
-    // configuration grants an unrelated capability, its route stays invisible.
-    if (!productSupportsPath(product, pathname)) {
-      router.replace('/')
-      return
-    }
-
-    if (pathname.startsWith('/events') && !organizationContextPending && !canViewEvents) {
-      router.replace('/')
-      return
-    }
-
-    // 🔒 RUTAS SOLO ROOT
-    if (pathname.startsWith('/clients') && !canViewOrganizations) {
-      router.replace('/')
-      return
-    }
-
-    if (pathname.startsWith('/users') && !canViewUsers) {
-      router.replace('/')
-      return
-    }
-
-    if (pathname.startsWith('/metrics') && !canViewMetrics) {
-      router.replace('/')
-      return
-    }
-
-    if (pathname.startsWith('/audit') && !canViewAudit) {
-      router.replace('/')
-      return
-    }
-
-    if (pathname.startsWith('/automation/settings') && !canManageAutomationConfiguration) {
-      router.replace('/automation')
-      return
-    }
-
-    if (pathname.startsWith('/automation') && !canUseAutomation) {
-      router.replace('/')
-      return
-    }
-
-    // 🔒 RUTAS SOLO CLIENT
-    if (pathname.startsWith('/team') && !organizationContextPending && !canManageMembers) {
-      router.replace('/')
-      return
-    }
-
-    // 🔒 SOLO AGENCY
-    if (pathname.startsWith('/sub-clients') && currentClient?.client_type?.code !== 'AGENCY') {
-      router.replace('/')
-      return
-    }
-  }, [
-    canViewEvents,
-    organizationContextPending,
-    canViewOrganizations,
-    canViewUsers,
-    canManageMembers,
-    canViewMetrics,
-    canViewAudit,
-    canUseAutomation,
-    canManageAutomationConfiguration,
-    currentClient,
-    pathname,
-    profileLoaded,
-    product,
-    router,
-  ])
+  const content = awaitingAccessDecision || routeDecision.kind === 'redirect' ? (
+    <HydrationSkeleton />
+  ) : routeDecision.kind === 'deny' ? (
+    <RouteAccessDenied reason={routeDecision.reason} productName={tenant.name} />
+  ) : (
+    children
+  )
 
   return (
     <>
@@ -161,7 +89,7 @@ export function AppLayoutClient({
         <SessionBootstrap />
         <ErrorBoundary resetKey={pathname}>
           <ApplicationLayout tenant={tenant}>
-            <StoreHydrationBoundary>{children}</StoreHydrationBoundary>
+            <StoreHydrationBoundary>{content}</StoreHydrationBoundary>
           </ApplicationLayout>
         </ErrorBoundary>
       </SWRConfig>

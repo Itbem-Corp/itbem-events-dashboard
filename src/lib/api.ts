@@ -9,6 +9,9 @@ import { normalizeKeys } from "@/lib/normalizer";
 import { toast } from "sonner";
 import { endSession } from '@/lib/end-session'
 import { organizationContextHeaders, requestContextHeaders } from '@/lib/request-context'
+import type { OrganizationContextCredential } from '@/lib/request-context'
+import { organizationContextPath } from '@/lib/api-paths'
+import { REQUEST_CONTEXT_HEADERS } from '@/contracts/request-context'
 import type { TenantCode } from '@/products/core/product-manifest'
 import type { ApplicationSession } from '@/models/ApplicationSession'
 import { AUTH_TOKEN_ERROR_CODES, authFailureEndsSession, readAuthTokenErrorCode } from '@/lib/auth-token-errors'
@@ -50,6 +53,7 @@ const MUTATION_METHODS = new Set(["post", "put", "patch", "delete"])
 type IdempotentRequestConfig = {
     _eventiIdempotencySignature?: string
     _eventiAuthRetried?: boolean
+    _eventiOrganizationContextRetried?: boolean
 }
 
 function releaseRequestMutationKey(config: IdempotentRequestConfig | undefined) {
@@ -71,6 +75,7 @@ let lastSessionRecoveryToastAt = 0
 let lastOrganizationCredentialToastAt = 0
 let lastWorkspaceContextToastAt = 0
 let lastForbiddenToastAt = 0
+let lastOrganizationContextUnavailableToastAt = 0
 
 // Background SWR refreshes can fail together when a local API is starting or
 // a connection briefly drops. A toast per request hides the useful UI, so
@@ -163,8 +168,142 @@ export const getAuthToken = async (forceRefresh = false) => {
     return tokenPromise;
 };
 
-export async function apiRequestHeaders(forceRefresh = false): Promise<Record<string, string>> {
+// --- ORGANIZATION CONTEXT CREDENTIAL ---
+//
+// Every organization-scoped API call needs a short-lived, session-bound
+// organization context token (POST /session/organization-context). On a cold
+// load, reload or deep link the screen's first requests used to leave before
+// that token existed and got 403 "organization context token is required".
+// Requests now wait for one shared in-flight issuance instead, and a 403 for
+// that exact reason refreshes the credential once and retries automatically.
+
+export const ORGANIZATION_CONTEXT_UNAVAILABLE = 'ORGANIZATION_CONTEXT_UNAVAILABLE'
+export const ORGANIZATION_CONTEXT_UNAVAILABLE_MESSAGE =
+    'No pudimos preparar el espacio de trabajo. Intenta de nuevo en unos segundos.'
+
+// A failed issuance is reused briefly so a screen with many parallel reads
+// does not hammer an unavailable endpoint (for example a 503 while the API is
+// missing its signing secret).
+const ORGANIZATION_CONTEXT_FAILURE_COOLDOWN_MS = 2_000
+
+interface OrganizationContextResponse {
+    token: string
+    organization_id: string
+    expires_at: string
+}
+
+export class OrganizationContextUnavailableError extends Error {
+    readonly code = ORGANIZATION_CONTEXT_UNAVAILABLE
+    readonly status: number
+    readonly payload: { message: string; status: number }
+    readonly reason: unknown
+
+    constructor(reason: unknown) {
+        super(ORGANIZATION_CONTEXT_UNAVAILABLE_MESSAGE)
+        this.name = 'OrganizationContextUnavailableError'
+        const reasonStatus = (reason as { response?: { status?: unknown } } | null)?.response?.status
+        // 401/403 are definitive answers about this organization; anything else
+        // (5xx, network, malformed body) is transient and may heal on retry.
+        this.status = reasonStatus === 401 || reasonStatus === 403 ? reasonStatus : 503
+        this.payload = { message: ORGANIZATION_CONTEXT_UNAVAILABLE_MESSAGE, status: this.status }
+        this.reason = reason
+    }
+}
+
+export function isOrganizationContextUnavailable(error: unknown): error is OrganizationContextUnavailableError {
+    return (error as { code?: unknown } | null)?.code === ORGANIZATION_CONTEXT_UNAVAILABLE
+}
+
+/** True for failures caused by the organization credential, never by the user's role. */
+export function isOrganizationContextFailure(error: unknown): boolean {
+    if (isOrganizationContextUnavailable(error)) return error.status !== 403 && error.status !== 401
+    const response = (error as { response?: { status?: unknown; data?: unknown } } | null)?.response
+    return response?.status === 403 && applicationContextDenialKind(response.data) === 'organization_credential'
+}
+
+const pendingOrganizationContext = new Map<string, Promise<OrganizationContextCredential>>()
+const failedOrganizationContext = new Map<string, { at: number; error: OrganizationContextUnavailableError }>()
+
+// Mirrors the backend's requiresOrganizationCredential: session bootstrap,
+// credential issuance and the workspace selector's organization list work
+// without a credential, so they must never wait for one (issuance would
+// otherwise wait for itself).
+export function requestNeedsOrganizationCredential(method: string | undefined, url: string | undefined): boolean {
+    let path = (url ?? '').trim()
+    if (/^https?:\/\//i.test(path)) {
+        try {
+            path = new URL(path).pathname
+        } catch {
+            // Keep the raw value; relative paths are the norm.
+        }
+    }
+    path = path.split(/[?#]/)[0].toLowerCase().replace(/\/+$/, '')
+    path = path.replace(/^\/(automation-bridge|api)(?=\/)/, '')
+    if (!path.startsWith('/')) path = `/${path}`
+    if ((method ?? 'get').toLowerCase() === 'get' && path === '/clients') return false
+    return path !== '/session' && path !== organizationContextPath()
+}
+
+export function issueOrganizationContextCredential(organizationId: string): Promise<OrganizationContextCredential> {
+    const pending = pendingOrganizationContext.get(organizationId)
+    if (pending) return pending
+
+    const request = api
+        .post(organizationContextPath(), { organization_id: organizationId })
+        .then((response) => {
+            const context = readApiData<OrganizationContextResponse>(response.data)
+            if (!context?.token || context.organization_id !== organizationId || !context.expires_at) {
+                throw new Error('The organization context response is incomplete')
+            }
+            failedOrganizationContext.delete(organizationId)
+            return {
+                token: context.token,
+                organizationId: context.organization_id,
+                expiresAt: context.expires_at,
+            }
+        })
+        .finally(() => pendingOrganizationContext.delete(organizationId))
+
+    pendingOrganizationContext.set(organizationId, request)
+    return request
+}
+
+/**
+ * Resolves once the active organization workspace has a valid credential in
+ * the store. A no-op for the platform workspace, before the session is known
+ * or while the current credential is still valid.
+ */
+export async function ensureOrganizationContext(): Promise<void> {
+    const state = useStore.getState()
+    const organizationId = state.currentClient?.id ?? null
+    if (!state.applicationSession || state.workspaceMode !== 'organization' || !organizationId) return
+    const scope = { tenantCode: 'eventiapp' as TenantCode, workspaceMode: state.workspaceMode, organizationId }
+    if (Object.keys(organizationContextHeaders(scope, state.organizationContext)).length > 0) return
+
+    const failure = failedOrganizationContext.get(organizationId)
+    if (failure && Date.now() - failure.at < ORGANIZATION_CONTEXT_FAILURE_COOLDOWN_MS) throw failure.error
+
+    try {
+        const credential = await issueOrganizationContextCredential(organizationId)
+        // The user may have switched workspace while this was in flight; a
+        // late credential must not overwrite the one for the current org.
+        const current = useStore.getState()
+        if (current.workspaceMode === 'organization' && current.currentClient?.id === organizationId) {
+            current.setOrganizationContextCredential(credential)
+        }
+    } catch (reason) {
+        const error = new OrganizationContextUnavailableError(reason)
+        failedOrganizationContext.set(organizationId, { at: Date.now(), error })
+        throw error
+    }
+}
+
+export async function apiRequestHeaders(
+    forceRefresh = false,
+    options: { organizationCredential?: boolean } = {}
+): Promise<Record<string, string>> {
     const token = await getAuthToken(forceRefresh)
+    if (options.organizationCredential !== false) await ensureOrganizationContext()
     const state = useStore.getState()
     const sessionTenant = state.applicationSession?.application.code as TenantCode | undefined
     const hostnameTenant = typeof window === 'undefined' ? undefined : tenantCodeForHostname(window.location.hostname)
@@ -239,7 +378,11 @@ export async function refreshApplicationSession(minAgeMs = 0): Promise<Applicati
 // --- INTERCEPTOR DE REQUEST ---
 api.interceptors.request.use(async (config) => {
     const idempotentConfig = config as typeof config & IdempotentRequestConfig
-    const requestHeaders = await apiRequestHeaders()
+    const requestHeaders = await apiRequestHeaders(false, {
+        organizationCredential: requestNeedsOrganizationCredential(config.method, config.url),
+    })
+    // A retried request must not keep a credential the store already dropped.
+    delete config.headers[REQUEST_CONTEXT_HEADERS.organizationContext]
     for (const [name, value] of Object.entries(requestHeaders)) {
         config.headers[name] = value
     }
@@ -275,6 +418,21 @@ api.interceptors.response.use(
     async (error) => {
         const status = error?.response?.status
         const requestConfig = error?.config as (typeof error.config & IdempotentRequestConfig) | undefined
+
+        if (isOrganizationContextUnavailable(error)) {
+            // The credential could not be issued, so the request never left.
+            // 401/403 from issuance were already surfaced by that request; a
+            // transient failure (503, network) gets one calm, rate-limited note
+            // and each screen keeps its own retry state.
+            if (error.status !== 401 && error.status !== 403) {
+                const now = Date.now()
+                if (now - lastOrganizationContextUnavailableToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
+                    lastOrganizationContextUnavailableToastAt = now
+                    toast.error(ORGANIZATION_CONTEXT_UNAVAILABLE_MESSAGE)
+                }
+            }
+            return Promise.reject(error)
+        }
 
         if (status === 401 && requestConfig && !requestConfig._eventiAuthRetried) {
             requestConfig._eventiAuthRetried = true
@@ -316,14 +474,24 @@ api.interceptors.response.use(
                 state.clearSession()
                 void endSession()
             } else if (contextDenial === 'organization_credential') {
-                // Context credentials are intentionally short-lived. Clear a stale
-                // credential so the renewal hook can mint a fresh, session-bound one
-                // instead of leaving the workspace stuck behind repeated 403s.
-                state.setOrganizationContextCredential(null)
+                // Context credentials are intentionally short-lived. Drop the
+                // credential this request carried (not a fresher one another
+                // request already obtained) and retry once: the request
+                // interceptor waits for a new, session-bound credential. The
+                // backend rejected the call before any handler ran, so the
+                // retry is safe for mutations too (same Idempotency-Key).
+                const sentToken = requestConfig?.headers?.[REQUEST_CONTEXT_HEADERS.organizationContext]
+                if (!sentToken || state.organizationContext?.token === sentToken) {
+                    state.setOrganizationContextCredential(null)
+                }
+                if (requestConfig && !requestConfig._eventiOrganizationContextRetried) {
+                    requestConfig._eventiOrganizationContextRetried = true
+                    return api.request(requestConfig)
+                }
                 const now = Date.now()
                 if (now - lastOrganizationCredentialToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
                     lastOrganizationCredentialToastAt = now
-                    toast.info('El contexto del espacio se renovará automáticamente.')
+                    toast.error(ORGANIZATION_CONTEXT_UNAVAILABLE_MESSAGE)
                 }
             } else if (contextDenial === 'workspace') {
                 const now = Date.now()

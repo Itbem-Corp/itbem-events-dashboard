@@ -44,7 +44,7 @@ describe('application context denial recovery', () => {
     expect(applicationContextDenialKind({ message: 'Application context denied', error: 'unknown' })).toBe('product_mismatch')
     expect(applicationContextDenialKind({ error: 'organization context token is required' })).toBe('organization_credential')
   })
-  it('preserves authentication, clears only the organization credential and does not retry rejected writes', async () => {
+  it('preserves authentication, clears only the organization credential and retries a rejected write once with the same key', async () => {
     const previous = useStore.getState().token
     useStore.getState().setToken('synthetic-test-token')
     const state = useStore.getState()
@@ -55,13 +55,16 @@ describe('application context denial recovery', () => {
     })
     try {
       await expect(api.post('/synthetic-context-check', {}, { adapter })).rejects.toThrow('forbidden')
-      expect(adapter).toHaveBeenCalledTimes(1)
+      // The backend rejected it before any handler ran: one automatic retry,
+      // replayable thanks to the same Idempotency-Key, then a single message.
+      expect(adapter).toHaveBeenCalledTimes(2)
+      expect(adapter.mock.calls[1][0].headers['Idempotency-Key']).toBe(adapter.mock.calls[0][0].headers['Idempotency-Key'])
       expect(clearCredential).toHaveBeenCalledWith(null)
       expect(clearSession).not.toHaveBeenCalled()
       expect(endSession).not.toHaveBeenCalled()
       expect(useStore.getState().token).toBe('synthetic-test-token')
-      expect(infoToast).toHaveBeenCalledTimes(1)
-      expect(errorToast).not.toHaveBeenCalled()
+      expect(infoToast).not.toHaveBeenCalled()
+      expect(errorToast).toHaveBeenCalledExactlyOnceWith('No pudimos preparar el espacio de trabajo. Intenta de nuevo en unos segundos.')
     } finally { useStore.getState().setToken(previous) }
   })
   it('throttles each recovery category independently while clearing every expired credential', async () => {
@@ -78,27 +81,29 @@ describe('application context denial recovery', () => {
     })
     try {
       await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
-      expect(infoToast).toHaveBeenCalledTimes(1)
+      expect(adapter).toHaveBeenCalledTimes(2)
+      expect(errorToast).toHaveBeenCalledTimes(1)
+      expect(errorToast).toHaveBeenLastCalledWith('No pudimos preparar el espacio de trabajo. Intenta de nuevo en unos segundos.')
       detail = 'platform workspace cannot include an organization'
       await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
-      expect(infoToast).toHaveBeenCalledTimes(1)
-      expect(errorToast).toHaveBeenCalledTimes(1)
+      expect(adapter).toHaveBeenCalledTimes(3)
+      expect(errorToast).toHaveBeenCalledTimes(2)
       detail = 'organization context token is invalid or expired'
       await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
-      expect(clearCredential).toHaveBeenCalledTimes(2)
-      expect(clearCredential).toHaveBeenNthCalledWith(1, null)
-      expect(clearCredential).toHaveBeenNthCalledWith(2, null)
-      expect(infoToast).toHaveBeenCalledTimes(1)
+      expect(adapter).toHaveBeenCalledTimes(5)
+      expect(clearCredential).toHaveBeenCalledTimes(4)
+      for (const call of clearCredential.mock.calls) expect(call).toEqual([null])
+      expect(errorToast).toHaveBeenCalledTimes(2)
       detail = 'platform workspace cannot include an organization'
       now += 7_999
       await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
-      expect(errorToast).toHaveBeenCalledTimes(1)
+      expect(errorToast).toHaveBeenCalledTimes(2)
       now += 1
       await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
-      expect(errorToast).toHaveBeenCalledTimes(2)
+      expect(errorToast).toHaveBeenCalledTimes(3)
       expect(errorToast).toHaveBeenLastCalledWith('No se pudo validar el espacio de trabajo. Selecciona nuevamente una organización o la vista de plataforma.')
-      expect(infoToast).toHaveBeenCalledTimes(1)
-      expect(adapter).toHaveBeenCalledTimes(5)
+      expect(infoToast).not.toHaveBeenCalled()
+      expect(adapter).toHaveBeenCalledTimes(7)
       expect(clearSession).not.toHaveBeenCalled()
       expect(endSession).not.toHaveBeenCalled()
       expect(useStore.getState().token).toBe('synthetic-test-token')
@@ -135,10 +140,11 @@ describe('application context denial recovery', () => {
     })
     try {
       await expect(api.get('/synthetic-context-check', { adapter })).rejects.toThrow('forbidden')
-      expect(adapter).toHaveBeenCalledTimes(1)
-      expect(clearCredential).toHaveBeenCalledExactlyOnceWith(null)
-      expect(infoToast).toHaveBeenCalledExactlyOnceWith('El contexto del espacio se renovará automáticamente.')
-      expect(errorToast).not.toHaveBeenCalled()
+      expect(adapter).toHaveBeenCalledTimes(2)
+      expect(clearCredential).toHaveBeenCalledTimes(2)
+      expect(clearCredential).toHaveBeenLastCalledWith(null)
+      expect(infoToast).not.toHaveBeenCalled()
+      expect(errorToast).toHaveBeenCalledExactlyOnceWith('No pudimos preparar el espacio de trabajo. Intenta de nuevo en unos segundos.')
       expect(clearSession).not.toHaveBeenCalled()
       expect(endSession).not.toHaveBeenCalled()
     } finally { useStore.getState().setToken(previous) }

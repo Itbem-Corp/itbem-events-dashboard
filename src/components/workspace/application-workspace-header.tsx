@@ -67,7 +67,7 @@ export const ApplicationWorkspaceHeader = memo(function ApplicationWorkspaceHead
           <Avatar
             src={currentClient?.logo}
             initials={currentClient?.name?.substring(0, 2).toUpperCase() || tenant.name.substring(0, 2)}
-            className="bg-(--tenant-accent) text-white"
+            className="size-10 shrink-0 bg-surface-soft text-ink"
           />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-ink">

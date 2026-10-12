@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/20/solid'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
+import { organizationRoleLabel } from '@/lib/organization-role-labels'
 
 interface OrganizationSwitcherProps {
   open: boolean
@@ -224,7 +225,7 @@ export function OrganizationSwitcher({
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-ink-muted">
                     {type}
-                    {client.access_role ? ` · ${client.access_role}` : ''}
+                    {client.access_role ? ` · ${organizationRoleLabel(client.access_role)}${/^inherited_/i.test(client.access_role) ? ' (heredado)' : ''}` : ''}
                   </span>
                 </span>
                 {selected && <CheckIcon className="size-5 shrink-0 text-(--tenant-accent)" />}

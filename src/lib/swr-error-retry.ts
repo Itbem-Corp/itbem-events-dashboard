@@ -1,6 +1,7 @@
 import type { SWRConfiguration } from 'swr'
 
 import { apiErrorStatus, isCanceledRequest } from '@/lib/api-error'
+import { isOrganizationContextFailure } from '@/lib/api'
 
 export const SWR_MAX_ERROR_RETRIES = 3
 
@@ -12,6 +13,10 @@ export const SWR_MAX_ERROR_RETRIES = 3
 export function shouldRetrySwrError(error: unknown, retryCount: number): boolean {
   if (retryCount >= SWR_MAX_ERROR_RETRIES) return false
   if (isCanceledRequest(error)) return false
+  // A missing or expired organization credential is not an answer about the
+  // user's role: the interceptor already refreshed it once, so give the
+  // workspace another chance instead of caching the failure.
+  if (isOrganizationContextFailure(error)) return true
   const status = apiErrorStatus(error)
   if (status === undefined) return true
   if (status === 408 || status === 429) return true

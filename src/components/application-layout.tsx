@@ -27,7 +27,7 @@ import { useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import { issueOrganizationContext } from '@/features/workspace/issue-organization-context'
 import { useOrganizationContextRenewal } from '@/features/workspace/use-organization-context-renewal'
 import { AutomationSectionNavigation } from '@/features/automation/automation-section-navigation'
-import { createAccessProfile } from '@/lib/access-profile'
+import { canListOrganizations, createAccessProfile, scopeOrganizationsToSession } from '@/lib/access-profile'
 import { applicationRoutePreloadPath, createApplicationNavigation, type ApplicationRoute } from '@/lib/application-navigation'
 import { readApiData } from '@/lib/api-envelope'
 import {
@@ -132,6 +132,10 @@ export function ApplicationLayout({
   // does not need to wait until the profile reveals whether the user is root.
   const shouldBootstrapClient = storeHydrated && !currentClient
   const shouldLoadClients = clientsRequested || shouldBootstrapClient
+  // Roles without the organization list surface would only get a 403 (and a
+  // "No tienes permiso" toast on every load). Their organizations are in the
+  // verified session, so the workspace is resolved from it instead.
+  const organizationListAllowed = canListOrganizations(applicationSession)
   const openOrganizationSwitcher = useCallback(() => setOrganizationSwitcherOpen(true), [])
   const requestOrganizations = useCallback(() => setClientsRequested(true), [])
   const handleSelectOrganization = useCallback(
@@ -193,11 +197,11 @@ export function ApplicationLayout({
   }, [preloadDataIfMissing, router])
 
 
-  const clientsKey = shouldLoadClients
+  const clientsKey = shouldLoadClients && organizationListAllowed
     ? clientsPagePath({ page: 1, page_size: 50, search: isRoot ? debouncedOrganizationSearch : undefined })
     : null
   const {
-    data: rawClients,
+    data: fetchedClients,
     error: clientsError,
     isLoading: clientsLoading,
     isValidating: clientsValidating,
@@ -206,7 +210,24 @@ export function ApplicationLayout({
     ...responsiveListSwrOptions,
     keepPreviousData: true,
   })
-  const clientsPage = useMemo(() => readApiData<ClientsPageResponse | undefined>(rawClients), [rawClients])
+  const sessionClients = useMemo<ClientsPageResponse | undefined>(() => {
+    if (!applicationSession || organizationListAllowed) return undefined
+    const organizations = applicationSession.organizations
+    return {
+      // The switcher only reads id, name, code, logo and access_role.
+      data: organizations as unknown as ClientsPageResponse['data'],
+      total: organizations.length,
+      page: 1,
+      page_size: organizations.length,
+      total_pages: 1,
+    }
+  }, [applicationSession, organizationListAllowed])
+  const rawClients = organizationListAllowed ? fetchedClients : sessionClients
+  // Only organizations the session may enter (no other products' portals).
+  const clientsPage = useMemo(
+    () => scopeOrganizationsToSession(readApiData<ClientsPageResponse | undefined>(rawClients), applicationSession),
+    [applicationSession, rawClients]
+  )
   const clients = useMemo(() => clientsPage?.data ?? [], [clientsPage?.data])
   const clientsTotal = clientsPage?.total ?? clients.length
   const clientsErrorState = getDataErrorState(clientsError, rawClients)
@@ -218,7 +239,13 @@ export function ApplicationLayout({
 
     // ✅ Si hay clientes y no hay currentClient → seleccionar
     const preferred = list.find((client) => client.code?.toLowerCase() === tenant.organizationCode)
-    const currentIsAllowed = currentClient && list.some((client) => client.id === currentClient.id)
+    // Organizations inherited through a parent Owner/Admin membership
+    // (INHERITED_OWNER / INHERITED_ADMIN) are part of the verified session even
+    // if a list page does not include them; keep such a selection.
+    const currentIsAllowed =
+      currentClient &&
+      (list.some((client) => client.id === currentClient.id) ||
+        Boolean(applicationSession?.organizations.some((organization) => organization.id === currentClient.id)))
 
     // Organization-scoped apps cannot retain a workspace selected on another
     // branded origin. EventiApp and ITBEM keep their portfolio switcher.
@@ -242,6 +269,7 @@ export function ApplicationLayout({
     // ✅ ROOT con 0 clientes → NO REDIRECT
   }, [
     accessProfile.isPlatformContext,
+    applicationSession,
     canSwitchOrganizations,
     clients,
     currentClient,

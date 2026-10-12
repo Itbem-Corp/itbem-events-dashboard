@@ -23,11 +23,32 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/components/ui/notification-bell', () => ({ NotificationBell: () => <div>Centro de notificaciones</div> }))
 vi.mock('@/components/ui/UserAvatar', () => ({ default: () => <span>Avatar</span> }))
 vi.mock('@/components/ui/command-palette', () => ({ CommandPalette: () => <div>Paleta global</div> }))
+vi.mock('@/features/workspace/use-organization-context-renewal', () => ({ useOrganizationContextRenewal: () => undefined }))
 vi.mock('@/components/theme/theme-toggle', () => ({ ThemeToggle: () => <button aria-label="Cambiar tema" /> }))
 
 import { ApplicationLayout } from '@/components/application-layout'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { useStore } from '@/store/useStore'
+import type { ApplicationSession } from '@/models/ApplicationSession'
+
+function sessionWith(capabilities: string[], options: { root?: boolean } = {}): ApplicationSession {
+  return {
+    application: {
+      id: 'app',
+      code: 'eventiapp',
+      name: 'EventiApp',
+      product_label: 'EventiApp',
+      modules: ['home', 'events', 'metrics'],
+      allows_platform_admin: true,
+      is_active: true,
+    },
+    user: { id: 'user-1', email: 'user@example.com', is_root: Boolean(options.root) },
+    organizations: [
+      { id: 'org-session', name: 'Organización de la sesión', code: 'session-org', capabilities },
+    ],
+    capabilities,
+  } as unknown as ApplicationSession
+}
 
 describe('ApplicationLayout client loading', () => {
   beforeEach(() => {
@@ -50,6 +71,8 @@ describe('ApplicationLayout client loading', () => {
         client_type: { code: 'PLATFORM' },
       },
       profileLoaded: true,
+      applicationSession: null,
+      workspaceContexts: {},
     })
   })
 
@@ -65,6 +88,12 @@ describe('ApplicationLayout client loading', () => {
   })
 
   it('requests organizations when the user opens the switcher', async () => {
+    const session = sessionWith(['organizations:view', 'events:view'])
+    session.organizations.push({ id: 'client-1', name: 'Organización actual', code: 'current', capabilities: ['events:view'] } as never)
+    useStore.setState({
+      applicationSession: session,
+      workspaceContexts: { eventiapp: { mode: 'organization', organization: useStore.getState().currentClient } },
+    })
     render(<ApplicationLayout>Contenido</ApplicationLayout>)
 
     fireEvent.pointerEnter(screen.getByRole('button', { name: /Organización actual/ }))
@@ -86,6 +115,7 @@ describe('ApplicationLayout client loading', () => {
       },
       currentClient: null,
       profileLoaded: true,
+      applicationSession: sessionWith(['events:manage', 'events:view']),
     })
 
     render(<ApplicationLayout>Contenido</ApplicationLayout>)
@@ -97,38 +127,69 @@ describe('ApplicationLayout client loading', () => {
     )
   })
 
-  it('loads organizations in parallel with the profile refresh for a persisted non-root user', () => {
+  it('waits for the verified session before asking for the organization list', () => {
+    useStore.setState({ user: null, currentClient: null, profileLoaded: false, applicationSession: null })
+
+    const { rerender } = render(<ApplicationLayout>Contenido</ApplicationLayout>)
+
+    // The list request would wait for the same token/session call anyway;
+    // deciding first avoids a 403 for roles that cannot read the list.
+    expect(useSWRMock).toHaveBeenLastCalledWith(null, expect.any(Function), expect.anything())
+
+    useStore.setState({ applicationSession: sessionWith(['events:manage', 'events:view']), profileLoaded: true })
+    rerender(<ApplicationLayout>Contenido</ApplicationLayout>)
+
+    expect(useSWRMock).toHaveBeenLastCalledWith(
+      '/clients?page=1&page_size=50',
+      expect.any(Function),
+      expect.objectContaining({ ...responsiveListSwrOptions, keepPreviousData: true })
+    )
+  })
+
+  it('never calls the organization list for roles without access and uses the session organizations', () => {
     useStore.setState({
-      user: {
-        id: 'member-1',
-        email: 'member@example.com',
-        first_name: 'Member',
-        last_name: 'User',
-        is_root: false,
-      },
+      user: { id: 'checkin-1', email: 'checkin@example.com', first_name: 'Check', last_name: 'In', is_root: false },
       currentClient: null,
-      profileLoaded: false,
+      profileLoaded: true,
+      applicationSession: sessionWith(['events:view', 'checkin:run']),
     })
 
     render(<ApplicationLayout>Contenido</ApplicationLayout>)
 
-    expect(useSWRMock).toHaveBeenLastCalledWith(
-      '/clients?page=1&page_size=50',
-      expect.any(Function),
-      expect.objectContaining({ ...responsiveListSwrOptions, keepPreviousData: true })
-    )
+    expect(useSWRMock.mock.calls.some(([key]) => typeof key === 'string' && key.startsWith('/clients'))).toBe(false)
+    expect(useStore.getState().currentClient).toMatchObject({ id: 'org-session', name: 'Organización de la sesión' })
   })
 
-  it('starts organization bootstrap before a cold-login profile is available', () => {
-    useStore.setState({ user: null, currentClient: null, profileLoaded: false })
+  it('keeps an inherited child organization selected even when the list page omits it', () => {
+    const session = sessionWith(['events:manage', 'events:view'])
+    session.organizations.push({
+      id: 'child-org',
+      name: 'Organización hija',
+      code: 'child',
+      access_role: 'INHERITED_OWNER',
+      capabilities: ['events:manage', 'events:view'],
+    } as never)
+    const child = { id: 'child-org', name: 'Organización hija', code: 'child', client_type: { code: '' } }
+    useStore.setState({
+      user: { id: 'owner-1', email: 'owner@example.com', first_name: 'Owner', last_name: 'User', is_root: false },
+      applicationSession: session,
+      currentClient: child,
+      workspaceMode: 'organization',
+      workspaceContexts: { eventiapp: { mode: 'organization', organization: child } },
+    })
+    useSWRMock.mockReturnValue({
+      data: { data: [{ id: 'org-session', name: 'Organización de la sesión', code: 'session-org' }], total: 1 },
+      error: undefined,
+      isLoading: false,
+    } as never)
 
-    render(<ApplicationLayout>Contenido</ApplicationLayout>)
-
-    expect(useSWRMock).toHaveBeenLastCalledWith(
-      '/clients?page=1&page_size=50',
-      expect.any(Function),
-      expect.objectContaining({ ...responsiveListSwrOptions, keepPreviousData: true })
-    )
+    try {
+      render(<ApplicationLayout>Contenido</ApplicationLayout>)
+      expect(useStore.getState().currentClient?.id).toBe('child-org')
+    } finally {
+      useSWRMock.mockReset()
+      useSWRMock.mockImplementation(() => ({ data: undefined, error: undefined, isLoading: false }))
+    }
   })
 
   it('warms the route bundle and API cache when navigation intent is visible', () => {

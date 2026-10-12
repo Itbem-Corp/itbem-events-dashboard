@@ -165,11 +165,20 @@ export const useStore = create<AppState>()(
                 : canUsePlatformMode
                   ? 'platform'
                   : 'organization'
+          const currentClient = mode === 'organization' ? (saved?.organization ?? null) : null
           return {
             activeTenantCode: tenantCode,
             workspaceMode: mode,
-            currentClient: mode === 'organization' ? (saved?.organization ?? null) : null,
-            organizationContext: null,
+            currentClient,
+            // Session revalidation re-runs this activation. Keep a credential
+            // that is still bound to the same organization; dropping it would
+            // only force every next request to wait for a new one.
+            organizationContext:
+              currentClient &&
+              state.activeTenantCode === tenantCode &&
+              state.organizationContext?.organizationId === currentClient.id
+                ? state.organizationContext
+                : null,
           }
         }),
 

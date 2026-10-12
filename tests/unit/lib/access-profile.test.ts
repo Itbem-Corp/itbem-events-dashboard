@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { accessCan, createAccessProfile } from '@/lib/access-profile'
+import { accessCan, createAccessProfile, scopeOrganizationsToSession } from '@/lib/access-profile'
 import type { ApplicationSession } from '@/models/ApplicationSession'
 import { describe, expect, it } from 'vitest'
 
@@ -105,5 +105,33 @@ describe('access profile', () => {
     expect(profile.platformLevel).toBe('none')
     expect(profile.isOrganizationContext).toBe(true)
     expect(accessCan(profile, 'members:manage')).toBe(false)
+  })
+})
+
+describe('scopeOrganizationsToSession', () => {
+  it('drops organizations the session cannot enter (other products portals)', () => {
+    const page = {
+      data: [
+        { id: 'org-a', name: 'Organization A' },
+        { id: 'itbem-portal', name: 'ITBEM' },
+        { id: 'org-b', name: 'Organization B' },
+        { id: 'cafetton-portal', name: 'Cafetton House' },
+      ],
+      total: 4,
+      page: 1,
+      page_size: 50,
+      total_pages: 1,
+    }
+    const scoped = scopeOrganizationsToSession(page, session())
+    expect(scoped?.data.map((organization) => organization.id)).toEqual(['org-a', 'org-b'])
+    expect(scoped?.total).toBe(2)
+    expect(scoped?.page_size).toBe(50)
+  })
+
+  it('keeps the page untouched when every organization is allowed or there is no session', () => {
+    const page = { data: [{ id: 'org-a' }], total: 1 }
+    expect(scopeOrganizationsToSession(page, session())).toBe(page)
+    expect(scopeOrganizationsToSession(page, null)).toBe(page)
+    expect(scopeOrganizationsToSession(undefined, session())).toBeUndefined()
   })
 })
