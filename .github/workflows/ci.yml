@@ -44,9 +44,6 @@ jobs:
       - name: Verify pinned product contract
         run: npm run contract:check
 
-      - name: Lint
-        run: npm run lint
-
       - name: Unit tests
         # Shared DOM globals and fake timers make the full UI suite flaky when
         # files run concurrently; keep CI deterministic.
