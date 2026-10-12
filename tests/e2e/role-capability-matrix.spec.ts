@@ -160,7 +160,7 @@ const personas: Persona[] = [
     name: 'event_client',
     rootLevel: 0,
     capabilities: CLIENT_CAPABILITIES,
-    expectedHeading: 'Eventos',
+    expectedHeading: 'Mis eventos',
     landing: '/events',
     workspaceBlock: false,
     eventClient: true,
