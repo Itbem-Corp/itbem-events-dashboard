@@ -1536,8 +1536,24 @@ interface Props {
 type MomentConfirmation =
   | { kind: 'delete-one'; moment: Moment }
   | { kind: 'delete-selected'; count: number }
-  | { kind: 'reject-pending'; count: number }
+  | { kind: 'reject-pending'; moments: Moment[] }
+  | { kind: 'approve-pending'; moments: Moment[] }
   | { kind: 'toggle-publish'; publish: boolean }
+
+/** Backend cap per bulk approve/delete request (itbem-events-backend maxBulkMomentIDs). */
+const BULK_MOMENT_CHUNK_SIZE = 500
+
+function chunkIds(ids: string[], size: number): string[][] {
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size))
+  return chunks
+}
+
+function withoutIds(selected: Set<string>, ids: string[]): Set<string> {
+  const next = new Set(selected)
+  for (const id of ids) next.delete(id)
+  return next
+}
 
 type MomentDashboardPage = {
   data: Moment[]
@@ -2220,17 +2236,22 @@ export function MomentsWall({
         approved: toApprove.length,
       })
     )
+    const appliedIds: string[] = []
     try {
-      await api.post(momentsBulkApprovePath(), {
-        ids: toApprove.map((m) => m.id),
-        is_approved: true,
-      })
+      for (const ids of chunkIds([...approveIds], BULK_MOMENT_CHUNK_SIZE)) {
+        await api.post(momentsBulkApprovePath(), { ids, is_approved: true })
+        appliedIds.push(...ids)
+      }
       refreshMomentStreams()
       notifyPublicContentChanged()
       setSelectedIds(new Set())
       toast.success(`${toApprove.length} momento${toApprove.length !== 1 ? 's' : ''} aprobados`)
     } catch (err: unknown) {
-      await mutateMomentPages(snapshot, { revalidate: false })
+      // After a partial success the snapshot is stale: refetch the real state instead.
+      if (appliedIds.length > 0) {
+        await mutateMomentPages()
+        setSelectedIds((prev) => withoutIds(prev, appliedIds))
+      } else await mutateMomentPages(snapshot, { revalidate: false })
       toast.error(getApiErrorMessage(err, 'Error al aprobar momentos'))
     }
   }
@@ -2248,15 +2269,23 @@ export function MomentsWall({
         deletionCountDelta(deletedMoments)
       )
     )
+    const appliedIds: string[] = []
     try {
-      await api.delete(momentsBulkDeletePath(), { data: { ids: [...deleteIds] } })
+      for (const ids of chunkIds([...deleteIds], BULK_MOMENT_CHUNK_SIZE)) {
+        await api.delete(momentsBulkDeletePath(), { data: { ids } })
+        appliedIds.push(...ids)
+      }
       refreshMomentStreams()
       notifyPublicContentChanged()
       setSelectedIds(new Set())
       setSelectMode(false)
       toast.success(`${deleteCount} momento${deleteCount !== 1 ? 's' : ''} eliminados`)
     } catch (err: unknown) {
-      await mutateMomentPages(snapshot, { revalidate: false })
+      // Deleted ids leave the selection so a retry does not resend them (the backend 404s unknown ids).
+      if (appliedIds.length > 0) {
+        await mutateMomentPages()
+        setSelectedIds((prev) => withoutIds(prev, appliedIds))
+      } else await mutateMomentPages(snapshot, { revalidate: false })
       toast.error(getApiErrorMessage(err, 'Error al eliminar momentos'))
     }
   }
@@ -2268,12 +2297,30 @@ export function MomentsWall({
 
   const [approvingAll, setApprovingAll] = useState(false)
 
-  const handleApproveAll = async () => {
-    const allMoments = await loadAllMoments()
-    const pending = allMoments.filter((m) => !m.is_approved && m.processing_status !== 'failed')
-    if (pending.length === 0) return
+  // Set synchronously so a second click in the same tick is ignored, before React re-renders.
+  const bulkPreparingRef = useRef(false)
+
+  const prepareBulkPending = async (kind: 'approve-pending' | 'reject-pending') => {
+    if (bulkPreparingRef.current || confirmation) return
+    bulkPreparingRef.current = true
+    try {
+      const allMoments = await loadAllMoments()
+      const pending = allMoments.filter((m) => !m.is_approved && m.processing_status !== 'failed')
+      if (pending.length === 0) return
+      setConfirmation({ kind, moments: pending })
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Error al cargar los momentos pendientes'))
+    } finally {
+      bulkPreparingRef.current = false
+    }
+  }
+
+  const handleApproveAll = () => prepareBulkPending('approve-pending')
+
+  const executeApproveAll = async (pending: Moment[]) => {
     setApprovingAll(true)
     const snapshot = momentPages
+    let appliedChunks = 0
     // Optimistic: mark all pending as approved immediately
     await mutatePagesWith((page) =>
       adjustMomentCounts(
@@ -2286,15 +2333,20 @@ export function MomentsWall({
       )
     )
     try {
-      await api.post(momentsBulkApprovePath(), {
-        ids: pending.map((m) => m.id),
-        is_approved: true,
-      })
+      for (const ids of chunkIds(
+        pending.map((m) => m.id),
+        BULK_MOMENT_CHUNK_SIZE
+      )) {
+        await api.post(momentsBulkApprovePath(), { ids, is_approved: true })
+        appliedChunks += 1
+      }
       refreshMomentStreams()
       notifyPublicContentChanged()
       toast.success(`${pending.length} momento${pending.length !== 1 ? 's' : ''} aprobados`)
     } catch (err: unknown) {
-      await mutateMomentPages(snapshot, { revalidate: false })
+      // After a partial success the snapshot is stale: refetch the real state instead.
+      if (appliedChunks > 0) await mutateMomentPages()
+      else await mutateMomentPages(snapshot, { revalidate: false })
       toast.error(getApiErrorMessage(err, 'Error al aprobar momentos'))
     } finally {
       setApprovingAll(false)
@@ -2303,11 +2355,10 @@ export function MomentsWall({
 
   const [rejectingAll, setRejectingAll] = useState(false)
 
-  const executeRejectAll = async () => {
-    const allMoments = await loadAllMoments()
-    const pending = allMoments.filter((m) => !m.is_approved && m.processing_status !== 'failed')
-    if (pending.length === 0) return
+  // Deletes exactly the moments the user saw in the confirmation, never a fresh pending list.
+  const executeRejectAll = async (pending: Moment[]) => {
     setRejectingAll(true)
+    let appliedChunks = 0
     const pendingIds = new Set(pending.map((m) => m.id))
     const snapshot = momentPages
     // Optimistic: remove all pending from list immediately
@@ -2315,24 +2366,26 @@ export function MomentsWall({
       adjustMomentCounts(removeMomentsCacheValue(page, pendingIds) as MomentDashboardPage, deletionCountDelta(pending))
     )
     try {
-      await api.delete(momentsBulkDeletePath(), { data: { ids: pending.map((m) => m.id) } })
+      for (const ids of chunkIds(
+        pending.map((m) => m.id),
+        BULK_MOMENT_CHUNK_SIZE
+      )) {
+        await api.delete(momentsBulkDeletePath(), { data: { ids } })
+        appliedChunks += 1
+      }
       refreshMomentStreams()
       notifyPublicContentChanged()
       toast.success(`${pending.length} momento${pending.length !== 1 ? 's' : ''} eliminados`)
     } catch (err: unknown) {
-      await mutateMomentPages(snapshot, { revalidate: false })
+      if (appliedChunks > 0) await mutateMomentPages()
+      else await mutateMomentPages(snapshot, { revalidate: false })
       toast.error(getApiErrorMessage(err, 'Error al eliminar momentos'))
     } finally {
       setRejectingAll(false)
     }
   }
 
-  const handleRejectAll = () => {
-    const pendingCount =
-      momentCounts?.pending ?? moments.filter((m) => !m.is_approved && m.processing_status !== 'failed').length
-    if (pendingCount === 0) return
-    setConfirmation({ kind: 'reject-pending', count: pendingCount })
-  }
+  const handleRejectAll = () => prepareBulkPending('reject-pending')
 
   const executeTogglePublish = async (newValue: boolean) => {
     try {
@@ -2366,16 +2419,21 @@ export function MomentsWall({
     setConfirmation({ kind: 'toggle-publish', publish: !wallPublished })
   }
 
+  const confirmInFlightRef = useRef(false)
+
   const confirmPendingAction = async () => {
     const pending = confirmation
-    if (!pending || confirmationBusy) return
+    if (!pending || confirmationBusy || confirmInFlightRef.current) return
+    confirmInFlightRef.current = true
     setConfirmationBusy(true)
     try {
       if (pending.kind === 'delete-one') await executeDelete(pending.moment)
       if (pending.kind === 'delete-selected') await executeDeleteSelected()
-      if (pending.kind === 'reject-pending') await executeRejectAll()
+      if (pending.kind === 'reject-pending') await executeRejectAll(pending.moments)
+      if (pending.kind === 'approve-pending') await executeApproveAll(pending.moments)
       if (pending.kind === 'toggle-publish') await executeTogglePublish(pending.publish)
     } finally {
+      confirmInFlightRef.current = false
       setConfirmationBusy(false)
       setConfirmation(null)
     }
@@ -3539,23 +3597,31 @@ export function MomentsWall({
               ? '¿Eliminar este momento?'
               : confirmation?.kind === 'delete-selected'
                 ? `¿Eliminar ${confirmation.count} momento${confirmation.count !== 1 ? 's' : ''}?`
-                : `¿Eliminar ${confirmation?.count ?? 0} momento${confirmation?.count !== 1 ? 's' : ''} pendientes?`
+                : confirmation?.kind === 'approve-pending'
+                  ? `¿Aprobar ${confirmation.moments.length} momento${confirmation.moments.length !== 1 ? 's' : ''} pendientes?`
+                  : `¿Eliminar ${confirmation?.moments.length ?? 0} momento${confirmation?.moments.length !== 1 ? 's' : ''} pendientes?`
         }
         description={
           confirmation?.kind === 'toggle-publish'
             ? confirmation.publish
               ? 'El muro será visible y se cerrará la subida de fotos para los invitados.'
               : 'El muro dejará de ser visible y los invitados podrán volver a subir fotos.'
-            : 'Los archivos desaparecerán permanentemente. Esta acción no se puede deshacer.'
+            : confirmation?.kind === 'approve-pending'
+              ? 'Los momentos pendientes pasarán a ser visibles en el muro.'
+              : 'Los archivos desaparecerán permanentemente. Esta acción no se puede deshacer.'
         }
         confirmLabel={
           confirmation?.kind === 'toggle-publish'
             ? confirmation.publish
               ? 'Publicar muro'
               : 'Despublicar muro'
-            : 'Eliminar momentos'
+            : confirmation?.kind === 'approve-pending'
+              ? 'Aprobar momentos'
+              : 'Eliminar momentos'
         }
-        tone={confirmation?.kind === 'toggle-publish' ? 'primary' : 'danger'}
+        tone={
+          confirmation?.kind === 'toggle-publish' || confirmation?.kind === 'approve-pending' ? 'primary' : 'danger'
+        }
         busy={confirmationBusy}
         onClose={() => setConfirmation(null)}
         onConfirm={confirmPendingAction}

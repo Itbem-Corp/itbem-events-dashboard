@@ -4,6 +4,7 @@
  * processing status badges, and empty states.
  */
 
+import { CONFIRM_ALERT_OPEN_GUARD_MS } from '@/components/ui/confirm-alert'
 import type { Moment } from '@/models/Moment'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ComponentProps } from 'react'
@@ -170,8 +171,12 @@ async function renderWall(moments: Moment[] = [], isLoading = false, props: Part
   )
 }
 
+// ConfirmAlert ignores clicks during its post-open double-click guard.
+const waitForConfirmGuard = () => new Promise((resolve) => setTimeout(resolve, CONFIRM_ALERT_OPEN_GUARD_MS + 20))
+
 async function confirmAlert(label: RegExp) {
   const button = await screen.findByRole('button', { name: label })
+  await act(waitForConfirmGuard)
   await act(async () => {
     fireEvent.click(button)
   })
@@ -1130,6 +1135,97 @@ describe('MomentsWall — multi-select', () => {
         data: { ids: ['del-001', 'del-002'] },
       })
     })
+  })
+
+  it('Aprobar y Eliminar selección split selections over the backend cap into chunks of 500', async () => {
+    vi.mocked(api.post).mockClear()
+    vi.mocked(api.delete).mockClear()
+    const many = Array.from({ length: 501 }, (_, i) =>
+      makeMoment({ id: `cap-${String(i).padStart(3, '0')}`, is_approved: false })
+    )
+    await renderWall(many)
+    fireEvent.click(screen.getByTitle('Seleccionar momentos'))
+    await waitFor(() => expect(screen.getByText('Seleccionar todo')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('checkbox'))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Aprobar selección/i })[0]).toBeInTheDocument())
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /Aprobar selección/i })[0])
+    })
+    await waitFor(() => {
+      const approveCalls = vi.mocked(api.post).mock.calls.filter(([path]) => path === '/moments/bulk-approve')
+      expect(approveCalls.map(([, body]) => (body as { ids: string[] }).ids.length)).toEqual([500, 1])
+    })
+
+    fireEvent.click(screen.getByRole('checkbox'))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Eliminar selección/i })[0]).toBeInTheDocument())
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /Eliminar selección/i })[0])
+    })
+    await confirmAlert(/^Eliminar momentos$/i)
+    await waitFor(() => {
+      const deleteCalls = vi.mocked(api.delete).mock.calls.filter(([path]) => path === '/moments/bulk')
+      expect(deleteCalls.map(([, cfg]) => (cfg as { data: { ids: string[] } }).data.ids.length)).toEqual([500, 1])
+    })
+  }, 30000)
+
+  it('Aprobar todos asks for confirmation with the count and ignores a second click', async () => {
+    vi.mocked(api.post).mockClear()
+    await renderWall([
+      makeMoment({ id: 'all-001', is_approved: false }),
+      makeMoment({ id: 'all-002', is_approved: false }),
+    ])
+    const approveAll = screen.getAllByRole('button', { name: /Aprobar todos/i })[0]
+    await act(async () => {
+      fireEvent.click(approveAll)
+      fireEvent.click(approveAll)
+    })
+
+    expect(await screen.findByText('¿Aprobar 2 momentos pendientes?')).toBeInTheDocument()
+    // The second click of a real double click lands on the dialog backdrop: it must not dismiss it.
+    await act(async () => {
+      fireEvent.keyDown(screen.getByRole('alertdialog'), { key: 'Escape' })
+    })
+    expect(screen.getByText('¿Aprobar 2 momentos pendientes?')).toBeInTheDocument()
+    expect(vi.mocked(api.post)).not.toHaveBeenCalledWith('/moments/bulk-approve', expect.anything())
+
+    const confirm = await screen.findByRole('button', { name: /^Aprobar momentos$/i })
+    await act(waitForConfirmGuard)
+    await act(async () => {
+      fireEvent.click(confirm)
+      fireEvent.click(confirm)
+    })
+
+    await waitFor(() => {
+      expect(vi.mocked(api.post)).toHaveBeenCalledWith('/moments/bulk-approve', {
+        ids: ['all-001', 'all-002'],
+        is_approved: true,
+      })
+    })
+    const approveCalls = vi.mocked(api.post).mock.calls.filter(([path]) => path === '/moments/bulk-approve')
+    expect(approveCalls).toHaveLength(1)
+  })
+
+  it('Rechazar todos deletes exactly the ids shown in the confirmation', async () => {
+    vi.mocked(api.delete).mockClear()
+    await renderWall([
+      makeMoment({ id: 'rej-001', is_approved: false }),
+      makeMoment({ id: 'rej-002', is_approved: false }),
+      makeMoment({ id: 'rej-keep', is_approved: true }),
+    ])
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: /Rechazar todos/i })[0])
+    })
+    expect(await screen.findByText('¿Eliminar 2 momentos pendientes?')).toBeInTheDocument()
+
+    await confirmAlert(/^Eliminar momentos$/i)
+
+    await waitFor(() => {
+      expect(vi.mocked(api.delete)).toHaveBeenCalledWith('/moments/bulk', {
+        data: { ids: ['rej-001', 'rej-002'] },
+      })
+    })
+    expect(vi.mocked(api.delete)).toHaveBeenCalledTimes(1)
   })
 })
 
