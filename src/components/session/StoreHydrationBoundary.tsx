@@ -3,7 +3,7 @@
 import { useStoreHydration } from '@/hooks/useStoreHydration'
 import type { ReactNode } from 'react'
 
-export function HydrationSkeleton() {
+function HydrationSkeleton() {
   return (
     <div className="space-y-8" role="status" aria-label="Preparando dashboard" aria-busy="true">
       <span className="sr-only">Preparando dashboard…</span>

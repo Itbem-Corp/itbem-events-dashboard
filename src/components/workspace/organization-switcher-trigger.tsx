@@ -3,6 +3,7 @@
 import { Avatar } from '@/components/avatar'
 import type { OrganizationOption } from '@/components/workspace/organization-option'
 import type { AccessProfile } from '@/lib/access-profile'
+import { useProductShell } from '@/products/core/product-context'
 import { ChevronDownIcon } from '@heroicons/react/20/solid'
 
 interface OrganizationSwitcherTriggerProps {
@@ -24,13 +25,20 @@ export function OrganizationSwitcherTrigger({
   onOpen,
   onOpenIntent,
 }: OrganizationSwitcherTriggerProps) {
+  const accessibleShell = Boolean(useProductShell()?.accessibleShell)
   const platformLabel = accessProfile.platformLevel === 'root_2' ? 'Centro de soporte' : 'Vista de plataforma'
-  const activeLabel = accessProfile.isPlatformContext ? platformLabel : currentClient?.name || 'Elegir organización'
+  const activeLabel = accessProfile.isPlatformContext
+    ? platformLabel
+    : accessProfile.isPortfolioContext
+      ? 'Eventos asignados'
+      : currentClient?.name || 'Elegir organización'
   const activeDescription = accessProfile.isPlatformContext
     ? 'Todas las organizaciones'
-    : currentClient?.client_type?.code
-      ? CLIENT_TYPE_LABELS[currentClient.client_type.code.toUpperCase()] || 'Organización'
-      : 'Organización activa'
+    : accessProfile.isPortfolioContext
+      ? 'Todos tus accesos'
+      : currentClient?.client_type?.code
+        ? CLIENT_TYPE_LABELS[currentClient.client_type.code.toUpperCase()] || 'Organización'
+        : 'Organización activa'
 
   return (
     <button
@@ -51,7 +59,7 @@ export function OrganizationSwitcherTrigger({
         className="size-10 bg-surface-soft text-ink"
       />
       <span className="min-w-0 flex-1">
-        <span className="block text-[10px] font-semibold tracking-[0.14em] text-ink-muted uppercase">
+        <span className={`block ${accessibleShell ? 'text-xs' : 'text-[10px]'} font-semibold tracking-[0.14em] text-ink-muted uppercase`}>
           {activeDescription}
         </span>
         <span className="mt-0.5 block truncate text-sm font-semibold text-ink">{activeLabel}</span>

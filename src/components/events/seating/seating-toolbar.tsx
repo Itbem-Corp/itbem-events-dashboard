@@ -108,7 +108,7 @@ export function SeatingToolbar({
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            className="fixed bottom-0 inset-x-0 z-30 border-t border-white/10 bg-surface/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between md:hidden print:hidden"
+            className="fixed bottom-[var(--app-mobile-nav-offset,0px)] inset-x-0 z-30 border-t border-white/10 bg-surface/95 backdrop-blur-sm px-4 py-3 in-data-[mobile-nav=hidden]:pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex items-center justify-between md:hidden print:hidden"
           >
             <span className="text-xs text-ink-secondary">
               {pendingCount} cambio{pendingCount !== 1 ? 's' : ''} sin guardar
