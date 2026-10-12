@@ -16,7 +16,7 @@ import { beginNavigationProgress } from '@/lib/navigation-progress'
 import { sessionCan } from '@/lib/session-capabilities'
 import { useStore } from '@/store/useStore'
 import dynamic from 'next/dynamic'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/safe-image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { preload } from 'swr'
@@ -335,8 +335,8 @@ export default function ClientsPage() {
               />
             </div>
             <span className="hidden pr-2 text-xs text-ink-muted sm:block">
-              {clientsPage?.total ?? clients.length} organización
-              {(clientsPage?.total ?? clients.length) === 1 ? '' : 'es'}
+              {clientsPage?.total ?? clients.length}{' '}
+              {(clientsPage?.total ?? clients.length) === 1 ? 'organización' : 'organizaciones'}
             </span>
           </div>
         )}
@@ -415,8 +415,10 @@ export default function ClientsPage() {
                   const isInheritedRole = client.access_role?.startsWith('INHERITED_') ?? false
                   const roleCode = client.access_role?.replace('INHERITED_', '').toUpperCase()
                   const isPrimaryRoot = Boolean(user?.is_root && user.root_level !== 2)
+                  // Root 1 and Root 2 (support) can both manage members; the API
+                  // still refuses Owner assignments and platform-root targets.
                   const canManageMembers =
-                    canAssignMembers || isPrimaryRoot || roleCode === 'OWNER' || roleCode === 'ADMIN'
+                    canAssignMembers || Boolean(user?.is_root) || roleCode === 'OWNER' || roleCode === 'ADMIN'
                   const canEditOrganization = isPrimaryRoot || roleCode === 'OWNER'
                   const role = user?.is_root
                     ? {
@@ -439,7 +441,7 @@ export default function ClientsPage() {
                         <div className="shrink-0">
                           {client.logo ? (
                             <div className="relative size-12 overflow-hidden rounded-xl border border-border-subtle bg-surface-raised shadow-sm sm:size-14">
-                              <Image
+                              <SafeImage
                                 src={client.logo}
                                 alt={client.name ?? ''}
                                 fill
@@ -536,6 +538,9 @@ export default function ClientsPage() {
                                 canManageMembers={canManageMembers}
                                 canEditOrganization={canEditOrganization}
                                 canDeleteOrganization={canEditOrganization}
+                                hasChildren={
+                                  Boolean(client.children?.length) || clients.some((item) => item.parent_id === client.id)
+                                }
                                 onFormIntent={preloadClientForm}
                                 onMembersIntent={preloadClientMembers}
                                 onDeleteIntent={preloadDeleteClient}

@@ -1,4 +1,5 @@
 import type { Client } from '@/models/Client'
+import type { UserClientsPageResponse } from '@/models/User'
 
 export interface UserClientMembershipSummary {
   total: number
@@ -25,5 +26,22 @@ export function summarizeUserClients(clients: Client[]): UserClientMembershipSum
     total: clients.length,
     active,
     inactive: clients.length - active,
+  }
+}
+
+/** Inherited rows come from a parent membership: they cannot be removed or re-roled here. */
+export function isInheritedMembership(client: Pick<Client, 'inherited' | 'access_role'>): boolean {
+  return client.inherited === true || (client.access_role?.toUpperCase().startsWith('INHERITED_') ?? false)
+}
+
+/** Backend counters are omitempty: a missing one means 0. */
+export function membershipCounters(page?: Partial<UserClientsPageResponse> | null) {
+  const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
+  return {
+    total: count(page?.total),
+    direct: count(page?.direct),
+    inherited: count(page?.inherited),
+    active: count(page?.active),
+    inactive: count(page?.inactive),
   }
 }

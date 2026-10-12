@@ -19,7 +19,9 @@ import {
   ExclamationTriangleIcon,
 } from '@heroicons/react/20/solid'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { anchoredPanelPosition, type AnchoredPanelPosition } from '@/lib/anchored-panel-position'
 import useSWR, { preload } from 'swr'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -96,6 +98,11 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
   const [open, setOpen] = useState(initialOpen)
   const [hasOpened, setHasOpened] = useState(initialOpen)
   const ref = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const focusedOnOpenRef = useRef(false)
+  const panelId = useId()
+  const [position, setPosition] = useState<AnchoredPanelPosition | null>(null)
   const currentClient = useStore((state) => state.currentClient)
   const eventsKey = eventNotificationsPath(currentClient?.id)
   const scopedEventsKey = useScopedFetcherKey(hasOpened ? eventsKey : null)
@@ -124,22 +131,69 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
     void preloadEventWorkspace(event, scopeFetcherKey).catch(() => undefined)
   }
 
-  // Close on outside click
+  // The panel is portaled to <body> so the sidebar's overflow cannot clip it;
+  // it is positioned against the bell and follows it on resize/scroll.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null)
+      return
+    }
+    function place() {
+      const anchor = buttonRef.current?.getBoundingClientRect()
+      if (anchor) setPosition(anchoredPanelPosition(anchor, { width: window.innerWidth, height: window.innerHeight }))
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open])
+
+  // Move focus into the panel once per opening. `position` changes on every
+  // scroll/resize, and refocusing then would pull keyboard focus off the
+  // notification link the user is on.
+  useEffect(() => {
+    if (!open) {
+      focusedOnOpenRef.current = false
+      return
+    }
+    if (position && !focusedOnOpenRef.current) {
+      focusedOnOpenRef.current = true
+      panelRef.current?.focus()
+    }
+  }, [open, position])
+
+  // Close on outside press and on Escape (focus returns to the bell).
   useEffect(() => {
     if (!open) return
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+    function handlePointer(e: PointerEvent) {
+      const target = e.target as Node
+      if (ref.current?.contains(target) || panelRef.current?.contains(target)) return
+      setOpen(false)
     }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return
+      setOpen(false)
+      buttonRef.current?.focus()
+    }
+    document.addEventListener('pointerdown', handlePointer)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointer)
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [open])
 
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
+        ref={buttonRef}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
         onClick={() => {
           setHasOpened(true)
           setOpen((value) => !value)
@@ -157,8 +211,15 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
         )}
       </button>
 
-      {open && (
-        <div className="absolute top-full right-0 z-50 mt-2 w-80 rounded-2xl border border-border-subtle bg-surface-raised shadow-[0_20px_60px_var(--app-shadow-strong)]">
+      {open && position && createPortal(
+        <div
+          ref={panelRef}
+          id={panelId}
+          role="dialog"
+          aria-label="Notificaciones"
+          tabIndex={-1}
+          style={{ position: 'fixed', top: position.top, bottom: position.bottom, left: position.left, width: position.width, maxHeight: position.maxHeight }}
+          className="z-50 flex flex-col overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised shadow-[0_20px_60px_var(--app-shadow-strong)] focus:outline-none">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
             <p className="text-sm font-semibold text-ink">Notificaciones</p>
@@ -170,7 +231,7 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
           </div>
 
           {/* List */}
-          <div className="max-h-[360px] overflow-y-auto py-1">
+          <div className="max-h-[360px] min-h-0 flex-1 overflow-y-auto py-1">
             {isLoading ? (
               <div className="space-y-3 px-4 py-5" role="status" aria-label="Cargando notificaciones">
                 {[0, 1, 2].map((item) => (
@@ -203,11 +264,21 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
                 <p className="mt-1 text-xs text-ink-muted">Te avisamos cuando un evento esté próximo.</p>
               </div>
             ) : (
-              notifications.map((n) => {
+              notifications.map((n, index) => {
                 const Icon = n.icon
+                // "N activas" counts today/soon only; finished events are listed
+                // under their own heading so the badge matches what it labels.
+                const firstPast = n.type === 'past' && notifications[index - 1]?.type !== 'past'
                 return (
+                  <Fragment key={n.id}>
+                  {firstPast && (
+                    <p
+                      className={`px-4 pt-3 pb-1 text-[10px] font-semibold tracking-[0.14em] text-ink-muted uppercase ${index > 0 ? 'mt-1 border-t border-border-subtle' : ''}`}
+                    >
+                      Terminados recientemente
+                    </p>
+                  )}
                   <Link
-                    key={n.id}
                     href={n.href}
                     onClick={() => setOpen(false)}
                     onFocus={() => preloadNotification(n.event)}
@@ -223,6 +294,7 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
                       <p className="mt-0.5 truncate text-sm text-ink-secondary">{n.body}</p>
                     </div>
                   </Link>
+                  </Fragment>
                 )
               })
             )}
@@ -242,7 +314,8 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
               <ArrowRightIcon aria-hidden="true" className="size-3.5" />
             </Link>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

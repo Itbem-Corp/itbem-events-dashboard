@@ -55,6 +55,10 @@ const UserListActionsMenu = dynamic(() => loadUserListActionsMenu().then((module
   ),
 })
 const ConfirmAlert = dynamic(() => loadConfirmAlert().then((module) => module.ConfirmAlert), { ssr: false })
+function userAccessibleName(user: Pick<AdminUserListItemResponse, 'first_name' | 'last_name' | 'email'>): string {
+  return `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email || 'este usuario'
+}
+
 function preloadUserForm() {
   void loadUserFormModal().catch(() => undefined)
 }
@@ -417,7 +421,9 @@ export default function UsersPage() {
                       <p className="mt-0.5 truncate text-xs text-ink-muted">{user.email}</p>
 
                       {(user.clients ?? 0) > 0 && (
-                        <p className="mt-1 text-[11px] text-ink-muted">{user.clients} clientes asociados</p>
+                        <p className="mt-1 text-[11px] text-ink-muted">
+                          {user.clients} {user.clients === 1 ? 'organización' : 'organizaciones'}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -431,7 +437,7 @@ export default function UsersPage() {
                       onPointerDown={() => preloadUserMemberships(user.id)}
                       onPointerEnter={() => preloadUserMemberships(user.id)}
                       title="Ver clientes"
-                      aria-label={`Ver clientes de ${user.first_name} ${user.last_name}`}
+                      aria-label={`Ver clientes de ${userAccessibleName(user)}`}
                     >
                       <UsersIcon className="size-4" />
                       <span className="hidden sm:inline">Clientes</span>
@@ -452,7 +458,7 @@ export default function UsersPage() {
                         onFocus={() => void loadConfirmAlert()}
                         onPointerEnter={() => void loadConfirmAlert()}
                         title={user.root_level === 2 ? 'Revocar raíz operativa' : 'Asignar raíz operativa'}
-                        aria-label={`${user.root_level === 2 ? 'Revocar' : 'Asignar'} acceso Root 2 a ${user.first_name} ${user.last_name}`}
+                        aria-label={`${user.root_level === 2 ? 'Revocar' : 'Asignar'} acceso Root 2 a ${userAccessibleName(user)}`}
                       >
                         <span>{user.root_level === 2 ? 'Revocar Root 2' : 'Asignar Root 2'}</span>
                       </Button>
@@ -467,7 +473,7 @@ export default function UsersPage() {
                     >
                       <summary
                         role="button"
-                        aria-label={`Más acciones para ${user.first_name} ${user.last_name}`}
+                        aria-label={`Más acciones para ${userAccessibleName(user)}`}
                         onPointerEnter={preloadUserActions}
                         onPointerDown={preloadUserActions}
                         onFocus={preloadUserActions}

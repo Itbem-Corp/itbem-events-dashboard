@@ -11,6 +11,11 @@ export interface Client extends BaseEntity {
   is_active?: boolean
   /** Rol directo del usuario autenticado en esta organización. */
   access_role?: string
+  /**
+   * In a user's memberships list: true when the access comes from a membership
+   * in a parent organization (access_role INHERITED_*), not a direct one.
+   */
+  inherited?: boolean
 
   // Relations
   client_type_id: string

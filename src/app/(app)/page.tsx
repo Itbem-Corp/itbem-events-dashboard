@@ -19,6 +19,7 @@ import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import type { TenantCode } from '@/lib/tenant-config'
 import type { Event, EventDashboardOverview } from '@/models/Event'
+import { operationalRootSupportCopy, organizationWorkspaceCopy } from '@/features/workspace/workspace-copy'
 import { productSupportsFeature } from '@/products/core/product-manifest'
 import { getProductManifest } from '@/products/registry'
 import { useStore } from '@/store/useStore'
@@ -50,6 +51,10 @@ const EMPTY_METRICS: EventDashboardOverview['metrics'] = {
   upcoming: 0,
   past_active: 0,
   total_capacity: 0,
+}
+
+function countLabel(count: number, singular: string, plural: string): string {
+  return `${count.toLocaleString('es-MX')} ${count === 1 ? singular : plural}`
 }
 
 function getDaysUntil(dateString: string, timeZone?: string | null): number | null {
@@ -112,74 +117,6 @@ function DashboardSkeleton() {
   )
 }
 
-function organizationWorkspaceCopy(accessProfile: AccessProfile, organizationName?: string) {
-  const role = (accessProfile.organizationRole ?? '').replace('INHERITED_', '').toUpperCase()
-  if (accessProfile.platformLevel === 'root_1') {
-    return {
-      eyebrow: 'Supervisión de organización',
-      title: organizationName || 'Organización',
-      description: 'Gobierno, operación y resultados del espacio seleccionado.',
-    }
-  }
-  if (accessProfile.platformLevel === 'root_2') {
-    return {
-      eyebrow: 'Soporte operativo',
-      title: organizationName || 'Organización',
-      description: 'Asistencia a invitados, check-in y analítica sin cambios estructurales.',
-    }
-  }
-  switch (role) {
-    case 'OWNER':
-      return {
-        eyebrow: 'Dirección de organización',
-        title: organizationName || 'Tu organización',
-        description: 'Equipo, eventos y resultados bajo una sola operación.',
-      }
-    case 'ADMIN':
-      return {
-        eyebrow: 'Administración',
-        title: organizationName || 'Tu organización',
-        description: 'Coordina el equipo y mantiene la operación lista para crecer.',
-      }
-    case 'EVENT_MANAGER':
-      return {
-        eyebrow: 'Centro de eventos',
-        title: 'Operación y producción',
-        description: 'Planea eventos, coordina invitados y sigue cada resultado.',
-      }
-    case 'EDITOR':
-      return {
-        eyebrow: 'Contenido y experiencia',
-        title: 'Eventos listos para publicar',
-        description: 'Edita estructura, contenido e invitados sin acciones destructivas.',
-      }
-    case 'CHECKIN':
-      return {
-        eyebrow: 'Operación de acceso',
-        title: 'Check-in sin fricción',
-        description: 'Consulta próximos eventos y mantén ágil la llegada de invitados.',
-      }
-    case 'ANALYST':
-      return {
-        eyebrow: 'Resultados',
-        title: 'Lectura de operación',
-        description: 'Analiza actividad, capacidad y desempeño sin modificar la experiencia.',
-      }
-    case 'MEMBER':
-      return {
-        eyebrow: 'Colaboración',
-        title: 'Tus eventos asignados',
-        description: 'Apoya la gestión de invitados dentro de un espacio controlado.',
-      }
-    default:
-      return {
-        eyebrow: 'Vista de consulta',
-        title: organizationName || 'Eventos',
-        description: 'Consulta agenda y estado sin permisos de modificación.',
-      }
-  }
-}
-
 function ControlPlaneHome({
   accessProfile,
   organizationName,
@@ -213,7 +150,8 @@ function ControlPlaneHome({
     ? 'Usuarios, roles y acceso por aplicación.'
     : 'Miembros, roles y acceso por producto.'
   const isOperationalRoot = accessProfile.platformLevel === 'root_2'
-  const organizationCopy = organizationWorkspaceCopy(accessProfile, organizationName)
+  const productHasEvents = productSupportsFeature(product, 'events')
+  const organizationCopy = organizationWorkspaceCopy(accessProfile, organizationName, { productHasEvents })
 
   if (accessProfile.isOrganizationContext) {
     return (
@@ -284,7 +222,9 @@ function ControlPlaneHome({
             ? 'Resuelve accesos, acompaña organizaciones y revisa señales operativas sin alterar gobierno ni estructura crítica.'
             : canViewOrganizations || canViewPlatformUsers
               ? 'Administra organizaciones, accesos y usuarios desde un espacio separado de la operación diaria.'
-              : 'Supervisa actividad, salud y trazabilidad sin mezclarla con la operación diaria de eventos.'
+              : productHasEvents
+                ? 'Supervisa actividad, salud y trazabilidad sin mezclarla con la operación diaria de eventos.'
+                : 'Supervisa actividad, salud y trazabilidad sin mezclarla con la operación diaria.'
         }
         icon={ShieldCheckIcon}
       />
@@ -364,8 +304,10 @@ function ControlPlaneHome({
           <div>
             <p className="text-sm font-medium text-ink">Límite de soporte activo</p>
             <p className="mt-1 text-xs leading-5 text-ink-muted">
-              Este nivel puede asistir usuarios, invitados y check-in. La creación o eliminación de eventos, los usuarios
-              root y la configuración estructural permanecen reservados a Root 1.
+              {operationalRootSupportCopy({
+                productHasEvents,
+                productHasUsers: productSupportsFeature(product, 'users'),
+              })}
             </p>
           </div>
         </div>
@@ -390,7 +332,10 @@ export default function Home() {
   const canCreateEvents = accessCan(accessProfile, 'events:create')
   const canEditEvents = accessCan(accessProfile, 'events:manage')
   const organizationRole = (accessProfile.organizationRole ?? '').replace('INHERITED_', '').toUpperCase()
-  const workspaceCopy = organizationWorkspaceCopy(accessProfile, currentClient?.name)
+  const homeProduct = getProductManifest((applicationSession?.application.code as TenantCode) || 'eventiapp')
+  const workspaceCopy = organizationWorkspaceCopy(accessProfile, currentClient?.name, {
+    productHasEvents: productSupportsFeature(homeProduct, 'events'),
+  })
   const eventsKey =
     hasEvents && !accessProfile.isPlatformContext ? scopedEventsDashboardPath(currentClient?.id, isRoot) : null
   const scopedEventsKey = useScopedFetcherKey(eventsKey)
@@ -537,19 +482,19 @@ export default function Home() {
                       <>
                         <span className="flex items-center gap-1.5 text-ink-secondary">
                           <UsersIcon className="size-4 text-ink-muted" />
-                          {`${nextGuestSummary?.total ?? 0} invitados`}
+                          {countLabel(nextGuestSummary?.total ?? 0, 'invitado', 'invitados')}
                         </span>
-                        <span className="flex items-center gap-1.5 text-emerald-400">
+                        <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
                           <CheckCircleIcon className="size-4" />
-                          {`${nextGuestSummary?.confirmed ?? 0} confirmados`}
+                          {countLabel(nextGuestSummary?.confirmed ?? 0, 'confirmado', 'confirmados')}
                         </span>
-                        <span className="flex items-center gap-1.5 text-amber-400">
+                        <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
                           <ClockIcon className="size-4" />
-                          {`${nextGuestSummary?.pending ?? 0} pendientes`}
+                          {countLabel(nextGuestSummary?.pending ?? 0, 'pendiente', 'pendientes')}
                         </span>
                       </>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
                       {canEditEvents && (
                         <Button
                           href={`/events/${nextEvent.id}/studio`}
@@ -627,9 +572,10 @@ export default function Home() {
               />
               <Metric
                 icon={UsersIcon}
-                label="Capacidad"
+                label="Cupo total"
                 value={metrics.total_capacity}
-                detail="invitados en total"
+                // Sum of each event's max_guests, not the guests already added (ROLES-N3).
+                detail={metrics.total_capacity > 0 ? 'lugares máximos definidos' : 'sin cupo máximo definido'}
                 delay={0.23}
               />
             </section>

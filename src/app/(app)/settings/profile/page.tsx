@@ -1,6 +1,7 @@
 'use client'
 
 import { useUserProfile } from '@/features/users/use-user-profile'
+import { rootLevelLabel } from '@/features/users/root-level'
 import { useState } from 'react'
 
 import { Avatar } from '@/components/avatar'
@@ -98,7 +99,7 @@ export default function ProfilePage() {
         {user.is_root && (
           <Badge color="indigo">
             <ShieldCheckIcon className="size-3" />
-            Administrador raíz
+            {rootLevelLabel(user)}
           </Badge>
         )}
       </div>
@@ -208,7 +209,7 @@ export default function ProfilePage() {
                 } as const,
                 {
                   label: 'Tipo de usuario',
-                  value: user.is_root ? 'Administrador raíz' : 'Usuario estándar',
+                  value: rootLevelLabel(user) ?? 'Usuario estándar',
                   badge: null,
                 },
                 {

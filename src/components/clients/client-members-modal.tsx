@@ -3,7 +3,7 @@
 import { fetcher } from '@/lib/fetcher'
 import { useDebounce } from '@/hooks/useDebounce'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { mutate as globalMutate } from 'swr'
 
 import { api } from '@/lib/api'
@@ -21,6 +21,7 @@ import { toast } from 'sonner'
 
 import { Alert, AlertActions, AlertDescription, AlertTitle } from '@/components/alert'
 import { Avatar } from '@/components/avatar'
+import { organizationRoleLabel } from '@/lib/organization-role-labels'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Dialog, DialogActions, DialogBody, DialogTitle } from '@/components/dialog'
@@ -189,7 +190,7 @@ function CreateUserForm({ clientId, roles, onDone }: CreateUserFormProps) {
           <Select aria-label="Rol" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}
+                {organizationRoleLabel(r.code, r.name)}
               </option>
             ))}
           </Select>
@@ -320,10 +321,13 @@ interface InviteFormProps {
   onDone: () => void
 }
 
-function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
+export function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
   const [email, setEmail] = useState('')
   const [roleId, setRoleId] = useState(getDefaultRoleId(roles))
   const [loading, setLoading] = useState(false)
+  // State updates land after the next render; a ref blocks a second Enter
+  // (or a double click) fired before the button shows as disabled.
+  const submittingRef = useRef(false)
   const [emailError, setEmailError] = useState('')
 
   useEffect(() => {
@@ -333,6 +337,7 @@ function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
   }, [roleId, roles])
 
   const handleInvite = async () => {
+    if (submittingRef.current) return
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setEmailError('Ingresa un correo válido')
       return
@@ -342,6 +347,7 @@ function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
       return
     }
     setEmailError('')
+    submittingRef.current = true
     setLoading(true)
     try {
       await api.post<ClientMemberLinkResponse>(clientInvitePath(), {
@@ -354,8 +360,9 @@ function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
       toast.success('Invitación enviada')
       onDone()
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, 'Error al enviar la invitación'))
+      toast.error(getApiErrorMessage(err, 'No se pudo enviar la invitación.'))
     } finally {
+      submittingRef.current = false
       setLoading(false)
     }
   }
@@ -380,7 +387,11 @@ function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
             }}
             placeholder="correo@empresa.com"
             autoFocus
-            onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' || e.repeat || e.nativeEvent.isComposing) return
+              e.preventDefault()
+              void handleInvite()
+            }}
           />
           {emailError && <ErrorMessage>{emailError}</ErrorMessage>}
         </Field>
@@ -389,7 +400,7 @@ function InviteForm({ clientId, roles, onDone }: InviteFormProps) {
           <Select aria-label="Rol" value={roleId} onChange={(e) => setRoleId(e.target.value)}>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name}
+                {organizationRoleLabel(r.code, r.name)}
               </option>
             ))}
           </Select>
@@ -644,10 +655,10 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
                   const email = member.user?.email ?? member.email
                   const profileImage = member.user?.profile_image ?? member.profile_image
                   const roleCode = member.role_code ?? member.role
-                  const roleLabel = member.role_name ?? roleCode ?? 'Miembro'
+                  const roleLabel = organizationRoleLabel(roleCode, member.role_name)
                   const isEditing = editingMemberId === memberKey
                   const displayName = `${firstName} ${lastName}`.trim() || email || 'Usuario'
-                  const initials = `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || '?'
+                  const initials = `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || email?.[0]?.toUpperCase() || '?'
                   const canManageMember = roles.some((role) => role.id === member.role_id)
 
                   return (
@@ -661,7 +672,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
                       <Avatar src={profileImage} initials={initials} className="size-8 shrink-0" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-ink">{displayName}</p>
-                        {email && <p className="truncate text-xs text-ink-muted">{email}</p>}
+                        {email && email !== displayName && <p className="truncate text-xs text-ink-muted">{email}</p>}
                       </div>
 
                       {isEditing ? (
@@ -674,7 +685,7 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
                           >
                             {roles.map((r) => (
                               <option key={r.id} value={r.id}>
-                                {r.name}
+                                {organizationRoleLabel(r.code, r.name)}
                               </option>
                             ))}
                           </Select>
@@ -709,14 +720,14 @@ export function ClientMembersModal({ isOpen, onClose, clientId, clientName, onMe
                                   setEditingRole(member.role_id)
                                 }}
                                 className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-white/5 hover:text-ink-secondary"
-                                aria-label="Editar rol"
+                                aria-label={`Editar rol de ${displayName}`}
                               >
                                 <PencilIcon className="size-3.5" />
                               </button>
                               <button
                                 onClick={() => setMemberToRemove(member)}
                                 className="rounded-lg p-1.5 text-ink-muted transition-colors hover:bg-pink-500/10 hover:text-pink-400"
-                                aria-label="Remover miembro"
+                                aria-label={`Remover a ${displayName}`}
                               >
                                 <TrashIcon className="size-3.5" />
                               </button>

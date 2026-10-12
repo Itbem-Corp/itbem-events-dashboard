@@ -750,6 +750,11 @@ export function clientTypesPath(parentTypeCode?: string | null): string {
     : '/catalogs/client-types'
 }
 
+/** Types the caller may create directly under one parent organization ([] for a Customer). */
+export function clientTypesForParentPath(parentId: string): string {
+  return apiPath('/catalogs/client-types', { parent_id: parentId })
+}
+
 export function guestStatusesPath(): string {
   return '/catalogs/guest-statuses'
 }
