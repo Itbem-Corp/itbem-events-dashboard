@@ -9,6 +9,12 @@ const mocks = vi.hoisted(() => ({
   clearSession: vi.fn(),
   refreshApplicationSession: vi.fn().mockResolvedValue(undefined),
   swrKeys: [] as Array<string | null>,
+  endSession: vi.fn(),
+}))
+
+vi.mock('@/lib/end-session', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/end-session')>()),
+  endSession: mocks.endSession,
 }))
 
 vi.mock('@/hooks/useStoreHydration', () => ({
@@ -44,7 +50,9 @@ describe('SessionBootstrap hydration ordering', () => {
     mocks.profileLoaded = false
     mocks.setApplicationSession.mockClear()
     mocks.clearSession.mockClear()
-    mocks.refreshApplicationSession.mockClear()
+    mocks.refreshApplicationSession.mockReset()
+    mocks.refreshApplicationSession.mockResolvedValue(undefined)
+    mocks.endSession.mockClear()
     mocks.swrKeys = []
   })
 
@@ -89,5 +97,27 @@ describe('SessionBootstrap hydration ordering', () => {
     window.dispatchEvent(event)
 
     expect(mocks.clearSession).toHaveBeenCalledTimes(1)
+  })
+  it('keeps the session when revalidation hits the same-origin guard (403 invalid_origin)', async () => {
+    mocks.hydrated = true
+    mocks.profileLoaded = true
+    mocks.refreshApplicationSession.mockRejectedValue(Object.assign(new Error('No session'), { status: 403, code: 'invalid_origin' }))
+    await act(async () => {
+      render(<SessionBootstrap />)
+    })
+
+    expect(mocks.refreshApplicationSession).toHaveBeenCalled()
+    expect(mocks.endSession).not.toHaveBeenCalled()
+  })
+
+  it('ends the session when revalidation reports the access was revoked', async () => {
+    mocks.hydrated = true
+    mocks.profileLoaded = true
+    mocks.refreshApplicationSession.mockRejectedValue(Object.assign(new Error('No session'), { status: 403, code: 'access_revoked' }))
+    await act(async () => {
+      render(<SessionBootstrap />)
+    })
+
+    expect(mocks.endSession).toHaveBeenCalledTimes(1)
   })
 })

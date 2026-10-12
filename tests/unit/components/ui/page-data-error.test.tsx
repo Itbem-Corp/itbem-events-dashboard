@@ -27,4 +27,19 @@ describe('PageDataError', () => {
 
     expect(screen.getByRole('button', { name: 'Reintentando…' })).toBeDisabled()
   })
+
+  it('hides "Reintentar" when retrying cannot help and renders the extra action (EVT-36)', () => {
+    render(
+      <PageDataError
+        eyebrow="Evento no disponible"
+        title="No encontramos este evento"
+        description="El enlace no corresponde a ningún evento."
+        action={<button type="button">Ver eventos</button>}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver eventos' })).toBeInTheDocument()
+    expect(screen.queryByText('Conexión interrumpida')).not.toBeInTheDocument()
+  })
 })

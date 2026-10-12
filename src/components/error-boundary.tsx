@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import React from 'react'
 import { ExclamationTriangleIcon } from '@heroicons/react/20/solid'
 
@@ -45,15 +46,24 @@ export class ErrorBoundary extends React.Component<
               Algo salió mal
             </h2>
             <p className="mt-2 text-sm text-ink-secondary">
-              Ocurrió un error inesperado. Por favor recarga la página.
+              No pudimos mostrar esta sección. Intenta de nuevo o vuelve al inicio.
             </p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="mt-6 min-h-11 w-full rounded-xl border border-border-subtle bg-surface-interactive px-4 py-2 text-sm font-semibold text-ink transition-[border-color,background-color] hover:border-border-strong hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)"
-            >
-              Recargar página
-            </button>
+            <div className="mt-6 flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => this.setState({ hasError: false, error: undefined })}
+                className="min-h-11 w-full rounded-xl border border-border-subtle bg-surface-interactive px-4 py-2 text-sm font-semibold text-ink transition-[border-color,background-color] hover:border-border-strong hover:bg-surface-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)"
+              >
+                Reintentar
+              </button>
+              {/* Navigating changes resetKey, which clears the error state. */}
+              <Link
+                href="/"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-ink-secondary underline-offset-4 hover:text-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--tenant-accent)"
+              >
+                Ir al inicio
+              </Link>
+            </div>
           </div>
         </div>
       )

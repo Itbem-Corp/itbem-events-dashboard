@@ -207,4 +207,15 @@ describe('LoginForm', () => {
       expect(screen.getByRole('textbox', { name: 'Correo de trabajo' })).toHaveValue('owner@eventiapp.com')
     )
   })
+
+  it('explains an offline failure in Spanish instead of "Failed to fetch"', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    render(<LoginForm tenant={tenant} />)
+
+    await fillCredentials()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('No pudimos conectar con el servidor. Revisa tu conexión e intenta de nuevo.')
+    expect(alert).not.toHaveTextContent('Failed to fetch')
+  })
 })

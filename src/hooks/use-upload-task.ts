@@ -46,8 +46,9 @@ export function useUploadTask(fallbackError: string) {
             if (mountedRef.current && !controller.signal.aborted) setProgress(nextProgress)
           })
         )
-        if (controller.signal.aborted) throw new DOMException('Upload canceled', 'AbortError')
-        if (mountedRef.current && !controller.signal.aborted) {
+        // The server already answered: a cancel that lands after the
+        // response cannot undo the save, so it is reported as a success.
+        if (mountedRef.current && controllerRef.current === controller) {
           setProgress(100)
           setStatus('success')
         }

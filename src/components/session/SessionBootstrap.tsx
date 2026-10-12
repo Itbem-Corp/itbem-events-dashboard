@@ -7,6 +7,7 @@ import {
   getApplicationSession,
   refreshApplicationSession,
 } from '@/lib/api'
+import { authFailureEndsSession } from '@/lib/auth-token-errors'
 import { useStoreHydration } from '@/hooks/useStoreHydration'
 import type { ApplicationSession } from '@/models/ApplicationSession'
 import { useStore } from '@/store/useStore'
@@ -46,8 +47,9 @@ export default function SessionBootstrap() {
   }, [session, setApplicationSession])
 
   useEffect(() => {
-    const status = requestStatus(error)
-    if (status === 401 || status === 403) {
+    // A 403 ends the session only when the BFF says the access was revoked;
+    // its same-origin guard also answers 403 but leaves the session intact.
+    if (authFailureEndsSession(error)) {
       void endSession(clearSession)
     }
   }, [clearSession, error])
@@ -60,8 +62,7 @@ export default function SessionBootstrap() {
       try {
         await refreshApplicationSession(minAgeMs)
       } catch (reason) {
-        const status = requestStatus(reason)
-        if (active && (status === 401 || status === 403)) void endSession(clearSession)
+        if (active && authFailureEndsSession(reason)) void endSession(clearSession)
       }
     }
     // The Zustand state can survive Fast Refresh and client navigations. Treat

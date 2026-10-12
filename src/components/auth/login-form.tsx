@@ -52,6 +52,10 @@ async function authRequest(endpoint: string, body: Record<string, string>) {
     if (reason instanceof DOMException && reason.name === 'AbortError') {
       throw new Error('La conexión tardó demasiado. Revisa tu red e intenta nuevamente.')
     }
+    // fetch rejects with an English TypeError ("Failed to fetch") offline.
+    if (reason instanceof TypeError) {
+      throw new Error('No pudimos conectar con el servidor. Revisa tu conexión e intenta de nuevo.')
+    }
     throw reason
   } finally {
     window.clearTimeout(timeout)
