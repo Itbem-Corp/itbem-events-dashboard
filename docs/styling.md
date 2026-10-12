@@ -153,6 +153,30 @@ without the flag renders today's exact class strings.
 size class: `ThemeToggle` sizes itself in the accessible shell and the layout
 and sidebar footer stop passing `size-9` / `size-8` there.
 
+### Role labels (`manifest.shell.localizedRoleLabels`)
+
+`src/lib/role-labels.ts` maps raw role codes to Spanish names; only the presentation changes,
+authorization keeps the raw code. Products without the flag show the raw code or catalog name.
+
+| Code | Label |
+| --- | --- |
+| OWNER | Propietario |
+| ADMIN | Administrador |
+| EVENT_MANAGER | Gestor de eventos |
+| EDITOR | Editor |
+| CHECKIN | Check-in |
+| ANALYST | Analista |
+| MEMBER | Colaborador |
+| GUEST / VIEWER | Solo lectura |
+| EVENT_CLIENT | Cliente del evento |
+| `INHERITED_X` | label of X + ` (heredado)` |
+
+Used by the organization switcher, the members modal on `/team`, the home eyebrows
+(`organizationWorkspaceCopy(..., { localizedRoleLabels })`: ADMIN `Administrador`, GUEST/VIEWER
+`Solo lectura`) and the `/team` cards (`teamPageCards(shell)` in `src/features/workspace/team-copy.ts`,
+which drop the mention of the other products). On `/metrics`, `accessibleShell` (not this flag)
+switches the chart and the row labels (`acciones`, `activos`) to `text-xs`.
+
 **Overlays above the bottom navigation.** In the accessible shell the
 `SidebarLayout` root carries `data-mobile-nav="visible" | "hidden"`, and
 `src/styles/tailwind.css` sets `--app-mobile-nav-offset` to

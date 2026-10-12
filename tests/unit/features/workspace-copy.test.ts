@@ -26,4 +26,29 @@ describe('organizationWorkspaceCopy', () => {
       title: 'Check-in sin fricción',
     })
   })
+
+  it('keeps the original Admin and read-only eyebrows without localized role labels (Cafetton, ITBEM)', () => {
+    expect(organizationWorkspaceCopy(profile({ organizationRole: 'Admin' })).eyebrow).toBe('Administración')
+    expect(organizationWorkspaceCopy(profile({ organizationRole: 'GUEST' })).eyebrow).toBe('Vista de consulta')
+  })
+
+  it('names the role in the eyebrow with localized role labels (EventiApp)', () => {
+    const options = { localizedRoleLabels: true }
+    expect(organizationWorkspaceCopy(profile({ organizationRole: 'Admin' }), 'Acme', options).eyebrow).toBe(
+      'Administrador'
+    )
+    expect(organizationWorkspaceCopy(profile({ organizationRole: 'INHERITED_ADMIN' }), 'Acme', options).eyebrow).toBe(
+      'Administrador'
+    )
+    expect(organizationWorkspaceCopy(profile({ organizationRole: 'GUEST' }), 'Acme', options).eyebrow).toBe(
+      'Solo lectura'
+    )
+    expect(organizationWorkspaceCopy(profile({ organizationRole: 'VIEWER' }), 'Acme', options).eyebrow).toBe(
+      'Solo lectura'
+    )
+    // Unknown roles keep the neutral eyebrow.
+    expect(organizationWorkspaceCopy(profile({ organizationRole: undefined }), 'Acme', options).eyebrow).toBe(
+      'Vista de consulta'
+    )
+  })
 })

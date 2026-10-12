@@ -3,6 +3,7 @@ import { useStore } from "@/store/useStore";
 import { readApiData } from "@/lib/api-envelope";
 import { normalizeBackendBaseUrl } from "@/lib/base-url";
 import { getApiErrorMessage } from "@/lib/api-error";
+import { memberAccessDenialMessage } from "@/lib/member-management";
 import { backendBaseUrlForHostname, tenantCodeForHostname } from "@/lib/tenant-config";
 import { releaseMutationKey, reserveMutationKey } from "@/lib/idempotency-key";
 import { normalizeKeys } from "@/lib/normalizer";
@@ -307,7 +308,12 @@ api.interceptors.response.use(
                     toast.error('No se pudo validar el espacio de trabajo. Selecciona nuevamente una organización o la vista de plataforma.')
                 }
             } else {
-                toast.error(getApiErrorMessage(error, 'Sin permisos para realizar esta acción'))
+                // Known member-management denials arrive as English reasons;
+                // show the Spanish copy instead (the backend stays the authority).
+                toast.error(
+                    memberAccessDenialMessage(error) ??
+                        getApiErrorMessage(error, 'Sin permisos para realizar esta acción')
+                )
             }
         } else if (!error?.response) {
             const sessionMessage = localSessionRecoveryMessage(error)

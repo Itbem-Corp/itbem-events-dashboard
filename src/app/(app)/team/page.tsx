@@ -6,8 +6,9 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { IntentModalSkeleton } from '@/components/ui/intent-modal-skeleton'
 import { accessCan } from '@/lib/access-profile'
 import { useAccessProfile } from '@/lib/use-access-profile'
-import { useProductManifest } from '@/products/core/product-context'
+import { useProductManifest, useProductShell } from '@/products/core/product-context'
 import { productSupportsFeature } from '@/products/core/product-manifest'
+import { teamPageCards } from '@/features/workspace/team-copy'
 import { useStore } from '@/store/useStore'
 import { ShieldCheckIcon, Squares2X2Icon, UserGroupIcon } from '@heroicons/react/20/solid'
 import dynamic from 'next/dynamic'
@@ -29,6 +30,7 @@ const ClientMembersModal = dynamic(() => loadClientMembersModal().then((module) 
 export default function TeamPage() {
   const currentClient = useStore((state) => state.currentClient)
   const [open, setOpen] = useState(false)
+  const [rolesCard, accessCard] = teamPageCards(useProductShell())
   const accessProfile = useAccessProfile()
   const product = useProductManifest()
   // Event-client oversight: products with events (EventiApp) and team admins only.
@@ -72,20 +74,15 @@ export default function TeamPage() {
           <span className="flex size-10 items-center justify-center rounded-xl bg-(--tenant-accent)/10 text-(--tenant-accent)">
             <ShieldCheckIcon className="size-5" />
           </span>
-          <h2 className="mt-4 text-sm font-semibold text-ink">Roles por responsabilidad</h2>
-          <p className="mt-2 text-sm leading-6 text-ink-muted">
-            Owner y Admin gestionan el equipo; operación, check-in y analítica reciben sólo las acciones necesarias.
-          </p>
+          <h2 className="mt-4 text-sm font-semibold text-ink">{rolesCard.title}</h2>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">{rolesCard.text}</p>
         </div>
         <div className="premium-surface rounded-2xl p-5">
           <span className="flex size-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-300">
             <Squares2X2Icon className="size-5" />
           </span>
-          <h2 className="mt-4 text-sm font-semibold text-ink">Acceso independiente por producto</h2>
-          <p className="mt-2 text-sm leading-6 text-ink-muted">
-            Una misma identidad puede entrar a EventiApp, ITBEM o Cafetton sin compartir datos ni permisos entre
-            portales.
-          </p>
+          <h2 className="mt-4 text-sm font-semibold text-ink">{accessCard.title}</h2>
+          <p className="mt-2 text-sm leading-6 text-ink-muted">{accessCard.text}</p>
         </div>
       </section>
 
