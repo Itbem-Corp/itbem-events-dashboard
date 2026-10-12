@@ -167,23 +167,3 @@ export function getGuestPartySize(g: Guest): number {
 export function getGuestCompanionCount(g: Guest): number {
   return Math.max(getGuestPartySize(g) - 1, 0)
 }
-
-/**
- * Exports an array of objects to a CSV file and triggers download.
- */
-export function exportCSV(
-  headers: string[],
-  rows: string[][],
-  filename: string,
-) {
-  const csv = [headers, ...rows]
-    .map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(','))
-    .join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}

@@ -14,14 +14,17 @@ export function organizationContextRefreshDelay(expiresAt: string | null | undef
 }
 
 export function useOrganizationContextRenewal() {
-  const applicationSession = useStore((state) => state.applicationSession)
+  // Session revalidation replaces the session object with an identical one.
+  // Only its presence matters here, so a revalidation never re-issues the
+  // credential. The caller-access workspace has no organization: no renewal.
+  const hasApplicationSession = useStore((state) => Boolean(state.applicationSession))
   const organizationId = useStore((state) => state.currentClient?.id ?? null)
   const workspaceMode = useStore((state) => state.workspaceMode)
   const expiresAt = useStore((state) => state.organizationContext?.expiresAt)
   const setCredential = useStore((state) => state.setOrganizationContextCredential)
 
   useEffect(() => {
-    if (!applicationSession || workspaceMode !== 'organization' || !organizationId) return
+    if (!hasApplicationSession || workspaceMode !== 'organization' || !organizationId) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -43,5 +46,5 @@ export function useOrganizationContextRenewal() {
       cancelled = true
       if (timer) clearTimeout(timer)
     }
-  }, [applicationSession, expiresAt, organizationId, setCredential, workspaceMode])
+  }, [expiresAt, hasApplicationSession, organizationId, setCredential, workspaceMode])
 }

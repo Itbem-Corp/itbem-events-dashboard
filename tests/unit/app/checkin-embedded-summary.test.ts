@@ -12,11 +12,12 @@ describe('check-in embedded summary loading', () => {
     expect(source).not.toContain('mutate(summaryKey)')
   })
 
-  it('reconciles authoritative check-in responses without refetching the workspace', () => {
+  it('patches caches optimistically and revalidates after a door write (bulk/status returns no guest)', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/app/(app)/events/[id]/checkin/page.tsx'), 'utf8')
 
-    expect(source).toContain('const cacheGuest = mergeGuestCacheUpdate(updatedGuest, optimisticGuest)')
-    expect(source).toContain('if (!updatedGuest?.id) revalidateCaches()')
-    expect(source).not.toContain('await patchCaches(optimisticGuest, cacheGuest)\n      revalidateCaches()')
+    expect(source).toContain('await patchCaches(guest, optimisticGuest)')
+    expect(source).toContain('checked_in_at: new Date().toISOString()')
+    expect(source).toContain('revalidateCaches()')
+    expect(source).not.toContain('mergeGuestCacheUpdate')
   })
 })

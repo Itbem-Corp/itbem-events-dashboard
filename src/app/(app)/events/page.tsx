@@ -15,7 +15,7 @@ import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useListViewState } from '@/hooks/useListViewState'
 import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
-import { accessCan, createAccessProfile } from '@/lib/access-profile'
+import { accessCan } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { scopedEventsPagePath } from '@/lib/api-paths'
 import { getCalendarDaysUntil } from '@/lib/date-time'
@@ -25,6 +25,14 @@ import { eventTypeLabel } from '@/lib/event-type-label'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
+import { useAccessProfile } from '@/lib/use-access-profile'
+import {
+  canCreateInAnyOrganization,
+  eventRoleAllowanceSummary,
+  eventRowActions,
+  eventRowCapabilities,
+  hasAnyEventRowAction,
+} from '@/features/events/event-row-capabilities'
 import type { Event, EventListPage } from '@/models/Event'
 import { useStore } from '@/store/useStore'
 import {
@@ -110,7 +118,7 @@ const EMPTY_COUNTS: EventListPage['counts'] = { all: 0, upcoming: 0, today: 0, p
 function EventMomentsBadge({ pending }: { pending: number }) {
   if (pending === 0) return null
   return (
-    <span className="inline-flex shrink-0 items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 ring-1 ring-amber-500/20">
+    <span className="inline-flex shrink-0 items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400 ring-1 ring-amber-500/20">
       {pending} pendiente{pending !== 1 ? 's' : ''}
     </span>
   )
@@ -123,17 +131,16 @@ export default function EventsPage() {
   const router = useRouter()
   const currentClient = useStore((s) => s.currentClient)
   const user = useStore((s) => s.user)
-  const applicationSession = useStore((s) => s.applicationSession)
-  const workspaceMode = useStore((s) => s.workspaceMode)
   const isRoot = Boolean(user?.is_root)
-  const accessProfile = useMemo(
-    () => createAccessProfile(applicationSession, workspaceMode, currentClient?.id),
-    [applicationSession, currentClient?.id, workspaceMode]
-  )
-  const canCreateEvents = accessCan(accessProfile, 'events:create')
-  const canEditEvents = accessCan(accessProfile, 'events:manage')
-  const canDeleteEvents = accessCan(accessProfile, 'events:delete')
-  const hasEventActions = canEditEvents || canCreateEvents || canDeleteEvents
+  const accessProfile = useAccessProfile()
+  const applicationSession = useStore((s) => s.applicationSession)
+  // In the caller-access list a new event goes to one of the session's
+  // organizations, so 'Crear evento' needs events:create in at least one.
+  const canCreateEvents = accessProfile.isPortfolioContext
+    ? canCreateInAnyOrganization(applicationSession)
+    : accessCan(accessProfile, 'events:create')
+  const isClientOnly = accessProfile.isEventClientOnly
+  const isPortfolioMember = accessProfile.isPortfolioContext && accessProfile.platformLevel === 'none'
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
@@ -149,7 +156,7 @@ export default function EventsPage() {
   })
 
   const debouncedSearch = useDebounce(search, 200)
-  const swrKey = scopedEventsPagePath(currentClient?.id, isRoot, {
+  const swrKey = scopedEventsPagePath(currentClient?.id, accessProfile.listsAcrossOrganizations, {
     page,
     page_size: EVENTS_PAGE_SIZE,
     search: debouncedSearch,
@@ -320,6 +327,16 @@ export default function EventsPage() {
     )
   }
 
+  // Members with no action on any row learn why, instead of a list without menus.
+  const showNoActionsNote =
+    accessProfile.platformLevel === 'none' &&
+    !isClientOnly &&
+    !canCreateEvents &&
+    events.length > 0 &&
+    !events.some((event) =>
+      hasAnyEventRowAction(eventRowActions(eventRowCapabilities(event, applicationSession, accessProfile)))
+    )
+
   const FILTER_TABS: { id: FilterType; label: string; count: number }[] = [
     { id: 'all', label: 'Todos', count: counts.all },
     { id: 'upcoming', label: 'Próximos', count: counts.upcoming },
@@ -330,12 +347,20 @@ export default function EventsPage() {
   return (
     <PageTransition>
       <PageHeader
-        eyebrow="Portafolio de eventos"
-        title="Eventos"
+        eyebrow={isClientOnly ? 'Eventos asignados' : isPortfolioMember ? 'Tus eventos' : 'Portafolio de eventos'}
+        title={
+          isClientOnly
+            ? 'Mis eventos'
+            : isPortfolioMember && accessProfile.isOrganizationAdmin
+              ? 'Eventos asignados'
+              : 'Eventos'
+        }
         description={
           accessProfile.platformLevel === 'root_2'
             ? 'Vista operativa: consulta y opera asistentes, check-in y analítica sin cambiar la estructura del evento.'
-            : 'Planea, publica y opera cada experiencia desde un solo lugar.'
+            : isClientOnly
+              ? 'Los eventos que tu organizador compartió contigo.'
+              : 'Planea, publica y opera cada experiencia desde un solo lugar.'
         }
         icon={Square2StackIcon}
         actions={
@@ -353,6 +378,13 @@ export default function EventsPage() {
           ) : undefined
         }
       />
+
+      {showNoActionsNote && (
+        <p role="note" className="mt-6 rounded-2xl border border-border-subtle bg-surface-soft px-4 py-3 text-sm text-ink-secondary">
+          Tu rol permite {eventRoleAllowanceSummary(accessProfile.capabilities)}. Para crear o editar eventos, pide acceso
+          a un administrador de tu organización.
+        </p>
+      )}
 
       {dataErrorState === 'stale' && (
         <div className="mt-6">
@@ -382,7 +414,7 @@ export default function EventsPage() {
                 {tab.count > 0 && (
                   <span
                     className={[
-                      'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                      'rounded-full px-1.5 py-0.5 text-xs font-semibold',
                       filter === tab.id ? 'bg-(--tenant-accent)/15 text-(--tenant-accent)' : 'bg-surface-raised text-ink-muted',
                     ].join(' ')}
                   >
@@ -446,11 +478,21 @@ export default function EventsPage() {
           ) : (
             <EmptyState
               icon={Square2StackIcon}
-              title="Sin eventos"
+              title={
+                isClientOnly
+                  ? 'Aún no tienes eventos asignados'
+                  : isPortfolioMember
+                    ? 'No tienes eventos en tus organizaciones'
+                    : 'Sin eventos'
+              }
               description={
                 accessProfile.platformLevel === 'root_2'
                   ? 'No hay eventos para operar en este alcance.'
-                  : 'Esta organización aún no tiene eventos registrados.'
+                  : isClientOnly
+                    ? 'Cuando tu organizador te asigne un evento, aparecerá aquí.'
+                    : isPortfolioMember
+                      ? 'Cuando alguien de tu organización cree un evento, aparecerá aquí.'
+                      : 'Esta organización aún no tiene eventos registrados.'
               }
               action={
                 canCreateEvents ? { label: 'Crear primer evento', onClick: openNewEventModal } : undefined
@@ -464,6 +506,7 @@ export default function EventsPage() {
             const days = getDaysUntil(event.event_date_time, event.timezone) ?? 0
             const isPast = days < 0
             const coverImageUrl = resolveEventCoverUrl(event, process.env.NEXT_PUBLIC_BACKEND_URL)
+            const rowActions = eventRowActions(eventRowCapabilities(event, applicationSession, accessProfile))
 
             return (
               <li key={event.id}>
@@ -520,7 +563,7 @@ export default function EventsPage() {
                         {event.name}
                       </span>
                       {event.event_type?.name && (
-                        <span className="hidden rounded border border-border-subtle px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-ink-muted uppercase sm:inline-flex">
+                        <span className="hidden rounded border border-border-subtle px-1.5 py-0.5 text-xs font-medium tracking-wide text-ink-muted uppercase sm:inline-flex">
                           {eventTypeLabel(event.event_type.name)}
                         </span>
                       )}
@@ -568,7 +611,7 @@ export default function EventsPage() {
                       <ArrowRightIcon className="size-4" />
                     </span>
 
-                    {hasEventActions && (
+                    {hasAnyEventRowAction(rowActions) && (
                       <details
                         name="event-actions"
                         className="group/actions relative"
@@ -589,9 +632,9 @@ export default function EventsPage() {
                         {openActionEventId === event.id && (
                           <EventListActionsMenu
                             event={event}
-                            canEdit={canEditEvents}
-                            canDuplicate={canCreateEvents && canEditEvents}
-                            canDelete={canDeleteEvents}
+                            canEdit={rowActions.canEdit}
+                            canDuplicate={rowActions.canDuplicate}
+                            canDelete={rowActions.canDelete}
                             onEdit={openEditEventModal}
                             onEditIntent={preloadEventForm}
                             onDuplicateIntent={preloadEventDuplicate}

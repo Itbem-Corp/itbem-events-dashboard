@@ -36,6 +36,10 @@ type ApplicationPrimaryNavigationProps = Omit<Pick<
   | 'canViewOrganizations'
 >, 'canManageAutomationConfiguration'> & {
   canManageAutomationConfiguration?: boolean
+  /** Inicio stays unless the product's route policy removes it. */
+  showHome?: boolean
+  /** 'Mis eventos' for client-only accounts. */
+  eventsLabel?: string
   pathname: string
   /** Product-specific copy keeps ITBEM's platform organizations distinct from Delivery clients. */
   tenantCode?: string
@@ -45,6 +49,8 @@ type ApplicationPrimaryNavigationProps = Omit<Pick<
 export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavigation({
   pathname,
   tenantCode,
+  showHome = true,
+  eventsLabel = 'Eventos',
   hasEvents,
   canViewMetrics,
   canViewUsers,
@@ -66,15 +72,17 @@ export const ApplicationPrimaryNavigation = memo(function ApplicationPrimaryNavi
   return (
     <SidebarBody>
       <SidebarSection>
-        <SidebarItem href="/" current={pathname === '/'} {...intentProps('/')}>
-          <HomeIcon />
-          <SidebarLabel>Inicio</SidebarLabel>
-        </SidebarItem>
+        {showHome && (
+          <SidebarItem href="/" current={pathname === '/'} {...intentProps('/')}>
+            <HomeIcon />
+            <SidebarLabel>Inicio</SidebarLabel>
+          </SidebarItem>
+        )}
 
         {hasEvents && (
           <SidebarItem href="/events" current={pathname.startsWith('/events')} {...intentProps('/events')}>
             <Square2StackIcon />
-            <SidebarLabel>Eventos</SidebarLabel>
+            <SidebarLabel>{eventsLabel}</SidebarLabel>
           </SidebarItem>
         )}
 

@@ -2,6 +2,7 @@
 
 import { BrandMark } from '@/components/product/brand-mark'
 import { ThemeToggle } from '@/components/theme/theme-toggle'
+import { SESSION_END_REASON_PARAM } from '@/lib/end-session'
 import type { TenantConfig } from '@/lib/tenant-config'
 import type { ApplicationSession } from '@/models/ApplicationSession'
 import { getProductManifest } from '@/products/registry'
@@ -58,6 +59,10 @@ async function authRequest(endpoint: string, body: Record<string, string>) {
   }
 }
 
+export function noAccessMessage(tenantName: string): string {
+  return `Tu cuenta ya no tiene eventos ni organizaciones activas en ${tenantName}. Si crees que es un error, contacta a quien te invitó.`
+}
+
 export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }) {
   const router = useRouter()
   const setApplicationSession = useStore((state) => state.setApplicationSession)
@@ -75,6 +80,13 @@ export function LoginForm({ tenant }: { tenant: Omit<TenantConfig, 'clientId'> }
   useEffect(() => {
     if (error) errorRef.current?.focus()
   }, [error])
+
+  useEffect(() => {
+    // Set by endSession(…, 'no_access') when /api/session answers 403.
+    if (new URLSearchParams(window.location.search).get(SESSION_END_REASON_PARAM) === 'no_access') {
+      setError(noAccessMessage(tenant.name))
+    }
+  }, [tenant.name])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

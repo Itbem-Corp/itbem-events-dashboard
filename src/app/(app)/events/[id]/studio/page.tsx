@@ -28,6 +28,8 @@ import { useStudioSections } from '@/components/studio/use-studio-sections'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { usePreviewToken } from '@/hooks/usePreviewToken'
 import { useEventCapabilities } from '@/features/events/use-event-capabilities'
+import { capabilityErrorKind } from '@/features/events/capability-error'
+import { EventCapabilityError, EventNotFoundCard } from '@/components/events/event-capability-error'
 import { useStudioWorkspace } from '@/features/events/studio/use-studio-workspace'
 import { readApiData } from '@/lib/api-envelope'
 import { eventConfigPath } from '@/lib/api-paths'
@@ -109,7 +111,10 @@ export default function StudioPage() {
     data: capabilities,
     error: capabilitiesError,
     isLoading: capabilitiesLoading,
+    isValidating: capabilitiesValidating,
+    mutate: retryCapabilities,
   } = useEventCapabilities(id)
+  const capabilitiesErrorKind = capabilitiesError ? capabilityErrorKind(capabilitiesError) : null
   const canManageEvent = capabilities?.['event:manage'] === true
 
   const {
@@ -271,6 +276,28 @@ export default function StudioPage() {
           <div className="mx-auto size-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent motion-reduce:animate-none" />
           <p className="mt-4 text-sm text-ink-muted">Validando acceso a Studio…</p>
         </div>
+      </div>
+    )
+  }
+
+  if (capabilitiesErrorKind === 'unavailable') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas px-6">
+        <EventCapabilityError
+          title="No pudimos verificar tu acceso a Studio"
+          description="Revisa tu conexión e inténtalo de nuevo."
+          onRetry={() => void retryCapabilities()}
+          retrying={capabilitiesValidating}
+          backHref={`/events/${id}`}
+        />
+      </div>
+    )
+  }
+
+  if (capabilitiesErrorKind === 'not_found') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas px-6">
+        <EventNotFoundCard />
       </div>
     )
   }

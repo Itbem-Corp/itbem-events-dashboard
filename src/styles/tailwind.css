@@ -282,6 +282,24 @@
     --app-brand-glow: rgb(180 83 9 / 12%);
   }
 
+  /* Accessible shells (manifest shell.accessibleShell) publish the bottom
+     navigation height so fixed overlays can sit above it with
+     bottom-[var(--app-mobile-nav-offset,0px)]. Shells without the attribute
+     never define the variable, so overlays keep their 0px fallback. */
+  [data-mobile-nav='visible'] {
+    --app-mobile-nav-offset: calc(env(safe-area-inset-bottom) + 4.5rem);
+  }
+
+  [data-mobile-nav='hidden'] {
+    --app-mobile-nav-offset: 0px;
+  }
+
+  @media (min-width: 64rem) {
+    [data-mobile-nav] {
+      --app-mobile-nav-offset: 0px;
+    }
+  }
+
   .app-product-shell::before {
     position: fixed;
     inset: 0;
