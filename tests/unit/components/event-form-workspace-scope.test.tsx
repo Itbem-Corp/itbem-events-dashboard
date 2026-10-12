@@ -81,8 +81,37 @@ describe('EventFormModal in the caller-access workspace', () => {
     expect(payload).toMatchObject({ name: 'Boda de prueba' })
   })
 
-  it('still requires an organization to create an event', async () => {
+  it('hides the Organización field when editing without choosing an organization', async () => {
+    renderInEventiApp(<EventFormModal isOpen setIsOpen={vi.fn()} event={event} />)
+    await waitFor(() => expect(screen.getByDisplayValue('Boda de prueba')).toBeInTheDocument())
+    expect(screen.queryByLabelText('Organización')).toBeNull()
+  })
+
+  it('preselects the only organization that allows creating events', async () => {
     renderInEventiApp(<EventFormModal isOpen setIsOpen={vi.fn()} />)
+    const select = (await screen.findByLabelText('Organización')) as HTMLSelectElement
+    expect(select.value).toBe('org-a')
+    expect([...select.options].map((option) => option.textContent)).toEqual(['Organización A'])
+  })
+
+  it('offers only organizations with events:create and still requires a choice', async () => {
+    useStore.setState({
+      applicationSession: {
+        ...editorSession,
+        organizations: [
+          ...editorSession.organizations,
+          { id: 'org-b', name: 'Organización B', code: 'org-b', access_role: 'EDITOR', capabilities: ['events:view', 'events:create'] },
+          { id: 'org-c', name: 'Organización C', code: 'org-c', access_role: 'CHECKIN', capabilities: ['events:view'] },
+        ],
+      } as unknown as ApplicationSession,
+    })
+    renderInEventiApp(<EventFormModal isOpen setIsOpen={vi.fn()} />)
+    const select = (await screen.findByLabelText('Organización')) as HTMLSelectElement
+    expect([...select.options].map((option) => option.textContent)).toEqual([
+      'Selecciona una organización',
+      'Organización A',
+      'Organización B',
+    ])
 
     fireEvent.change(screen.getByPlaceholderText('Ej. Boda García & López'), { target: { value: 'Evento nuevo' } })
     fireEvent.change(document.querySelector('input[type="datetime-local"]')!, { target: { value: '2026-12-10T18:00' } })

@@ -8,9 +8,15 @@ All entities extend `BaseEntity` (`id: number`, `created_at`, `updated_at`, `del
 
 **Client** — `name` `code` `logo?` `website?` `address?` `phone?` `client_type_id` `client_type?` `parent_client_id?` (sub-clients)
 
-**Event** — `name` `identifier` (URL slug) `description?` `is_active` `event_date_time` (ISO) `timezone` `address?` `second_address?` `cover_image_url?` `cover_image_url2?` `music_url?` `custom_domain?` `language?` `max_guests?` `allow_guest_access?` `slug_locked?` `organizer_name?` `organizer_email?` `organizer_phone?` `client_id?` `event_type_id` `event_type?` `event_config?` `config?`
+**Event** — `name` `identifier` (URL slug) `description?` `is_active` `event_date_time` (ISO) `timezone` `address?` `second_address?` `cover_image_url?` `cover_image_url2?` `music_url?` `custom_domain?` `language?` `max_guests?` `allow_guest_access?` `slug_locked?` `organizer_name?` `organizer_email?` `organizer_phone?` `client_id?` `viewer_access?` (`'organization' | 'event_client'`, caller-access lists only) `event_type_id` `event_type?` `event_config?` `config?`
 
-**Guest** — `event_id` `first_name` `last_name` `nickname?` `email?` `phone?` `show_contact_info?` · `guests_count` (party size) `max_guests?` · `status_id` `status?` · `table_number?` `dietary_restrictions?` `role?` (`graduate|guest|host|vip|speaker|staff`) `is_host?` `order?` · Rich profile: `bio?` `headline?` `signature?` `image_url?` `image_1_url?` `image_2_url?` `image_3_url?` · RSVP: `rsvp_status?` `rsvp_at?` `rsvp_method?` (`web|app|host`) `rsvp_guest_count?` `rsvp_token_id?` · `notes?`
+**Guest** — `event_id` `first_name` `last_name` `nickname?` `email?` `phone?` `show_contact_info?` · `guests_count` (party size) `max_guests?` · `status_id` `status?` · `table_number?` `dietary_restrictions?` `role?` (`graduate|guest|host|vip|speaker|staff`) `is_host?` `order?` · Rich profile: `bio?` `headline?` `signature?` `image_url?` `image_1_url?` `image_2_url?` `image_3_url?` · RSVP: `rsvp_status?` `rsvp_at?` `rsvp_method?` (`web|app|host`) `rsvp_guest_count?` `rsvp_token_id?` · `checked_in_at?` (set while a door check-in is in place) · `notes?`
+
+**CheckinGuest** — the door projection of the check-in routes (no email, phone, notes or tokens); `CheckinGuestFilter` = `'ALL' | 'PENDING' | 'CONFIRMED'`
+
+**EventCapabilities** (`EventMember.ts`) — `event:manage` `event:delete` `guest:manage` `checkin:run` `analytics:view` `members:manage` `event:clients:manage?` (absent/false with the event-client flag off)
+
+**Event clients** (`src/features/events/event-clients.ts`) — `EventClient` (`user_id` `email` `first_name` `last_name` `granted_at` `granted_by_user_id` `invitation_pending?`), `EventClientCandidate`, `EventClientAssignment` / `EventClientAssignmentPage`, `EventClientCreateResponse`, `OrganizationEventClientGrant` / `OrganizationEventClientPage`, `EventClientErrorCode`
 
 **Invitation** — `event_id` `guest_id` `token` `sent_at?` `opened_at?` `responded_at?` → has `access_tokens[]` `logs[]` `guest?`
 
