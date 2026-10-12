@@ -52,4 +52,19 @@ describe('EventListActionsMenu', () => {
     expect(screen.getByRole('button', { name: 'Duplicar evento' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Eliminar evento' })).toBeInTheDocument()
   })
+
+  it('closes the row menu before an action opens its modal (EVT-N3)', () => {
+    const onDuplicate = vi.fn()
+    render(
+      <details open data-testid="row-menu">
+        <summary>Más acciones</summary>
+        <EventListActionsMenu event={event} canEdit canDuplicate canDelete {...callbacks} onDuplicate={onDuplicate} />
+      </details>
+    )
+
+    screen.getByRole('button', { name: 'Duplicar evento' }).click()
+
+    expect(screen.getByTestId('row-menu')).not.toHaveAttribute('open')
+    expect(onDuplicate).toHaveBeenCalledWith(event)
+  })
 })

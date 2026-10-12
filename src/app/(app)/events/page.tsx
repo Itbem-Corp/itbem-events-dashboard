@@ -11,6 +11,7 @@ import { IntentModalSkeleton } from '@/components/ui/intent-modal-skeleton'
 import { PageDataError } from '@/components/ui/page-data-error'
 import { PageTransition } from '@/components/ui/page-transition'
 import { Pagination } from '@/components/ui/pagination'
+import { SafeImage } from '@/components/ui/safe-image'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useListViewState } from '@/hooks/useListViewState'
@@ -21,6 +22,7 @@ import { scopedEventsPagePath } from '@/lib/api-paths'
 import { getCalendarDaysUntil } from '@/lib/date-time'
 import { removeEventCacheValue, upsertEventCacheValue } from '@/lib/event-cache'
 import { eventCoversMediaRefreshKey, getEventCoversRefreshDelay, resolveEventCoverUrl } from '@/lib/event-media'
+import { eventMatchesSearch } from '@/lib/event-search'
 import { eventTypeLabel } from '@/lib/event-type-label'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
@@ -38,7 +40,6 @@ import {
   Square2StackIcon,
 } from '@heroicons/react/20/solid'
 import dynamic from 'next/dynamic'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useSWR, { preload } from 'swr'
@@ -241,9 +242,7 @@ export default function EventsPage() {
         return
       }
       const alreadyVisible = events.some((event) => event.id === savedEvent.id)
-      const matchesSearch = `${savedEvent.name} ${savedEvent.identifier ?? ''}`
-        .toLowerCase()
-        .includes(debouncedSearch.toLowerCase())
+      const matchesSearch = eventMatchesSearch(savedEvent, debouncedSearch)
       if (!alreadyVisible && (page !== 1 || filter !== 'all' || !matchesSearch)) {
         void mutateEvents()
         return
@@ -364,7 +363,7 @@ export default function EventsPage() {
       {!isLoading && (counts.all > 0 || search || filter !== 'all') && (
         <div className="premium-surface mt-8 flex flex-col gap-3 rounded-2xl p-2 sm:flex-row sm:items-center sm:justify-between">
           {/* Date filter tabs */}
-          <div className="flex max-w-full self-start overflow-x-auto rounded-xl p-0.5">
+          <div className="flex max-w-full flex-wrap gap-0.5 self-start rounded-xl p-0.5">
             {FILTER_TABS.map((tab) => (
               <button
                 type="button"
@@ -383,7 +382,9 @@ export default function EventsPage() {
                   <span
                     className={[
                       'rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                      filter === tab.id ? 'bg-(--tenant-accent)/15 text-(--tenant-accent)' : 'bg-surface-raised text-ink-muted',
+                      filter === tab.id
+                        ? 'bg-(--tenant-accent)/15 text-(--tenant-accent)'
+                        : 'bg-surface-raised text-ink-muted',
                     ].join(' ')}
                   >
                     {tab.count}
@@ -402,7 +403,7 @@ export default function EventsPage() {
               placeholder="Buscar evento..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-border-subtle bg-surface-soft py-2 pr-4 pl-9 text-sm text-ink placeholder:text-ink-muted transition-colors hover:bg-surface-raised focus:border-(--tenant-accent)/45 focus:ring-2 focus:ring-(--tenant-accent)/10 focus:outline-none"
+              className="w-full rounded-xl border border-border-subtle bg-surface-soft py-2 pr-4 pl-9 text-sm text-ink transition-colors placeholder:text-ink-muted hover:bg-surface-raised focus:border-(--tenant-accent)/45 focus:ring-2 focus:ring-(--tenant-accent)/10 focus:outline-none"
             />
           </div>
         </div>
@@ -412,7 +413,10 @@ export default function EventsPage() {
       {isLoading ? (
         <div className="mt-8 overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="flex animate-pulse items-center gap-4 border-b border-border-subtle p-5 last:border-b-0">
+            <div
+              key={i}
+              className="flex animate-pulse items-center gap-4 border-b border-border-subtle p-5 last:border-b-0"
+            >
               <div className="size-14 shrink-0 rounded-xl bg-surface-raised" />
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="h-4 w-3/4 max-w-[12rem] rounded bg-surface-raised" />
@@ -452,21 +456,19 @@ export default function EventsPage() {
                   ? 'No hay eventos para operar en este alcance.'
                   : 'Esta organización aún no tiene eventos registrados.'
               }
-              action={
-                canCreateEvents ? { label: 'Crear primer evento', onClick: openNewEventModal } : undefined
-              }
+              action={canCreateEvents ? { label: 'Crear primer evento', onClick: openNewEventModal } : undefined}
             />
           )}
         </div>
       ) : (
-        <ul className="mt-6 divide-y divide-border-subtle overflow-hidden rounded-2xl border border-border-subtle bg-surface-raised shadow-[0_12px_32px_var(--app-shadow)]">
+        <ul className="mt-6 divide-y divide-border-subtle rounded-2xl border border-border-subtle bg-surface-raised shadow-[0_12px_32px_var(--app-shadow)]">
           {events.map((event) => {
             const days = getDaysUntil(event.event_date_time, event.timezone) ?? 0
             const isPast = days < 0
             const coverImageUrl = resolveEventCoverUrl(event, process.env.NEXT_PUBLIC_BACKEND_URL)
 
             return (
-              <li key={event.id}>
+              <li key={event.id} className="first:*:rounded-t-2xl last:*:rounded-b-2xl">
                 <div
                   onPointerEnter={() => preloadEventDetail(event)}
                   onPointerDown={() => preloadEventDetail(event)}
@@ -474,6 +476,8 @@ export default function EventsPage() {
                   className={[
                     'group relative flex items-center gap-3 p-4 transition-colors focus-within:ring-2 focus-within:ring-(--tenant-accent) focus-within:ring-inset sm:gap-4 sm:p-5',
                     isPast ? 'hover:bg-surface-soft' : 'hover:bg-surface-interactive',
+                    // Lift the row with the open menu above the next rows' actions (z-20).
+                    openActionEventId === event.id ? 'z-30' : '',
                   ].join(' ')}
                 >
                   <Link
@@ -487,11 +491,12 @@ export default function EventsPage() {
                   {/* Cover thumbnail or placeholder */}
                   <div className="pointer-events-none relative z-10 size-12 shrink-0 sm:size-16">
                     {coverImageUrl ? (
-                      <Image
+                      <SafeImage
                         src={coverImageUrl}
                         alt={event.name}
                         fill
                         sizes="(max-width: 640px) 48px, 64px"
+                        fallbackClassName="rounded-xl"
                         className={['rounded-xl object-cover', isPast ? 'opacity-45 grayscale' : ''].join(' ')}
                       />
                     ) : (
@@ -502,7 +507,9 @@ export default function EventsPage() {
                         ].join(' ')}
                       >
                         <CalendarDaysIcon
-                          className={['size-5 sm:size-6', isPast ? 'text-ink-muted' : 'text-(--tenant-accent)'].join(' ')}
+                          className={['size-5 sm:size-6', isPast ? 'text-ink-muted' : 'text-(--tenant-accent)'].join(
+                            ' '
+                          )}
                         />
                       </div>
                     )}
@@ -510,21 +517,32 @@ export default function EventsPage() {
 
                   {/* Info */}
                   <div className="pointer-events-none relative z-10 min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-x-2">
+                    {/* EVT-14: on phones the name gets the full width (2 lines) and the chips go below it. */}
+                    <div
+                      data-testid="event-row-title"
+                      className="flex min-w-0 flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-x-2"
+                    >
                       <span
                         className={[
-                          'min-w-0 truncate text-sm font-semibold transition-colors group-hover:text-(--tenant-accent) sm:text-base',
+                          'line-clamp-2 max-w-full min-w-0 text-sm font-semibold [overflow-wrap:anywhere] transition-colors group-hover:text-(--tenant-accent) sm:line-clamp-1 sm:text-base',
                           'text-ink',
                         ].join(' ')}
                       >
                         {event.name}
                       </span>
-                      {event.event_type?.name && (
-                        <span className="hidden rounded border border-border-subtle px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-ink-muted uppercase sm:inline-flex">
-                          {eventTypeLabel(event.event_type.name)}
-                        </span>
-                      )}
-                      <EventMomentsBadge pending={event.pending_moment_count ?? 0} />
+                      <span className="flex flex-wrap items-center gap-1.5 empty:hidden sm:shrink-0 sm:flex-nowrap sm:gap-2">
+                        {event.event_type?.name && (
+                          <span className="hidden rounded border border-border-subtle px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-ink-muted uppercase sm:inline-flex">
+                            {eventTypeLabel(event.event_type.name)}
+                          </span>
+                        )}
+                        {!event.is_active && (
+                          <Badge color="zinc" className="shrink-0" data-testid="event-inactive-badge">
+                            Inactivo
+                          </Badge>
+                        )}
+                        <EventMomentsBadge pending={event.pending_moment_count ?? 0} />
+                      </span>
                     </div>
 
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
@@ -552,12 +570,6 @@ export default function EventsPage() {
                         </span>
                       )}
                     </div>
-
-                    <p className="mt-1 hidden text-[11px] text-ink-muted sm:block">
-                      {event.max_guests != null
-                        ? `Capacidad para ${event.max_guests} invitados`
-                        : 'Capacidad sin definir'}
-                    </p>
                   </div>
 
                   {/* Actions */}

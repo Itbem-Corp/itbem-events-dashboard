@@ -10,8 +10,9 @@ describe('admin list UX hardening', () => {
   it('separates event operational state from public visibility', () => {
     const source = readSource('src/components/events/forms/event-form-modal.tsx')
 
-    expect(source).toContain('Mantiene el evento disponible para la operación interna')
-    expect(source).toMatch(/La visibilidad para invitados se publica\s+desde/)
+    // is_active only gates guest access (EVT-13 / SET-5): the copy must say so.
+    expect(source).toContain('Controla el acceso de los invitados')
+    expect(source).not.toContain('operación interna')
     expect(source).not.toContain('Los eventos activos son visibles para los invitados')
   })
 

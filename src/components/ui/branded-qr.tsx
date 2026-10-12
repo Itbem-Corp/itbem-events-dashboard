@@ -182,7 +182,7 @@ export function BrandedQR({
     ctx.fillStyle = mutedColor
     ctx.font = '16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     ctx.textAlign = 'center'
-    ctx.fillText('Escanea con tu camara', totalWidth / 2, y + 18)
+    ctx.fillText('Escanea con tu cámara', totalWidth / 2, y + 18)
 
     try {
       const rawDataUrl = canvas.toDataURL('image/png')
@@ -277,7 +277,7 @@ export function BrandedQR({
 
         {/* Scan hint */}
         <p className={`text-[10px] tracking-wide uppercase ${dark ? 'text-ink-muted' : 'text-ink-secondary'}`}>
-          Escanea con tu camara
+          Escanea con tu cámara
         </p>
       </div>
 

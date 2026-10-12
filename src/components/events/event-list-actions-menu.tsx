@@ -32,17 +32,24 @@ export function EventListActionsMenu({
   onDeleteIntent,
   onStudioIntent,
 }: EventListActionsMenuProps) {
+  // Actions that open a modal close the row's <details> first, so the menu is
+  // not left open behind the dialog (EVT-N3).
+  const closeThen = (action: (event: Event) => void) => (click: React.MouseEvent<HTMLElement>) => {
+    click.currentTarget.closest('details')?.removeAttribute('open')
+    action(event)
+  }
+
   return (
     <div
       role="group"
       aria-label={`Más acciones para ${event.name}`}
-      className="absolute top-full right-0 z-30 mt-2 w-52 rounded-xl border border-border-subtle bg-surface-raised/95 p-1 shadow-[0_20px_60px_var(--app-shadow-strong)] backdrop-blur-xl"
+      className="absolute top-full right-0 z-30 mt-2 w-52 rounded-xl border border-border-subtle bg-surface-raised p-1 shadow-[0_20px_60px_var(--app-shadow-strong)]"
     >
       {canEdit && (
         <>
           <button
             type="button"
-            onClick={() => onEdit(event)}
+            onClick={closeThen(onEdit)}
             onFocus={onEditIntent}
             onPointerDown={onEditIntent}
             onPointerEnter={onEditIntent}
@@ -66,7 +73,7 @@ export function EventListActionsMenu({
       {canDuplicate && (
         <button
           type="button"
-          onClick={() => onDuplicate(event)}
+          onClick={closeThen(onDuplicate)}
           onFocus={onDuplicateIntent}
           onPointerDown={onDuplicateIntent}
           onPointerEnter={onDuplicateIntent}
@@ -79,13 +86,13 @@ export function EventListActionsMenu({
       {canDelete && (
         <button
           type="button"
-          onClick={() => onDelete(event)}
+          onClick={closeThen(onDelete)}
           onFocus={onDeleteIntent}
           onPointerDown={onDeleteIntent}
           onPointerEnter={onDeleteIntent}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200 focus-visible:bg-red-500/10 focus-visible:outline-none"
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-red-700 transition-colors hover:bg-red-500/10 hover:text-red-800 focus-visible:bg-red-500/10 dark:text-red-300 dark:hover:text-red-200 focus-visible:outline-none"
         >
-          <TrashIcon className="size-4 text-red-400/70" />
+          <TrashIcon className="size-4 text-red-600/80 dark:text-red-400/70" />
           Eliminar evento
         </button>
       )}

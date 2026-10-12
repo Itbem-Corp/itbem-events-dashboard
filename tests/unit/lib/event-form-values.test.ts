@@ -20,24 +20,32 @@ function event(overrides: Partial<Event> = {}): Event {
 }
 
 describe('event form values', () => {
-  it('keeps new events with the operational default capacity', () => {
-    expect(emptyEventFormValues('client-1')).toMatchObject({
+  it('starts new events in Spanish without an event-level capacity (SET-9, SET-10)', () => {
+    const values = emptyEventFormValues('client-1')
+    expect(values).toMatchObject({
       client_id: 'client-1',
-      max_guests: 100,
       timezone: 'America/Mexico_City',
       language: 'es',
       is_active: true,
     })
+    expect(values).not.toHaveProperty('max_guests')
   })
 
-  it('preserves unlimited backend capacity as null when editing', () => {
-    expect(eventFormValuesFromEvent(event({ max_guests: null }), 'client-1')).toMatchObject({
-      client_id: 'client-1',
-      max_guests: null,
+  it('does not carry the stored capacity into the edit payload, so it is left untouched', () => {
+    expect(eventFormValuesFromEvent(event({ max_guests: 250 }), 'client-1')).not.toHaveProperty('max_guests')
+  })
+
+  it('keeps reading a legacy language harmlessly when editing', () => {
+    expect(eventFormValuesFromEvent(event({ language: 'en' })).language).toBe('en')
+  })
+
+  it('maps a null event type to "no type"', () => {
+    expect(eventFormValuesFromEvent(event({ event_type_id: null })).event_type_id).toBe('')
+  })
+
+  it('accepts an event without a type (event_type_id null)', () => {
+    expect(eventFormValuesFromEvent(event({ event_type_id: null, event_type: null }), 'client-1')).toMatchObject({
+      event_type_id: '',
     })
-  })
-
-  it('keeps finite backend capacity when editing', () => {
-    expect(eventFormValuesFromEvent(event({ max_guests: 250 })).max_guests).toBe(250)
   })
 })

@@ -7,6 +7,7 @@ import { readApiData } from '@/lib/api-envelope'
 import { scopedEventsPagePath } from '@/lib/api-paths'
 import { removeEventCacheValue, upsertEventCacheValue } from '@/lib/event-cache'
 import { eventCoversMediaRefreshKey, getEventCoversRefreshDelay } from '@/lib/event-media'
+import { eventMatchesSearch } from '@/lib/event-search'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
@@ -88,9 +89,7 @@ export function useEventsList({ clientId, isRoot }: UseEventsListOptions) {
         return
       }
       const alreadyVisible = events.some((event) => event.id === savedEvent.id)
-      const matchesSearch = `${savedEvent.name} ${savedEvent.identifier ?? ''}`
-        .toLowerCase()
-        .includes(debouncedSearch.toLowerCase())
+      const matchesSearch = eventMatchesSearch(savedEvent, debouncedSearch)
       if (!alreadyVisible && (page !== 1 || filter !== 'all' || !matchesSearch)) {
         void mutateEvents()
         return

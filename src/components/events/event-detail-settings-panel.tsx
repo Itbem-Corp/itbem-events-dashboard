@@ -4,9 +4,10 @@ import { EventConfigPanel } from '@/components/events/event-config-panel'
 import { EventDesignPicker } from '@/components/events/event-design-picker'
 import { EventSectionsManager } from '@/components/events/event-sections-manager'
 import { EventSharePanel } from '@/components/events/event-share-panel'
+import { EVENT_SECTIONS_SETTINGS_ANCHOR } from '@/lib/event-settings-anchor'
 import type { Event } from '@/models/Event'
 import { ChevronDownIcon, EyeIcon, RectangleStackIcon, ShareIcon, SwatchIcon } from '@heroicons/react/20/solid'
-import type { ComponentType, ReactNode } from 'react'
+import { useEffect, useRef, type ComponentType, type ReactNode } from 'react'
 
 interface EventDetailSettingsPanelProps {
   event: Event
@@ -19,6 +20,8 @@ interface SettingsDisclosureProps {
   description: string
   eyebrow: string
   defaultOpen?: boolean
+  /** When the URL hash equals this id, the block opens and scrolls into view. */
+  anchorId?: string
   children: ReactNode
 }
 
@@ -28,10 +31,29 @@ function SettingsDisclosure({
   description,
   eyebrow,
   defaultOpen = false,
+  anchorId,
   children,
 }: SettingsDisclosureProps) {
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+
+  // STU-6: a link such as Studio's "Agregar secciones" lands on the block opened, not closed further down.
+  useEffect(() => {
+    if (!anchorId) return
+    const openFromHash = () => {
+      const details = detailsRef.current
+      if (!details || window.location.hash !== `#${anchorId}`) return
+      details.open = true
+      window.requestAnimationFrame(() => details.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+    }
+    openFromHash()
+    window.addEventListener('hashchange', openFromHash)
+    return () => window.removeEventListener('hashchange', openFromHash)
+  }, [anchorId])
+
   return (
     <details
+      ref={detailsRef}
+      id={anchorId}
       open={defaultOpen || undefined}
       className="group overflow-hidden rounded-2xl border border-white/[0.09] bg-surface/48 shadow-[0_18px_48px_rgba(0,0,0,0.16)] ring-1 ring-black/15"
     >
@@ -83,10 +105,12 @@ export function EventDetailSettingsPanel({ event, onPublicContentChanged }: Even
         eyebrow="Contenido"
         title="Secciones de la página"
         description="Define y ordena lo que verán los invitados."
+        anchorId={EVENT_SECTIONS_SETTINGS_ANCHOR}
       >
         <EventSectionsManager
           eventId={event.id}
           initialSections={event.event_sections}
+          eventConfig={event.event_config ?? event.config ?? undefined}
           onPublicContentChanged={onPublicContentChanged}
         />
       </SettingsDisclosure>
@@ -113,6 +137,7 @@ export function EventDetailSettingsPanel({ event, onPublicContentChanged }: Even
         <EventConfigPanel
           eventId={event.id}
           eventTimezone={event.timezone}
+          eventDateTime={event.event_date_time}
           initialConfig={event.event_config ?? event.config}
           onSaved={onPublicContentChanged}
         />
