@@ -1,8 +1,21 @@
 import type { AccessProfile } from '@/lib/access-profile'
 
+export type OrganizationWorkspaceCopyOptions = {
+  /**
+   * shell.localizedRoleLabels (EventiApp): eyebrows name the role the same
+   * way the role labels do ('Administrador', 'Solo lectura').
+   */
+  localizedRoleLabels?: boolean
+}
+
 /** Product copy is feature policy, kept independent from the home route's UI. */
-export function organizationWorkspaceCopy(accessProfile: AccessProfile, organizationName?: string) {
+export function organizationWorkspaceCopy(
+  accessProfile: AccessProfile,
+  organizationName?: string,
+  options: OrganizationWorkspaceCopyOptions = {}
+) {
   const role = (accessProfile.organizationRole ?? '').replace('INHERITED_', '').toUpperCase()
+  const localized = Boolean(options.localizedRoleLabels)
   if (accessProfile.platformLevel === 'root_1') {
     return {
       eyebrow: 'Supervisión de organización',
@@ -26,7 +39,7 @@ export function organizationWorkspaceCopy(accessProfile: AccessProfile, organiza
       }
     case 'ADMIN':
       return {
-        eyebrow: 'Administración',
+        eyebrow: localized ? 'Administrador' : 'Administración',
         title: organizationName || 'Tu organización',
         description: 'Coordina el equipo y mantiene la operación lista para crecer.',
       }
@@ -62,7 +75,7 @@ export function organizationWorkspaceCopy(accessProfile: AccessProfile, organiza
       }
     default:
       return {
-        eyebrow: 'Vista de consulta',
+        eyebrow: localized && (role === 'GUEST' || role === 'VIEWER') ? 'Solo lectura' : 'Vista de consulta',
         title: organizationName || 'Eventos',
         description: 'Consulta agenda y estado sin permisos de modificación.',
       }
