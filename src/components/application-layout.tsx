@@ -11,7 +11,7 @@ import {
 import { ApplicationSearchButton } from '@/components/ui/application-search-button'
 import { LazyNotificationButton } from '@/components/ui/lazy-notification-button'
 
-import { MobilePrimaryNavigation } from '@/components/mobile-primary-navigation'
+import { MobilePrimaryNavigation, mobilePrimaryNavigationItems } from '@/components/mobile-primary-navigation'
 import { Navbar, NavbarSection } from '@/components/navbar'
 import { BrandMark } from '@/components/product/brand-mark'
 import { Sidebar } from '@/components/sidebar'
@@ -27,8 +27,13 @@ import { useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import { issueOrganizationContext } from '@/features/workspace/issue-organization-context'
 import { useOrganizationContextRenewal } from '@/features/workspace/use-organization-context-renewal'
 import { AutomationSectionNavigation } from '@/features/automation/automation-section-navigation'
-import { canListOrganizations, createAccessProfile, scopeOrganizationsToSession } from '@/lib/access-profile'
-import { applicationRoutePreloadPath, createApplicationNavigation, type ApplicationRoute } from '@/lib/application-navigation'
+import type { AccessProfile } from '@/lib/access-profile'
+import {
+  applicationRoutePreloadPath,
+  createApplicationNavigation,
+  type ApplicationNavigation,
+  type ApplicationRoute,
+} from '@/lib/application-navigation'
 import { readApiData } from '@/lib/api-envelope'
 import {
   clientsPagePath,
@@ -41,7 +46,9 @@ import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import { tenantPresentationForHostname } from '@/lib/tenant-config'
 import type { TenantConfig } from '@/lib/tenant-config'
+import { useAccessProfile } from '@/lib/use-access-profile'
 import type { ClientsPageResponse } from '@/models/Client'
+import { useProductShell } from '@/products/core/product-context'
 import { productSupportsFeature } from '@/products/core/product-manifest'
 import { getProductManifest } from '@/products/registry'
 import { useStore } from '@/store/useStore'
@@ -69,15 +76,22 @@ function normalizeClient(raw: OrganizationOption) {
 export function ApplicationLayout({
   children,
   tenant = defaultTenant,
+  accessProfile: providedAccessProfile,
+  navigation: providedNavigation,
 }: {
   children: React.ReactNode
   tenant?: Omit<TenantConfig, 'clientId'>
+  /** Computed once by AppLayoutClient; computed here when rendered alone. */
+  accessProfile?: AccessProfile
+  navigation?: ApplicationNavigation
 }) {
   const pathname = usePathname()
   const router = useRouter()
   const storeHydrated = useStoreHydration()
   const { cache: swrCache } = useSWRConfig()
   const scopeFetcherKey = useScopedFetcherScope()
+  const shell = useProductShell()
+  const accessibleShell = Boolean(shell?.accessibleShell)
 
   const [clientsRequested, setClientsRequested] = useState(false)
   const [organizationSwitcherOpen, setOrganizationSwitcherOpen] = useState(false)
@@ -86,36 +100,37 @@ export function ApplicationLayout({
   const debouncedOrganizationSearch = useDebounce(organizationSearch, 200)
 
   const currentClient = useStore((s) => s.currentClient)
-  const workspaceMode = useStore((s) => s.workspaceMode)
   const activateTenantWorkspace = useStore((s) => s.activateTenantWorkspace)
   const selectPlatformWorkspace = useStore((s) => s.selectPlatformWorkspace)
   const selectOrganizationWorkspace = useStore((s) => s.selectOrganizationWorkspace)
+  const selectPortfolioWorkspace = useStore((s) => s.selectPortfolioWorkspace)
   const clearSession = useStore((s) => s.clearSession)
   const user = useStore((s) => s.user)
   const applicationSession = useStore((s) => s.applicationSession)
+  const hasApplicationSession = Boolean(applicationSession)
   useOrganizationContextRenewal()
 
   const isRoot = Boolean(user?.is_root)
-  const accessProfile = useMemo(
-    () => createAccessProfile(applicationSession, workspaceMode, currentClient?.id),
-    [applicationSession, currentClient?.id, workspaceMode]
-  )
+  const ownAccessProfile = useAccessProfile()
+  const accessProfile = providedAccessProfile ?? ownAccessProfile
+  const { listsAcrossOrganizations } = accessProfile
   const modules = useMemo(
     () => applicationSession?.application.modules ?? tenant.modules,
     [applicationSession?.application.modules, tenant.modules]
   )
   const product = getProductManifest(tenant.code)
-  const navigation = useMemo(
+  const ownNavigation = useMemo(
     () =>
       createApplicationNavigation({
         accessProfile,
-        hasApplicationSession: Boolean(applicationSession),
+        hasApplicationSession,
         isRoot,
         modules,
         product,
       }),
-    [accessProfile, applicationSession, isRoot, modules, product]
+    [accessProfile, hasApplicationSession, isRoot, modules, product]
   )
+  const navigation = providedNavigation ?? ownNavigation
   const {
     hasEvents,
     canViewUsers,
@@ -126,16 +141,30 @@ export function ApplicationLayout({
     canUseAutomation,
     canManageAutomationConfiguration,
     canSwitchOrganizations,
+    showHome,
+    eventsLabel,
+    showWorkspaceBlock,
+    landingPath,
   } = navigation
+  // Owner/Admin who also hold event grants elsewhere reach those events from
+  // the switcher ('Eventos asignados'), even with a single organization.
+  const offersPortfolioWorkspace =
+    accessProfile.usesCallerAccessWorkspace &&
+    accessProfile.platformLevel === 'none' &&
+    accessProfile.isOrganizationAdmin &&
+    Boolean(applicationSession?.event_access)
+  const showOrganizationSwitcher = showWorkspaceBlock && (canSwitchOrganizations || offersPortfolioWorkspace)
   // On a cold login, resolve the first organization in parallel with the profile.
   // The paginated endpoint scopes itself from the authenticated identity, so this
   // does not need to wait until the profile reveals whether the user is root.
-  const shouldBootstrapClient = storeHydrated && !currentClient
-  const shouldLoadClients = clientsRequested || shouldBootstrapClient
-  // Roles without the organization list surface would only get a 403 (and a
-  // "No tienes permiso" toast on every load). Their organizations are in the
-  // verified session, so the workspace is resolved from it instead.
-  const organizationListAllowed = canListOrganizations(applicationSession)
+  // Caller-access products wait for the session instead: members there never
+  // choose an organization, so they must never request the organization list.
+  const shouldBootstrapClient =
+    storeHydrated &&
+    !currentClient &&
+    !accessProfile.isPortfolioContext &&
+    (!accessProfile.usesCallerAccessWorkspace || hasApplicationSession)
+  const shouldLoadClients = !accessProfile.isPortfolioForced && (clientsRequested || shouldBootstrapClient)
   const openOrganizationSwitcher = useCallback(() => setOrganizationSwitcherOpen(true), [])
   const requestOrganizations = useCallback(() => setClientsRequested(true), [])
   const handleSelectOrganization = useCallback(
@@ -147,10 +176,25 @@ export function ApplicationLayout({
     [selectOrganizationWorkspace, tenant.code]
   )
 
+  const allowPortfolioSelection = accessProfile.usesCallerAccessWorkspace && Boolean(applicationSession?.event_access)
   useEffect(() => {
-    if (!storeHydrated || !applicationSession) return
-    activateTenantWorkspace(tenant.code, accessProfile.canUsePlatformMode)
-  }, [accessProfile.canUsePlatformMode, activateTenantWorkspace, applicationSession, storeHydrated, tenant.code])
+    if (!storeHydrated || !hasApplicationSession) return
+    activateTenantWorkspace(tenant.code, {
+      canUsePlatformMode: accessProfile.canUsePlatformMode,
+      portfolio: accessProfile.isPortfolioForced,
+      allowPortfolioSelection,
+    })
+    // A revalidated session is a new object with the same content. Depending
+    // on the boolean keeps the workspace (and its credential) untouched.
+  }, [
+    accessProfile.canUsePlatformMode,
+    accessProfile.isPortfolioForced,
+    activateTenantWorkspace,
+    allowPortfolioSelection,
+    hasApplicationSession,
+    storeHydrated,
+    tenant.code,
+  ])
 
   const preloadDataIfMissing = useCallback(
     (path: string) => {
@@ -165,7 +209,7 @@ export function ApplicationLayout({
     // Route payloads are scoped by tenant and organization. Deduplicate eager
     // intent within one scope, then allow fresh prefetches after it changes.
     prefetchedRoutesRef.current.clear()
-  }, [currentClient?.id, isRoot, tenant.code])
+  }, [currentClient?.id, isRoot, listsAcrossOrganizations, tenant.code])
 
   const prefetchRoute = useCallback((href: ApplicationRoute) => {
     if (prefetchedRoutesRef.current.has(href)) return
@@ -176,10 +220,10 @@ export function ApplicationLayout({
   const preloadRoute = useCallback(
     (href: ApplicationRoute) => {
       prefetchRoute(href)
-      const dataPath = applicationRoutePreloadPath({ href, clientId: currentClient?.id, isRoot })
+      const dataPath = applicationRoutePreloadPath({ href, clientId: currentClient?.id, listsAcrossOrganizations })
       if (dataPath) preloadDataIfMissing(dataPath)
     },
-    [currentClient?.id, isRoot, preloadDataIfMissing, prefetchRoute]
+    [currentClient?.id, listsAcrossOrganizations, preloadDataIfMissing, prefetchRoute]
   )
 
   function preloadClientPortfolio(clientId: string) {
@@ -187,7 +231,7 @@ export function ApplicationLayout({
     if (!productSupportsFeature(product, 'events')) return
     prefetchRoute('/events')
     preloadDataIfMissing(eventsPagePath(clientId, { page: 1, page_size: 12, filter: 'all' }))
-    const dashboardPath = scopedEventsDashboardPath(clientId, isRoot)
+    const dashboardPath = scopedEventsDashboardPath(clientId, listsAcrossOrganizations)
     if (dashboardPath) preloadDataIfMissing(dashboardPath)
   }
 
@@ -197,11 +241,11 @@ export function ApplicationLayout({
   }, [preloadDataIfMissing, router])
 
 
-  const clientsKey = shouldLoadClients && organizationListAllowed
+  const clientsKey = shouldLoadClients
     ? clientsPagePath({ page: 1, page_size: 50, search: isRoot ? debouncedOrganizationSearch : undefined })
     : null
   const {
-    data: fetchedClients,
+    data: rawClients,
     error: clientsError,
     isLoading: clientsLoading,
     isValidating: clientsValidating,
@@ -210,29 +254,27 @@ export function ApplicationLayout({
     ...responsiveListSwrOptions,
     keepPreviousData: true,
   })
-  const sessionClients = useMemo<ClientsPageResponse | undefined>(() => {
-    if (!applicationSession || organizationListAllowed) return undefined
-    const organizations = applicationSession.organizations
-    return {
-      // The switcher only reads id, name, code, logo and access_role.
-      data: organizations as unknown as ClientsPageResponse['data'],
-      total: organizations.length,
-      page: 1,
-      page_size: organizations.length,
-      total_pages: 1,
-    }
-  }, [applicationSession, organizationListAllowed])
-  const rawClients = organizationListAllowed ? fetchedClients : sessionClients
-  // Only organizations the session may enter (no other products' portals).
-  const clientsPage = useMemo(
-    () => scopeOrganizationsToSession(readApiData<ClientsPageResponse | undefined>(rawClients), applicationSession),
-    [applicationSession, rawClients]
+  const clientsPage = useMemo(() => readApiData<ClientsPageResponse | undefined>(rawClients), [rawClients])
+  // GET /clients also returns organizations of other products and child
+  // organizations a non-root cannot select (X-Organization-ID must be one of
+  // the session organizations). Products that ask for it keep only those.
+  const filterClientsToSession =
+    shell?.workspaceSource === 'clients-api-session-filtered' && accessProfile.platformLevel === 'none'
+  const sessionOrganizationIds = useMemo(
+    () => new Set((applicationSession?.organizations ?? []).map((organization) => organization.id)),
+    [applicationSession?.organizations]
   )
-  const clients = useMemo(() => clientsPage?.data ?? [], [clientsPage?.data])
-  const clientsTotal = clientsPage?.total ?? clients.length
+  const clients = useMemo(() => {
+    const list = clientsPage?.data ?? []
+    if (!filterClientsToSession || !applicationSession) return list
+    return list.filter((client) => sessionOrganizationIds.has(client.id))
+  }, [applicationSession, clientsPage?.data, filterClientsToSession, sessionOrganizationIds])
+  const clientsTotal = filterClientsToSession ? clients.length : (clientsPage?.total ?? clients.length)
   const clientsErrorState = getDataErrorState(clientsError, rawClients)
   /* Auto-select client */
   useEffect(() => {
+    // The caller-access workspace has no organization to select.
+    if (accessProfile.isPortfolioContext) return
     if (!rawClients) return
 
     const list = clients
@@ -263,23 +305,42 @@ export function ApplicationLayout({
 
     // 🚫 SOLO usuarios NO ROOT van a onboarding
     if (list.length === 0 && user && !isRoot) {
-      router.push('/')
+      router.push(landingPath)
     }
 
     // ✅ ROOT con 0 clientes → NO REDIRECT
   }, [
     accessProfile.isPlatformContext,
     applicationSession,
+    accessProfile.isPortfolioContext,
     canSwitchOrganizations,
     clients,
     currentClient,
     isRoot,
+    landingPath,
     rawClients,
     router,
     selectOrganizationWorkspace,
     tenant,
     user,
   ])
+
+  const mobileNavigationFlags = {
+    showHome,
+    showEvents: hasEvents,
+    showMetrics: canViewMetrics,
+    showTeam: canManageMembers && !canViewUsers,
+    showUsers: canViewUsers,
+    showOrganizations: canViewOrganizations,
+    showAutomation: canUseAutomation,
+  }
+  // The accessible shell hides a bottom bar with a single destination and
+  // publishes its height so fixed overlays can sit above it.
+  const mobileNavigationState = accessibleShell
+    ? mobilePrimaryNavigationItems(mobileNavigationFlags).length >= 2
+      ? 'visible'
+      : 'hidden'
+    : undefined
 
   return (
     <div
@@ -288,10 +349,11 @@ export function ApplicationLayout({
       style={{ '--tenant-accent': tenant.accent } as React.CSSProperties}
     >
       <SidebarLayout
+        mobileNavigation={mobileNavigationState}
         navbar={
           <Navbar>
             <Link
-              href="/"
+              href={landingPath}
               aria-label={`${tenant.name} — ir al inicio`}
               className="group flex min-w-0 items-center gap-2.5 rounded-xl py-1 pr-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)"
             >
@@ -300,8 +362,10 @@ export function ApplicationLayout({
                 <span className="block text-sm font-semibold tracking-tight text-ink">
                   {tenant.name}
                 </span>
-                <span className="block text-[9px] font-medium tracking-[0.16em] text-ink-muted uppercase">
-                  Dashboard
+                <span
+                  className={`block ${accessibleShell ? 'text-xs' : 'text-[9px]'} font-medium tracking-[0.16em] text-ink-muted uppercase`}
+                >
+                  {accessibleShell ? tenant.productLabel : 'Dashboard'}
                 </span>
               </span>
             </Link>
@@ -309,7 +373,7 @@ export function ApplicationLayout({
             <NavbarSection>
               <ApplicationSearchButton onOpen={openApplicationCommandPalette} onIntent={preloadApplicationCommandPalette} />
               {hasEvents && <LazyNotificationButton />}
-              <ThemeToggle className="size-9" />
+              <ThemeToggle className={accessibleShell ? undefined : 'size-9'} />
               <ApplicationNavbarAccount user={user} clearSession={clearSession} onProfileIntent={preloadProfile} />
             </NavbarSection>
           </Navbar>
@@ -318,9 +382,11 @@ export function ApplicationLayout({
           <Sidebar className="itbem-sidebar">
             <ApplicationWorkspaceHeader
               accessProfile={accessProfile}
-              canSwitchOrganizations={canSwitchOrganizations}
+              canSwitchOrganizations={canSwitchOrganizations || offersPortfolioWorkspace}
               currentClient={currentClient}
               tenant={tenant}
+              showWorkspaceBlock={showWorkspaceBlock}
+              homeHref={landingPath}
               onOpenSwitcher={openOrganizationSwitcher}
               onSwitcherIntent={requestOrganizations}
             />
@@ -328,6 +394,8 @@ export function ApplicationLayout({
             <ApplicationPrimaryNavigation
               pathname={pathname}
               tenantCode={tenant.code}
+              showHome={showHome}
+              eventsLabel={eventsLabel}
               hasEvents={hasEvents}
               canViewMetrics={canViewMetrics}
               canViewUsers={canViewUsers}
@@ -358,7 +426,7 @@ export function ApplicationLayout({
                   Administrando{' '}
                   <span className="font-semibold text-ink">{currentClient.name}</span>
                 </p>
-                <p className="text-[11px] text-ink-muted">
+                <p className={`${accessibleShell ? 'text-xs' : 'text-[11px]'} text-ink-muted`}>
                   {accessProfile.platformLevel === 'root_1' ? 'Acceso Root 1' : 'Modo soporte Root 2'}
                 </p>
               </div>
@@ -379,17 +447,13 @@ export function ApplicationLayout({
         <MobilePrimaryNavigation
           pathname={pathname}
           tenantCode={tenant.code}
-          showEvents={hasEvents}
-          showMetrics={canViewMetrics}
-          showTeam={canManageMembers && !canViewUsers}
-          showUsers={canViewUsers}
-          showOrganizations={canViewOrganizations}
-          showAutomation={canUseAutomation}
+          eventsLabel={eventsLabel}
+          {...mobileNavigationFlags}
           onIntent={preloadRoute}
         />
       </SidebarLayout>
 
-      {canSwitchOrganizations && (
+      {showOrganizationSwitcher && (
         <OrganizationSwitcher
           open={organizationSwitcherOpen}
           onClose={() => setOrganizationSwitcherOpen(false)}
@@ -407,12 +471,16 @@ export function ApplicationLayout({
           onPreloadOrganization={preloadClientPortfolio}
           onSelectOrganization={handleSelectOrganization}
           onSelectPlatform={() => selectPlatformWorkspace(tenant.code)}
+          onSelectPortfolio={offersPortfolioWorkspace ? () => selectPortfolioWorkspace(tenant.code) : undefined}
         />
       )}
 
       <ApplicationCommandPaletteController
         enabled={hasEvents}
         isRoot={accessProfile.isPlatformContext && accessProfile.platformLevel !== 'none'}
+        listsAcrossOrganizations={listsAcrossOrganizations}
+        showHome={showHome}
+        eventsLabel={eventsLabel}
         clientId={currentClient?.id}
       />
     </div>

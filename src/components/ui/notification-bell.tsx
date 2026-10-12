@@ -9,6 +9,7 @@ import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import type { Event } from '@/models/Event'
+import { useProductShell } from '@/products/core/product-context'
 import { useStore } from '@/store/useStore'
 import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import {
@@ -95,6 +96,7 @@ function buildNotifications(events: Event[]): Notification[] {
 
 export function NotificationBell({ initialOpen = false }: { initialOpen?: boolean }) {
   const router = useRouter()
+  const accessibleShell = Boolean(useProductShell()?.accessibleShell)
   const [open, setOpen] = useState(initialOpen)
   const [hasOpened, setHasOpened] = useState(initialOpen)
   const ref = useRef<HTMLDivElement>(null)
@@ -200,15 +202,24 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
         }}
         onPointerEnter={() => setHasOpened(true)}
         onFocus={() => setHasOpened(true)}
-        className="relative flex size-8 items-center justify-center rounded-lg text-ink-secondary transition-colors hover:bg-surface-interactive hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)"
+        className={`relative flex ${accessibleShell ? 'size-11 lg:size-9' : 'size-8'} items-center justify-center rounded-lg text-ink-secondary transition-colors hover:bg-surface-interactive hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent)`}
         aria-label="Notificaciones"
       >
         <BellIcon className="size-5" />
-        {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-(--tenant-accent) text-[9px] font-bold text-white">
-            {count > 9 ? '9+' : count}
-          </span>
-        )}
+        {count > 0 &&
+          (accessibleShell ? (
+            // Wide enough for two digits at 12px.
+            <span
+              data-testid="notification-count"
+              className="absolute top-0.5 right-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-(--tenant-accent) px-1 text-xs leading-none font-bold text-white tabular-nums lg:-top-0.5 lg:-right-0.5"
+            >
+              {count > 99 ? '99+' : count}
+            </span>
+          ) : (
+            <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-(--tenant-accent) text-[9px] font-bold text-white">
+              {count > 9 ? '9+' : count}
+            </span>
+          ))}
       </button>
 
       {open && position && createPortal(
@@ -224,7 +235,7 @@ export function NotificationBell({ initialOpen = false }: { initialOpen?: boolea
           <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
             <p className="text-sm font-semibold text-ink">Notificaciones</p>
             {count > 0 && (
-              <span className="rounded-full bg-(--tenant-accent)/15 px-2 py-0.5 text-[10px] font-semibold text-(--tenant-accent)">
+              <span className={`rounded-full bg-(--tenant-accent)/15 px-2 py-0.5 ${accessibleShell ? 'text-xs' : 'text-[10px]'} font-semibold text-(--tenant-accent)`}>
                 {count} activa{count !== 1 ? 's' : ''}
               </span>
             )}

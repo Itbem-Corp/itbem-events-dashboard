@@ -382,7 +382,7 @@ export default function ClientsPage() {
                   <p className="mt-1 text-xs text-ink-secondary">
                     {user?.is_root
                       ? user.root_level === 2
-                        ? 'Acceso operativo: puedes supervisar la plataforma y dar soporte, sin cambiar su jerarquía ni equipos.'
+                        ? 'Acceso operativo: puedes supervisar la plataforma, dar soporte y gestionar los equipos por debajo del Propietario, sin cambiar la estructura de organizaciones.'
                         : 'Acceso de plataforma: puedes supervisar y gobernar toda la estructura y sus eventos.'
                       : 'Tus acciones se habilitan por tu rol dentro de cada organización y, cuando aplique, por evento.'}
                   </p>
@@ -425,7 +425,7 @@ export default function ClientsPage() {
                         label: `Root ${user.root_level ?? 1}`,
                         description:
                           user.root_level === 2
-                            ? 'Soporte operativo sin gobierno organizacional'
+                            ? 'Soporte operativo y equipos, sin cambiar la estructura'
                             : 'Gobierno total de plataforma',
                       }
                     : roleCode

@@ -53,10 +53,42 @@ export interface Guest extends BaseEntity {
   rsvp_guest_count?: number // how many guests they declared when doing RSVP
   rsvp_token_id?: string // token UUID linked to InvitationAccessToken
   rsvp_notes?: string // public note/message submitted by the guest during RSVP
+  /**
+   * Set while a door check-in (PATCH /guests/bulk/status action 'checkin') is
+   * in place; null or absent otherwise. Only then can the door undo it.
+   */
+  checked_in_at?: string | null
 
   // Notes
   notes?: string
 }
+
+/** Filter of the check-in list (GET /guests/checkin:<eventID>?filter=). */
+export type CheckinGuestFilter = 'ALL' | 'PENDING' | 'CONFIRMED'
+
+/**
+ * The door projection returned by the check-in routes (checkin-workspace and
+ * guests/checkin:<eventID>): no email, phone, notes or tokens for any caller.
+ */
+export type CheckinGuest = Pick<
+  Guest,
+  | 'id'
+  | 'event_id'
+  | 'first_name'
+  | 'last_name'
+  | 'table_id'
+  | 'table'
+  | 'table_number'
+  | 'guest_status_id'
+  | 'guest_status'
+  | 'status_id'
+  | 'status'
+  | 'guests_count'
+  | 'rsvp_status'
+  | 'rsvp_guest_count'
+  | 'checked_in_at'
+> &
+  Partial<Pick<Guest, 'rsvp_method' | 'rsvp_at' | 'created_at' | 'updated_at'>>
 
 export interface CheckinGuestsPageResponse {
   data: Guest[]

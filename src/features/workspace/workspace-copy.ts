@@ -5,11 +5,18 @@ export type WorkspaceCopy = { eyebrow: string; title: string; description: strin
 export type WorkspaceCopyOptions = {
   /** False for products without the events module (ITBEM, Cafetton House). */
   productHasEvents?: boolean
+  /**
+   * shell.localizedRoleLabels (EventiApp): eyebrows name the role the same
+   * way the role labels do ('Administrador', 'Solo lectura').
+   */
+  localizedRoleLabels?: boolean
 }
+
+export type OrganizationWorkspaceCopyOptions = WorkspaceCopyOptions
 
 type RoleCopy = { events: WorkspaceCopy; generic: WorkspaceCopy }
 
-function roleCopy(role: string, organizationName?: string): RoleCopy {
+function roleCopy(role: string, organizationName: string | undefined, localized: boolean): RoleCopy {
   switch (role) {
     case 'OWNER':
       return {
@@ -26,7 +33,7 @@ function roleCopy(role: string, organizationName?: string): RoleCopy {
       }
     case 'ADMIN': {
       const copy = {
-        eyebrow: 'Administración',
+        eyebrow: localized ? 'Administrador' : 'Administración',
         title: organizationName || 'Tu organización',
         description: 'Coordina el equipo y mantiene la operación lista para crecer.',
       }
@@ -76,7 +83,7 @@ function roleCopy(role: string, organizationName?: string): RoleCopy {
         events: {
           eyebrow: 'Resultados',
           title: 'Lectura de operación',
-          description: 'Analiza actividad, asistencia y desempeño sin modificar la experiencia.',
+          description: 'Analiza actividad, capacidad y desempeño sin modificar la experiencia.',
         },
         generic: {
           eyebrow: 'Resultados',
@@ -97,19 +104,21 @@ function roleCopy(role: string, organizationName?: string): RoleCopy {
           description: 'Colabora en la operación dentro de un espacio controlado.',
         },
       }
-    default:
+    default: {
+      const eyebrow = localized && (role === 'GUEST' || role === 'VIEWER') ? 'Solo lectura' : 'Vista de consulta'
       return {
         events: {
-          eyebrow: 'Vista de consulta',
+          eyebrow,
           title: organizationName || 'Eventos',
           description: 'Consulta agenda y estado sin permisos de modificación.',
         },
         generic: {
-          eyebrow: 'Vista de consulta',
+          eyebrow,
           title: organizationName || 'Tu espacio',
           description: 'Consulta la actividad y el estado sin permisos de modificación.',
         },
       }
+    }
   }
 }
 
@@ -117,8 +126,10 @@ function roleCopy(role: string, organizationName?: string): RoleCopy {
 export function organizationWorkspaceCopy(
   accessProfile: AccessProfile,
   organizationName?: string,
-  { productHasEvents = true }: WorkspaceCopyOptions = {}
+  options: WorkspaceCopyOptions = {}
 ): WorkspaceCopy {
+  const productHasEvents = options.productHasEvents ?? true
+  const localized = Boolean(options.localizedRoleLabels)
   if (accessProfile.platformLevel === 'root_1') {
     return {
       eyebrow: 'Supervisión de organización',
@@ -136,7 +147,7 @@ export function organizationWorkspaceCopy(
     }
   }
   const role = (accessProfile.organizationRole ?? '').replace('INHERITED_', '').toUpperCase()
-  const copy = roleCopy(role, organizationName)
+  const copy = roleCopy(role, organizationName, localized)
   return productHasEvents ? copy.events : copy.generic
 }
 

@@ -8,6 +8,18 @@ export const eventiAppManifest = {
   backendModules: ['home', 'events', 'metrics'],
   features: ['home', 'events', 'metrics', 'team', 'audit', 'profile'],
   routes: eventiAppRoutes,
+  // Roles and navigation: only roots and Owner/Admin choose an
+  // organization; every other member works in one caller-access list of the
+  // events they can reach. The accessible shell and the guard are EventiApp
+  // only, so Cafetton House and ITBEM keep today's shell.
+  shell: {
+    workspaceSwitcher: 'organization-admins',
+    memberWorkspace: 'caller-access',
+    workspaceSource: 'clients-api-session-filtered',
+    localizedRoleLabels: true,
+    accessibleShell: true,
+    guardBeforeRender: true,
+  },
   login: {
     index: 'EA / 01',
     discipline: 'Event operations',
