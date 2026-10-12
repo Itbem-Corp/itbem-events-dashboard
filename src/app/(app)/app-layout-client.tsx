@@ -5,6 +5,7 @@ import { ErrorBoundary } from '@/components/error-boundary'
 import SessionBootstrap from '@/components/session/SessionBootstrap'
 import { StoreHydrationBoundary } from '@/components/session/StoreHydrationBoundary'
 import { NavigationProgress } from '@/components/ui/navigation-progress'
+import { swrOnErrorRetry } from '@/lib/swr-error-retry'
 import { ConnectionStatusBanner } from '@/components/ui/connection-status-banner'
 import { accessCan, createAccessProfile } from '@/lib/access-profile'
 import type { TenantConfig } from '@/lib/tenant-config'
@@ -154,6 +155,7 @@ export function AppLayoutClient({
           revalidateOnFocus: false,
           revalidateOnReconnect: true,
           errorRetryCount: 3,
+          onErrorRetry: swrOnErrorRetry,
         }}
       >
         <SessionBootstrap />

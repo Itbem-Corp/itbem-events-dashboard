@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { mutate } from 'swr'
 
+import { ConfirmAlert } from '@/components/ui/confirm-alert'
 import { UploadStatus } from '@/components/ui/upload-status'
 import { useUploadTask } from '@/hooks/use-upload-task'
 import { api } from '@/lib/api'
@@ -20,7 +21,9 @@ import {
 import { prepareImageForUpload } from '@/lib/image-upload-optimization'
 import {
   SECTION_IMAGE_UPLOAD_ACCEPT,
-  SECTION_IMAGE_UPLOAD_HELP_TEXT,
+  SECTION_IMAGE_UPLOAD_LIMIT_HELP_TEXT,
+  SECTION_IMAGE_UPLOAD_SCOPE_TEXT,
+  sectionImageUploadContentError,
   sectionImageUploadValidationError,
 } from '@/lib/resource-upload-policy'
 import { getUploadErrorMessage } from '@/lib/upload-transport'
@@ -28,7 +31,7 @@ import type { Event, EventCoverResponse } from '@/models/Event'
 import { toast } from 'sonner'
 
 import { ArrowUpTrayIcon, PhotoIcon, TrashIcon } from '@heroicons/react/20/solid'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/safe-image'
 
 interface Props {
   event: Event
@@ -37,6 +40,8 @@ interface Props {
 
 export function EventCoverUpload({ event, onChanged }: Props) {
   const [dragOver, setDragOver] = useState(false)
+  // STU-48: deleting the cover is immediate on the server, so ask first.
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
   const [coverOverride, setCoverOverride] = useState<string | undefined>(undefined)
   const upload = useUploadTask('No pudimos subir la portada')
 
@@ -52,7 +57,7 @@ export function EventCoverUpload({ event, onChanged }: Props) {
 
   const handleFile = async (file: File) => {
     if (upload.isUploading) return
-    const validationError = sectionImageUploadValidationError(file)
+    const validationError = sectionImageUploadValidationError(file) ?? (await sectionImageUploadContentError(file))
     if (validationError) {
       upload.reset()
       toast.error(validationError)
@@ -187,7 +192,7 @@ export function EventCoverUpload({ event, onChanged }: Props) {
     <div className="space-y-3">
       {hasCover ? (
         <div className="group relative aspect-[16/9] overflow-hidden rounded-xl bg-surface-raised">
-          <Image
+          <SafeImage
             src={coverImageUrl}
             alt="Portada del evento"
             fill
@@ -211,7 +216,7 @@ export function EventCoverUpload({ event, onChanged }: Props) {
             </label>
             <button
               type="button"
-              onClick={handleRemoveCover}
+              onClick={() => setConfirmRemoveOpen(true)}
               disabled={upload.isUploading}
               className="flex min-h-11 items-center gap-2 rounded-lg bg-pink-500/20 px-3 py-2 text-sm font-medium text-pink-400 backdrop-blur transition-colors hover:bg-pink-500/30 disabled:opacity-50"
             >
@@ -262,9 +267,10 @@ export function EventCoverUpload({ event, onChanged }: Props) {
                 {dragOver ? 'Suelta para subir' : 'Subir portada del evento'}
               </p>
               <p className="mt-1 text-xs text-ink-secondary">
-                Arrastra o haz clic · {SECTION_IMAGE_UPLOAD_HELP_TEXT} · máx. 10 MB
+                Arrastra o haz clic · {SECTION_IMAGE_UPLOAD_LIMIT_HELP_TEXT}
               </p>
               <p className="mt-3 text-xs text-ink-muted">Recomendado: 1920 × 1080 px (16:9)</p>
+              <p className="mt-2 max-w-sm text-[11px] leading-4 text-ink-muted">{SECTION_IMAGE_UPLOAD_SCOPE_TEXT}</p>
             </>
           )}
         </label>
@@ -279,9 +285,22 @@ export function EventCoverUpload({ event, onChanged }: Props) {
         label="Subiendo portada"
         preparingLabel="Optimizando portada…"
       />
-      {event.cover_processing_status === 'failed' && event.cover_processing_error && (
-        <p className="text-xs text-amber-300">La portada anterior sigue activa. {event.cover_processing_error}</p>
+      {event.cover_processing_status === 'failed' && (
+        <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
+          No pudimos preparar la nueva portada; la anterior sigue activa. Intenta subirla de nuevo o usa otra imagen.
+        </p>
       )}
+      <ConfirmAlert
+        open={confirmRemoveOpen}
+        title="¿Eliminar la portada?"
+        description="La invitación se mostrará sin imagen de portada hasta que subas otra. Esta acción no se puede deshacer."
+        confirmLabel="Eliminar portada"
+        onClose={() => setConfirmRemoveOpen(false)}
+        onConfirm={() => {
+          setConfirmRemoveOpen(false)
+          void handleRemoveCover()
+        }}
+      />
     </div>
   )
 }
