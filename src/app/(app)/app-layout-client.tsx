@@ -2,146 +2,99 @@
 
 import { ApplicationLayout } from '@/components/application-layout'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { RouteGuardSkeleton } from '@/components/session/route-guard-skeleton'
 import SessionBootstrap from '@/components/session/SessionBootstrap'
 import { StoreHydrationBoundary } from '@/components/session/StoreHydrationBoundary'
 import { NavigationProgress } from '@/components/ui/navigation-progress'
 import { swrOnErrorRetry } from '@/lib/swr-error-retry'
 import { ConnectionStatusBanner } from '@/components/ui/connection-status-banner'
-import { accessCan, createAccessProfile } from '@/lib/access-profile'
+import {
+  createApplicationNavigation,
+  isGuardedPath,
+  resolveApplicationRouteRedirect,
+} from '@/lib/application-navigation'
 import type { TenantConfig } from '@/lib/tenant-config'
-import { productSupportsFeature, productSupportsPath, type ProductManifest } from '@/products/core/product-manifest'
+import { useAccessProfile } from '@/lib/use-access-profile'
+import { ProductProvider } from '@/products/core/product-context'
+import type { ProductManifest } from '@/products/core/product-manifest'
 import { useStore } from '@/store/useStore'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { SWRConfig } from 'swr'
 
-export function AppLayoutClient({
-  children,
-  product,
-  tenant,
-}: {
+type AppLayoutClientProps = {
   children: React.ReactNode
   product: ProductManifest
   tenant: Omit<TenantConfig, 'clientId'>
-}) {
+}
+
+export function AppLayoutClient({ children, product, tenant }: AppLayoutClientProps) {
+  return (
+    <ProductProvider product={product}>
+      <AppLayoutShell product={product} tenant={tenant}>
+        {children}
+      </AppLayoutShell>
+    </ProductProvider>
+  )
+}
+
+function AppLayoutShell({ children, product, tenant }: AppLayoutClientProps) {
   const pathname = usePathname()
   const router = useRouter()
 
   const currentClient = useStore((s) => s.currentClient)
   const profileLoaded = useStore((s) => s.profileLoaded)
   const applicationSession = useStore((s) => s.applicationSession)
-  const workspaceMode = useStore((s) => s.workspaceMode)
+  const user = useStore((s) => s.user)
 
-  const accessProfile = createAccessProfile(applicationSession, workspaceMode, currentClient?.id)
+  const accessProfile = useAccessProfile()
+  const isRoot = Boolean(user?.is_root)
+  const modules = applicationSession?.application.modules ?? tenant.modules
+  const navigation = useMemo(
+    () =>
+      createApplicationNavigation({
+        accessProfile,
+        hasApplicationSession: Boolean(applicationSession),
+        isRoot,
+        modules,
+        product,
+      }),
+    [accessProfile, applicationSession, isRoot, modules, product]
+  )
+  // The sidebar falls back to the tenant modules while the session loads.
+  // Route decisions never do: once the profile is loaded, a missing session
+  // grants nothing, exactly as the guards always behaved.
+  const routeNavigation = useMemo(
+    () =>
+      applicationSession
+        ? navigation
+        : createApplicationNavigation({ accessProfile, hasApplicationSession: true, isRoot, modules, product }),
+    [accessProfile, applicationSession, isRoot, modules, navigation, product]
+  )
   const organizationContextPending = Boolean(
     profileLoaded &&
       applicationSession &&
       accessProfile.platformLevel === 'none' &&
       applicationSession.organizations.length > 0 &&
-      !currentClient
+      !currentClient &&
+      !accessProfile.isPortfolioContext
   )
-  const canViewEvents =
-    productSupportsFeature(product, 'events') &&
-    accessProfile.isOrganizationContext &&
-    accessCan(accessProfile, 'events:view')
-  const canViewUsers =
-    productSupportsFeature(product, 'users') &&
-    accessProfile.isPlatformContext &&
-    accessCan(accessProfile, 'platform:users:view')
-  const canViewOrganizations =
-    productSupportsFeature(product, 'organizations') &&
-    accessProfile.isPlatformContext &&
-    accessCan(accessProfile, 'organizations:view')
-  const canManageMembers =
-    productSupportsFeature(product, 'team') &&
-    accessProfile.isOrganizationContext &&
-    accessCan(accessProfile, 'members:manage')
-  const canViewMetrics = productSupportsFeature(product, 'metrics') && accessCan(accessProfile, 'metrics:view')
-  const canViewAudit =
-    productSupportsFeature(product, 'audit') &&
-    accessProfile.isPlatformContext &&
-    accessCan(accessProfile, 'audit:view')
-  const canUseAutomation =
-    productSupportsFeature(product, 'automation') &&
-    accessProfile.isPlatformContext &&
-    (accessCan(accessProfile, 'automation:view') || accessCan(accessProfile, 'automation:manage'))
-  const canManageAutomationConfiguration =
-    canUseAutomation && accessProfile.platformLevel === 'root_1'
+  // ⛔ No route is validated until the profile is ready.
+  const redirect = profileLoaded
+    ? resolveApplicationRouteRedirect({ pathname, navigation: routeNavigation, product, organizationContextPending })
+    : null
 
   useEffect(() => {
-    // ⛔ NO VALIDAR NADA hasta que el perfil esté listo
-    if (!profileLoaded) return
+    if (redirect) router.replace(redirect)
+  }, [pathname, redirect, router])
 
-    // Product manifests are a client-side ceiling. Even if a future backend
-    // configuration grants an unrelated capability, its route stays invisible.
-    if (!productSupportsPath(product, pathname)) {
-      router.replace('/')
-      return
-    }
-
-    if (pathname.startsWith('/events') && !organizationContextPending && !canViewEvents) {
-      router.replace('/')
-      return
-    }
-
-    // 🔒 RUTAS SOLO ROOT
-    if (pathname.startsWith('/clients') && !canViewOrganizations) {
-      router.replace('/')
-      return
-    }
-
-    if (pathname.startsWith('/users') && !canViewUsers) {
-      router.replace('/')
-      return
-    }
-
-    if (pathname.startsWith('/metrics') && !canViewMetrics) {
-      router.replace('/')
-      return
-    }
-
-    if (pathname.startsWith('/audit') && !canViewAudit) {
-      router.replace('/')
-      return
-    }
-
-    if (pathname.startsWith('/automation/settings') && !canManageAutomationConfiguration) {
-      router.replace('/automation')
-      return
-    }
-
-    if (pathname.startsWith('/automation') && !canUseAutomation) {
-      router.replace('/')
-      return
-    }
-
-    // 🔒 RUTAS SOLO CLIENT
-    if (pathname.startsWith('/team') && !organizationContextPending && !canManageMembers) {
-      router.replace('/')
-      return
-    }
-
-    // 🔒 SOLO AGENCY
-    if (pathname.startsWith('/sub-clients') && currentClient?.client_type?.code !== 'AGENCY') {
-      router.replace('/')
-      return
-    }
-  }, [
-    canViewEvents,
-    organizationContextPending,
-    canViewOrganizations,
-    canViewUsers,
-    canManageMembers,
-    canViewMetrics,
-    canViewAudit,
-    canUseAutomation,
-    canManageAutomationConfiguration,
-    currentClient,
-    pathname,
-    profileLoaded,
-    product,
-    router,
-  ])
+  // Products that opt in render nothing on guarded routes (and home, which
+  // may redirect) until the policy has decided with a real session, so a
+  // denied page never mounts and never requests its data.
+  const holdRoute =
+    Boolean(product.shell?.guardBeforeRender) &&
+    (isGuardedPath(pathname) || pathname === '/') &&
+    (!profileLoaded || !applicationSession || redirect !== null)
 
   return (
     <>
@@ -160,8 +113,8 @@ export function AppLayoutClient({
       >
         <SessionBootstrap />
         <ErrorBoundary resetKey={pathname}>
-          <ApplicationLayout tenant={tenant}>
-            <StoreHydrationBoundary>{children}</StoreHydrationBoundary>
+          <ApplicationLayout tenant={tenant} accessProfile={accessProfile} navigation={navigation}>
+            <StoreHydrationBoundary>{holdRoute ? <RouteGuardSkeleton /> : children}</StoreHydrationBoundary>
           </ApplicationLayout>
         </ErrorBoundary>
       </SWRConfig>

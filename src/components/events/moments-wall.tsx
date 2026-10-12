@@ -90,6 +90,7 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { dashboardBackendBaseUrl } from '@/lib/base-url'
+import { chunkMomentIds } from '@/features/events/moment-bulk-chunks'
 
 const REFRESH_INTERVAL = 15_000
 const VISIBLE_PAGE = 40
@@ -191,7 +192,7 @@ interface LightboxProps {
 function Lightbox({
   moments,
   index,
-  canManage = true,
+  canManage = false,
   onClose,
   onNext,
   onPrev,
@@ -919,9 +920,11 @@ interface FailedSectionProps {
   moments: Moment[]
   resolveUrl: (m: Moment) => string
   onRetried: () => void
+  /** Retrying a failed upload re-queues processing: event:manage only. */
+  canManage?: boolean
 }
 
-function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
+function FailedSection({ moments, resolveUrl, onRetried, canManage = false }: FailedSectionProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [visibleCount, setVisibleCount] = useState(STATUS_SECTION_PAGE)
   const [retrying, setRetrying] = useState<Set<string>>(new Set())
@@ -1015,15 +1018,17 @@ function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
           <span className="flex-1 text-xs font-medium text-red-300">Fallidos ({moments.length})</span>
           <span className="text-[10px] text-red-400/60">{collapsed ? 'mostrar' : 'ocultar'}</span>
         </button>
-        <button
-          type="button"
-          onClick={retryAll}
-          disabled={retryingAll}
-          className="flex shrink-0 items-center gap-1.5 rounded-md bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
-        >
-          {retryingAll ? <ArrowPathIcon className="size-3 animate-spin" /> : <ArrowPathIcon className="size-3" />}
-          Reintentar todos
-        </button>
+        {canManage && (
+          <button
+            type="button"
+            onClick={retryAll}
+            disabled={retryingAll}
+            className="flex shrink-0 items-center gap-1.5 rounded-md bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+          >
+            {retryingAll ? <ArrowPathIcon className="size-3 animate-spin" /> : <ArrowPathIcon className="size-3" />}
+            Reintentar todos
+          </button>
+        )}
       </div>
 
       {/* Cards grid */}
@@ -1066,6 +1071,7 @@ function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
                     )}
 
                     {/* Retry button overlay */}
+                    {canManage && (
                     <button
                       type="button"
                       onClick={() => retryOne(m)}
@@ -1084,6 +1090,7 @@ function FailedSection({ moments, resolveUrl, onRetried }: FailedSectionProps) {
                         </div>
                       )}
                     </button>
+                    )}
                   </div>
                 )
               })}
@@ -1141,7 +1148,7 @@ interface MomentCardProps {
 
 const MomentCard = memo(function MomentCard({
   moment,
-  canManage = true,
+  canManage = false,
   onApprove,
   onUnapprove,
   onDelete,
@@ -1404,7 +1411,7 @@ interface NoteCardProps {
   resolveUrl: (m: Moment) => string
 }
 
-function NoteCard({ moment, canManage = true, onApprove, onDelete, resolveUrl }: NoteCardProps) {
+function NoteCard({ moment, canManage = false, onApprove, onDelete, resolveUrl }: NoteCardProps) {
   const [actioning, setActioning] = useState<'approve' | 'delete' | null>(null)
   const url = resolveUrl(moment)
   const video = isBackendVideoMedia(url, moment.content_type)
@@ -1600,7 +1607,7 @@ function deletionCountDelta(moments: Moment[]): Partial<MomentDashboardPage['cou
 
 export function MomentsWall({
   eventId,
-  canManage = true,
+  canManage = false,
   eventIdentifier,
   eventName,
   shareUploadsEnabled,
@@ -2286,16 +2293,17 @@ export function MomentsWall({
       )
     )
     try {
-      await api.post(momentsBulkApprovePath(), {
-        ids: pending.map((m) => m.id),
-        is_approved: true,
-      })
+      for (const ids of chunkMomentIds(pending.map((m) => m.id))) {
+        await api.post(momentsBulkApprovePath(), { ids, is_approved: true })
+      }
       refreshMomentStreams()
       notifyPublicContentChanged()
       toast.success(`${pending.length} momento${pending.length !== 1 ? 's' : ''} aprobados`)
     } catch (err: unknown) {
       await mutateMomentPages(snapshot, { revalidate: false })
       toast.error(getApiErrorMessage(err, 'Error al aprobar momentos'))
+      // A failed later chunk leaves earlier chunks applied: reload the truth.
+      refreshMomentStreams()
     } finally {
       setApprovingAll(false)
     }
@@ -2315,13 +2323,17 @@ export function MomentsWall({
       adjustMomentCounts(removeMomentsCacheValue(page, pendingIds) as MomentDashboardPage, deletionCountDelta(pending))
     )
     try {
-      await api.delete(momentsBulkDeletePath(), { data: { ids: pending.map((m) => m.id) } })
+      for (const ids of chunkMomentIds(pending.map((m) => m.id))) {
+        await api.delete(momentsBulkDeletePath(), { data: { ids } })
+      }
       refreshMomentStreams()
       notifyPublicContentChanged()
       toast.success(`${pending.length} momento${pending.length !== 1 ? 's' : ''} eliminados`)
     } catch (err: unknown) {
       await mutateMomentPages(snapshot, { revalidate: false })
       toast.error(getApiErrorMessage(err, 'Error al eliminar momentos'))
+      // A failed later chunk leaves earlier chunks applied: reload the truth.
+      refreshMomentStreams()
     } finally {
       setRejectingAll(false)
     }
@@ -2798,7 +2810,7 @@ export function MomentsWall({
                 )}
               </div>
             )}
-            {pendingCount > 0 && (
+            {canManage && pendingCount > 0 && (
               <button
                 onClick={handleApproveAll}
                 disabled={approvingAll}
@@ -2816,7 +2828,7 @@ export function MomentsWall({
                 <span className="sm:hidden">{approvingAll ? '…' : `Aprobar (${pendingCount})`}</span>
               </button>
             )}
-            {pendingCount > 0 && (
+            {canManage && pendingCount > 0 && (
               <button
                 onClick={handleRejectAll}
                 disabled={rejectingAll}
@@ -3275,7 +3287,12 @@ export function MomentsWall({
       {/* ── Failed moments section ──────────────────────────────────────── */}
       <AnimatePresence>
         {failedMoments.length > 0 && (
-          <FailedSection moments={failedMoments} resolveUrl={resolveUrl} onRetried={refreshMomentStreams} />
+          <FailedSection
+            moments={failedMoments}
+            resolveUrl={resolveUrl}
+            onRetried={refreshMomentStreams}
+            canManage={canManage}
+          />
         )}
       </AnimatePresence>
 

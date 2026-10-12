@@ -127,7 +127,8 @@ browser never reads the refresh credential.
 | GET | `/guests/all:<eventID>` | List guests for an event by UUID — used by the dashboard to load the invitados/RSVP tabs |
 | POST | `/guests` | Create single guest |
 | POST | `/guests/batch` | Bulk-create guests (atomic) — also creates RSVP invitations and access tokens; rate-limited ~10 req/min |
-| PUT | `/guests/:id` | Update guest |
+| PUT | `/guests/:id` | Update guest (`guest:manage`) |
+| PATCH | `/guests/bulk/status` | Door check-in (`checkin:run`): `{event_id, ids, action: 'checkin', status_id, guest_status_id, rsvp_status: 'confirmed', rsvp_method: 'host'}`; undo `{event_id, ids, action: 'undo_checkin'}` (409 when the guest was confirmed another way). Returns no guest. |
 | DELETE | `/guests/:id` | Delete guest |
 
 > SWR key for the guest list: `/guests/all:${event.id}` via `eventGuestsPath(event.id)`.
@@ -367,3 +368,33 @@ When creating/updating sections, always send:
 - `component_type`: SDUI type string (CountdownHeader, GraduationHero, EventVenue, etc.)
 - `type`: same as component_type (backward compat)  
 - `config`: Record<string, unknown> — JSON config for that section type
+
+## Event clients (EventiApp, flag `EVENT_CLIENT_ACCESS`)
+
+Paths live in `src/lib/api-paths.ts`; types in `src/features/events/event-clients.ts`;
+hooks and mutations in `src/features/events/use-event-clients.ts`. With the flag off every
+route answers `404 {"error":"event_client_access_disabled"}` and the UI shows nothing new.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/events/:id/clients` | `EventClient[]` (granted_at ASC) |
+| GET | `/events/:id/clients/candidates?search=` | up to 50 people who hold or held a grant in the event's org |
+| POST | `/events/:id/clients` | `{email, first_name, last_name}` or `{user_id}` → 201/200 `{client, account: 'created'|'existing', already_assigned}`; rate limited (429) |
+| DELETE | `/events/:id/clients/:user_id` | revoke this event |
+| GET | `/events/:id/clients/:user_id/assignments?search=&page=&page_size=` | paged org events with `assigned` and `can_manage` |
+| PATCH | `/events/:id/clients/:user_id/assignments` | `{assign: [], unassign: []}` (1-100, disjoint, all or nothing) |
+| POST | `/events/:id/clients/:user_id/resend-invitation` | 'Reenviar invitación' (Cognito RESEND, FORCE_CHANGE_PASSWORD only). **Path pending backend confirmation.** |
+| GET | `/clients/:id/members/event-clients?page=&page_size=` | Owner/Admin oversight |
+| DELETE | `/clients/:id/members/event-clients/:user_id` | revoke every grant of that person in the org → `{revoked: n}` |
+
+Error codes (all mapped to Spanish by `eventClientErrorMessage`): `invalid_request`,
+`invalid_email`, `event_client_not_found` (404), `event_client_is_org_member`,
+`event_client_self`, `event_client_unavailable` (409), `event_outside_organization` (422,
+`data.event_ids`), `event_client_invite_failed`, `event_client_grant_failed` (500),
+`event_client_invitation_not_pending` (409, resend), 429.
+
+`GET /events/:id/capabilities` may include `event:clients:manage`; a 500 there means the
+evaluation failed (Studio, check-in and the detail offer Reintentar). Event list rows may
+carry `viewer_access: 'organization' | 'event_client'` (non-root, no `client_id`, flag on).
+`GET /session` may carry `event_access`; a 403 means the user has no access left
+(`/login?reason=no_access`).

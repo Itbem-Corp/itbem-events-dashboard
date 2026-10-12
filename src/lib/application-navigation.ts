@@ -1,4 +1,4 @@
-import { accessCan, type AccessProfile } from '@/lib/access-profile'
+import { accessCan, isOrganizationAdminRole, type AccessProfile } from '@/lib/access-profile'
 import {
   auditLogsPath,
   automationAgentsPath,
@@ -8,12 +8,17 @@ import {
   deliveryClientsPath,
   clientMembersPagePath,
   clientsPagePath,
-  eventsPagePath,
   metricsPortfolioPath,
   scopedEventsDashboardPath,
+  scopedEventsPagePath,
   usersAllPath,
 } from '@/lib/api-paths'
-import { productSupportsFeature, type ProductManifest, type TenantModule } from '@/products/core/product-manifest'
+import {
+  productSupportsFeature,
+  productSupportsPath,
+  type ProductManifest,
+  type TenantModule,
+} from '@/products/core/product-manifest'
 
 export type ApplicationRoute = '/' | '/events' | '/metrics' | '/team' | '/users' | '/clients' | '/audit' | '/automation' | '/automation/agents' | '/automation/dispatch' | '/automation/recurrences' | '/automation/traces' | '/automation/costs' | '/automation/clients' | '/automation/projects' | '/automation/settings'
 
@@ -27,6 +32,14 @@ export type ApplicationNavigation = {
   canUseAutomation: boolean
   canManageAutomationConfiguration: boolean
   canSwitchOrganizations: boolean
+  /** Inicio ('/') is part of this user's navigation. */
+  showHome: boolean
+  /** 'Mis eventos' for accounts that only hold event grants. */
+  eventsLabel: string
+  /** The sidebar workspace block (switcher or assigned organization). */
+  showWorkspaceBlock: boolean
+  /** Where brand links and post-switch navigation land. Never redirects. */
+  landingPath: '/' | '/events'
 }
 
 export function createApplicationNavigation({
@@ -60,6 +73,20 @@ export function createApplicationNavigation({
       accessCan(accessProfile, 'organizations:view')
     : productSupportsFeature(product, 'organizations') && isRoot && modules.includes('organizations')
 
+  // Caller-access products show Inicio only to roots and to Owner/Admin of the
+  // selected organization. Every other role works from the event list. While
+  // the organization is still being chosen, an organization admin keeps Inicio
+  // so the shell does not flicker. The shell decision travels with the access
+  // profile, so navigation and profile can never disagree about it.
+  const showHome =
+    !hasApplicationSession ||
+    !accessProfile.usesCallerAccessWorkspace ||
+    accessProfile.platformLevel !== 'none' ||
+    (!accessProfile.isPortfolioContext &&
+      (accessProfile.organizationRole
+        ? isOrganizationAdminRole(accessProfile.organizationRole)
+        : accessProfile.isOrganizationAdmin))
+
   return {
     hasEvents,
     canViewUsers,
@@ -67,9 +94,11 @@ export function createApplicationNavigation({
     canManageMembers:
       productSupportsFeature(product, 'team') &&
       accessProfile.isOrganizationContext &&
+      !accessProfile.isPortfolioContext &&
       accessCan(accessProfile, 'members:manage'),
     canViewMetrics:
       productSupportsFeature(product, 'metrics') &&
+      !accessProfile.isPortfolioContext &&
       (hasApplicationSession ? accessCan(accessProfile, 'metrics:view') : modules.includes('metrics')),
     canViewAudit:
       productSupportsFeature(product, 'audit') &&
@@ -86,23 +115,74 @@ export function createApplicationNavigation({
       accessProfile.isPlatformContext &&
       accessProfile.platformLevel === 'root_1',
     canSwitchOrganizations: hasApplicationSession ? accessProfile.canSwitchOrganizations : isRoot,
+    showHome,
+    eventsLabel: accessProfile.isEventClientOnly ? 'Mis eventos' : 'Eventos',
+    showWorkspaceBlock: accessProfile.canShowWorkspaceBlock,
+    // Without Inicio the event list is home, but only when the user can open
+    // it; otherwise '/' stays the landing page so nothing redirects in a loop.
+    landingPath: !showHome && hasEvents ? '/events' : '/',
   }
+}
+
+/** Routes that render nothing until the route policy has decided. */
+export const GUARDED_ROUTE_PREFIXES = ['/audit', '/metrics', '/team', '/users', '/clients', '/automation'] as const
+
+export function isGuardedPath(pathname: string): boolean {
+  return GUARDED_ROUTE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+}
+
+/**
+ * The single client-side route policy. It returns where the user must go,
+ * or null when the current route is allowed. The returned path is always
+ * allowed itself, so a redirect never chains or loops. The backend enforces
+ * the same rules; this only keeps users off screens they cannot use.
+ */
+export function resolveApplicationRouteRedirect({
+  pathname,
+  navigation,
+  product,
+  organizationContextPending,
+}: {
+  pathname: string
+  navigation: ApplicationNavigation
+  product: ProductManifest
+  organizationContextPending: boolean
+}): string | null {
+  const home = navigation.landingPath
+  const target = (() => {
+    // Product manifests are a client-side ceiling. Even if a future backend
+    // configuration grants an unrelated capability, its route stays invisible.
+    if (!productSupportsPath(product, pathname)) return home
+    if (pathname.startsWith('/events') && !organizationContextPending && !navigation.hasEvents) return home
+    if (pathname.startsWith('/clients') && !navigation.canViewOrganizations) return home
+    if (pathname.startsWith('/users') && !navigation.canViewUsers) return home
+    if (pathname.startsWith('/metrics') && !navigation.canViewMetrics) return home
+    if (pathname.startsWith('/audit') && !navigation.canViewAudit) return home
+    if (pathname.startsWith('/automation') && !navigation.canUseAutomation) return home
+    if (pathname.startsWith('/automation/settings') && !navigation.canManageAutomationConfiguration) return '/automation'
+    if (pathname.startsWith('/team') && !organizationContextPending && !navigation.canManageMembers) return home
+    if (pathname === '/' && !navigation.showHome && navigation.hasEvents && !organizationContextPending) return '/events'
+    return null
+  })()
+
+  return target === pathname ? null : target
 }
 
 export function applicationRoutePreloadPath({
   clientId,
   href,
-  isRoot,
+  listsAcrossOrganizations,
 }: {
   clientId?: string
   href: ApplicationRoute
-  isRoot: boolean
+  /** Platform roots and the caller-access workspace list without client_id. */
+  listsAcrossOrganizations: boolean
 }): string | null {
   switch (href) {
     case '/':
-      return scopedEventsDashboardPath(clientId, isRoot)
+      return scopedEventsDashboardPath(clientId, listsAcrossOrganizations)
     case '/events':
-      return clientId || isRoot ? eventsPagePath(clientId, { page: 1, page_size: 12, filter: 'all' }) : null
+      return scopedEventsPagePath(clientId, listsAcrossOrganizations, { page: 1, page_size: 12, filter: 'all' })
     case '/users':
       return usersAllPath({ page: 1, page_size: 10 })
     case '/metrics':

@@ -2,17 +2,20 @@
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
+import { DailyActivityChart } from '@/components/metrics/daily-activity-chart'
 import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useScopedFetcherKey } from '@/hooks/useScopedFetcherKey'
-import { accessCan, createAccessProfile } from '@/lib/access-profile'
+import { accessCan } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { metricsPortfolioPath } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
+import { useAccessProfile } from '@/lib/use-access-profile'
 import type { ProductMetricSummary, ProductMetricsPortfolio } from '@/models/ProductMetrics'
+import { useProductShell } from '@/products/core/product-context'
 import { useStore } from '@/store/useStore'
 import {
   ArrowPathIcon,
@@ -124,14 +127,11 @@ function ProductCard({ row, index }: { row: ProductMetricSummary; index: number 
 
 export default function MetricsPage() {
   const [days, setDays] = useState(30)
-  const session = useStore((state) => state.applicationSession)
   const user = useStore((state) => state.user)
   const currentClient = useStore((state) => state.currentClient)
-  const workspaceMode = useStore((state) => state.workspaceMode)
-  const accessProfile = useMemo(
-    () => createAccessProfile(session, workspaceMode, currentClient?.id),
-    [currentClient?.id, session, workspaceMode]
-  )
+  const accessProfile = useAccessProfile()
+  const accessibleShell = Boolean(useProductShell()?.accessibleShell)
+  const smallLabelClass = accessibleShell ? 'text-xs text-ink-muted' : 'text-[10px] text-ink-muted'
   const canView = accessCan(accessProfile, 'metrics:view')
   const isRoot = Boolean(user?.is_root)
   const clientId = accessProfile.isOrganizationContext ? currentClient?.id : undefined
@@ -155,7 +155,6 @@ export default function MetricsPage() {
     }
     return [...byDay.entries()].sort(([left], [right]) => left.localeCompare(right))
   }, [portfolio?.timeline])
-  const maxDailyRequests = Math.max(1, ...activity.map(([, requests]) => requests))
   const successRate = totals.requests ? ((totals.requests - totals.errors) / totals.requests) * 100 : 100
   const averageLatency = totals.requests ? Math.round(totals.duration_ms / totals.requests) : 0
 
@@ -282,26 +281,7 @@ export default function MetricsPage() {
                 </div>
                 <p className="text-xs text-ink-muted">Solicitudes completadas por día</p>
               </div>
-              <div className="mt-7 flex h-36 items-end gap-1.5" aria-label="Actividad diaria">
-                {activity.map(([day, requests]) => (
-                  <div
-                    key={day}
-                    title={`${new Date(day).toLocaleDateString('es-MX')}: ${requests.toLocaleString('es-MX')}`}
-                    className="group relative flex h-full min-w-0 flex-1 items-end"
-                  >
-                    <div
-                      className="w-full rounded-t-md bg-(--tenant-accent)/45 transition-colors group-hover:bg-(--tenant-accent)"
-                      style={{ height: `${Math.max(4, (requests / maxDailyRequests) * 100)}%` }}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-2 flex justify-between text-[10px] text-ink-muted">
-                <span>{new Date(activity[0][0]).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}</span>
-                <span>
-                  {new Date(activity.at(-1)![0]).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
-                </span>
-              </div>
+              <DailyActivityChart activity={activity} accessible={accessibleShell} />
             </section>
           )}
 
@@ -328,11 +308,11 @@ export default function MetricsPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-semibold text-ink tabular-nums">{compact(row.mutations)}</p>
-                        <p className="text-[10px] text-ink-muted">acciones</p>
+                        <p className={smallLabelClass}>acciones</p>
                       </div>
                       <div className="w-16 text-right">
                         <p className="text-sm font-semibold text-ink-secondary tabular-nums">{row.active_users}</p>
-                        <p className="text-[10px] text-ink-muted">activos</p>
+                        <p className={smallLabelClass}>activos</p>
                       </div>
                     </div>
                   ))}

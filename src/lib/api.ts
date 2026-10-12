@@ -3,6 +3,7 @@ import { useStore } from "@/store/useStore";
 import { readApiData } from "@/lib/api-envelope";
 import { normalizeBackendBaseUrl } from "@/lib/base-url";
 import { getApiErrorMessage, isCanceledRequest, NETWORK_ERROR_MESSAGE } from "@/lib/api-error";
+import { memberAccessDenialMessage } from "@/lib/member-management";
 import { backendBaseUrlForHostname, tenantCodeForHostname } from "@/lib/tenant-config";
 import { releaseMutationKey, reserveMutationKey } from "@/lib/idempotency-key";
 import { normalizeKeys } from "@/lib/normalizer";
@@ -330,10 +331,15 @@ api.interceptors.response.use(
                 }
             } else {
                 // Background revalidations can fail together; one toast is enough.
+                // Known member-management denials arrive as English reasons;
+                // show the Spanish copy instead (the backend stays the authority).
                 const now = Date.now()
                 if (now - lastForbiddenToastAt >= SESSION_RECOVERY_TOAST_COOLDOWN_MS) {
                     lastForbiddenToastAt = now
-                    toast.error(getApiErrorMessage(error, 'No tienes permiso para realizar esta acción.'))
+                    toast.error(
+                        memberAccessDenialMessage(error) ??
+                            getApiErrorMessage(error, 'No tienes permiso para realizar esta acción.')
+                    )
                 }
             }
         } else if (!error?.response && isCanceledRequest(error)) {
