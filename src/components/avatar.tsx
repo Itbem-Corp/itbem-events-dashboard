@@ -1,7 +1,7 @@
 'use client'
 
 import clsx from 'clsx'
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/safe-image'
 import React, { useState } from 'react'
 
 type AvatarProps = {
@@ -26,6 +26,18 @@ export function Avatar({
 
   const normalizedSrc = typeof src === 'string' ? src.trim() : ''
   const hasValidSrc = normalizedSrc !== '' && normalizedSrc !== failedSrc
+  const initialsFallback = initials ? (
+    <svg
+      className="size-full fill-current p-[5%] text-[48px] font-medium uppercase select-none"
+      viewBox="0 0 100 100"
+      aria-hidden={alt ? undefined : 'true'}
+    >
+      {alt && <title>{alt}</title>}
+      <text x="50%" y="50%" alignmentBaseline="middle" dominantBaseline="middle" textAnchor="middle" dy=".125em">
+        {initials}
+      </text>
+    </svg>
+  ) : null
 
   return (
     <span
@@ -38,30 +50,19 @@ export function Avatar({
         square ? 'rounded-(--avatar-radius) *:rounded-(--avatar-radius)' : 'rounded-full *:rounded-full'
       )}
     >
-      {/* Fallback → SOLO si NO hay imagen válida */}
-      {!hasValidSrc && initials && (
-        <svg
-          className="size-full fill-current p-[5%] text-[48px] font-medium uppercase select-none"
-          viewBox="0 0 100 100"
-          aria-hidden={alt ? undefined : 'true'}
-        >
-          {alt && <title>{alt}</title>}
-          <text x="50%" y="50%" alignmentBaseline="middle" dominantBaseline="middle" textAnchor="middle" dy=".125em">
-            {initials}
-          </text>
-        </svg>
-      )}
-
-      {/* Imagen SOLO si es válida */}
-      {hasValidSrc && (
-        <Image
+      {/* Imagen si hay URL; si falta, es inválida o falla al cargar → iniciales */}
+      {hasValidSrc ? (
+        <SafeImage
           className="size-full object-cover"
           src={normalizedSrc}
           alt={alt}
           fill
           sizes={sizes}
+          fallback={initialsFallback}
           onError={() => setFailedSrc(normalizedSrc)}
         />
+      ) : (
+        initialsFallback
       )}
     </span>
   )
