@@ -16,6 +16,23 @@ The dashboard is one deployable Next.js application with isolated product defini
 
 The frontend manifest is a product ceiling: a backend capability cannot expose a route the product does not declare. The backend session remains authoritative for the current user's access inside that ceiling.
 
+## Shell policy (`manifest.shell`)
+
+Behaviour that differs between products is declared in the manifest, never by comparing tenant codes. `ProductShellPolicy` (`src/products/core/product-manifest.ts`) has six optional keys; an absent key keeps today's behaviour:
+
+| Key | EventiApp | Effect |
+| --- | --- | --- |
+| `workspaceSwitcher` | `'organization-admins'` | Workspace block and switcher only for roots and Owner/Admin. |
+| `memberWorkspace` | `'caller-access'` | Other members work in the caller-access workspace (organization mode, no organization ID). |
+| `workspaceSource` | `'clients-api-session-filtered'` | Non-roots keep `GET /clients` (signed logos, server search) filtered to `session.organizations`. |
+| `localizedRoleLabels` | `true` | Role codes shown as Spanish labels (`src/lib/role-labels.ts`). |
+| `accessibleShell` | `true` | 12px text and 44px targets in the shell (see `docs/styling.md`). |
+| `guardBeforeRender` | `true` | Guarded routes render a skeleton until the route policy decides. |
+
+`ProductProvider` (`src/products/core/product-context.tsx`) is mounted by `AppLayoutClient` with the server-resolved manifest; components read it with `useProductManifest()` or `useProductShell()`. Without a provider they get `undefined`, which means today's behaviour. Screens obtain their access profile with `useAccessProfile()` (`src/lib/use-access-profile.ts`) so the shell cannot be skipped at a call site.
+
+**Cafetton House and ITBEM invariants.** Their manifests have no `shell`. Their markup, classes, labels, redirects and requests stay as before; parity tests compare the old and new route rules for every role and path (`tests/unit/lib/navigation-parity.test.ts`), the access profile for every session (`tests/unit/lib/access-profile.test.ts`), and snapshot the Cafetton header and bottom navigation. Two invisible core fixes apply to every product: the organization credential is kept when the session revalidates unchanged, and (backend) a successful same-organization renewal is not audited.
+
 ## First render and loading
 
 The protected server layout resolves the hostname before rendering and passes the tenant and product manifest into the client shell. Do not resolve the tenant in `useEffect`; that creates a second render and can briefly show the EventiApp brand on another origin.
@@ -40,7 +57,9 @@ Product-specific workflows belong below their product directory. Shared authenti
 
 Authenticated API requests send `X-Application-Code`, `X-Workspace-Mode`, and, in organization mode, `X-Organization-ID`. The backend must resolve the authenticated application independently and reject any header that conflicts with token/session scope; these headers are context, never authorization.
 
-Manual organization switches first exchange the current Cognito application session at `POST /session/organization-context`. The returned five-minute credential stays in memory only and is sent as `X-Organization-Context` while its application and organization still match. A failed exchange leaves the previous workspace active; platform switches, tenant activation, logout, and organization changes clear the credential.
+Manual organization switches first exchange the current Cognito application session at `POST /session/organization-context`. The returned five-minute credential stays in memory only and is sent as `X-Organization-Context` while its application and organization still match. A failed exchange leaves the previous workspace active; platform switches, activating another tenant or organization, the caller-access workspace, logout, and organization changes clear the credential. Re-activating the same tenant and organization (for example after a session revalidation) keeps it.
+
+In the caller-access workspace (`X-Workspace-Mode: organization` without `X-Organization-ID`) the backend scopes the request to every membership and event grant of the caller. No `X-Organization-Context` is sent or issued.
 
 The application shell also obtains a credential after restoring an organization workspace and renews it 45 seconds before expiration. Exchanges for the same organization are single-flight, transient failures retry after 30 seconds, effect cleanup cancels timers, and the store discards late responses whose organization is no longer selected.
 

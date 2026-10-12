@@ -46,30 +46,64 @@ app/layout.tsx              Root — Inter font, dark colorScheme, title templat
 The protected layout also mounts `NavigationProgress`, which gives route
 transitions delayed, non-blocking feedback without flashing on fast loads.
 
-## Navigation Items (sidebar)
+## Navigation and route policy
 
-Defined in `src/components/application-layout.tsx`:
+There is one policy, in `src/lib/application-navigation.ts`:
 
-| Item               | Visible to    | Guard                                 |
-| ------------------ | ------------- | ------------------------------------- |
-| Home `/`           | Everyone      | —                                     |
-| Events `/events`   | Non-root only | `!isRoot` in nav + redirect in layout |
-| Users `/users`     | Root only     | `isRoot` in nav + redirect in layout  |
-| Clients `/clients` | Root only     | `isRoot` in nav + redirect in layout  |
+- `createApplicationNavigation({ accessProfile, hasApplicationSession, isRoot, modules, product })`
+  decides what the shell shows: `hasEvents`, `canViewMetrics`, `canManageMembers`,
+  `canViewAudit`, `canViewUsers`, `canViewOrganizations`, `canUseAutomation`,
+  `canManageAutomationConfiguration`, `canSwitchOrganizations`, plus
+  `showHome`, `eventsLabel`, `showWorkspaceBlock` and `landingPath`.
+- `resolveApplicationRouteRedirect({ pathname, navigation, product, organizationContextPending })`
+  returns where a route must go, or `null` when it is allowed. The target is
+  always allowed itself, so a redirect never chains or loops.
+- `isGuardedPath(pathname)` lists the routes that may not render before the
+  policy decides: `/audit`, `/metrics`, `/team`, `/users`, `/clients`,
+  `/automation` (whole segments).
 
-`/orders` is not a navigation item. Its legacy URLs remain only as server-side
-redirects to `/events` until a real payments backend contract is defined.
+`AppLayoutClient` builds the access profile (`useAccessProfile()`), the
+navigation and the redirect once and passes the profile and navigation to
+`ApplicationLayout`. The sidebar, bottom navigation, command palette and brand
+links all read the same navigation object.
 
-Route guards are applied in two layers:
+| Item | Visible when | Direct URL without access |
+| --- | --- | --- |
+| Inicio `/` | `showHome` | `/events` when Inicio is hidden and the user can open events |
+| Eventos / Mis eventos `/events` | `hasEvents` (organization or caller-access workspace with `events:view`) | `landingPath` |
+| Métricas `/metrics` | `canViewMetrics` (never in the caller-access workspace) | `landingPath` |
+| Equipo `/team` | `canManageMembers` (never in the caller-access workspace) | `landingPath` |
+| Auditoría `/audit` | `canViewAudit` (platform context) | `landingPath` |
+| Usuarios `/users`, Clientes `/clients` | Platform context with the capability | `landingPath` |
+| Automatización `/automation` | ITBEM platform context with an automation capability | `landingPath`; `/automation/settings` without Root 1 goes to `/automation` |
 
-1. **Nav visibility** (`application-layout.tsx`): items conditionally rendered by `isRoot`
-2. **Layout redirect** (`(app)/layout.tsx`): any direct URL access is redirected to `/` if role doesn't match
+`landingPath` is `/` when `showHome`, otherwise `/events` (or `/` when the user
+cannot open events either, so nothing loops). `/events` and `/team` wait while
+an organization member's workspace is still being chosen
+(`organizationContextPending`), as before.
+
+On EventiApp (`manifest.shell.memberWorkspace === 'caller-access'`) Inicio,
+Métricas and the workspace block are for roots and Owner/Admin only; every
+other role, and event clients ("Mis eventos"), work from the event list. An
+Owner of one organization who is an editor in another sees Inicio and
+Métricas only while working in the organization they own.
+
+**Guard before data.** When the product sets `shell.guardBeforeRender`
+(EventiApp), a guarded path or `/` renders `RouteGuardSkeleton` ("Verificando
+acceso") instead of the page until the profile is loaded, the session is
+present and the policy allows the route. A denied page therefore never mounts
+and never requests its data. Products without the flag render as before and
+redirect from the effect. The UI guard is not a control: the backend denies the
+same APIs.
+
+`/orders` is not a navigation item. Its legacy URLs remain only as redirects to
+`/events` until a real payments backend contract is defined.
 
 ## Adding a Route
 
 1. `src/app/(app)/feature/page.tsx` with `'use client'`
-2. Add nav item in `src/components/application-layout.tsx`
-3. Add role guard in `src/app/(app)/layout.tsx` if restricted
+2. Declare the route in the product's `routes.ts` and add the flag to `createApplicationNavigation`
+3. Add the rule to `resolveApplicationRouteRedirect` (and to `isGuardedPath` if the page must not mount before the decision)
 4. Document endpoint in `docs/api.md`
 5. Update this file
 
