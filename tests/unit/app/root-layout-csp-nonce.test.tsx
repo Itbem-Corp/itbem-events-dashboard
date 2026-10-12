@@ -23,8 +23,10 @@ describe('root layout CSP nonce', () => {
 
     const html = renderToStaticMarkup(await RootLayout({ children: null }))
 
-    const inlineScripts = html.match(/<script[^>]*>/g) ?? []
-    expect(inlineScripts.length).toBeGreaterThan(0)
-    for (const tag of inlineScripts) expect(tag).toContain('nonce="abc123"')
+    // Parse instead of regex-matching tags (CodeQL js/bad-tag-filter).
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    const scripts = Array.from(doc.querySelectorAll('script'))
+    expect(scripts.length).toBeGreaterThan(0)
+    for (const script of scripts) expect(script.getAttribute('nonce')).toBe('abc123')
   })
 })
