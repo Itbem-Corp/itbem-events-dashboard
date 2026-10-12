@@ -171,12 +171,14 @@ export function GuestFormModal({ isOpen, setIsOpen, eventId, guest, onPublicCont
   const onSubmit = async (data: FormValues) => {
     setLoading(true)
     try {
+      // The backend parses table_id as a UUID and rejects "" with 400; null means "no table".
+      const payload = { ...data, table_id: data.table_id || null, event_id: eventId }
       let savedGuest: Guest | null = null
       if (isEdit && guest) {
-        const res = await api.put(guestPath(guest.id), { ...data, event_id: eventId })
+        const res = await api.put(guestPath(guest.id), payload)
         savedGuest = readApiData<Guest | null>(res.data)
       } else {
-        const res = await api.post(guestsPath(), { ...data, event_id: eventId })
+        const res = await api.post(guestsPath(), payload)
         savedGuest = readApiData<Guest | null>(res.data)
       }
       await onSaved?.(savedGuest)

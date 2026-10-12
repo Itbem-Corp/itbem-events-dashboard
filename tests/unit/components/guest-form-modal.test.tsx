@@ -120,4 +120,50 @@ describe('GuestFormModal', () => {
     })
     expect(onPublicContentChanged).toHaveBeenCalledTimes(1)
   })
+
+  it('sends table_id null instead of an empty string when creating a guest', async () => {
+    render(<GuestFormModal isOpen setIsOpen={vi.fn()} eventId="event-1" />)
+
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Ana' } })
+    fireEvent.change(screen.getByLabelText('Apellido'), { target: { value: 'Garcia' } })
+    fireEvent.click(screen.getByRole('button', { name: /Agregar invitado/i }))
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith('/guests', expect.objectContaining({ table_id: null }))
+    })
+  })
+
+  it('sends table_id null when editing a guest without a table', async () => {
+    render(
+      <GuestFormModal
+        isOpen
+        setIsOpen={vi.fn()}
+        eventId="event-1"
+        guest={{ id: 'guest-1', event_id: 'event-1', first_name: 'Ana', last_name: 'Garcia' } as Guest}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Actualizar invitado/i }))
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith('/guests/guest-1', expect.objectContaining({ table_id: null }))
+    })
+  })
+
+  it('keeps the assigned table when editing a seated guest', async () => {
+    render(
+      <GuestFormModal
+        isOpen
+        setIsOpen={vi.fn()}
+        eventId="event-1"
+        guest={{ id: 'guest-1', event_id: 'event-1', first_name: 'Ana', last_name: 'Garcia', table_id: 'table-9' } as Guest}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Actualizar invitado/i }))
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith('/guests/guest-1', expect.objectContaining({ table_id: 'table-9' }))
+    })
+  })
 })
