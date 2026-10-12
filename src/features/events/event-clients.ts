@@ -19,8 +19,9 @@ export interface EventClient {
   granted_by_user_id: string
   /**
    * The account has not completed its first sign-in (Cognito
-   * FORCE_CHANGE_PASSWORD). Optional: when absent the UI still offers
-   * 'Reenviar invitación' and the server answers 409 if it is not pending.
+   * FORCE_CHANGE_PASSWORD). The backend (feat/ev-event-client-role) does not
+   * send it yet, so the UI offers 'Reenviar invitación' for every client and
+   * the server answers 409 event_client_invitation_not_pending otherwise.
    */
   invitation_pending?: boolean
 }
@@ -110,6 +111,8 @@ export type EventClientErrorCode =
   | 'event_client_invite_failed'
   | 'event_client_grant_failed'
   | 'event_client_invitation_not_pending'
+  | 'event_client_resend_failed'
+  | 'event_client_internal_error'
 
 const EVENT_CLIENT_ERROR_MESSAGES: Record<EventClientErrorCode, string> = {
   event_client_access_disabled: 'Esta función no está disponible.',
@@ -125,6 +128,8 @@ const EVENT_CLIENT_ERROR_MESSAGES: Record<EventClientErrorCode, string> = {
   event_client_invite_failed: 'No se pudo crear la cuenta del cliente.',
   event_client_grant_failed: 'No se pudo asignar el evento al cliente.',
   event_client_invitation_not_pending: 'Esta persona ya activó su cuenta; no hace falta reenviar la invitación.',
+  event_client_resend_failed: 'No se pudo reenviar la invitación. Inténtalo más tarde.',
+  event_client_internal_error: 'No se pudo completar la operación. Inténtalo de nuevo.',
 }
 
 export const EVENT_CLIENT_RATE_LIMIT_MESSAGE = 'Demasiados intentos. Espera un momento.'
