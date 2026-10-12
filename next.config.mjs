@@ -2,6 +2,7 @@ import bundleAnalyzer from '@next/bundle-analyzer'
 import withPWAInit from '@ducanh2912/next-pwa'
 import { fileURLToPath } from 'node:url'
 import { dashboardRuntimeCaching } from './src/lib/pwa-runtime-caching.mjs'
+import { buildImageRemotePatterns } from './src/lib/image-remote-hosts.mjs'
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url))
 
@@ -24,28 +25,6 @@ const withPWA = withPWAInit({
   },
 })
 
-function normalizeBaseUrl(value, fallback) {
-  const raw = (value ?? fallback).trim() || fallback
-  return raw.replace(/\/+$/, '')
-}
-
-function normalizeBackendBaseUrl(value, fallback) {
-  return normalizeBaseUrl(value, fallback).replace(/\/api$/i, '')
-}
-
-function localBackendBaseUrl() {
-  return normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL, 'http://localhost:8080')
-}
-
-function backendRemotePattern() {
-  const backendUrl = new URL(localBackendBaseUrl())
-  return {
-    protocol: backendUrl.protocol.replace(':', ''),
-    hostname: backendUrl.hostname,
-    ...(backendUrl.port ? { port: backendUrl.port } : {}),
-  }
-}
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Keep tracing scoped to this checkout. Without an explicit root, Next can
@@ -61,13 +40,13 @@ const nextConfig = {
   // append generated instructions and leave an otherwise clean worktree dirty.
   agentRules: false,
   images: {
-    remotePatterns: [
-      backendRemotePattern(),
-      { protocol: 'https', hostname: '**.amazonaws.com' },
-      { protocol: 'https', hostname: '**.cloudfront.net' },
-      // CDN subdomains (cdn.eventiapp.com.mx, cdn-staging.eventiapp.com.mx)
-      { protocol: 'https', hostname: '**.eventiapp.com.mx' },
-    ],
+    // Backend origin + production media hosts, plus NEXT_PUBLIC_IMAGE_REMOTE_HOSTS
+    // (e.g. the local S3 emulator). <SafeImage> reads the same list and renders
+    // any other host unoptimized instead of crashing.
+    remotePatterns: buildImageRemotePatterns({
+      backendUrl: process.env.NEXT_PUBLIC_BACKEND_URL,
+      extraHosts: process.env.NEXT_PUBLIC_IMAGE_REMOTE_HOSTS,
+    }),
   },
 
   // The retired orders module answers with a permanent redirect so old

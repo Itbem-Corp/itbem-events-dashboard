@@ -1,6 +1,6 @@
 'use client'
 
-import Image from 'next/image'
+import { SafeImage } from '@/components/ui/safe-image'
 import { useStore } from "@/store/useStore";
 import { endSession } from '@/lib/end-session'
 import {
@@ -33,12 +33,13 @@ export function UserHeader() {
                 <DropdownMenuTrigger className="outline-none">
                     <div className="relative h-10 w-10 rounded-full bg-surface-raised border border-border-subtle flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-border-subtle transition-all">
                         {user.profile_image ? (
-                            <Image
+                            <SafeImage
                                 src={user.profile_image}
                                 alt={`${user.first_name} ${user.last_name}`}
                                 fill
                                 className="object-cover"
                                 sizes="40px"
+                                fallback={<span className="text-sm font-medium text-ink-muted">{initials}</span>}
                             />
                         ) : (
                             <span className="text-sm font-medium text-ink-muted">{initials}</span>
