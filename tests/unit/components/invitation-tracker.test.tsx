@@ -168,6 +168,12 @@ describe('InvitationTracker — QR Dialog', () => {
         expect(qrBtn).toBeInTheDocument()
     })
 
+    it('keeps "Registrar reenvío" available on phone widths (GST-77)', async () => {
+        await renderTracker()
+        const resend = screen.getByRole('button', { name: 'Registrar reenvío' })
+        expect(resend.className).not.toMatch(/(^|\s)hidden(\s|$)/)
+    })
+
     it('generates a missing personal RSVP link for a legacy guest', async () => {
         vi.mocked(api.post).mockResolvedValueOnce({
             data: { status: 200, data: makeGuest({ pretty_token: 'NEWLINK1' }) },

@@ -1,16 +1,21 @@
 import type { Guest } from '@/models/Guest'
 import type { Table } from '@/models/Table'
-import { useCallback, useMemo, useReducer } from 'react'
+import { useCallback, useEffect, useMemo, useReducer } from 'react'
+
+// An override is the local table of a guest: a table id, or null for "unassigned".
+// `undefined` means the guest has no override and sits where the server says.
+type SeatOverride = string | null | undefined
 
 type UndoEntry =
-  | { type: 'ASSIGN_GUEST'; guestId: string; tableId: string | null; prevTableId: string | null }
+  | { type: 'ASSIGN_GUEST'; guestId: string; prevOverride: SeatOverride }
   | { type: 'CREATE_TABLE'; table: Table }
-  | { type: 'UPDATE_TABLE'; tableId: string; changes: Partial<Table>; prev: Partial<Table> }
+  | { type: 'UPDATE_TABLE'; tableId: string; wasCreated: boolean; prev: Partial<Table> | undefined }
   | {
       type: 'DELETE_TABLE'
       table: Table
       wasCreated: boolean
-      assignmentsBefore: Array<[string, string | null | undefined]>
+      prevUpdate: Partial<Table> | undefined
+      assignmentsBefore: Array<[string, SeatOverride]>
     }
 
 interface SeatingState {
@@ -19,25 +24,73 @@ interface SeatingState {
   updatedTables: Map<string, Partial<Table>>
   deletedTableIds: Set<string>
   undoStack: UndoEntry[]
+  /** Drafts undone with Deshacer, newest last; any new edit clears them (GST-54). */
+  redoStack: SeatingSnapshot[]
+  /** Draft entries dropped by the last reconcile because the server no longer has their guest or table. */
+  lastReconciledCount: number
 }
 
 type SeatingAction =
   | { type: 'ASSIGN_GUEST'; guestId: string; tableId: string | null; serverTableId: string | null }
   | { type: 'CREATE_TABLE'; table: Table }
-  | { type: 'UPDATE_TABLE'; tableId: string; changes: Partial<Table>; prev: Partial<Table> }
+  | { type: 'UPDATE_TABLE'; tableId: string; changes: Partial<Table> }
   | { type: 'DELETE_TABLE'; table: Table; guestsOnTable: string[] }
+  | { type: 'RECONCILE'; serverTableIds: Set<string>; serverGuestIds: Set<string> }
   | { type: 'UNDO' }
+  | { type: 'REDO' }
   | { type: 'RESET' }
 
+type SeatingSnapshot = Pick<
+  SeatingState,
+  'assignments' | 'createdTables' | 'updatedTables' | 'deletedTableIds' | 'undoStack'
+>
+
+function snapshotOf(state: SeatingState): SeatingSnapshot {
+  return {
+    assignments: state.assignments,
+    createdTables: state.createdTables,
+    updatedTables: state.updatedTables,
+    deletedTableIds: state.deletedTableIds,
+    undoStack: state.undoStack,
+  }
+}
+
+const EDIT_ACTIONS = new Set<SeatingAction['type']>(['ASSIGN_GUEST', 'CREATE_TABLE', 'UPDATE_TABLE', 'DELETE_TABLE'])
+
+// Redo keeps the state immutable: undo stores the draft it leaves behind, redo puts it back.
 function reducer(state: SeatingState, action: SeatingAction): SeatingState {
+  if (action.type === 'REDO') {
+    if (state.redoStack.length === 0) return state
+    const redoStack = state.redoStack.slice(0, -1)
+    return { ...state, ...state.redoStack[state.redoStack.length - 1], redoStack }
+  }
+  const next = draftReducer(state, action)
+  if (next === state) return state
+  if (action.type === 'UNDO') return { ...next, redoStack: [...state.redoStack, snapshotOf(state)] }
+  if (EDIT_ACTIONS.has(action.type)) return next.redoStack.length === 0 ? next : { ...next, redoStack: [] }
+  // A reconcile that dropped entries invalidates the undo history, and the redo history with it.
+  if (action.type === 'RECONCILE' && next.undoStack !== state.undoStack) return { ...next, redoStack: [] }
+  return next
+}
+
+function pickKeys(source: Partial<Table>, keys: string[]): Partial<Table> {
+  const picked: Record<string, unknown> = {}
+  for (const key of keys) picked[key] = (source as Record<string, unknown>)[key]
+  return picked as Partial<Table>
+}
+
+function draftReducer(state: SeatingState, action: SeatingAction): SeatingState {
   switch (action.type) {
     case 'ASSIGN_GUEST': {
+      const prevOverride: SeatOverride = state.assignments.has(action.guestId)
+        ? state.assignments.get(action.guestId)
+        : undefined
+      const currentTableId = prevOverride === undefined ? action.serverTableId : prevOverride
+      // Dropping a guest where they already are is a no-op (SEAT-2).
+      if (action.tableId === currentTableId) return state
+
       const next = new Map(state.assignments)
-      // Compute prevTableId from current state instead of relying on the caller
-      const prevTableId = state.assignments.has(action.guestId)
-        ? state.assignments.get(action.guestId)!
-        : action.serverTableId
-      if (action.tableId === prevTableId) {
+      if (action.tableId === action.serverTableId) {
         next.delete(action.guestId)
       } else {
         next.set(action.guestId, action.tableId)
@@ -45,7 +98,7 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
       return {
         ...state,
         assignments: next,
-        undoStack: [...state.undoStack, { ...action, type: 'ASSIGN_GUEST', prevTableId }],
+        undoStack: [...state.undoStack, { type: 'ASSIGN_GUEST', guestId: action.guestId, prevOverride }],
       }
     }
     case 'CREATE_TABLE':
@@ -62,15 +115,28 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
           createdTables: state.createdTables.map((table) =>
             table.id === action.tableId ? { ...table, ...action.changes } : table
           ),
-          undoStack: [...state.undoStack, action],
+          undoStack: [
+            ...state.undoStack,
+            {
+              type: 'UPDATE_TABLE',
+              tableId: action.tableId,
+              wasCreated: true,
+              prev: pickKeys(createdTable, Object.keys(action.changes)),
+            },
+          ],
         }
       }
+      // Keep the whole previous draft entry so undo restores exactly the state before this edit (SEAT-3).
+      const prevEntry = state.updatedTables.get(action.tableId)
       const next = new Map(state.updatedTables)
-      next.set(action.tableId, { ...next.get(action.tableId), ...action.changes })
+      next.set(action.tableId, { ...prevEntry, ...action.changes })
       return {
         ...state,
         updatedTables: next,
-        undoStack: [...state.undoStack, action],
+        undoStack: [
+          ...state.undoStack,
+          { type: 'UPDATE_TABLE', tableId: action.tableId, wasCreated: false, prev: prevEntry },
+        ],
       }
     }
     case 'DELETE_TABLE': {
@@ -82,12 +148,13 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
         ? state.createdTables.filter((table) => table.id !== action.table.id)
         : state.createdTables
 
+      const prevUpdate = state.updatedTables.get(action.table.id)
       const nextUpdatedTables = new Map(state.updatedTables)
       nextUpdatedTables.delete(action.table.id)
 
       // Auto-unassign all guests from this table
       const nextAssignments = new Map(state.assignments)
-      const assignmentsBefore: Array<[string, string | null | undefined]> = []
+      const assignmentsBefore: Array<[string, SeatOverride]> = []
       for (const guestId of action.guestsOnTable) {
         assignmentsBefore.push([guestId, state.assignments.has(guestId) ? state.assignments.get(guestId) : undefined])
         nextAssignments.set(guestId, null)
@@ -98,8 +165,48 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
         updatedTables: nextUpdatedTables,
         deletedTableIds: nextDeleted,
         assignments: nextAssignments,
-        undoStack: [...state.undoStack, { type: 'DELETE_TABLE', table: action.table, wasCreated, assignmentsBefore }],
+        undoStack: [
+          ...state.undoStack,
+          { type: 'DELETE_TABLE', table: action.table, wasCreated, prevUpdate, assignmentsBefore },
+        ],
       }
+    }
+    case 'RECONCILE': {
+      // Drop draft entries whose guest or table disappeared from the server (SEAT-4).
+      const createdIds = new Set(state.createdTables.map((table) => table.id))
+      const tableExists = (tableId: string) => action.serverTableIds.has(tableId) || createdIds.has(tableId)
+      let dropped = 0
+
+      const assignments = new Map<string, string | null>()
+      for (const [guestId, tableId] of state.assignments) {
+        if (!action.serverGuestIds.has(guestId) || (tableId !== null && !tableExists(tableId))) {
+          dropped++
+          continue
+        }
+        assignments.set(guestId, tableId)
+      }
+      const updatedTables = new Map<string, Partial<Table>>()
+      for (const [tableId, changes] of state.updatedTables) {
+        if (!action.serverTableIds.has(tableId)) {
+          dropped++
+          continue
+        }
+        updatedTables.set(tableId, changes)
+      }
+      const deletedTableIds = new Set<string>()
+      for (const tableId of state.deletedTableIds) {
+        if (!action.serverTableIds.has(tableId)) {
+          dropped++
+          continue
+        }
+        deletedTableIds.add(tableId)
+      }
+
+      if (dropped === 0) {
+        return state.lastReconciledCount === 0 ? state : { ...state, lastReconciledCount: 0 }
+      }
+      // The draft was rebased on a newer workspace; older undo steps may point at removed entries.
+      return { ...state, assignments, updatedTables, deletedTableIds, undoStack: [], lastReconciledCount: dropped }
     }
     case 'UNDO': {
       if (state.undoStack.length === 0) return state
@@ -109,10 +216,10 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
 
       if (last.type === 'ASSIGN_GUEST') {
         const next = new Map(state.assignments)
-        if (last.prevTableId === null) {
+        if (last.prevOverride === undefined) {
           next.delete(last.guestId)
         } else {
-          next.set(last.guestId, last.prevTableId)
+          next.set(last.guestId, last.prevOverride)
         }
         return { ...base, assignments: next }
       }
@@ -123,7 +230,7 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
         }
       }
       if (last.type === 'UPDATE_TABLE') {
-        if (state.createdTables.some((table) => table.id === last.tableId)) {
+        if (last.wasCreated) {
           return {
             ...base,
             createdTables: state.createdTables.map((table) =>
@@ -132,7 +239,7 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
           }
         }
         const next = new Map(state.updatedTables)
-        if (Object.keys(last.prev).length === 0) {
+        if (last.prev === undefined) {
           next.delete(last.tableId)
         } else {
           next.set(last.tableId, last.prev)
@@ -144,6 +251,8 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
         nextDeleted.delete(last.table.id)
 
         const nextCreatedTables = last.wasCreated ? [...state.createdTables, last.table] : state.createdTables
+        const nextUpdatedTables = new Map(state.updatedTables)
+        if (last.prevUpdate !== undefined) nextUpdatedTables.set(last.table.id, last.prevUpdate)
 
         // Restore guest assignments to their exact local state before deletion.
         const nextAssignments = new Map(state.assignments)
@@ -151,7 +260,13 @@ function reducer(state: SeatingState, action: SeatingAction): SeatingState {
           if (previous === undefined) nextAssignments.delete(guestId)
           else nextAssignments.set(guestId, previous)
         }
-        return { ...base, createdTables: nextCreatedTables, deletedTableIds: nextDeleted, assignments: nextAssignments }
+        return {
+          ...base,
+          createdTables: nextCreatedTables,
+          updatedTables: nextUpdatedTables,
+          deletedTableIds: nextDeleted,
+          assignments: nextAssignments,
+        }
       }
       return state
     }
@@ -169,6 +284,8 @@ function initialState(): SeatingState {
     updatedTables: new Map(),
     deletedTableIds: new Set(),
     undoStack: [],
+    redoStack: [],
+    lastReconciledCount: 0,
   }
 }
 
@@ -180,6 +297,15 @@ export function useSeatingState(serverTables: Table[], serverGuests: Guest[]) {
     () => new Map(state.createdTables.map((table) => [table.id, table])),
     [state.createdTables]
   )
+
+  // Rebase the draft whenever the server workspace changes (revalidation, another host's edits).
+  useEffect(() => {
+    dispatch({
+      type: 'RECONCILE',
+      serverTableIds: new Set(serverTables.map((table) => table.id)),
+      serverGuestIds: new Set(serverGuests.map((guest) => guest.id)),
+    })
+  }, [serverTables, serverGuests])
 
   const assignGuest = useCallback(
     (guestId: string, tableId: string | null) => {
@@ -193,17 +319,9 @@ export function useSeatingState(serverTables: Table[], serverGuests: Guest[]) {
     dispatch({ type: 'CREATE_TABLE', table })
   }, [])
 
-  const updateTable = useCallback(
-    (tableId: string, changes: Partial<Table>) => {
-      const existing = serverTableByID.get(tableId) ?? createdTableByID.get(tableId)
-      const prev: Partial<Table> = {}
-      for (const key of Object.keys(changes) as (keyof Table)[]) {
-        ;(prev as any)[key] = existing?.[key]
-      }
-      dispatch({ type: 'UPDATE_TABLE', tableId, changes, prev })
-    },
-    [createdTableByID, serverTableByID]
-  )
+  const updateTable = useCallback((tableId: string, changes: Partial<Table>) => {
+    dispatch({ type: 'UPDATE_TABLE', tableId, changes })
+  }, [])
 
   const deleteTable = useCallback(
     (tableId: string) => {
@@ -223,6 +341,7 @@ export function useSeatingState(serverTables: Table[], serverGuests: Guest[]) {
   )
 
   const undo = useCallback(() => dispatch({ type: 'UNDO' }), [])
+  const redo = useCallback(() => dispatch({ type: 'REDO' }), [])
   const reset = useCallback(() => dispatch({ type: 'RESET' }), [])
 
   const tables = useMemo(() => {
@@ -250,18 +369,23 @@ export function useSeatingState(serverTables: Table[], serverGuests: Guest[]) {
     state.assignments.size + state.createdTables.length + state.updatedTables.size + state.deletedTableIds.size
 
   const canUndo = state.undoStack.length > 0
+  const canRedo = state.redoStack.length > 0
+  const lastReconciledCount = state.lastReconciledCount
 
   return {
     tables,
     guestTableMap,
     pendingChangeCount,
     canUndo,
+    canRedo,
+    lastReconciledCount,
     state,
     assignGuest,
     createTable,
     updateTable,
     deleteTable,
     undo,
+    redo,
     reset,
   }
 }
