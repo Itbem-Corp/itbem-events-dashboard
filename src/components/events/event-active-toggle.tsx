@@ -5,6 +5,7 @@ import { api } from '@/lib/api'
 import { readApiData } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { eventPath } from '@/lib/api-paths'
+import { DEACTIVATE_EVENT_CONFIRMATION } from '@/lib/event-active-copy'
 import { isEventCacheKey, isEventOverviewCacheKey, patchEventCacheValue } from '@/lib/event-cache'
 import { trackProductEvent } from '@/lib/product-analytics'
 import type { Event } from '@/models/Event'
@@ -23,9 +24,11 @@ export function EventActiveToggle({ event, onPublicContentChanged }: Props) {
 
   const toggle = async () => {
     if (pending) return
+    const nextActive = !event.is_active
+    // Deactivating locks every guest out (invitation, RSVP, page, uploads): confirm first.
+    if (!nextActive && !window.confirm(DEACTIVATE_EVENT_CONFIRMATION)) return
     setPending(true)
 
-    const nextActive = !event.is_active
     const patchCaches = (isActive: boolean, updated?: Event | null) =>
       mutate(
         (key) => isEventCacheKey(key, event.id),
@@ -52,5 +55,16 @@ export function EventActiveToggle({ event, onPublicContentChanged }: Props) {
     }
   }
 
-  return <Switch checked={event.is_active} disabled={pending} onChange={toggle} />
+  return (
+    <Switch
+      checked={event.is_active}
+      disabled={pending}
+      onChange={toggle}
+      aria-label={
+        event.is_active
+          ? 'Evento activo: los invitados pueden abrir la invitación'
+          : 'Evento inactivo: ningún invitado puede abrir la invitación'
+      }
+    />
+  )
 }

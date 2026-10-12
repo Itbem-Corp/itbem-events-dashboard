@@ -193,7 +193,7 @@ export function EventSharePanel({ event, guests: providedGuests, isLoading, erro
         <p className="mb-3 text-sm font-semibold text-ink-secondary">Links del evento</p>
         <ShareLinkRow
           icon={GlobeAltIcon}
-          label="Pagina del evento"
+          label="Página del evento"
           url={eventUrl}
           description="URL principal del evento para compartir"
         />
@@ -204,7 +204,7 @@ export function EventSharePanel({ event, guests: providedGuests, isLoading, erro
           description={
             firstPendingWithEmail
               ? 'Cada invitado tiene un enlace propio para confirmar asistencia'
-              : 'Los enlaces RSVP se generan por invitado en la pestana Invitaciones'
+              : 'Los enlaces RSVP se generan por invitado en la pestaña Invitaciones'
           }
         />
       </motion.div>
@@ -226,7 +226,7 @@ export function EventSharePanel({ event, guests: providedGuests, isLoading, erro
         <div className="rounded-xl border border-white/10 bg-surface/50 p-4">
           <div className="mb-2 flex items-center gap-2">
             <DevicePhoneMobileIcon className="size-4 text-indigo-400" />
-            <p className="text-xs font-medium text-ink-secondary">Con telefono registrado</p>
+            <p className="text-xs font-medium text-ink-secondary">Con teléfono registrado</p>
           </div>
           <p className="text-2xl font-bold text-ink">{summary?.with_phone ?? 0}</p>
           <p className="mt-0.5 text-xs text-ink-muted">de {summary?.total ?? 0} invitados</p>
@@ -266,9 +266,9 @@ export function EventSharePanel({ event, guests: providedGuests, isLoading, erro
         transition={{ delay: 0.18 }}
         className="rounded-xl border border-white/10 bg-surface/50 p-6"
       >
-        <p className="mb-2 text-sm font-semibold text-ink-secondary">Codigo QR del evento</p>
+        <p className="mb-2 text-sm font-semibold text-ink-secondary">Código QR del evento</p>
         <p className="mb-5 text-xs text-ink-muted">
-          Los invitados pueden escanear este codigo para acceder directamente al evento.
+          Los invitados pueden escanear este código para acceder directamente al evento.
         </p>
         <BrandedQR
           value={eventUrl}

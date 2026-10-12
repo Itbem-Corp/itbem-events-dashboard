@@ -28,13 +28,16 @@ import {
   isEventOverviewCacheKey,
   patchEventCacheValue,
 } from '@/lib/event-cache'
-import { eventFormSchema } from '@/lib/event-form-schema'
+import { createEventFormSchema } from '@/lib/event-form-schema'
+import { eventTimezoneOptions, isLocalDateTimeInPast } from '@/lib/event-timezones'
 import { emptyEventFormValues, eventFormValuesFromEvent, type EventFormValues } from '@/lib/event-form-values'
 import { normalizeEventMutationPayload } from '@/lib/event-payload'
 import { fetcher } from '@/lib/fetcher'
 import { beginNavigationProgress } from '@/lib/navigation-progress'
 import { trackProductEvent } from '@/lib/product-analytics'
 import { getEventPublicUrlPrefix } from '@/lib/public-urls'
+import { DEACTIVATE_EVENT_CONFIRMATION } from '@/lib/event-active-copy'
+import { eventWriteFieldError } from '@/lib/event-write-errors'
 import { useAccessProfile } from '@/lib/use-access-profile'
 import { normalizeOptionalUuid } from '@/lib/uuid'
 import type { Client, ClientsPageResponse } from '@/models/Client'
@@ -44,27 +47,6 @@ import { useStore } from '@/store/useStore'
 import { ChevronDownIcon, ExclamationTriangleIcon } from '@heroicons/react/20/solid'
 import { toast } from 'sonner'
 
-// Zonas horarias relevantes
-const TIMEZONES = [
-  { value: 'America/Mexico_City', label: 'México (CDMX / Centro)' },
-  { value: 'America/Monterrey', label: 'México (Monterrey / Norte)' },
-  { value: 'America/Cancun', label: 'México (Cancún / Este)' },
-  { value: 'America/Tijuana', label: 'México (Tijuana / Pacífico)' },
-  { value: 'America/New_York', label: 'EE.UU. (Este)' },
-  { value: 'America/Chicago', label: 'EE.UU. (Centro)' },
-  { value: 'America/Denver', label: 'EE.UU. (Montaña)' },
-  { value: 'America/Los_Angeles', label: 'EE.UU. (Pacífico)' },
-  { value: 'America/Bogota', label: 'Colombia' },
-  { value: 'America/Lima', label: 'Perú' },
-  { value: 'America/Santiago', label: 'Chile' },
-  { value: 'America/Argentina/Buenos_Aires', label: 'Argentina' },
-]
-
-// Idiomas disponibles (alineados con el campo `language` del backend)
-const LANGUAGES = [
-  { value: 'es', label: 'Español' },
-  { value: 'en', label: 'English' },
-]
 
 type FormValues = EventFormValues
 
@@ -118,14 +100,18 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
     shouldRetryOnError: false,
   })
 
+  const formSchema = useMemo(() => createEventFormSchema(isEdit ? event?.name : null), [isEdit, event?.name])
+
   const {
     register,
     handleSubmit,
     reset,
     control,
-    formState: { errors },
+    setError,
+    watch,
+    formState: { errors, dirtyFields },
   } = useForm<FormValues>({
-    resolver: zodResolver(eventFormSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: emptyEventFormValues(defaultOrganizationId),
   })
 
@@ -141,7 +127,12 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
     }
   }, [isOpen, isEdit, event, currentClient?.id, defaultOrganizationId, reset])
 
-  const hasAdvancedErrors = Boolean(errors.music_url || errors.organizer_email || errors.max_guests)
+  const timezoneOptions = eventTimezoneOptions(watch('timezone'))
+  const eventDateInPast =
+    (!isEdit || Boolean(dirtyFields.event_date_time)) &&
+    isLocalDateTimeInPast(watch('event_date_time'), watch('timezone') || 'America/Mexico_City')
+
+  const hasAdvancedErrors = Boolean(errors.music_url || errors.organizer_email)
 
   useEffect(() => {
     if (hasAdvancedErrors) setAdvancedOpen(true)
@@ -151,7 +142,12 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
     setLoading(true)
 
     if (!isEdit && !normalizeOptionalUuid(data.client_id)) {
-      toast.error('Selecciona una organizacion para crear el evento')
+      toast.error('Selecciona una organización para crear el evento')
+      setLoading(false)
+      return
+    }
+
+    if (isEdit && event?.is_active && !data.is_active && !window.confirm(DEACTIVATE_EVENT_CONFIRMATION)) {
       setLoading(false)
       return
     }
@@ -185,7 +181,8 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
         const created = readApiData<Event>(res.data)
         if (created?.id) {
           trackProductEvent('event_created', {
-            has_capacity: typeof payload.max_guests === 'number' && payload.max_guests > 0,
+            // The event-level guest capacity was removed from the form (never enforced, SET-10).
+            has_capacity: false,
             has_organizer: Boolean(payload.organizer_name),
           })
           // Navigate to the newly created event
@@ -198,6 +195,13 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
       setIsOpen(false)
       toast.success(isEdit ? 'Evento actualizado' : 'Evento creado')
     } catch (err: unknown) {
+      const fieldError = eventWriteFieldError(err)
+      if (fieldError) {
+        // On create the URL is generated from the name, so a taken URL is shown on the name.
+        const field = fieldError.field === 'identifier' && !isEdit ? 'name' : fieldError.field
+        setError(field, { type: 'server', message: fieldError.message }, { shouldFocus: true })
+        return
+      }
       toast.error(getApiErrorMessage(err, 'Error al guardar el evento'))
     } finally {
       setLoading(false)
@@ -309,18 +313,27 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
             <Field>
               <Label>Fecha y hora</Label>
               <Input type="datetime-local" {...register('event_date_time')} />
-              {errors.event_date_time && <ErrorMessage>{errors.event_date_time.message}</ErrorMessage>}
+              {errors.event_date_time ? (
+                <ErrorMessage>{errors.event_date_time.message}</ErrorMessage>
+              ) : (
+                eventDateInPast && (
+                  <Description role="status" className="text-amber-500">
+                    Esta fecha ya pasó: el evento aparecerá en «Pasados».
+                  </Description>
+                )
+              )}
             </Field>
 
             <Field>
               <Label>Zona horaria</Label>
-              <Select {...register('timezone')}>
-                {TIMEZONES.map((tz) => (
+              <Select {...register('timezone')} invalid={Boolean(errors.timezone)}>
+                {timezoneOptions.map((tz) => (
                   <option key={tz.value} value={tz.value}>
                     {tz.label}
                   </option>
                 ))}
               </Select>
+              {errors.timezone && <ErrorMessage>{errors.timezone.message}</ErrorMessage>}
             </Field>
           </div>
 
@@ -340,25 +353,13 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
                   )}
                 </span>
                 <span className="mt-0.5 block text-xs font-normal text-ink-muted">
-                  Ubicaciones, contacto, música, capacidad y publicación
+                  Ubicaciones, música, organizador y estado del evento
                 </span>
               </span>
               <ChevronDownIcon className="size-4 shrink-0 text-ink-muted transition-transform group-open:rotate-180" />
             </summary>
 
             <div className="space-y-5 border-t border-white/7 px-4 py-5">
-              {/* Idioma */}
-              <Field>
-                <Label>Idioma del evento</Label>
-                <Select {...register('language')}>
-                  {LANGUAGES.map((lang) => (
-                    <option key={lang.value} value={lang.value}>
-                      {lang.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-
               {/* Dirección */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field>
@@ -401,21 +402,15 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
                 </Field>
               </div>
 
-              {/* Máx. invitados */}
-              <Field>
-                <Label>Máximo de invitados</Label>
-                <Input type="number" min={1} {...register('max_guests', { valueAsNumber: true })} />
-                {errors.max_guests && <ErrorMessage>{errors.max_guests.message}</ErrorMessage>}
-              </Field>
-
               {/* is_active */}
               <Field>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>Estado</Label>
+                {/* STU-2: keep the switch at its full 32x20 track; the text column takes the remaining width. */}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <Label>Evento activo</Label>
                     <Description>
-                      Mantiene el evento disponible para la operación interna. La visibilidad para invitados se publica
-                      desde Configuración o Studio.
+                      Controla el acceso de los invitados. Si lo desactivas, ningún invitado podrá abrir la invitación
+                      ni confirmar asistencia; tú sigues pudiendo editarlo.
                     </Description>
                   </div>
                   <Controller
@@ -425,7 +420,8 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
                       <Switch
                         checked={field.value}
                         onChange={field.onChange}
-                        aria-label="Mantener el evento activo para la operación interna"
+                        className="shrink-0"
+                        aria-label="Evento activo: los invitados pueden abrir la invitación"
                       />
                     )}
                   />

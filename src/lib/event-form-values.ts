@@ -17,13 +17,11 @@ export interface EventFormValues {
   organizer_name?: string
   organizer_email?: string
   organizer_phone?: string
-  max_guests: number | null
   is_active: boolean
 }
 
 export const DEFAULT_EVENT_TIMEZONE = 'America/Mexico_City'
 export const DEFAULT_EVENT_LANGUAGE = 'es'
-export const DEFAULT_EVENT_MAX_GUESTS = 100
 
 export function emptyEventFormValues(currentClientId = ''): EventFormValues {
   return {
@@ -40,7 +38,6 @@ export function emptyEventFormValues(currentClientId = ''): EventFormValues {
     organizer_name: '',
     organizer_email: '',
     organizer_phone: '',
-    max_guests: DEFAULT_EVENT_MAX_GUESTS,
     is_active: true,
   }
 }
@@ -63,7 +60,6 @@ export function eventFormValuesFromEvent(event: Event, currentClientId = ''): Ev
     organizer_name: event.organizer_name ?? '',
     organizer_email: event.organizer_email ?? '',
     organizer_phone: event.organizer_phone ?? '',
-    max_guests: event.max_guests ?? null,
     is_active: event.is_active,
   }
 }

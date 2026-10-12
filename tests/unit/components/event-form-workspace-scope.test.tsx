@@ -118,7 +118,7 @@ describe('EventFormModal in the caller-access workspace', () => {
     fireEvent.click(screen.getByTestId('submit-event-form'))
 
     await waitFor(() =>
-      expect(mocks.toastError).toHaveBeenCalledWith('Selecciona una organizacion para crear el evento')
+      expect(mocks.toastError).toHaveBeenCalledWith('Selecciona una organización para crear el evento')
     )
     expect(mocks.post).not.toHaveBeenCalled()
   })

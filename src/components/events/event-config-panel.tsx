@@ -19,6 +19,9 @@ import {
 import { getEventConfigMomentWallState, resolveEventConfigMomentWallPublished } from '@/lib/event-config-moment-wall'
 import { normalizeEventConfigPatch } from '@/lib/event-config-patch'
 import { withEventConfigVisibilityDefaults } from '@/lib/event-config-visibility'
+import { eventPasswordError } from '@/lib/event-password'
+import { rsvpDeadlineToLocal, rsvpDeadlineToUtc, rsvpDeadlineWarning } from '@/lib/event-rsvp-deadline'
+import { MAX_UPLOADS_PER_GUEST, uploadLimitError } from '@/lib/event-upload-limit'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
 import type { EventConfig, EventConfigPatch } from '@/models/EventConfig'
@@ -31,7 +34,6 @@ import { Input } from '@/components/input'
 import { Switch } from '@/components/switch'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import {
-  BellAlertIcon,
   ChatBubbleLeftRightIcon,
   ChatBubbleOvalLeftEllipsisIcon,
   CheckCircleIcon,
@@ -101,11 +103,13 @@ interface Props {
   /** Kept for callers that share the event identity; public links live in EventSharePanel. */
   eventIdentifier?: string
   eventTimezone?: string | null
+  /** Event start, used only to warn when the RSVP deadline falls after it. */
+  eventDateTime?: string | null
   initialConfig?: EventConfig | null
   onSaved?: () => void
 }
 
-export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSaved }: Props) {
+export function EventConfigPanel({ eventId, eventTimezone, eventDateTime, initialConfig, onSaved }: Props) {
   const reducedMotion = useReducedMotion()
   const configPath = eventId ? eventConfigPath(eventId) : null
   const {
@@ -132,11 +136,11 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
   const [shareUploadsEnabled, setShareUploadsEnabled] = useState(false)
   const [autoApproveUploads, setAutoApproveUploads] = useState(false)
   const [maxUploadsPerGuest, setMaxUploadsPerGuest] = useState(30)
-  const [notifyOnMomentUpload, setNotifyOnMomentUpload] = useState(false)
 
   // Scheduling
   const [activeFrom, setActiveFrom] = useState('')
   const [activeUntil, setActiveUntil] = useState('')
+  const [rsvpDeadline, setRsvpDeadline] = useState('')
 
   // Custom messages
   const [welcomeMessage, setWelcomeMessage] = useState('')
@@ -168,7 +172,15 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
     show_moment_wall: showWall,
   })
   const uploadsClosedByPublishedWall = momentWallState.wallPublished
+  const passwordError = dirtyFields.has('auth_password_preview')
+    ? eventPasswordError(passwordProtection, effectiveConfig?.auth_password_preview)
+    : null
+  const rsvpWarning = rsvpDeadlineWarning(rsvpDeadlineToUtc(rsvpDeadline, effectiveTimeZone), {
+    eventDateTime,
+    activeUntil: activeUntil ? toRFC3339(activeUntil, effectiveTimeZone) : null,
+  })
   const sharedQrUploadsOpen = momentWallState.sharedUploadsOpen
+  const maxUploadsError = dirtyFields.has('max_uploads_per_guest') ? uploadLimitError(maxUploadsPerGuest) : null
 
   useEffect(() => {
     if (!effectiveConfig || isDirty || saving) return
@@ -185,9 +197,9 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         ? effectiveConfig.max_uploads_per_guest
         : 30
     )
-    setNotifyOnMomentUpload(effectiveConfig.notify_on_moment_upload ?? false)
     setActiveFrom(toDateTimeLocalValue(effectiveConfig.active_from, effectiveTimeZone))
     setActiveUntil(toDateTimeLocalValue(effectiveConfig.active_until, effectiveTimeZone))
+    setRsvpDeadline(rsvpDeadlineToLocal(effectiveConfig.rsvp_deadline, effectiveTimeZone))
     setWelcomeMessage(effectiveConfig.default_welcome_message ?? effectiveConfig.welcome_message ?? '')
     setThankYouMessage(effectiveConfig.default_thank_you_message ?? effectiveConfig.thank_you_message ?? '')
     setMomentMessage(effectiveConfig.default_moment_request_message ?? effectiveConfig.moment_message ?? '')
@@ -242,12 +254,20 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
       toast.error('La fecha final debe ser posterior a la inicial')
       return
     }
+    if (passwordError) {
+      toast.error(passwordError)
+      return
+    }
+    if (maxUploadsError) {
+      toast.error(`Límite de subidas: ${maxUploadsError}`)
+      return
+    }
 
     const snapshot = effectiveConfig as EventConfig
     saveInFlightRef.current = true
     setSaving(true)
     try {
-      const uploadLimit = Number.isFinite(maxUploadsPerGuest) ? Math.max(0, Math.min(500, maxUploadsPerGuest)) : 30
+      const uploadLimit = maxUploadsPerGuest
       const payloadValues: EventConfigPatch = {
         is_public: isPublic,
         auth_password_preview: passwordProtection,
@@ -256,11 +276,11 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         share_uploads_enabled: allowUploads && shareUploadsEnabled,
         auto_approve_uploads: autoApproveUploads,
         max_uploads_per_guest: uploadLimit,
-        notify_on_moment_upload: notifyOnMomentUpload,
         active_from:
           activeFrom && !activeFrom.startsWith('0001-') ? toRFC3339(activeFrom, effectiveTimeZone) : GO_ZERO_RFC3339,
         active_until:
           activeUntil && !activeUntil.startsWith('0001-') ? toRFC3339(activeUntil, effectiveTimeZone) : null,
+        rsvp_deadline: rsvpDeadlineToUtc(rsvpDeadline, effectiveTimeZone),
         default_welcome_message: welcomeMessage,
         default_thank_you_message: thankYouMessage,
         default_moment_request_message: momentMessage,
@@ -326,7 +346,9 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
   }
 
   if (!effectiveConfig) {
-    return <div className="py-12 text-center text-sm text-ink-muted">No se pudo cargar la configuración del evento.</div>
+    return (
+      <div className="py-12 text-center text-sm text-ink-muted">No se pudo cargar la configuración del evento.</div>
+    )
   }
 
   return (
@@ -364,7 +386,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
             <div>
               <p className="text-sm font-medium text-ink">Contraseña de acceso</p>
               <p className="mt-0.5 text-sm text-ink-muted">
-                Opcional. Si se establece, los invitados deberán ingresarla.
+                Opcional. Si se establece, los invitados deberán ingresarla. Entre 6 y 128 caracteres.
               </p>
             </div>
           </div>
@@ -373,12 +395,19 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
             <Input
               type="text"
               value={passwordProtection}
+              invalid={Boolean(passwordError)}
+              aria-describedby={passwordError ? 'event-config-password-error' : undefined}
               onChange={(e) => {
                 setPasswordProtection(e.target.value)
                 mark('auth_password_preview')
               }}
               placeholder="Dejar vacío para no usar contraseña"
             />
+            {passwordError && (
+              <p id="event-config-password-error" role="alert" className="mt-1.5 text-xs text-red-400">
+                {passwordError}
+              </p>
+            )}
           </Field>
         </div>
       </motion.div>
@@ -397,8 +426,8 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
           title="Permitir subir fotos"
           description={
             uploadsClosedByPublishedWall
-              ? 'Preferencia guardada para reabrir uploads al despublicar el muro; mientras esta publicado, el backend cierra las subidas publicas.'
-              : 'Los invitados podran subir fotos y videos desde su dispositivo. Los videos no se incluyen en descargas ZIP.'
+              ? 'Sin efecto mientras el muro de momentos esté publicado: las subidas están cerradas. Se aplicará cuando despubliques el muro.'
+              : 'Los invitados podrán subir fotos y videos desde su dispositivo. Los videos no se incluyen en descargas ZIP.'
           }
           checked={allowUploads}
           onChange={(v) => {
@@ -411,10 +440,10 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
 
         <SettingRow
           icon={LinkIcon}
-          title="Uploads por QR compartido"
+          title="Subidas por QR compartido"
           description={
             uploadsClosedByPublishedWall
-              ? 'El muro ya esta publicado; la pagina publica y el QR de uploads reciben este permiso cerrado.'
+              ? 'Sin efecto mientras el muro de momentos esté publicado: el QR de subida está cerrado.'
               : 'Permite que cualquier invitado con el QR del evento suba fotos sin token personal.'
           }
           checked={sharedQrUploadsOpen}
@@ -441,7 +470,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         <SettingRow
           icon={CheckCircleIcon}
           title="Auto-aprobar momentos"
-          description="Las fotos y videos subidos apareceran en el muro sin revision manual."
+          description="Las fotos y videos subidos aparecerán en el muro sin revisión manual."
           checked={autoApproveUploads}
           onChange={(v) => {
             setAutoApproveUploads(v)
@@ -456,37 +485,34 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
               <PhotoIcon className="size-4 text-ink-secondary" />
             </div>
             <div>
-              <p className="text-sm font-medium text-ink">Limite de uploads</p>
+              <p className="text-sm font-medium text-ink">Límite de subidas</p>
               <p className="mt-0.5 text-sm text-ink-muted">
-                Cantidad maxima de archivos por invitado/IP en la ventana publica. Usa 0 para el default global de 30.
+                Cantidad máxima de archivos por invitado o IP en la página pública, hasta {MAX_UPLOADS_PER_GUEST}. Usa 0
+                para el valor global de 30.
               </p>
             </div>
           </div>
           <Input
             id="event-config-max-uploads"
-            aria-label="Límite de uploads por invitado o IP"
+            aria-label="Límite de subidas por invitado o IP"
             type="number"
             min={0}
-            max={500}
+            max={MAX_UPLOADS_PER_GUEST}
             step={1}
-            value={maxUploadsPerGuest}
+            invalid={Boolean(maxUploadsError)}
+            aria-describedby={maxUploadsError ? 'event-config-max-uploads-error' : undefined}
+            value={Number.isNaN(maxUploadsPerGuest) ? '' : maxUploadsPerGuest}
             onChange={(e) => {
-              setMaxUploadsPerGuest(Number(e.target.value))
+              setMaxUploadsPerGuest(e.target.value === '' ? Number.NaN : Number(e.target.value))
               mark('max_uploads_per_guest')
             }}
           />
+          {maxUploadsError && (
+            <p id="event-config-max-uploads-error" role="alert" className="mt-1.5 text-xs text-red-400">
+              {maxUploadsError}
+            </p>
+          )}
         </div>
-
-        <SettingRow
-          icon={BellAlertIcon}
-          title="Notificar al subir momento"
-          description="Recibe una notificación cuando un invitado sube un momento."
-          checked={notifyOnMomentUpload}
-          onChange={(v) => {
-            setNotifyOnMomentUpload(v)
-            mark('notify_on_moment_upload')
-          }}
-        />
       </motion.div>
 
       {/* ── Scheduling ─────────────────────────────────────────────────── */}
@@ -544,6 +570,52 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
         <p id="event-config-availability-help" className="text-xs text-ink-muted">
           Deja en blanco para que la página esté siempre disponible.
         </p>
+
+        <div className="border-t border-white/5 pt-4">
+          <div className="mb-1.5 flex items-center gap-2">
+            <CheckCircleIcon className="size-4 text-ink-muted" />
+            <label htmlFor="event-config-rsvp-deadline" className="text-sm font-medium text-ink-secondary">
+              Cerrar confirmaciones el…
+            </label>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              id="event-config-rsvp-deadline"
+              aria-describedby={
+                rsvpWarning
+                  ? 'event-config-rsvp-deadline-help event-config-rsvp-deadline-warning'
+                  : 'event-config-rsvp-deadline-help'
+              }
+              type="datetime-local"
+              value={rsvpDeadline}
+              onChange={(e) => {
+                setRsvpDeadline(e.target.value)
+                mark('rsvp_deadline')
+              }}
+              className="w-full rounded-lg border border-white/10 bg-canvas px-3 py-2 text-sm text-ink focus:ring-1 focus:ring-indigo-500 focus:outline-none sm:max-w-xs"
+            />
+            {rsvpDeadline && (
+              <Button
+                plain
+                onClick={() => {
+                  setRsvpDeadline('')
+                  mark('rsvp_deadline')
+                }}
+              >
+                Quitar fecha límite
+              </Button>
+            )}
+          </div>
+          <p id="event-config-rsvp-deadline-help" className="mt-1.5 text-xs text-ink-muted">
+            Hora del evento ({effectiveTimeZone}). Después de esta fecha los invitados ya no podrán confirmar
+            asistencia; tú puedes seguir editando a los invitados. Déjalo vacío para no poner fecha límite.
+          </p>
+          {rsvpWarning && (
+            <p id="event-config-rsvp-deadline-warning" role="status" className="mt-1 text-xs text-amber-400">
+              {rsvpWarning}
+            </p>
+          )}
+        </div>
       </motion.div>
 
       {/* ── Custom Messages ─────────────────────────────────────────────── */}
@@ -640,7 +712,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
               icon: NewspaperIcon,
               title: 'Portada',
               field: 'show_header',
-              desc: 'Hero principal del evento',
+              desc: 'Imagen y título principal del evento',
               val: showHeader,
               set: setShowHeader,
             },
@@ -648,7 +720,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
               icon: ClockIcon,
               title: 'Cuenta regresiva',
               field: 'show_countdown',
-              desc: 'Timer hasta el evento',
+              desc: 'Contador hasta el día del evento',
               val: showCountdown,
               set: setShowCountdown,
             },
@@ -656,7 +728,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
               icon: NewspaperIcon,
               title: 'RSVP',
               field: 'show_rsvp_section',
-              desc: 'Formulario de confirmación',
+              desc: 'Formulario de confirmación. Si ocultas este bloque, los invitados no podrán confirmar.',
               val: showRsvp,
               set: setShowRsvp,
             },
@@ -680,7 +752,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
               icon: PhotoIcon,
               title: 'Muro de momentos',
               field: 'show_moment_wall',
-              desc: 'Los invitados podrán ver los momentos aprobados en la página del evento.',
+              desc: 'Los invitados verán los momentos aprobados en la página del evento. Mientras el muro esté publicado se cierran las subidas de fotos y el QR de subida.',
               val: showWall,
               set: setShowWall,
             },
@@ -710,7 +782,7 @@ export function EventConfigPanel({ eventId, eventTimezone, initialConfig, onSave
             },
             {
               icon: RectangleStackIcon,
-              title: 'Footer',
+              title: 'Pie de página',
               field: 'show_footer',
               desc: 'Pie con marca y datos de contacto',
               val: showFooter,

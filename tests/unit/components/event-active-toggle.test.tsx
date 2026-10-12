@@ -23,6 +23,12 @@ vi.mock('swr', () => ({
   useSWRConfig: vi.fn(),
 }))
 
+function stubConfirm(answer: boolean) {
+  const confirm = vi.fn(() => answer)
+  Object.defineProperty(window, 'confirm', { value: confirm, configurable: true, writable: true })
+  return confirm
+}
+
 function event(overrides: Partial<Event> = {}): Event {
   return {
     id: 'evt-001',
@@ -100,6 +106,7 @@ describe('EventActiveToggle', () => {
 
   it('falls back to a minimal is_active patch when the backend response is empty', async () => {
     vi.mocked(api.put).mockResolvedValueOnce({ data: null })
+    const confirm = stubConfirm(true)
 
     render(<EventActiveToggle event={event({ is_active: true })} />)
 
@@ -113,6 +120,29 @@ describe('EventActiveToggle', () => {
     expect((updater as (current: unknown) => unknown)(event({ is_active: true }))).toEqual(
       expect.objectContaining({ is_active: false })
     )
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('ningún invitado podrá abrir la invitación'))
+  })
+
+  it('does not deactivate when the confirmation is cancelled (EVT-13)', () => {
+    const confirm = stubConfirm(false)
+
+    render(<EventActiveToggle event={event({ is_active: true })} />)
+    fireEvent.click(screen.getByRole('switch', { name: /los invitados pueden abrir la invitación/ }))
+
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(api.put).not.toHaveBeenCalled()
+    expect(mutate).not.toHaveBeenCalled()
+  })
+
+  it('activates without asking for confirmation', async () => {
+    const confirm = stubConfirm(true)
+    vi.mocked(api.put).mockResolvedValueOnce({ data: null })
+
+    render(<EventActiveToggle event={event({ is_active: false })} />)
+    fireEvent.click(screen.getByRole('switch'))
+
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/events/evt-001', { is_active: true }))
+    expect(confirm).not.toHaveBeenCalled()
   })
 
   it('rolls back the optimistic cache patch when the request fails', async () => {

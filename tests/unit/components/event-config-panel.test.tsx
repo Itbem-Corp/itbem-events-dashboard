@@ -72,9 +72,10 @@ describe('EventConfigPanel', () => {
 
     const dateInputs = container.querySelectorAll<HTMLInputElement>('input[type="datetime-local"]')
 
-    expect(dateInputs).toHaveLength(2)
+    expect(dateInputs).toHaveLength(3)
     expect(dateInputs[0]).toHaveValue('')
     expect(dateInputs[1]).toHaveValue('')
+    expect(dateInputs[2]).toHaveValue('')
   })
 
   it('keeps cached configuration editable after a background refresh failure', () => {
@@ -279,6 +280,30 @@ describe('EventConfigPanel', () => {
     })
   })
 
+  // EVT-73: 900 was silently cut to 500 on save.
+  it('blocks an upload limit above the maximum with a Spanish message instead of cutting it', async () => {
+    render(<EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" />)
+
+    fireEvent.change(screen.getByDisplayValue('30'), { target: { value: '900' } })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('El máximo es 500 archivos por invitado.')
+    fireEvent.click(screen.getByRole('button', { name: /Guardar configuraci/ }))
+
+    await waitFor(() =>
+      expect(mocks.toastError).toHaveBeenCalledWith('Límite de subidas: El máximo es 500 archivos por invitado.')
+    )
+    expect(mocks.put).not.toHaveBeenCalled()
+  })
+
+  // EVT-60: a past RSVP deadline was saved without any notice.
+  it('warns when the RSVP deadline is already in the past', () => {
+    render(<EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" eventDateTime="2099-01-01T00:00:00Z" />)
+
+    fireEvent.change(screen.getByLabelText(/Cerrar confirmaciones el/), { target: { value: '2020-01-01T10:00' } })
+
+    expect(screen.getByText(/Esta fecha ya pasó: los invitados ya no pueden confirmar asistencia/)).toBeInTheDocument()
+  })
+
   it('saves shared QR upload changes independently from general uploads', async () => {
     mocks.useSWR.mockReturnValue({
       data: {
@@ -314,7 +339,7 @@ describe('EventConfigPanel', () => {
     })
     render(<EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" />)
 
-    fireEvent.click(screen.getByRole('switch', { name: 'Uploads por QR compartido' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Subidas por QR compartido' }))
     fireEvent.click(screen.getByRole('button', { name: /Guardar configuraci/ }))
 
     await waitFor(() => expect(mocks.put).toHaveBeenCalled())
@@ -362,11 +387,11 @@ describe('EventConfigPanel', () => {
 
     render(<EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" />)
 
-    const qrSwitch = screen.getByRole('switch', { name: 'Uploads por QR compartido' })
+    const qrSwitch = screen.getByRole('switch', { name: 'Subidas por QR compartido' })
 
     expect(qrSwitch).toBeDisabled()
     expect(qrSwitch).not.toBeChecked()
-    expect(screen.getByText(/la pagina publica y el QR de uploads reciben este permiso cerrado/i)).toBeInTheDocument()
+    expect(screen.getByText(/Sin efecto mientras el muro de momentos esté publicado: el QR de subida está cerrado/i)).toBeInTheDocument()
   })
 
   it('uses the public moment-wall alias for the main Momentos control', async () => {
@@ -501,5 +526,117 @@ describe('EventConfigPanel', () => {
       show_moment_wall: true,
       share_uploads_enabled: false,
     })
+  })
+
+  it('no longer offers the unused moment upload notification (SET-8)', () => {
+    render(<EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" />)
+    expect(screen.queryByText('Notificar al subir momento')).not.toBeInTheDocument()
+  })
+
+  it('explains that a published wall closes uploads and that the upload toggle has no effect (SET-6)', () => {
+    mocks.useSWR.mockReturnValue({
+      data: { id: 'event-1', event_id: 'event-1', is_public: true, allow_uploads: true, show_moment_wall: true },
+      isLoading: false,
+      error: null,
+    })
+    render(<EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" />)
+
+    expect(screen.getByText(/Mientras el muro esté publicado se cierran las subidas de fotos/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/Sin efecto mientras el muro de momentos esté publicado: las subidas están cerradas/)
+    ).toBeInTheDocument()
+  })
+
+  it('saves the RSVP deadline typed in the event time zone as UTC RFC3339', async () => {
+    render(
+      <EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" eventTimezone="America/Mexico_City" />
+    )
+
+    fireEvent.change(screen.getByLabelText('Cerrar confirmaciones el…'), { target: { value: '2026-12-01T18:00' } })
+    fireEvent.click(screen.getByRole('button', { name: /Guardar configuraci/ }))
+
+    await waitFor(() => expect(mocks.put).toHaveBeenCalled())
+    expect(mocks.put).toHaveBeenCalledWith('/events/event-1/config', { rsvp_deadline: '2026-12-02T00:00:00Z' })
+  })
+
+  it('shows a stored RSVP deadline in the event time zone and clears it to null', async () => {
+    mocks.useSWR.mockReturnValue({
+      data: { id: 'event-1', event_id: 'event-1', is_public: true, rsvp_deadline: '2026-12-02T00:00:00Z' },
+      isLoading: false,
+      error: null,
+    })
+    render(
+      <EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" eventTimezone="America/Mexico_City" />
+    )
+
+    expect(screen.getByLabelText('Cerrar confirmaciones el…')).toHaveValue('2026-12-01T18:00')
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar fecha límite' }))
+    expect(screen.getByLabelText('Cerrar confirmaciones el…')).toHaveValue('')
+    fireEvent.click(screen.getByRole('button', { name: /Guardar configuraci/ }))
+
+    await waitFor(() => expect(mocks.put).toHaveBeenCalled())
+    expect(mocks.put).toHaveBeenCalledWith('/events/event-1/config', { rsvp_deadline: null })
+  })
+
+  it('warns, without blocking the save, when the RSVP deadline is after the event', async () => {
+    render(
+      <EventConfigPanel
+        eventId="event-1"
+        eventIdentifier="mi-evento"
+        eventTimezone="America/Mexico_City"
+        eventDateTime="2026-12-01T00:00:00Z"
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('Cerrar confirmaciones el…'), { target: { value: '2026-12-05T18:00' } })
+    expect(screen.getByText('La fecha límite es posterior al inicio del evento.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Guardar configuraci/ }))
+    await waitFor(() => expect(mocks.put).toHaveBeenCalled())
+  })
+
+  it('blocks a new password shorter than 6 characters with an inline Spanish error', async () => {
+    render(<EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" />)
+
+    fireEvent.change(screen.getByPlaceholderText('Dejar vacío para no usar contraseña'), { target: { value: 'abc' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('La contraseña debe tener al menos 6 caracteres.')
+
+    fireEvent.click(screen.getByRole('button', { name: /Guardar configuraci/ }))
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('La contraseña debe tener al menos 6 caracteres.'))
+    expect(mocks.put).not.toHaveBeenCalled()
+  })
+
+  it('still saves an unchanged legacy short password and a cleared password', async () => {
+    mocks.useSWR.mockReturnValue({
+      data: { id: 'event-1', event_id: 'event-1', is_public: true, auth_password_preview: 'abc', max_uploads_per_guest: 30 },
+      isLoading: false,
+      error: null,
+    })
+    render(<EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" />)
+    const input = screen.getByPlaceholderText('Dejar vacío para no usar contraseña')
+
+    fireEvent.change(input, { target: { value: 'abcd' } })
+    fireEvent.change(input, { target: { value: 'abc' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: /Guardar configuraci/ }))
+    await waitFor(() => expect(mocks.put).toHaveBeenCalledWith('/events/event-1/config', { auth_password_preview: '' }))
+  })
+
+  it('says that hiding the RSVP block closes confirmations', () => {
+    render(<EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" />)
+    expect(screen.getByText(/Si ocultas este bloque, los invitados no podrán confirmar\./)).toBeInTheDocument()
+  })
+
+  it('shows an empty RSVP deadline when the backend returns null', () => {
+    mocks.useSWR.mockReturnValue({
+      data: { id: 'event-1', event_id: 'event-1', is_public: true, rsvp_deadline: null },
+      isLoading: false,
+      error: null,
+    })
+    render(<EventConfigPanel eventId="event-1" eventIdentifier="mi-evento" />)
+    expect(screen.getByLabelText('Cerrar confirmaciones el…')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: 'Quitar fecha límite' })).not.toBeInTheDocument()
   })
 })
