@@ -11,8 +11,7 @@
 | `/events/[id]`         | `(app)/events/[id]/page.tsx`         | non-root                                  |
 | `/events/[id]/studio`  | `(app)/events/[id]/studio/page.tsx`  | non-root — fullscreen event studio editor |
 | `/events/[id]/checkin` | `(app)/events/[id]/checkin/page.tsx` | non-root — day-of check-in mode           |
-| `/orders`              | `(app)/orders/page.tsx`              | legacy → redirects to `/events`           |
-| `/orders/[id]`         | `(app)/orders/[id]/page.tsx`         | legacy → redirects to `/events`           |
+| `/orders`, `/orders/*` | — (no page; `next.config.mjs`)       | permanent redirect (308) to `/events`     |
 | `/settings/profile`    | `(app)/settings/profile/page.tsx`    | session                                   |
 | `/login`               | `(auth)/login/page.tsx`              | → redirects to `/auth/login`              |
 | `/register`            | `(auth)/register/page.tsx`           | invitation-only access notice             |
@@ -96,8 +95,20 @@ and never requests its data. Products without the flag render as before and
 redirect from the effect. The UI guard is not a control: the backend denies the
 same APIs.
 
-`/orders` is not a navigation item. Its legacy URLs remain only as redirects to
-`/events` until a real payments backend contract is defined.
+`/orders` is not a navigation item and has no page any more: `redirects()` in
+`next.config.mjs` sends `/orders` and `/orders/:path*` to `/events` with a
+permanent redirect, before middleware or any page runs.
+
+### Mis eventos (event clients, EventiApp)
+
+An event client (`accessProfile.isEventClientOnly`: no organizations, only
+`session.event_access`) lands on `/events`, labelled **Mis eventos** in the
+navigation, the list header ('Eventos asignados' / 'Mis eventos') and the
+event detail breadcrumb. There is no 'Crear evento', no Equipo and no delete.
+Row actions in `/events` come from each row's `viewer_access`
+(`src/features/events/event-row-capabilities.ts`). A 403 on `/events/[id]`
+shows 'Ya no tienes acceso a este evento'; a 403 on `/api/session` signs the
+user out to `/login?reason=no_access`, where the login form explains it.
 
 ## Adding a Route
 

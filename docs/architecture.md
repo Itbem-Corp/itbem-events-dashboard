@@ -48,7 +48,6 @@ src/
 │   │   ├── page.tsx        Dashboard — KPIs + active events
 │   │   ├── clients/        Client management (root only)
 │   │   ├── events/         Event listing + [id] detail
-│   │   ├── orders/         Legacy server redirects → /events (no payment contract yet)
 │   │   ├── users/          User management (root only)
 │   │   └── settings/profile/ Profile editor
 │   ├── (auth)/             Public auth routes
