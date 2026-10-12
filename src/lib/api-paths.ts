@@ -96,8 +96,9 @@ export function eventClientPath(eventId: string | number, userId: string | numbe
 
 /**
  * Re-sends the standard Cognito invitation to a client account that has not
- * completed its first sign-in (FORCE_CHANGE_PASSWORD). Not in the first
- * api_contract draft: the integration step confirms this path.
+ * completed its first sign-in (FORCE_CHANGE_PASSWORD). Matches the backend
+ * route POST /api/events/:id/clients/:user_id/resend-invitation (rate-limited,
+ * audited, 409 event_client_invitation_not_pending otherwise).
  */
 export function eventClientResendInvitationPath(eventId: string | number, userId: string | number): string {
   return eventApiPath(eventId, `clients/${encodePathSegment(userId)}/resend-invitation`)
