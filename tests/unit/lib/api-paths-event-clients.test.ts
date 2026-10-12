@@ -2,6 +2,7 @@ import {
   eventClientAssignmentsPath,
   eventClientCandidatesPath,
   eventClientPath,
+  eventClientResendInvitationPath,
   eventClientsPath,
   organizationEventClientPath,
   organizationEventClientsPath,
@@ -12,6 +13,7 @@ describe('event client api paths', () => {
   it('builds the event-scoped routes', () => {
     expect(eventClientsPath('evt-1')).toBe('/events/evt-1/clients')
     expect(eventClientPath('evt-1', 'user 1')).toBe('/events/evt-1/clients/user%201')
+    expect(eventClientResendInvitationPath('evt-1', 'u-1')).toBe('/events/evt-1/clients/u-1/resend-invitation')
     expect(eventClientCandidatesPath('evt-1')).toBe('/events/evt-1/clients/candidates')
     expect(eventClientCandidatesPath('evt-1', ' ana ')).toBe('/events/evt-1/clients/candidates?search=ana')
     expect(eventClientAssignmentsPath('evt-1', 'u-1', { page: 2, page_size: 20, search: '' })).toBe(
