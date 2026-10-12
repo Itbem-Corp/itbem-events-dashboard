@@ -15,6 +15,7 @@ import {
   EllipsisHorizontalIcon,
   ExclamationTriangleIcon,
   PhotoIcon,
+  UserPlusIcon,
   UsersIcon,
 } from '@heroicons/react/20/solid'
 import dynamic from 'next/dynamic'
@@ -29,6 +30,8 @@ import {
   initialEventDetailGuestsViewState,
   type EventDetailGuestsViewState,
 } from '@/components/events/event-detail-guests-state'
+import { eventAccessSummary, isEventClientViewer } from '@/components/events/event-access-summary'
+import { EventAccessLost, EventCapabilityError } from '@/components/events/event-capability-error'
 import { EventDetailPanelSkeleton } from '@/components/events/event-detail-panel-skeleton'
 import { getAvailableEventDetailTabs } from '@/components/events/event-detail-tab-state'
 import { EventDetailTabs, type EventDetailTabId } from '@/components/events/event-detail-tabs'
@@ -52,6 +55,9 @@ import { checkinWorkspacePath, eventCapabilitiesPath, eventDetailPath, eventGues
 import { findEventInListCache } from '@/lib/event-cache'
 import { sanitizeEvent } from '@/lib/sanitize-event'
 import { getDataErrorState } from '@/lib/swr-data-state'
+import { useAccessProfile } from '@/lib/use-access-profile'
+import { httpStatusOf } from '@/features/events/capability-error'
+import { useStore } from '@/store/useStore'
 
 const EventDetailGuestsPanel = dynamic(
   () => import('@/components/events/event-detail-guests-panel').then((module) => module.EventDetailGuestsPanel),
@@ -102,6 +108,11 @@ const EventMembersModal = dynamic(
   () => import('@/components/events/event-members-modal').then((module) => module.EventMembersModal),
   { ssr: false, loading: () => <IntentModalSkeleton title="Preparando equipo" /> }
 )
+const loadEventClientsModal = () => import('@/components/events/event-clients-modal')
+const EventClientsModal = dynamic(() => loadEventClientsModal().then((module) => module.EventClientsModal), {
+  ssr: false,
+  loading: () => <IntentModalSkeleton title="Preparando clientes" />,
+})
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
 
@@ -174,6 +185,10 @@ export default function EventDetailPage() {
   const [actionsOpen, setActionsOpen] = useState(false)
   const [coverEditorOpen, setCoverEditorOpen] = useState(false)
   const [membersOpen, setMembersOpen] = useState(false)
+  const [clientsOpen, setClientsOpen] = useState(false)
+  const accessProfile = useAccessProfile()
+  const applicationSession = useStore((state) => state.applicationSession)
+  const eventsLabel = accessProfile.isEventClientOnly ? 'Mis eventos' : 'Eventos'
 
   // Event modals
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -283,6 +298,11 @@ export default function EventDetailPage() {
 
   if (isLoading && !event) return <EventDetailSkeleton />
 
+  // A 403 on the detail means the access was revoked or never existed.
+  if (httpStatusOf(error) === 403 || httpStatusOf(eventCapabilitiesError) === 403) {
+    return <EventAccessLost eventsLabel={eventsLabel} />
+  }
+
   if (!event) {
     return (
       <PageDataError
@@ -296,19 +316,13 @@ export default function EventDetailPage() {
 
   const daysUntil = getDaysUntil(event.event_date_time, event.timezone)
   const isPast = daysUntil !== null && daysUntil < 0
+  const isEventClient = isEventClientViewer(event, applicationSession, accessProfile)
+  const canManageClients = Boolean(eventCapabilities?.['event:clients:manage']) && Boolean(event.client_id)
   const accessSummary = eventCapabilitiesLoading
     ? 'Verificando tu alcance…'
     : eventCapabilitiesError
       ? 'No pudimos verificar tus permisos'
-      : eventCapabilities?.['members:manage']
-        ? 'Administras el equipo y la operación de este evento'
-        : eventCapabilities?.['event:manage']
-          ? 'Puedes editar este evento y su contenido'
-          : eventCapabilities?.['checkin:run']
-            ? 'Puedes operar check-in y RSVP'
-            : eventCapabilities?.['analytics:view']
-              ? 'Puedes consultar métricas y resultados'
-              : 'Acceso de consulta'
+      : eventAccessSummary(eventCapabilities, { isEventClient })
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -341,11 +355,11 @@ export default function EventDetailPage() {
             <div className="mb-3">
               <Link
                 href="/events"
-                aria-label="Volver a eventos"
+                aria-label={`Volver a ${eventsLabel}`}
                 className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border-subtle bg-surface-soft px-2.5 text-xs font-medium text-ink-secondary transition-colors hover:border-(--tenant-accent)/25 hover:bg-surface-raised hover:text-ink sm:border-transparent sm:bg-transparent sm:px-0 sm:text-sm"
               >
                 <ChevronLeftIcon className="size-4 fill-ink-secondary" />
-                <span className="hidden sm:inline">Eventos</span>
+                <span className="hidden sm:inline">{eventsLabel}</span>
               </Link>
             </div>
 
@@ -450,6 +464,17 @@ export default function EventDetailPage() {
                   Equipo
                 </Button>
               )}
+              {canManageClients && (
+                <Button
+                  outline
+                  onClick={() => setClientsOpen(true)}
+                  onPointerEnter={() => void loadEventClientsModal().catch(() => undefined)}
+                  onFocus={() => void loadEventClientsModal().catch(() => undefined)}
+                >
+                  <UserPlusIcon />
+                  Clientes del evento
+                </Button>
+              )}
 
               {eventCapabilities?.['event:manage'] && (
                 <details
@@ -490,35 +515,18 @@ export default function EventDetailPage() {
           />
         )}
 
+        {canManageClients && clientsOpen && (
+          <EventClientsModal eventId={id} isOpen={clientsOpen} onClose={() => setClientsOpen(false)} />
+        )}
+
         {eventCapabilitiesError && (
-          <div
-            role="alert"
-            className="mt-5 flex flex-col gap-4 rounded-2xl border border-amber-400/20 bg-amber-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="flex min-w-0 items-start gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/10 text-amber-300">
-                <ExclamationTriangleIcon aria-hidden="true" className="size-5" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-amber-100">No pudimos cargar tus permisos</p>
-                <p className="mt-1 text-xs leading-5 text-ink-secondary">
-                  Por seguridad, solo mostramos el resumen hasta verificar tu alcance en este evento.
-                </p>
-              </div>
-            </div>
-            <Button
-              outline
-              className="w-full shrink-0 sm:w-auto"
-              onClick={() => void retryEventCapabilities()}
-              disabled={eventCapabilitiesValidating}
-            >
-              <ArrowPathIcon
-                aria-hidden="true"
-                className={eventCapabilitiesValidating ? 'animate-spin motion-reduce:animate-none' : undefined}
-              />
-              {eventCapabilitiesValidating ? 'Reintentando…' : 'Reintentar permisos'}
-            </Button>
-          </div>
+          <EventCapabilityError
+            title="No pudimos cargar tus permisos"
+            description="Por seguridad, solo mostramos el resumen hasta verificar tu alcance en este evento."
+            onRetry={() => void retryEventCapabilities()}
+            retrying={eventCapabilitiesValidating}
+            retryLabel="Reintentar permisos"
+          />
         )}
 
         <div className="mt-6">

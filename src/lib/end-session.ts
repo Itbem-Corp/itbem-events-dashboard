@@ -23,7 +23,19 @@ export function notifyOtherTabsOfSessionEnd() {
   } catch {}
 }
 
-export async function endSession(clearLocalState?: () => void) {
+/**
+ * Why the session ended, shown by the login page. Only fixed codes travel in
+ * the URL: never a user, tenant or token value.
+ */
+export type SessionEndReason = 'no_access'
+
+export const SESSION_END_REASON_PARAM = 'reason'
+
+export function loginPathForReason(reason?: SessionEndReason): string {
+  return reason ? `/login?${SESSION_END_REASON_PARAM}=${reason}` : '/login'
+}
+
+export async function endSession(clearLocalState?: () => void, reason?: SessionEndReason) {
   clearLocalState?.()
 
   if (typeof window === 'undefined') return
@@ -36,6 +48,6 @@ export async function endSession(clearLocalState?: () => void) {
     })
     if (response.ok) notifyOtherTabsOfSessionEnd()
   } finally {
-    window.location.assign('/login')
+    window.location.assign(loginPathForReason(reason))
   }
 }

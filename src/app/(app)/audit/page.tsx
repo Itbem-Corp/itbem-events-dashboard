@@ -80,16 +80,20 @@ export default function AuditPage() {
         <div className="premium-surface mt-8 flex min-h-72 flex-col items-center justify-center rounded-3xl px-6 text-center">
           <ExclamationTriangleIcon className="size-8 text-amber-300" />
           <p className="mt-4 text-sm font-medium text-ink">No pudimos cargar la auditoría</p>
-          <button className="mt-4 text-sm font-semibold text-(--tenant-accent) transition-colors hover:text-ink" onClick={() => void mutate()}>
+          <button
+            type="button"
+            className="mt-4 text-sm font-semibold text-(--tenant-accent) transition-colors hover:text-ink"
+            onClick={() => void mutate()}
+          >
             Reintentar
           </button>
         </div>
       ) : (
         <div className="premium-surface mt-8 overflow-hidden rounded-3xl">
-          <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)_auto] gap-3 border-b border-border-subtle px-4 py-3 text-[10px] font-semibold tracking-wider text-ink-muted uppercase sm:gap-4 sm:px-5 md:grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.4fr)_minmax(9rem,0.8fr)_minmax(7rem,0.6fr)]">
+          <div className="hidden grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.4fr)_minmax(9rem,0.8fr)_minmax(7rem,0.6fr)] gap-4 border-b border-border-subtle px-5 py-3 text-xs font-semibold tracking-wider text-ink-muted uppercase md:grid">
             <span>Momento</span>
             <span>Acción</span>
-            <span className="hidden md:block">Recurso</span>
+            <span>Recurso</span>
             <span>Resultado</span>
           </div>
           {isLoading ? (
@@ -103,28 +107,61 @@ export default function AuditPage() {
           ) : (
             <ul className="divide-y divide-border-subtle">
               {visibleRecords.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)_auto] items-center gap-3 px-4 py-4 text-sm sm:gap-4 sm:px-5 md:grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.4fr)_minmax(9rem,0.8fr)_minmax(7rem,0.6fr)]"
-                >
-                  <span className="text-xs text-ink-muted tabular-nums">{formatDate(entry.occurred_at)}</span>
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium text-ink">
+                <li key={entry.id} data-testid="audit-entry" className="px-4 py-4 text-sm sm:px-5">
+                  {/* Below md: a stacked card so the route and ids stay fully readable. */}
+                  <div className="space-y-2 md:hidden">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-ink-muted tabular-nums">{formatDate(entry.occurred_at)}</span>
+                      <Badge color={entry.succeeded ? 'lime' : entry.status === 403 ? 'amber' : 'red'}>
+                        {entry.status}
+                      </Badge>
+                    </div>
+                    <p className="font-medium break-all text-ink">
                       {entry.method} {entry.route}
+                    </p>
+                    <details className="group">
+                      <summary className="inline-flex min-h-11 cursor-pointer items-center text-xs font-semibold text-(--tenant-accent) focus-visible:ring-2 focus-visible:ring-(--tenant-accent) focus-visible:outline-none">
+                        Ver detalle
+                      </summary>
+                      <dl className="mt-1 space-y-2 font-mono text-xs break-all text-ink-muted">
+                        <div>
+                          <dt className="font-sans font-semibold text-ink-secondary">Solicitud</dt>
+                          <dd>{entry.request_id || '—'}</dd>
+                        </div>
+                        <div>
+                          <dt className="font-sans font-semibold text-ink-secondary">Tipo de recurso</dt>
+                          <dd>{entry.resource_type || 'plataforma'}</dd>
+                        </div>
+                        <div>
+                          <dt className="font-sans font-semibold text-ink-secondary">ID de recurso</dt>
+                          <dd>{entry.resource_id || '—'}</dd>
+                        </div>
+                      </dl>
+                    </details>
+                  </div>
+                  {/* md and up: the grid row. */}
+                  <div className="hidden grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.4fr)_minmax(9rem,0.8fr)_minmax(7rem,0.6fr)] items-center gap-4 md:grid">
+                    <span className="text-xs text-ink-muted tabular-nums">{formatDate(entry.occurred_at)}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-ink" title={`${entry.method} ${entry.route}`}>
+                        {entry.method} {entry.route}
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-ink-muted" title={entry.request_id}>
+                        {entry.request_id}
+                      </span>
                     </span>
-                    <span className="mt-1 block truncate text-[11px] text-ink-muted">{entry.request_id}</span>
-                  </span>
-                  <span className="hidden min-w-0 md:block">
-                    <span className="block truncate text-xs text-ink-secondary">{entry.resource_type || 'plataforma'}</span>
-                    <span className="mt-1 block truncate font-mono text-[10px] text-ink-muted">
-                      {entry.resource_id || '—'}
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs text-ink-secondary">{entry.resource_type || 'plataforma'}</span>
+                      <span className="mt-1 block truncate font-mono text-xs text-ink-muted" title={entry.resource_id || undefined}>
+                        {entry.resource_id || '—'}
+                      </span>
                     </span>
-                  </span>
-                  <span>
-                    <Badge color={entry.succeeded ? 'lime' : entry.status === 403 ? 'amber' : 'red'}>
-                      {entry.status}
-                    </Badge>
-                  </span>
+                    <span>
+                      <Badge color={entry.succeeded ? 'lime' : entry.status === 403 ? 'amber' : 'red'}>
+                        {entry.status}
+                      </Badge>
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>

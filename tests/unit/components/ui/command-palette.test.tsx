@@ -148,6 +148,30 @@ describe('CommandPalette', () => {
     )
   })
 
+  it('follows the route policy for home and the event list label', async () => {
+    const { CommandPalette } = await import('@/components/ui/command-palette')
+
+    render(<CommandPalette open onClose={vi.fn()} listsAcrossOrganizations showHome={false} eventsLabel="Mis eventos" />)
+
+    expect(screen.getByText('Ir a Mis eventos')).toBeInTheDocument()
+    expect(screen.queryByText('Ir al Dashboard')).not.toBeInTheDocument()
+    // The caller-access workspace searches every reachable event without client_id.
+    expect(mocks.useSWR).toHaveBeenCalledWith(
+      ['/events?page=1&page_size=6&filter=all', 'eventiapp', 'organization', null],
+      expect.any(Function),
+      expect.any(Object)
+    )
+  })
+
+  it('keeps the default actions for products without a route policy', async () => {
+    const { CommandPalette } = await import('@/components/ui/command-palette')
+
+    render(<CommandPalette open onClose={vi.fn()} clientId="client-1" />)
+
+    expect(screen.getByText('Ir a Eventos')).toBeInTheDocument()
+    expect(screen.getByText('Ir al Dashboard')).toBeInTheDocument()
+  })
+
   it('starts shared progress before imperative result navigation', async () => {
     const { CommandPalette } = await import('@/components/ui/command-palette')
     const user = userEvent.setup()

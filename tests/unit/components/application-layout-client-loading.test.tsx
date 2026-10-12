@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useSWRMock = vi.fn((_key: unknown, _fetcher: unknown, _options?: unknown) => ({
   data: undefined,
@@ -8,6 +8,7 @@ const useSWRMock = vi.fn((_key: unknown, _fetcher: unknown, _options?: unknown) 
 }))
 const preloadMock = vi.fn((_key: unknown, _fetcher: unknown) => Promise.resolve(undefined))
 const routerPrefetchMock = vi.fn()
+const routerReplaceMock = vi.fn()
 const swrCache = new Map<string, { data?: unknown }>()
 
 vi.mock('swr', () => ({
@@ -18,15 +19,24 @@ vi.mock('swr', () => ({
 }))
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
-  useRouter: () => ({ push: vi.fn(), prefetch: routerPrefetchMock }),
+  useRouter: () => ({ push: vi.fn(), replace: routerReplaceMock, prefetch: routerPrefetchMock }),
 }))
 vi.mock('@/components/ui/notification-bell', () => ({ NotificationBell: () => <div>Centro de notificaciones</div> }))
 vi.mock('@/components/ui/UserAvatar', () => ({ default: () => <span>Avatar</span> }))
 vi.mock('@/components/ui/command-palette', () => ({ CommandPalette: () => <div>Paleta global</div> }))
 vi.mock('@/components/theme/theme-toggle', () => ({ ThemeToggle: () => <button aria-label="Cambiar tema" /> }))
+vi.mock('@/features/workspace/issue-organization-context', () => ({
+  issueOrganizationContext: (organizationId: string) =>
+    Promise.resolve({ token: 'context-token', organizationId, expiresAt: '2099-01-01T00:00:00.000Z' }),
+}))
 
 import { ApplicationLayout } from '@/components/application-layout'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
+import { tenantPresentationForHostname } from '@/lib/tenant-config'
+import type { ApplicationOrganization, ApplicationSession } from '@/models/ApplicationSession'
+import { ProductProvider } from '@/products/core/product-context'
+import type { TenantCode } from '@/products/core/product-manifest'
+import { getProductManifest } from '@/products/registry'
 import { useStore } from '@/store/useStore'
 
 describe('ApplicationLayout client loading', () => {
@@ -182,5 +192,239 @@ describe('ApplicationLayout client loading', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Notificaciones' })[0])
 
     expect((await screen.findAllByText('Centro de notificaciones')).length).toBeGreaterThan(0)
+  })
+})
+
+describe('ApplicationLayout workspace source per product', () => {
+  const eventiTenant = tenantPresentationForHostname('dashboard.eventiapp.com.mx')
+  const cafettonTenant = tenantPresentationForHostname('dashboard.cafettonhouse.com')
+
+  function organization(id: string, role: string, capabilities: string[]): ApplicationOrganization {
+    return { id, name: `Organización ${id}`, code: id, access_role: role, capabilities }
+  }
+
+  function applicationSession(code: TenantCode, overrides: Partial<ApplicationSession>): ApplicationSession {
+    return {
+      application: {
+        id: `application-${code}`,
+        code,
+        name: code,
+        product_label: 'Operations',
+        modules: code === 'eventiapp' ? ['home', 'events', 'metrics'] : ['home', 'users', 'organizations', 'metrics'],
+        allows_platform_admin: code !== 'cafettonhouse',
+        is_active: true,
+      },
+      user: { id: 'member-1', email: 'member@example.test', first_name: 'Ana', last_name: 'Miembro', is_root: false, root_level: 0 },
+      organizations: [],
+      capabilities: [],
+      ...overrides,
+    } as ApplicationSession
+  }
+
+  // GET /clients answers with signed logos and may include organizations the
+  // session cannot select (another product, or a child organization).
+  const clientsPayload = {
+    data: [
+      { id: 'org-other-product', name: 'Otra marca', code: 'otra', logo: 'https://cdn.example/otra.png?signature=1', access_role: 'OWNER', client_type: { code: 'CUSTOMER' } },
+      { id: 'org-a', name: 'Organización A', code: 'org-a', logo: 'https://cdn.example/logo-a.png?signature=1', access_role: 'Owner', client_type: { code: 'CUSTOMER' } },
+      { id: 'org-b', name: 'Organización B', code: 'org-b', logo: 'https://cdn.example/logo-b.png?signature=1', access_role: 'EDITOR', client_type: { code: 'CUSTOMER' } },
+    ],
+    total: 3,
+    page: 1,
+    page_size: 50,
+    total_pages: 1,
+  }
+
+  function respondWithClients() {
+    useSWRMock.mockImplementation(
+      (key: unknown) =>
+        ({
+          data: typeof key === 'string' && key.startsWith('/clients') ? { status: 200, message: 'OK', data: clientsPayload } : undefined,
+          error: undefined,
+          isLoading: false,
+        }) as unknown as ReturnType<typeof useSWRMock>
+    )
+  }
+
+  function clientRequests() {
+    return useSWRMock.mock.calls.filter(([key]) => typeof key === 'string' && key.startsWith('/clients'))
+  }
+
+  beforeEach(() => {
+    useStore.getState().clearSession()
+    useSWRMock.mockClear()
+    respondWithClients()
+  })
+
+  afterEach(() => {
+    useSWRMock.mockImplementation(() => ({ data: undefined, error: undefined, isLoading: false }))
+  })
+
+  it('never requests organizations for an EventiApp member in the caller-access workspace', () => {
+    const session = applicationSession('eventiapp', {
+      organizations: [organization('org-a', 'EDITOR', ['events:view']), organization('org-b', 'CHECKIN', ['events:view'])],
+      capabilities: ['events:view'],
+    })
+    useStore.setState({
+      applicationSession: session,
+      user: session.user,
+      profileLoaded: true,
+      // A persisted organization from an earlier visit must not be restored.
+      workspaceContexts: {
+        eventiapp: { mode: 'organization', organization: { id: 'org-a', name: 'A', code: 'org-a', client_type: { code: 'CUSTOMER' } } },
+      },
+    })
+
+    render(
+      <ProductProvider product={getProductManifest('eventiapp')}>
+        <ApplicationLayout tenant={eventiTenant}>Contenido</ApplicationLayout>
+      </ProductProvider>
+    )
+
+    expect(clientRequests()).toEqual([])
+    expect(useStore.getState().currentClient).toBeNull()
+    expect(useStore.getState().workspacePortfolio).toBe(true)
+    expect(screen.queryByText('Espacio de trabajo')).not.toBeInTheDocument()
+  })
+
+  it('does not request organizations before the session arrives on EventiApp', () => {
+    render(
+      <ProductProvider product={getProductManifest('eventiapp')}>
+        <ApplicationLayout tenant={eventiTenant}>Contenido</ApplicationLayout>
+      </ProductProvider>
+    )
+
+    expect(clientRequests()).toEqual([])
+  })
+
+  it('loads organizations for an EventiApp Owner and keeps only the session organizations', async () => {
+    const session = applicationSession('eventiapp', {
+      organizations: [
+        organization('org-a', 'Owner', ['events:view', 'members:manage', 'metrics:view']),
+        organization('org-b', 'EDITOR', ['events:view']),
+      ],
+      capabilities: ['events:view', 'members:manage', 'metrics:view'],
+    })
+    useStore.setState({ applicationSession: session, user: session.user, profileLoaded: true })
+
+    render(
+      <ProductProvider product={getProductManifest('eventiapp')}>
+        <ApplicationLayout tenant={eventiTenant}>Contenido</ApplicationLayout>
+      </ProductProvider>
+    )
+
+    expect(clientRequests().at(-1)?.[0]).toBe('/clients?page=1&page_size=50')
+    // The bootstrap selects a session organization, never the other product's.
+    await waitFor(() => expect(useStore.getState().currentClient?.id).toBe('org-a'))
+
+    const trigger = screen.getByRole('button', { name: /Organización A/ })
+    fireEvent.pointerEnter(trigger)
+    fireEvent.click(trigger)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByText('Otra marca')).not.toBeInTheDocument()
+    expect(within(dialog).getByText('Organización B')).toBeInTheDocument()
+    expect(within(dialog).getByText('2 de 2')).toBeInTheDocument()
+    expect(within(dialog).getByText(/· Propietario/)).toBeInTheDocument()
+    const logos = Array.from(dialog.querySelectorAll('img')).map((image) => decodeURIComponent(image.getAttribute('src') ?? ''))
+    expect(logos.some((src) => src.includes('https://cdn.example/logo-a.png?signature=1'))).toBe(true)
+    expect(logos.some((src) => src.includes('otra.png'))).toBe(false)
+  })
+
+  it('keeps the Cafetton House organization list and request exactly as today', async () => {
+    const session = applicationSession('cafettonhouse', {
+      organizations: [organization('org-a', 'MEMBER', ['organizations:view']), organization('org-b', 'MEMBER', ['organizations:view'])],
+      capabilities: ['organizations:view'],
+    })
+    useStore.setState({ applicationSession: session, user: session.user, profileLoaded: true })
+
+    render(
+      <ProductProvider product={getProductManifest('cafettonhouse')}>
+        <ApplicationLayout tenant={cafettonTenant}>Contenido</ApplicationLayout>
+      </ProductProvider>
+    )
+
+    expect(clientRequests().at(-1)?.[0]).toBe('/clients?page=1&page_size=50')
+    await waitFor(() => expect(useStore.getState().currentClient?.id).toBe('org-other-product'))
+
+    const trigger = screen.getByRole('button', { name: /Otra marca/ })
+    fireEvent.pointerEnter(trigger)
+    fireEvent.click(trigger)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Organización B')).toBeInTheDocument()
+    expect(within(dialog).getByText('3 de 3')).toBeInTheDocument()
+    // Raw role codes, as today.
+    expect(within(dialog).getByText(/· Owner/)).toBeInTheDocument()
+  })
+})
+
+describe('ApplicationLayout assigned-events workspace for organization admins', () => {
+  const eventiTenant = tenantPresentationForHostname('dashboard.eventiapp.com.mx')
+
+  function adminWithGrants(withGrants: boolean): ApplicationSession {
+    return {
+      application: {
+        id: 'application-eventiapp',
+        code: 'eventiapp',
+        name: 'EventiApp',
+        product_label: 'Event operations',
+        modules: ['home', 'events', 'metrics'],
+        allows_platform_admin: true,
+        is_active: true,
+      },
+      user: { id: 'admin-1', email: 'admin@example.test', first_name: 'Ana', last_name: 'Admin', is_root: false, root_level: 0 },
+      organizations: [
+        { id: 'org-a', name: 'Organización A', code: 'org-a', access_role: 'ADMIN', capabilities: ['events:view', 'members:manage', 'metrics:view'] },
+      ],
+      capabilities: ['events:view', 'members:manage', 'metrics:view'],
+      ...(withGrants ? { event_access: { assigned_events: 2, capabilities: ['events:view', 'guests:manage'] } } : {}),
+    } as unknown as ApplicationSession
+  }
+
+  beforeEach(() => {
+    useStore.getState().clearSession()
+    useSWRMock.mockClear()
+  })
+
+  it('offers "Eventos asignados" to an admin with event grants, even with one organization', async () => {
+    const session = adminWithGrants(true)
+    useStore.setState({
+      applicationSession: session,
+      user: session.user,
+      profileLoaded: true,
+      workspaceContexts: {
+        eventiapp: { mode: 'organization', organization: { id: 'org-a', name: 'Organización A', code: 'org-a', client_type: { code: 'CUSTOMER' } } },
+      },
+    })
+
+    render(
+      <ProductProvider product={getProductManifest('eventiapp')}>
+        <ApplicationLayout tenant={eventiTenant}>Contenido</ApplicationLayout>
+      </ProductProvider>
+    )
+
+    await waitFor(() => expect(useStore.getState().currentClient?.id).toBe('org-a'))
+    const trigger = screen.getByRole('button', { name: /Organización A/ })
+    fireEvent.click(trigger)
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /Eventos asignados/ }))
+
+    await waitFor(() => expect(useStore.getState().workspacePortfolio).toBe(true))
+    expect(useStore.getState().currentClient).toBeNull()
+    expect(useStore.getState().organizationContext).toBeNull()
+    // Straight to the event list: Inicio is not part of that workspace.
+    await waitFor(() => expect(routerReplaceMock).toHaveBeenCalledWith('/events'))
+  })
+
+  it('keeps the single-organization card for an admin without grants', () => {
+    const session = adminWithGrants(false)
+    useStore.setState({ applicationSession: session, user: session.user, profileLoaded: true })
+
+    render(
+      <ProductProvider product={getProductManifest('eventiapp')}>
+        <ApplicationLayout tenant={eventiTenant}>Contenido</ApplicationLayout>
+      </ProductProvider>
+    )
+
+    expect(screen.getByText('Organización asignada')).toBeInTheDocument()
   })
 })
