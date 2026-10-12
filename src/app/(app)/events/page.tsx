@@ -145,7 +145,7 @@ export default function EventsPage() {
   })
 
   const debouncedSearch = useDebounce(search, 200)
-  const swrKey = scopedEventsPagePath(currentClient?.id, isRoot, {
+  const swrKey = scopedEventsPagePath(currentClient?.id, accessProfile.listsAcrossOrganizations, {
     page,
     page_size: EVENTS_PAGE_SIZE,
     search: debouncedSearch,

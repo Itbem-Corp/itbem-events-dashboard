@@ -148,6 +148,11 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
       ...data,
       event_date_time: toRFC3339(data.event_date_time, data.timezone ?? 'America/Mexico_City'),
     })
+    // Only platform roots move an event between organizations. Everyone else
+    // edits without client_id: in the caller-access workspace there is no
+    // selected organization, and an empty value would ask the API to detach
+    // the event (which it also rejects).
+    if (isEdit && !canChooseOrganization) delete payload.client_id
 
     try {
       if (isEdit && event) {
