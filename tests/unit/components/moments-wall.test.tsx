@@ -165,7 +165,23 @@ async function renderWall(moments: Moment[] = [], isLoading = false, props: Part
       shareUploadsEnabled
       allowUploadsEnabled
       momentsWallPublished={false}
+      canManage
       {...props}
+    />
+  )
+}
+
+async function renderReadOnlyWall(moments: Moment[] = []) {
+  mockSWR(moments, false)
+  const { MomentsWall } = await import('@/components/events/moments-wall')
+  render(
+    <MomentsWall
+      eventId="evt-001"
+      eventIdentifier="evento-test"
+      eventName="Evento Test"
+      shareUploadsEnabled
+      allowUploadsEnabled
+      momentsWallPublished={false}
     />
   )
 }
@@ -1430,5 +1446,23 @@ describe('MomentsWall - wave 3 QA follow-ups', () => {
       'https://cdn.example.com/b.jpg',
       'https://cdn.example.com/a.jpg',
     ])
+  })
+})
+
+describe('MomentsWall - read-only by default', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('hides approve, delete, bulk actions and failed retry when canManage is omitted', async () => {
+    await renderReadOnlyWall([
+      makeMoment({ id: 'pending-1', is_approved: false }),
+      makeMoment({ id: 'approved-1', is_approved: true }),
+      makeMoment({ id: 'failed-1', processing_status: 'failed', content_url: 'moments/evt-001/raw/a.jpg' }),
+    ])
+
+    expect(screen.queryByRole('button', { name: /^Aprobar$/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Eliminar/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Aprobar todos/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Reintentar todos/i })).toBeNull()
+    expect(screen.getByText(/No se pudieron procesar \(1\)/)).toBeTruthy()
   })
 })

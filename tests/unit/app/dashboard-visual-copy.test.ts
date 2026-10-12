@@ -6,6 +6,10 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8'
 
 const detail = read('src/app/(app)/events/[id]/page.tsx')
 const tabs = read('src/components/events/event-detail-tabs.tsx')
+// The permission warning and the 'Tu alcance' line live in main's shared
+// event components (#119) since the merge.
+const capabilityError = read('src/components/events/event-capability-error.tsx')
+const accessSummary = read('src/components/events/event-access-summary.ts')
 const share = read('src/components/events/event-share-panel.tsx')
 const form = read('src/components/events/forms/event-form-modal.tsx')
 const clients = read('src/app/(app)/clients/page.tsx')
@@ -22,14 +26,16 @@ describe('event detail header and summary (wave-2 visual/copy)', () => {
   })
 
   it('keeps the permission warning readable in light theme (EVT-32)', () => {
-    expect(detail).toContain('text-amber-900 dark:text-amber-100')
-    expect(detail).not.toMatch(/'border-amber-400\/25 bg-amber-400\/10 text-amber-100'/)
+    expect(detail).toContain('<EventCapabilityError')
+    expect(capabilityError).toMatch(/text-amber-[78]00 dark:text-amber-100/)
+    expect(capabilityError).not.toMatch(/'border-amber-400\/25 bg-amber-400\/10 text-amber-100'/)
   })
 
   it('describes check-in and guest scopes accurately (ROLES-79)', () => {
-    expect(detail).not.toContain('Puedes operar check-in y RSVP')
-    expect(detail).toContain('Puedes registrar llegadas en check-in')
-    expect(detail).toContain("eventCapabilities?.['guest:manage']")
+    expect(detail).toContain('eventAccessSummary(eventCapabilities')
+    expect(accessSummary).not.toContain('Puedes operar check-in y RSVP')
+    expect(accessSummary).toContain("capabilities?.['checkin:run']")
+    expect(accessSummary).toContain("capabilities?.['guest:manage']")
   })
 
   it('wraps a very long event name inside the header (EVT-25)', () => {

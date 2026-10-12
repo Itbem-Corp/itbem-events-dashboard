@@ -67,7 +67,7 @@ describe('EventMembersModal layout and copy', () => {
     expect(roleSelect).toHaveClass('w-full', 'min-w-0')
     expect(screen.getByLabelText('Miembro de la organización')).toHaveClass('w-full', 'min-w-0')
     const labels = Array.from(roleSelect.querySelectorAll('option')).map((option) => option.textContent)
-    expect(labels).toEqual(['Responsable del evento', 'Coordinador', 'Editor', 'Check-in', 'Analista', 'Solo lectura'])
+    expect(labels).toEqual(['Responsable del evento', 'Gestor del evento', 'Editor', 'Check-in', 'Analista', 'Solo lectura'])
     expect(screen.getAllByText('Analista').length).toBeGreaterThanOrEqual(2)
     // A member without a name shows the email once, not " " plus the email.
     expect(screen.getAllByText('ana@example.com')).toHaveLength(1)

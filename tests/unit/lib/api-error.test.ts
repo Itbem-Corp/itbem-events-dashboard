@@ -111,6 +111,12 @@ describe('getApiErrorMessage', () => {
     ).toMatch(/tiene suborganizaciones/)
   })
 
+  it('maps the primary-root protection (409 USER_PRIMARY_ROOT_PROTECTED) to Spanish', () => {
+    expect(
+      getApiErrorMessage(axiosResponseError(409, { status: 409, error: 'USER_PRIMARY_ROOT_PROTECTED' }), 'x')
+    ).toBe('Una cuenta raíz principal no puede eliminarse ni desactivarse.')
+  })
+
   it('translates known backend English messages', () => {
     const cases: Array<[unknown, RegExp]> = [
       [{ status: 400, message: 'Invalid data', error: 'email already exists' }, /Ya existe una cuenta/],

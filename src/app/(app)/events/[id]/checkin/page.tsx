@@ -7,17 +7,25 @@ import { usePageActivity } from '@/hooks/usePageActivity'
 import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
 import { useCheckinWorkspace, type CheckinWorkspace } from '@/features/events/checkin/use-checkin-workspace'
 import { useEventCapabilities } from '@/features/events/use-event-capabilities'
+import { capabilityErrorKind } from '@/features/events/capability-error'
+import {
+  buildCheckinPayload,
+  buildUndoCheckinPayload,
+  canUndoCheckin,
+  isUndoCheckinConflict,
+  UNDO_CHECKIN_CONFLICT_MESSAGE,
+} from '@/features/events/checkin/checkin-actions'
+import { EventCapabilityError, EventNotFoundCard } from '@/components/events/event-capability-error'
 import { api } from '@/lib/api'
 import { readApiData, readApiList } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
-import { eventCheckinGuestsPath, guestPath } from '@/lib/api-paths'
-import type { CheckinGuestFilter } from '@/lib/checkin-guest-index'
+import { bulkGuestStatusPath, eventCheckinGuestsPath } from '@/lib/api-paths'
 import { parseCheckinQrPayload } from '@/lib/checkin-qr'
 import { patchCheckinGuestsValue, patchCheckinWorkspaceValue } from '@/lib/checkin-cache'
 import { trackProductEvent } from '@/lib/product-analytics'
 import { shouldLiveRefreshEvent } from '@/lib/event-live-refresh'
 import { fetcher } from '@/lib/fetcher'
-import { buildGuestStatusCachePatch, mergeGuestCacheUpdate } from '@/lib/guest-cache'
+import { buildGuestStatusCachePatch } from '@/lib/guest-cache'
 import {
   buildGuestStatusUpdatePayload,
   findGuestStatusByCode,
@@ -27,7 +35,7 @@ import {
 } from '@/lib/guest-utils'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
-import type { CheckinGuestsPageResponse, Guest } from '@/models/Guest'
+import type { CheckinGuestFilter, CheckinGuestsPageResponse, Guest } from '@/models/Guest'
 import type { GuestStatus } from '@/models/GuestStatus'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
@@ -99,6 +107,7 @@ function getStatusInfo(code?: string) {
 // ─── Guest Check-in Card ──────────────────────────────────────────────────────
 
 interface GuestCheckinCardProps {
+  eventId: string
   guest: Guest
   confirmedStatus?: GuestStatus
   pendingStatus?: GuestStatus
@@ -107,34 +116,69 @@ interface GuestCheckinCardProps {
   revalidateCaches: () => void
 }
 
-function GuestCheckinCard({ guest, confirmedStatus, pendingStatus, isOnline, patchCaches, revalidateCaches }: GuestCheckinCardProps) {
+function GuestCheckinCard({
+  eventId,
+  guest,
+  confirmedStatus,
+  pendingStatus,
+  isOnline,
+  patchCaches,
+  revalidateCaches,
+}: GuestCheckinCardProps) {
   const [loading, setLoading] = useState(false)
   const attendanceCode = getEffectiveStatus(guest)
   const status = getStatusInfo(attendanceCode)
   const StatusIcon = status.icon
   const isConfirmed = attendanceCode === 'CONFIRMED'
+  const undoable = isConfirmed && canUndoCheckin(guest)
   const companionCount = getGuestCompanionCount(guest)
 
-  const updateStatus = async (status?: GuestStatus) => {
-    if (loading || !status || !isOnline) return
+  // Door check-in: PATCH /guests/bulk/status with action 'checkin' (checkin:run).
+  const checkIn = async () => {
+    if (loading || !confirmedStatus || !isOnline) return
     setLoading(true)
-    const payload = buildGuestStatusUpdatePayload(status)
-    const optimisticGuest = { ...guest, ...buildGuestStatusCachePatch(status, payload) }
+    const optimisticGuest: Guest = {
+      ...guest,
+      ...buildGuestStatusCachePatch(confirmedStatus, buildGuestStatusUpdatePayload(confirmedStatus)),
+      checked_in_at: new Date().toISOString(),
+    }
     await patchCaches(guest, optimisticGuest)
 
     try {
-      const res = await api.put(guestPath(guest.id), payload)
-      const updatedGuest = readApiData<Guest | null>(res.data)
-      const cacheGuest = mergeGuestCacheUpdate(updatedGuest, optimisticGuest)
-      await patchCaches(optimisticGuest, cacheGuest)
-      if (!updatedGuest?.id) revalidateCaches()
-      if (status.code.trim().toUpperCase() === 'CONFIRMED') {
-        trackProductEvent('checkin_completed', { method: 'manual' })
-      }
+      await api.patch(bulkGuestStatusPath(), buildCheckinPayload(eventId, guest.id, confirmedStatus))
+      revalidateCaches()
+      trackProductEvent('checkin_completed', { method: 'manual' })
     } catch (err) {
       await patchCaches(optimisticGuest, guest)
-      toast.error(getApiErrorMessage(err, 'Error al actualizar'))
+      toast.error(getApiErrorMessage(err, 'Error al registrar la llegada'))
     } finally {
+      setLoading(false)
+    }
+  }
+
+  // Undo only a door check-in still in place (checked_in_at set). The server
+  // restores the previous RSVP; a 409 means the guest was confirmed another way.
+  const undoCheckin = async () => {
+    if (loading || !undoable || !isOnline) return
+    setLoading(true)
+    const optimisticGuest: Guest = pendingStatus
+      ? {
+          ...guest,
+          ...buildGuestStatusCachePatch(pendingStatus, buildGuestStatusUpdatePayload(pendingStatus)),
+          checked_in_at: null,
+        }
+      : { ...guest, checked_in_at: null }
+    await patchCaches(guest, optimisticGuest)
+
+    try {
+      await api.patch(bulkGuestStatusPath(), buildUndoCheckinPayload(eventId, guest.id))
+    } catch (err) {
+      await patchCaches(optimisticGuest, guest)
+      toast.error(
+        isUndoCheckinConflict(err) ? UNDO_CHECKIN_CONFLICT_MESSAGE : getApiErrorMessage(err, 'Error al desmarcar')
+      )
+    } finally {
+      revalidateCaches()
       setLoading(false)
     }
   }
@@ -179,7 +223,7 @@ function GuestCheckinCard({ guest, confirmedStatus, pendingStatus, isOnline, pat
         {!isConfirmed ? (
           <button
             type="button"
-            onClick={() => updateStatus(confirmedStatus)}
+            onClick={() => void checkIn()}
             disabled={loading || !confirmedStatus || !isOnline}
             aria-label={`Marcar llegada de ${guest.first_name} ${guest.last_name}`}
             title={isOnline ? undefined : 'Sin conexión'}
@@ -188,11 +232,11 @@ function GuestCheckinCard({ guest, confirmedStatus, pendingStatus, isOnline, pat
             {loading ? <ArrowPathIcon className="size-4 animate-spin" /> : <CheckCircleIcon className="size-4" />}
             Llegó
           </button>
-        ) : (
+        ) : undoable ? (
           <button
             type="button"
-            onClick={() => updateStatus(pendingStatus)}
-            disabled={loading || !pendingStatus || !isOnline}
+            onClick={() => void undoCheckin()}
+            disabled={loading || !isOnline}
             aria-label={`Desmarcar llegada de ${guest.first_name} ${guest.last_name}`}
             title={isOnline ? undefined : 'Sin conexión'}
             className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-raised px-3 py-2 text-xs text-ink-secondary transition-colors hover:bg-surface-soft hover:text-ink disabled:opacity-50"
@@ -200,6 +244,10 @@ function GuestCheckinCard({ guest, confirmedStatus, pendingStatus, isOnline, pat
             {loading ? <ArrowPathIcon className="size-3 animate-spin" /> : <ClockIcon className="size-3" />}
             Desmarcar
           </button>
+        ) : (
+          <span className="px-1 text-xs text-ink-muted" title="Confirmado por el invitado o por un organizador">
+            Confirmado
+          </span>
         )}
       </div>
     </div>
@@ -226,7 +274,10 @@ export default function CheckinPage() {
     data: capabilities,
     error: capabilitiesError,
     isLoading: capabilitiesLoading,
+    isValidating: capabilitiesValidating,
+    mutate: retryCapabilities,
   } = useEventCapabilities(id)
+  const capabilitiesErrorKind = capabilitiesError ? capabilityErrorKind(capabilitiesError) : null
   const canRunCheckin = capabilities?.['checkin:run'] === true
 
   const {
@@ -372,17 +423,15 @@ export default function CheckinPage() {
           return
         }
 
-        const optimisticGuest = {
+        const optimisticGuest: Guest = {
           ...match,
           ...buildGuestStatusCachePatch(confirmedStatus, buildGuestStatusUpdatePayload(confirmedStatus)),
+          checked_in_at: new Date().toISOString(),
         }
         await patchCaches(match, optimisticGuest)
         try {
-          const res = await api.put(guestPath(match.id), buildGuestStatusUpdatePayload(confirmedStatus))
-          const updatedGuest = readApiData<Guest | null>(res.data)
-          const cacheGuest = mergeGuestCacheUpdate(updatedGuest, optimisticGuest)
-          await patchCaches(optimisticGuest, cacheGuest)
-          if (!updatedGuest?.id) revalidateCaches()
+          await api.patch(bulkGuestStatusPath(), buildCheckinPayload(id, match.id, confirmedStatus))
+          revalidateCaches()
         } catch (err) {
           await patchCaches(optimisticGuest, match)
           throw err
@@ -403,6 +452,28 @@ export default function CheckinPage() {
           <div className="mx-auto size-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent motion-reduce:animate-none" />
           <p className="mt-4 text-sm text-ink-muted">Validando acceso a check-in…</p>
         </div>
+      </div>
+    )
+  }
+
+  if (capabilitiesErrorKind === 'unavailable') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas px-6">
+        <EventCapabilityError
+          title="No pudimos verificar tu acceso a check-in"
+          description="Revisa tu conexión e inténtalo de nuevo."
+          onRetry={() => void retryCapabilities()}
+          retrying={capabilitiesValidating}
+          backHref={`/events/${id}`}
+        />
+      </div>
+    )
+  }
+
+  if (capabilitiesErrorKind === 'not_found') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas px-6">
+        <EventNotFoundCard />
       </div>
     )
   }
@@ -577,7 +648,7 @@ export default function CheckinPage() {
               }}
               disabled={!isOnline}
               title={isOnline ? undefined : 'La búsqueda requiere conexión'}
-              placeholder="Buscar por nombre, correo, teléfono o mesa…"
+              placeholder="Buscar por nombre o mesa, o correo / teléfono completos…"
               className="w-full rounded-xl border border-white/10 bg-surface py-3 pr-4 pl-10 text-sm text-ink placeholder-ink-muted focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/50 focus:outline-none"
             />
           </div>
@@ -622,7 +693,9 @@ export default function CheckinPage() {
           <div className="py-16 text-center">
             <UserCircleIcon className="mx-auto mb-3 size-12 text-ink-muted" />
             <p className="text-sm text-ink-muted">
-              {search ? 'Ningún invitado coincide con la búsqueda.' : 'No hay invitados en esta vista.'}
+              {search
+                ? 'Ningún invitado coincide con la búsqueda. El correo y el teléfono deben escribirse completos.'
+                : 'No hay invitados en esta vista.'}
             </p>
           </div>
         ) : (
@@ -633,6 +706,7 @@ export default function CheckinPage() {
             {guests.map((guest) => (
               <GuestCheckinCard
                 key={guest.id}
+                eventId={id}
                 guest={guest}
                 confirmedStatus={confirmedStatus}
                 pendingStatus={pendingStatus}

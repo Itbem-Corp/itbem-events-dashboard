@@ -17,4 +17,6 @@ export interface EventCapabilities {
 	'checkin:run': boolean
 	'analytics:view': boolean
 	'members:manage': boolean
+	/** Manage the event's clients. Absent or false with EVENT_CLIENT_ACCESS off. */
+	'event:clients:manage'?: boolean
 }

@@ -118,10 +118,9 @@ export function SeatingToolbar({
             initial={{ y: 100, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 100, opacity: 0 }}
-            // Sits above the floating mobile tab bar (bottom: safe area + 0.5rem, ~3.6rem tall)
-            // instead of underneath it (GST-N3).
+            // Sits above the mobile tab bar through the shell's offset (GST-N3).
             data-testid="seating-mobile-save-bar"
-            className="fixed inset-x-2 bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] z-30 flex items-center justify-between rounded-2xl border border-white/10 bg-surface/95 px-4 py-3 shadow-lg backdrop-blur-sm md:hidden print:hidden"
+            className="fixed bottom-[var(--app-mobile-nav-offset,0px)] inset-x-0 z-30 border-t border-white/10 bg-surface/95 backdrop-blur-sm px-4 py-3 in-data-[mobile-nav=hidden]:pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex items-center justify-between md:hidden print:hidden"
           >
             <span className="text-xs text-ink-secondary">
               {pendingCount} cambio{pendingCount !== 1 ? 's' : ''} sin guardar

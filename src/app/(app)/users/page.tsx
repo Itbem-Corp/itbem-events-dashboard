@@ -28,6 +28,7 @@ import { PageTransition } from '@/components/ui/page-transition'
 import { Pagination } from '@/components/ui/pagination'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { UserActiveToggle } from '@/components/users/UserActiveToggle'
+import { isPrimaryRootAccount } from '@/lib/member-management'
 
 // Icons
 import { MagnifyingGlassIcon, PlusIcon, UsersIcon } from '@heroicons/react/16/solid'
@@ -78,7 +79,7 @@ const SUPPORT_USER_STATUS_FILTERS = ['ALL', 'ACTIVE', 'INACTIVE'] as const satis
 export default function UsersPage() {
   const scopeFetcherKey = useScopedFetcherScope()
   const currentUser = useStore((state) => state.user)
-  const isPrimaryRoot = Boolean(currentUser?.root_level === 1 || (currentUser?.is_root && !currentUser.root_level))
+  const isPrimaryRoot = isPrimaryRootAccount(currentUser)
   const availableStatusFilters = isPrimaryRoot ? USER_STATUS_FILTERS : SUPPORT_USER_STATUS_FILTERS
   const {
     search,
@@ -444,7 +445,7 @@ export default function UsersPage() {
                     </Button>
 
                     {/* Optimistic toggle — state flips instantly */}
-                    {!user.is_root && (
+                    {!user.is_root && !isPrimaryRootAccount(user) && (
                       <div data-testid="user-active-toggle">
                         <UserActiveToggle user={user} />
                       </div>
@@ -484,7 +485,7 @@ export default function UsersPage() {
                       {openActionUserId === user.id && (
                         <UserListActionsMenu
                           user={user}
-                          canDelete={isPrimaryRoot}
+                          canDelete={isPrimaryRoot && !isPrimaryRootAccount(user)}
                           canManageAccess={isPrimaryRoot}
                           onEditIntent={preloadUserForm}
                           onDeleteIntent={preloadDeleteUser}

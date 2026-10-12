@@ -117,7 +117,7 @@ describe('SeatingPlanV2', () => {
     fireEvent.click(screen.getByTitle('Asignar invitados sin mesa automáticamente'))
 
     const bar = screen.getByTestId('seating-mobile-save-bar')
-    expect(bar.className).toMatch(/bottom-\[calc\(env\(safe-area-inset-bottom\)\+4\.75rem\)\]/)
+    expect(bar.className).toMatch(/bottom-\[var\(--app-mobile-nav-offset,0px\)\]/)
     expect(bar.className).not.toMatch(/bottom-0/)
   })
 

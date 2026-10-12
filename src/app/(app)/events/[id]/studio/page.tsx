@@ -1,7 +1,7 @@
 'use client'
 
 import { api } from '@/lib/api'
-import { apiErrorStatus, getApiErrorMessage } from '@/lib/api-error'
+import { getApiErrorMessage } from '@/lib/api-error'
 import type { EventConfig } from '@/models/EventConfig'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
@@ -28,6 +28,8 @@ import { useStudioSections } from '@/components/studio/use-studio-sections'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { usePreviewToken } from '@/hooks/usePreviewToken'
 import { useEventCapabilities } from '@/features/events/use-event-capabilities'
+import { capabilityErrorKind } from '@/features/events/capability-error'
+import { EventCapabilityError, EventNotFoundCard } from '@/components/events/event-capability-error'
 import { useStudioWorkspace } from '@/features/events/studio/use-studio-workspace'
 import { readApiData } from '@/lib/api-envelope'
 import { eventConfigPath, eventPath } from '@/lib/api-paths'
@@ -124,6 +126,7 @@ export default function StudioPage() {
     isValidating: capabilitiesValidating,
     mutate: retryCapabilities,
   } = useEventCapabilities(id)
+  const capabilitiesErrorKind = capabilitiesError ? capabilityErrorKind(capabilitiesError) : null
   const canManageEvent = capabilities?.['event:manage'] === true
 
   const {
@@ -349,35 +352,24 @@ export default function StudioPage() {
     )
   }
 
-  // Only a 403/404 (or a real capabilities answer) means "no access". Any other
-  // failure (connection, workspace not ready) offers a retry instead of a false
-  // "your role cannot edit" message.
-  const capabilitiesStatus = apiErrorStatus(capabilitiesError)
-  if (capabilitiesError && !capabilities && capabilitiesStatus !== 403 && capabilitiesStatus !== 404) {
+  if (capabilitiesErrorKind === 'unavailable') {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas px-6">
-        <div role="alert" className="premium-surface max-w-md rounded-3xl p-8 text-center">
-          <h1 className="text-xl font-semibold tracking-tight text-ink">No pudimos verificar tu acceso a Studio</h1>
-          <p className="mt-2 text-sm leading-6 text-ink-muted">
-            {getApiErrorMessage(capabilitiesError, 'Revisa tu conexión e intenta de nuevo.')}
-          </p>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={() => void retryCapabilities()}
-              disabled={capabilitiesValidating}
-              className="inline-flex min-h-10 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-60"
-            >
-              {capabilitiesValidating ? 'Reintentando…' : 'Reintentar'}
-            </button>
-            <Link
-              href={`/events/${id}`}
-              className="inline-flex min-h-10 items-center justify-center rounded-xl px-4 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
-            >
-              Volver al evento
-            </Link>
-          </div>
-        </div>
+        <EventCapabilityError
+          title="No pudimos verificar tu acceso a Studio"
+          description="Revisa tu conexión e inténtalo de nuevo."
+          onRetry={() => void retryCapabilities()}
+          retrying={capabilitiesValidating}
+          backHref={`/events/${id}`}
+        />
+      </div>
+    )
+  }
+
+  if (capabilitiesErrorKind === 'not_found') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-canvas px-6">
+        <EventNotFoundCard />
       </div>
     )
   }

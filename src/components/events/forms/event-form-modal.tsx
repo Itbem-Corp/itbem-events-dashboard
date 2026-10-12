@@ -17,7 +17,6 @@ import { Textarea } from '@/components/textarea'
 import { useDebounce } from '@/hooks/useDebounce'
 import { eventTypeLabel } from '@/lib/event-type-label'
 
-import { createAccessProfile } from '@/lib/access-profile'
 import { api } from '@/lib/api'
 import { readApiData } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
@@ -39,6 +38,7 @@ import { trackProductEvent } from '@/lib/product-analytics'
 import { getEventPublicUrlPrefix } from '@/lib/public-urls'
 import { DEACTIVATE_EVENT_CONFIRMATION } from '@/lib/event-active-copy'
 import { eventWriteFieldError } from '@/lib/event-write-errors'
+import { useAccessProfile } from '@/lib/use-access-profile'
 import { normalizeOptionalUuid } from '@/lib/uuid'
 import type { Client, ClientsPageResponse } from '@/models/Client'
 import type { Event } from '@/models/Event'
@@ -67,12 +67,23 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
 
   const currentClient = useStore((s) => s.currentClient)
   const user = useStore((s) => s.user)
-  const applicationSession = useStore((s) => s.applicationSession)
-  const workspaceMode = useStore((s) => s.workspaceMode)
   const eventPublicUrlPrefix = getEventPublicUrlPrefix()
   const isRoot = Boolean(user?.is_root)
-  const accessProfile = createAccessProfile(applicationSession, workspaceMode, currentClient?.id)
+  const accessProfile = useAccessProfile()
   const canChooseOrganization = isRoot && accessProfile.isPlatformContext
+  const applicationSession = useStore((s) => s.applicationSession)
+  // Without a selected organization (caller-access workspace) a new event can
+  // go to any session organization whose role allows events:create.
+  const organizationOptions = useMemo(
+    () =>
+      currentClient
+        ? [{ id: currentClient.id, name: currentClient.name }]
+        : (applicationSession?.organizations ?? [])
+            .filter((organization) => organization.capabilities?.includes('events:create'))
+            .map((organization) => ({ id: organization.id, name: organization.name })),
+    [applicationSession?.organizations, currentClient]
+  )
+  const defaultOrganizationId = currentClient?.id ?? (organizationOptions.length === 1 ? organizationOptions[0].id : '')
 
   // Root users search a bounded organization page instead of downloading the full catalog.
   const { data: clientsResponse } = useSWR<ClientsPageResponse>(
@@ -101,7 +112,7 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
     formState: { errors, dirtyFields },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: emptyEventFormValues(currentClient?.id ?? ''),
+    defaultValues: emptyEventFormValues(defaultOrganizationId),
   })
 
   useEffect(() => {
@@ -112,9 +123,9 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
     if (isEdit && event) {
       reset(eventFormValuesFromEvent(event, currentClient?.id ?? ''))
     } else {
-      reset(emptyEventFormValues(currentClient?.id ?? ''))
+      reset(emptyEventFormValues(defaultOrganizationId))
     }
-  }, [isOpen, isEdit, event, currentClient?.id, reset])
+  }, [isOpen, isEdit, event, currentClient?.id, defaultOrganizationId, reset])
 
   const timezoneOptions = eventTimezoneOptions(watch('timezone'))
   const eventDateInPast =
@@ -146,6 +157,11 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
       ...data,
       event_date_time: toRFC3339(data.event_date_time, data.timezone ?? 'America/Mexico_City'),
     })
+    // Only platform roots move an event between organizations. Everyone else
+    // edits without client_id: in the caller-access workspace there is no
+    // selected organization, and an empty value would ask the API to detach
+    // the event (which it also rejects).
+    if (isEdit && !canChooseOrganization) delete payload.client_id
 
     try {
       if (isEdit && event) {
@@ -233,7 +249,7 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
           </Field>
 
           {/* Platform roots can target any organization; organization mode is locked. */}
-          {(canChooseOrganization || !currentClient) && (
+          {(canChooseOrganization || (!currentClient && !isEdit)) && (
             <Field>
               <Label>Organización</Label>
               {canChooseOrganization ? (
@@ -267,9 +283,13 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
                   }}
                 />
               ) : (
-                <Select {...register('client_id')}>
-                  <option value="">{isEdit ? 'Sin organización' : 'Selecciona una organización'}</option>
-                  {currentClient && <option value={currentClient.id}>{currentClient.name}</option>}
+                <Select {...register('client_id')} aria-label="Organización">
+                  {organizationOptions.length !== 1 && <option value="">Selecciona una organización</option>}
+                  {organizationOptions.map((organization) => (
+                    <option key={organization.id} value={organization.id}>
+                      {organization.name}
+                    </option>
+                  ))}
                 </Select>
               )}
             </Field>
