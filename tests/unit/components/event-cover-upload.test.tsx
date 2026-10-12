@@ -49,6 +49,14 @@ vi.mock('sonner', () => ({
   },
 }))
 
+// Real signatures: the component sniffs the first bytes before uploading.
+const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13])
+const HEIC_BYTES = new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63])
+
+function pngFile(name = 'cover.png') {
+  return new File([PNG_BYTES], name, { type: 'image/png' })
+}
+
 function makeEvent(overrides: Partial<Event> = {}): Event {
   return {
     id: 'evt-001',
@@ -96,7 +104,7 @@ describe('EventCoverUpload', () => {
     const onChanged = vi.fn()
     const { container } = render(<EventCoverUpload event={makeEvent()} onChanged={onChanged} />)
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
-    const file = new File(['cover'], 'cover.png', { type: 'image/png' })
+    const file = pngFile()
 
     fireEvent.change(input, { target: { files: [file] } })
 
@@ -150,7 +158,7 @@ describe('EventCoverUpload', () => {
   it('accepts extension-backed cover images when the browser MIME type is empty', async () => {
     const { container } = render(<EventCoverUpload event={makeEvent()} />)
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
-    const file = new File(['cover'], 'cover.HEIC', { type: '' })
+    const file = new File([HEIC_BYTES], 'cover.HEIC', { type: '' })
 
     fireEvent.change(input, { target: { files: [file] } })
 
@@ -167,10 +175,16 @@ describe('EventCoverUpload', () => {
     })
   })
 
+  it('explains that the 10 MB limit is for invitation images, not guest uploads (STU-67)', () => {
+    render(<EventCoverUpload event={makeEvent()} />)
+    expect(screen.getByText(/Hasta 10 MB/)).toBeInTheDocument()
+    expect(screen.getByText(/fotos de hasta 25 MB y videos de hasta 200 MB/)).toBeInTheDocument()
+  })
+
   it('blocks cover images above the backend resource limit before uploading', () => {
     const { container } = render(<EventCoverUpload event={makeEvent()} />)
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
-    const file = new File(['cover'], 'cover.png', { type: 'image/png' })
+    const file = pngFile()
     Object.defineProperty(file, 'size', { value: SECTION_IMAGE_UPLOAD_MAX_BYTES + 1 })
 
     fireEvent.change(input, { target: { files: [file] } })
@@ -193,7 +207,7 @@ describe('EventCoverUpload', () => {
     const { container } = render(<EventCoverUpload event={makeEvent()} onChanged={onChanged} />)
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
 
-    fireEvent.change(input, { target: { files: [new File(['cover'], 'cover.png', { type: 'image/png' })] } })
+    fireEvent.change(input, { target: { files: [pngFile()] } })
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('El almacenamiento no pudo recibir el archivo')
@@ -212,11 +226,73 @@ describe('EventCoverUpload', () => {
     const { container } = render(<EventCoverUpload event={makeEvent()} onChanged={onChanged} />)
     const input = container.querySelector('input[type="file"]') as HTMLInputElement
 
-    fireEvent.change(input, { target: { files: [new File(['cover'], 'cover.png', { type: 'image/png' })] } })
+    fireEvent.change(input, { target: { files: [pngFile()] } })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('El servidor no confirmó la portada')
     expect(onChanged).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-image file renamed to .png before uploading', async () => {
+    const { container } = render(<EventCoverUpload event={makeEvent()} />)
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+
+    fireEvent.change(input, {
+      target: { files: [new File(['esto es texto, no una imagen'], 'falsa.png', { type: 'image/png' })] },
+    })
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('El archivo no es una imagen válida o está dañado. Elige otro archivo.')
+    )
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('shows the 400 reason for an invalid image instead of a storage outage', async () => {
+    vi.mocked(api.post).mockRejectedValueOnce({
+      response: { status: 400, data: { message: 'invalid image: image: unknown format' } },
+    })
+    const { container } = render(<EventCoverUpload event={makeEvent()} />)
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+
+    fireEvent.change(input, { target: { files: [pngFile()] } })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('El archivo no es una imagen válida o está dañado')
+    expect(alert).not.toHaveTextContent('servicio de archivos no está disponible')
+  })
+
+  it('falls back to a placeholder when the cover URL fails to load', async () => {
+    render(<EventCoverUpload event={makeEvent({ cover_view_url: 'http://host.docker.internal:4566/bucket/cover.webp' })} />)
+
+    const image = screen.getByAltText('Portada del evento')
+    fireEvent.error(image)
+
+    expect(await screen.findByRole('img', { name: 'Portada del evento' })).toHaveAttribute('data-slot', 'image-fallback')
+  })
+
+  it('explains a failed cover processing in Spanish without the raw worker error', () => {
+    render(
+      <EventCoverUpload
+        event={makeEvent({
+          cover_image_url: 'https://signed.example.com/cover.webp',
+          cover_processing_status: 'failed',
+          cover_processing_error: 'lambda: image decode failed',
+        })}
+      />
+    )
+
+    expect(screen.getByText(/la anterior sigue activa/)).toBeInTheDocument()
+    expect(screen.queryByText(/lambda: image decode failed/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the cover when the host cancels the delete confirmation (STU-48)', async () => {
+    render(<EventCoverUpload event={makeEvent({ cover_image_url: 'https://signed.example.com/cover.webp' })} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /eliminar/i }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancelar' }))
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Eliminar portada' })).toBeNull())
+    expect(api.delete).not.toHaveBeenCalled()
   })
 
   it('removes the cover through the dedicated cover endpoint', async () => {
@@ -229,6 +305,9 @@ describe('EventCoverUpload', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: /eliminar/i }))
+    // STU-48: nothing is deleted until the host confirms.
+    expect(api.delete).not.toHaveBeenCalled()
+    fireEvent.click(await screen.findByRole('button', { name: 'Eliminar portada' }))
 
     await waitFor(() => {
       expect(api.delete).toHaveBeenCalledWith('/events/evt-001/cover')
