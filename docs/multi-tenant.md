@@ -59,7 +59,7 @@ Authenticated API requests send `X-Application-Code`, `X-Workspace-Mode`, and, i
 
 Manual organization switches first exchange the current Cognito application session at `POST /session/organization-context`. The returned five-minute credential stays in memory only and is sent as `X-Organization-Context` while its application and organization still match. A failed exchange leaves the previous workspace active; platform switches, activating another tenant or organization, the caller-access workspace, logout, and organization changes clear the credential. Re-activating the same tenant and organization (for example after a session revalidation) keeps it.
 
-In the caller-access workspace (`X-Workspace-Mode: organization` without `X-Organization-ID`) the backend scopes the request to every membership and event grant of the caller. No `X-Organization-Context` is sent or issued.
+In the caller-access workspace (`X-Workspace-Mode: organization` without `X-Organization-ID`) the backend scopes the request to every membership and event grant of the caller. No `X-Organization-Context` is sent or issued. The pinned contract must declare this `caller-access` scope (`npm run contract:check` fails until it does).
 
 The application shell also obtains a credential after restoring an organization workspace and renews it 45 seconds before expiration. Exchanges for the same organization are single-flight, transient failures retry after 30 seconds, effect cleanup cancels timers, and the store discards late responses whose organization is no longer selected.
 

@@ -102,6 +102,12 @@ of the caller and authorizes each write per resource. Event lists are requested
 without `client_id` (`accessProfile.listsAcrossOrganizations`). Controls use the
 top-level capability union; the API remains the authority.
 
+The pinned `itbem-product-contract` must declare this scope
+(`rules.organizationRequiresOrganizationId: false`,
+`rules.organizationWithoutIdScope: 'caller-access'`). `npm run contract:check`
+(`scripts/verify-product-contract.mjs`) fails until it does, so CI blocks a
+merge before the contract change is merged and re-pinned.
+
 ## Organization context credential lifecycle
 
 - Issued (`POST /session/organization-context`) when an organization workspace
