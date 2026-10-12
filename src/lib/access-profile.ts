@@ -97,6 +97,9 @@ export function createAccessProfile({
     // backend answers with everything the caller's memberships and grants
     // allow and authorizes each write per resource, so the dashboard uses the
     // top-level capability union only to decide which controls to offer.
+    // The list is as narrow as the backend's user-scoped query, which must
+    // keep only session-eligible organizations (docs/auth.md, release
+    // prerequisite); the dashboard cannot narrow it.
     return {
       platformLevel: level,
       mode: 'organization',

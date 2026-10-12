@@ -108,6 +108,29 @@ The pinned `itbem-product-contract` must declare this scope
 (`scripts/verify-product-contract.mjs`) fails until it does, so CI blocks a
 merge before the contract change is merged and re-pinned.
 
+### Release prerequisite: list scope of the caller-access workspace
+
+The caller-access list is only as narrow as the backend's user-scoped list
+query. In the backend, `dashboardEventsScope` (`repositories/eventsrepository/EventsRepository.go`)
+answers `GET /api/events`, `/api/events/dashboard` and
+`/api/events/notifications` without `client_id` with the events of every
+organization where the caller has an active `client_members` row. That query
+does not check `clients.is_active` or `clients.deleted_at`, the member's
+EventiApp application access (`client_member_applications`), or the
+organization's product. `GET /api/session` does check them
+(`SessionService.organizationAccess`).
+
+Before this workspace, a member's default list was the selected session
+organization (`?client_id=`), which is always eligible. In the caller-access
+workspace the default list (and command-palette search and notifications) can
+also show events of organizations the session excludes. The dashboard cannot
+narrow this: one request cannot name several organizations, and a client-side
+filter would hide rows without denying them. A backend change must ship before
+the dashboard release: the user-scoped list query must keep only active,
+non-deleted organizations where the member has active EventiApp access, plus
+event grants. Otherwise the remaining exposure must be measured with the R4/Q6
+production queries and accepted as a security finding before the release.
+
 ## Organization context credential lifecycle
 
 - Issued (`POST /session/organization-context`) when an organization workspace
