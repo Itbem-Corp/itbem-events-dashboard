@@ -178,3 +178,28 @@ describe('ApplicationWorkspaceHeader on products without a shell policy', () => 
     expect(container.innerHTML).toMatchSnapshot()
   })
 })
+
+// QA ROLES-74 / ROLES-75: the fixed organization card rendered a 300x300 avatar
+// that hid the organization name, and ITBEM initials were white on #f1f3f5.
+describe('ApplicationWorkspaceHeader fixed organization card', () => {
+  it('renders a sized avatar with themed initials next to the organization name', () => {
+    const { container, getByText } = render(
+      <ProductProvider product={getProductManifest('itbem')}>
+        <ApplicationWorkspaceHeader
+          accessProfile={createAccessProfile({ session: null, requestedMode: 'organization', organizationId: 'org-1' })}
+          canSwitchOrganizations={false}
+          currentClient={{ id: 'org-1', name: 'Acme Eventos', logo: null } as never}
+          tenant={tenantPresentationForHostname('dashboard.itbem.com')}
+          onOpenSwitcher={vi.fn()}
+          onSwitcherIntent={vi.fn()}
+        />
+      </ProductProvider>
+    )
+
+    const avatar = container.querySelector('[data-slot="avatar"]')
+    expect(avatar).not.toBeNull()
+    expect(avatar).toHaveClass('size-10', 'text-ink')
+    expect(avatar).not.toHaveClass('text-white')
+    expect(getByText('Acme Eventos')).toBeInTheDocument()
+  })
+})

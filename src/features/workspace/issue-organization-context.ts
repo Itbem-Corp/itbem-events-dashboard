@@ -1,35 +1,9 @@
-import { api } from '@/lib/api'
-import { readApiData } from '@/lib/api-envelope'
-import { organizationContextPath } from '@/lib/api-paths'
+import { issueOrganizationContextCredential } from '@/lib/api'
 import type { OrganizationContextCredential } from '@/lib/request-context'
 
-interface OrganizationContextResponse {
-  token: string
-  organization_id: string
-  expires_at: string
-}
-
-const pendingByOrganization = new Map<string, Promise<OrganizationContextCredential>>()
-
+// The credential exchange lives next to the API client so the request
+// interceptor and the workspace selector share one in-flight issuance per
+// organization (see ensureOrganizationContext in src/lib/api.ts).
 export function issueOrganizationContext(organizationId: string): Promise<OrganizationContextCredential> {
-  const pending = pendingByOrganization.get(organizationId)
-  if (pending) return pending
-
-  const request = api
-    .post(organizationContextPath(), { organization_id: organizationId })
-    .then((response) => {
-      const context = readApiData<OrganizationContextResponse>(response.data)
-      if (!context?.token || context.organization_id !== organizationId || !context.expires_at) {
-        throw new Error('The organization context response is incomplete')
-      }
-      return {
-        token: context.token,
-        organizationId: context.organization_id,
-        expiresAt: context.expires_at,
-      }
-    })
-    .finally(() => pendingByOrganization.delete(organizationId))
-
-  pendingByOrganization.set(organizationId, request)
-  return request
+  return issueOrganizationContextCredential(organizationId)
 }

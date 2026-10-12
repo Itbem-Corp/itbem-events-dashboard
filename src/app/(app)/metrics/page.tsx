@@ -10,6 +10,13 @@ import { useScopedFetcherKey } from '@/hooks/useScopedFetcherKey'
 import { accessCan } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { metricsPortfolioPath } from '@/lib/api-paths'
+import {
+  activeUsersLabel,
+  dailyActivitySeries,
+  productMetricRows,
+  scopePortfolioToProduct,
+  type ProductMetricRow,
+} from '@/features/metrics/product-metrics'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
@@ -62,32 +69,7 @@ function aggregate(rows: ProductMetricSummary[]) {
   )
 }
 
-function productRows(rows: ProductMetricSummary[]): ProductMetricSummary[] {
-  const grouped = new Map<string, ProductMetricSummary>()
-  for (const row of rows) {
-    const current = grouped.get(row.tenant_code) ?? {
-      tenant_code: row.tenant_code,
-      client_id: row.tenant_code,
-      client_name: 'Todas las organizaciones',
-      requests: 0,
-      mutations: 0,
-      errors: 0,
-      duration_ms: 0,
-      request_bytes: 0,
-      active_users: 0,
-    }
-    current.requests += row.requests
-    current.mutations += row.mutations
-    current.errors += row.errors
-    current.duration_ms += row.duration_ms
-    current.request_bytes += row.request_bytes
-    current.active_users += row.active_users
-    grouped.set(row.tenant_code, current)
-  }
-  return [...grouped.values()].sort((left, right) => right.requests - left.requests)
-}
-
-function ProductCard({ row, index }: { row: ProductMetricSummary; index: number }) {
+function ProductCard({ row, index }: { row: ProductMetricRow; index: number }) {
   const successRate = row.requests ? ((row.requests - row.errors) / row.requests) * 100 : 100
   const latency = row.requests ? Math.round(row.duration_ms / row.requests) : 0
 
@@ -119,7 +101,7 @@ function ProductCard({ row, index }: { row: ProductMetricSummary; index: number 
       </div>
       <div className="mt-5 flex items-center justify-between border-t border-border-subtle pt-4 text-xs text-ink-muted">
         <span>{latency} ms promedio</span>
-        <span>{row.active_users} activos</span>
+        <span>{activeUsersLabel(row)}</span>
       </div>
     </article>
   )
@@ -144,17 +126,26 @@ export default function MetricsPage() {
     isValidating,
     mutate,
   } = useSWR<ProductMetricsPortfolio>(scopedKey, fetcher, responsiveListSwrOptions)
-  const portfolio = useMemo(() => readApiData<ProductMetricsPortfolio | undefined>(raw), [raw])
+  const productCode = useStore((state) => state.applicationSession?.application.code)
+  const portfolio = useMemo(() => {
+    const data = readApiData<ProductMetricsPortfolio | undefined>(raw)
+    return accessProfile.isOrganizationContext ? scopePortfolioToProduct(data, productCode) : data
+  }, [accessProfile.isOrganizationContext, productCode, raw])
   const errorState = getDataErrorState(error, raw)
   const totals = useMemo(() => aggregate(portfolio?.summaries ?? []), [portfolio?.summaries])
-  const products = useMemo(() => productRows(portfolio?.summaries ?? []), [portfolio?.summaries])
-  const activity = useMemo(() => {
-    const byDay = new Map<string, number>()
-    for (const point of portfolio?.timeline ?? []) {
-      byDay.set(point.day, (byDay.get(point.day) ?? 0) + point.requests)
-    }
-    return [...byDay.entries()].sort(([left], [right]) => left.localeCompare(right))
-  }, [portfolio?.timeline])
+  const products = useMemo(
+    () =>
+      productMetricRows(
+        portfolio?.summaries ?? [],
+        portfolio?.product_totals,
+        accessProfile.isOrganizationContext && currentClient?.name ? currentClient.name : undefined
+      ),
+    [accessProfile.isOrganizationContext, currentClient?.name, portfolio?.product_totals, portfolio?.summaries]
+  )
+  const activity = useMemo(
+    () => dailyActivitySeries(portfolio?.timeline ?? [], portfolio?.from, portfolio?.to),
+    [portfolio?.from, portfolio?.timeline, portfolio?.to]
+  )
   const successRate = totals.requests ? ((totals.requests - totals.errors) / totals.requests) * 100 : 100
   const averageLatency = totals.requests ? Math.round(totals.duration_ms / totals.requests) : 0
 
@@ -241,7 +232,7 @@ export default function MetricsPage() {
               {
                 label: 'Latencia media',
                 value: `${averageLatency} ms`,
-                detail: formatBytes(totals.request_bytes),
+                detail: `${formatBytes(totals.request_bytes)} recibidos`,
                 icon: CircleStackIcon,
               },
             ].map(({ label, value, detail, icon: Icon }) => (
@@ -272,7 +263,7 @@ export default function MetricsPage() {
             )}
           </section>
 
-          {activity.length > 0 && (
+          {activity.some(([, requests]) => requests > 0) && (
             <section className="premium-surface mt-4 rounded-3xl p-5 sm:p-6">
               <div className="flex items-end justify-between gap-4">
                 <div>

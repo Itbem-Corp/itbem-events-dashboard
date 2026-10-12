@@ -281,7 +281,13 @@ export function ApplicationLayout({
 
     // ✅ Si hay clientes y no hay currentClient → seleccionar
     const preferred = list.find((client) => client.code?.toLowerCase() === tenant.organizationCode)
-    const currentIsAllowed = currentClient && list.some((client) => client.id === currentClient.id)
+    // Organizations inherited through a parent Owner/Admin membership
+    // (INHERITED_OWNER / INHERITED_ADMIN) are part of the verified session even
+    // if a list page does not include them; keep such a selection.
+    const currentIsAllowed =
+      currentClient &&
+      (list.some((client) => client.id === currentClient.id) ||
+        Boolean(applicationSession?.organizations.some((organization) => organization.id === currentClient.id)))
 
     // Organization-scoped apps cannot retain a workspace selected on another
     // branded origin. EventiApp and ITBEM keep their portfolio switcher.
@@ -305,6 +311,7 @@ export function ApplicationLayout({
     // ✅ ROOT con 0 clientes → NO REDIRECT
   }, [
     accessProfile.isPlatformContext,
+    applicationSession,
     accessProfile.isPortfolioContext,
     canSwitchOrganizations,
     clients,

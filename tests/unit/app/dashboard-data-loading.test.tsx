@@ -66,6 +66,27 @@ describe('dashboard data loading', () => {
     ))).toBe(false)
   })
 
+  it('uses singular copy for one guest and labels the max-guests sum as cupo (ROLES-N3)', () => {
+    const single = {
+      ...overview,
+      metrics: { ...overview.metrics, total_capacity: 0 },
+      next_event_guest_summary: { total: 1, confirmed: 0, pending: 1, declined: 0, total_attendees: 1 },
+    }
+    useSWRMock.mockImplementation((key: unknown) =>
+      key && requestPathFromKey(key as string | ScopedFetcherKey) === eventsDashboardPath()
+        ? { data: single, isLoading: false }
+        : { data: undefined, isLoading: false }
+    )
+    render(<Home />)
+
+    expect(screen.getByText('1 invitado')).toBeInTheDocument()
+    expect(screen.getByText('1 pendiente')).toBeInTheDocument()
+    expect(screen.getByText('0 confirmados')).toBeInTheDocument()
+    expect(screen.getByText('Cupo total')).toBeInTheDocument()
+    expect(screen.getByText('sin cupo máximo definido')).toBeInTheDocument()
+    expect(screen.queryByText('invitados en total')).not.toBeInTheDocument()
+  })
+
   it('shows cached dashboard data immediately while revalidating with the shared deduped policy', () => {
     render(<Home />)
 

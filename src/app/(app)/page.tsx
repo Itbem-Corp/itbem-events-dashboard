@@ -20,10 +20,10 @@ import { getDataErrorState } from '@/lib/swr-data-state'
 import { useAccessProfile } from '@/lib/use-access-profile'
 import type { TenantCode } from '@/lib/tenant-config'
 import type { Event, EventDashboardOverview } from '@/models/Event'
+import { operationalRootSupportCopy, organizationWorkspaceCopy } from '@/features/workspace/workspace-copy'
 import { productSupportsFeature } from '@/products/core/product-manifest'
 import { getProductManifest } from '@/products/registry'
 import { useProductShell } from '@/products/core/product-context'
-import { organizationWorkspaceCopy } from '@/features/workspace/workspace-copy'
 import { useStore } from '@/store/useStore'
 import {
   ArrowRightIcon,
@@ -53,6 +53,10 @@ const EMPTY_METRICS: EventDashboardOverview['metrics'] = {
   upcoming: 0,
   past_active: 0,
   total_capacity: 0,
+}
+
+function countLabel(count: number, singular: string, plural: string): string {
+  return `${count.toLocaleString('es-MX')} ${count === 1 ? singular : plural}`
 }
 
 function getDaysUntil(dateString: string, timeZone?: string | null): number | null {
@@ -148,8 +152,12 @@ function ControlPlaneHome({
     ? 'Usuarios, roles y acceso por aplicación.'
     : 'Miembros, roles y acceso por producto.'
   const isOperationalRoot = accessProfile.platformLevel === 'root_2'
+  const productHasEvents = productSupportsFeature(product, 'events')
   const localizedRoleLabels = Boolean(useProductShell()?.localizedRoleLabels)
-  const organizationCopy = organizationWorkspaceCopy(accessProfile, organizationName, { localizedRoleLabels })
+  const organizationCopy = organizationWorkspaceCopy(accessProfile, organizationName, {
+    productHasEvents,
+    localizedRoleLabels,
+  })
 
   if (accessProfile.isOrganizationContext) {
     return (
@@ -220,7 +228,9 @@ function ControlPlaneHome({
             ? 'Resuelve accesos, acompaña organizaciones y revisa señales operativas sin alterar gobierno ni estructura crítica.'
             : canViewOrganizations || canViewPlatformUsers
               ? 'Administra organizaciones, accesos y usuarios desde un espacio separado de la operación diaria.'
-              : 'Supervisa actividad, salud y trazabilidad sin mezclarla con la operación diaria de eventos.'
+              : productHasEvents
+                ? 'Supervisa actividad, salud y trazabilidad sin mezclarla con la operación diaria de eventos.'
+                : 'Supervisa actividad, salud y trazabilidad sin mezclarla con la operación diaria.'
         }
         icon={ShieldCheckIcon}
       />
@@ -300,8 +310,10 @@ function ControlPlaneHome({
           <div>
             <p className="text-sm font-medium text-ink">Límite de soporte activo</p>
             <p className="mt-1 text-xs leading-5 text-ink-muted">
-              Este nivel puede asistir usuarios, invitados y check-in. La creación o eliminación de eventos, los usuarios
-              root y la configuración estructural permanecen reservados a Root 1.
+              {operationalRootSupportCopy({
+                productHasEvents,
+                productHasUsers: productSupportsFeature(product, 'users'),
+              })}
             </p>
           </div>
         </div>
@@ -322,8 +334,12 @@ export default function Home() {
   const canCreateEvents = accessCan(accessProfile, 'events:create')
   const canEditEvents = accessCan(accessProfile, 'events:manage')
   const organizationRole = (accessProfile.organizationRole ?? '').replace('INHERITED_', '').toUpperCase()
+  const homeProduct = getProductManifest((applicationSession?.application.code as TenantCode) || 'eventiapp')
   const localizedRoleLabels = Boolean(useProductShell()?.localizedRoleLabels)
-  const workspaceCopy = organizationWorkspaceCopy(accessProfile, currentClient?.name, { localizedRoleLabels })
+  const workspaceCopy = organizationWorkspaceCopy(accessProfile, currentClient?.name, {
+    productHasEvents: productSupportsFeature(homeProduct, 'events'),
+    localizedRoleLabels,
+  })
   const eventsKey =
     hasEvents && !accessProfile.isPlatformContext ? scopedEventsDashboardPath(currentClient?.id, isRoot) : null
   const scopedEventsKey = useScopedFetcherKey(eventsKey)
@@ -470,19 +486,19 @@ export default function Home() {
                       <>
                         <span className="flex items-center gap-1.5 text-ink-secondary">
                           <UsersIcon className="size-4 text-ink-muted" />
-                          {`${nextGuestSummary?.total ?? 0} invitados`}
+                          {countLabel(nextGuestSummary?.total ?? 0, 'invitado', 'invitados')}
                         </span>
-                        <span className="flex items-center gap-1.5 text-emerald-400">
+                        <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
                           <CheckCircleIcon className="size-4" />
-                          {`${nextGuestSummary?.confirmed ?? 0} confirmados`}
+                          {countLabel(nextGuestSummary?.confirmed ?? 0, 'confirmado', 'confirmados')}
                         </span>
-                        <span className="flex items-center gap-1.5 text-amber-400">
+                        <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
                           <ClockIcon className="size-4" />
-                          {`${nextGuestSummary?.pending ?? 0} pendientes`}
+                          {countLabel(nextGuestSummary?.pending ?? 0, 'pendiente', 'pendientes')}
                         </span>
                       </>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
                       {canEditEvents && (
                         <Button
                           href={`/events/${nextEvent.id}/studio`}
@@ -560,9 +576,10 @@ export default function Home() {
               />
               <Metric
                 icon={UsersIcon}
-                label="Capacidad"
+                label="Cupo total"
                 value={metrics.total_capacity}
-                detail="invitados en total"
+                // Sum of each event's max_guests, not the guests already added (ROLES-N3).
+                detail={metrics.total_capacity > 0 ? 'lugares máximos definidos' : 'sin cupo máximo definido'}
                 delay={0.23}
               />
             </section>

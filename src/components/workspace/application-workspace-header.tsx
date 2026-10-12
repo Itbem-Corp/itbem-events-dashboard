@@ -35,6 +35,13 @@ export const ApplicationWorkspaceHeader = memo(function ApplicationWorkspaceHead
   const accessibleShell = Boolean(useProductShell()?.accessibleShell)
   const sidebarAccent = tenant.code === 'itbem' ? '#f1f3f5' : tenant.accent
   const smallText = accessibleShell ? 'text-xs' : 'text-[10px]'
+  // QA ROLES-74 / ROLES-75: the fixed organization card rendered an unsized
+  // avatar that hid the organization name, and ITBEM initials were white on
+  // #f1f3f5. Products without a shell policy (Cafetton House) keep their markup.
+  const fixedAvatarClass =
+    accessibleShell || tenant.code === 'itbem'
+      ? 'size-10 shrink-0 bg-surface-soft text-ink'
+      : 'bg-(--tenant-accent) text-white'
 
   return (
     <SidebarHeader className="gap-3 border-border-subtle bg-gradient-to-b from-surface-interactive to-transparent pb-4">
@@ -78,7 +85,7 @@ export const ApplicationWorkspaceHeader = memo(function ApplicationWorkspaceHead
               <Avatar
                 src={currentClient?.logo}
                 initials={currentClient?.name?.substring(0, 2).toUpperCase() || tenant.name.substring(0, 2)}
-                className="bg-(--tenant-accent) text-white"
+                className={fixedAvatarClass}
               />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-ink">

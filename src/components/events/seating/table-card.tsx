@@ -27,6 +27,8 @@ interface TableCardProps {
   onDelete: (tableId: string) => void
   onMobileAssign?: (guest: Guest) => void
   index: number
+  /** The table exceeds its capacity (the server refused the plan, or older data). */
+  overCapacity?: boolean
 }
 
 export function TableCard({
@@ -36,6 +38,7 @@ export function TableCard({
   onDelete,
   onMobileAssign,
   index,
+  overCapacity = false,
 }: TableCardProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `table-${table.id}`,
@@ -55,7 +58,9 @@ export function TableCard({
         'rounded-xl border overflow-hidden transition-colors duration-150',
         isOver
           ? 'border-indigo-500 bg-indigo-500/10 ring-2 ring-indigo-500/30'
-          : 'border-white/10 bg-surface/30',
+          : overCapacity
+            ? 'border-red-500/60 bg-red-500/5 ring-2 ring-red-500/30'
+            : 'border-white/10 bg-surface/30',
       ].join(' ')}
     >
       {/* Header */}
@@ -63,10 +68,18 @@ export function TableCard({
         <div className="flex items-center gap-3 min-w-0">
           <CapacityRing current={totalAttendees} capacity={table.capacity} />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-ink truncate">{table.name}</p>
+            {/* Wrap instead of truncating: tables that share a prefix must stay distinguishable (GST-64). */}
+            <p className="line-clamp-2 break-words text-sm font-semibold text-ink [overflow-wrap:anywhere]" title={table.name}>
+              {table.name}
+            </p>
             <p className="text-xs text-ink-muted">
               {guests.length} inv. · {totalAttendees} asist.
             </p>
+            {overCapacity && (
+              <p role="alert" className="text-xs font-medium text-red-400">
+                Supera su capacidad ({totalAttendees}/{table.capacity})
+              </p>
+            )}
           </div>
         </div>
 

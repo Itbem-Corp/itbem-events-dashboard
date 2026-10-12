@@ -9,6 +9,8 @@ interface ClientListActionsMenuProps {
   canManageMembers: boolean
   canEditOrganization: boolean
   canDeleteOrganization: boolean
+  /** The backend refuses to delete an organization with sub-organizations. */
+  hasChildren?: boolean
   onAddSubClient: (client: Client) => void
   onManageMembers: (client: Client) => void
   onEdit: (client: Client) => void
@@ -24,6 +26,7 @@ export function ClientListActionsMenu({
   canManageMembers,
   canEditOrganization,
   canDeleteOrganization,
+  hasChildren = false,
   onAddSubClient,
   onManageMembers,
   onEdit,
@@ -75,7 +78,22 @@ export function ClientListActionsMenu({
           Editar organización
         </button>
       )}
-      {canDeleteOrganization && (
+      {canDeleteOrganization && hasChildren && (
+        <div className="mt-1 border-t border-border-subtle px-3 py-2.5">
+          <button
+            type="button"
+            disabled
+            aria-describedby={`delete-blocked-${client.id}`}
+            className="w-full cursor-not-allowed text-left text-sm text-ink-muted"
+          >
+            Eliminar organización
+          </button>
+          <p id={`delete-blocked-${client.id}`} className="mt-1 text-xs text-ink-muted">
+            Tiene suborganizaciones. Elimínalas o muévelas primero.
+          </p>
+        </div>
+      )}
+      {canDeleteOrganization && !hasChildren && (
         <button
           type="button"
           onClick={() => onDelete(client)}

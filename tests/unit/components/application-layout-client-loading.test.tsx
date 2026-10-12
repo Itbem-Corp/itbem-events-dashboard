@@ -330,6 +330,37 @@ describe('ApplicationLayout workspace source per product', () => {
     expect(logos.some((src) => src.includes('otra.png'))).toBe(false)
   })
 
+  it('keeps an inherited child organization selected even when the list page omits it', async () => {
+    const session = applicationSession('eventiapp', {
+      organizations: [
+        organization('org-a', 'Owner', ['events:view', 'members:manage']),
+        organization('child-org', 'INHERITED_OWNER', ['events:view', 'members:manage']),
+      ],
+      capabilities: ['events:view', 'members:manage'],
+    })
+    const child = { id: 'child-org', name: 'Organización hija', code: 'child-org', client_type: { code: 'CUSTOMER' } }
+    useStore.setState({
+      applicationSession: session,
+      user: session.user,
+      profileLoaded: true,
+      currentClient: child,
+      workspaceMode: 'organization',
+      workspaceContexts: { eventiapp: { mode: 'organization', organization: child } },
+    })
+
+    render(
+      <ProductProvider product={getProductManifest('eventiapp')}>
+        <ApplicationLayout tenant={eventiTenant}>Contenido</ApplicationLayout>
+      </ProductProvider>
+    )
+
+    // Opening the switcher loads a list page that does not include the child.
+    fireEvent.pointerEnter(screen.getByRole('button', { name: /Organización hija/ }))
+    await waitFor(() => expect(clientRequests().length).toBeGreaterThan(0))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(useStore.getState().currentClient?.id).toBe('child-org')
+  })
+
   it('keeps the Cafetton House organization list and request exactly as today', async () => {
     const session = applicationSession('cafettonhouse', {
       organizations: [organization('org-a', 'MEMBER', ['organizations:view']), organization('org-b', 'MEMBER', ['organizations:view'])],
