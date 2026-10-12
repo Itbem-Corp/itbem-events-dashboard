@@ -547,6 +547,37 @@ KPI dashboard with recharts charts for event analytics. Fetches `GET /events/:id
 
 ---
 
+### UsersPage Root 1 rows (`app/(app)/users/page.tsx`)
+
+`isPrimaryRootAccount(user)` (`root_level === 1`, or legacy `is_root` without a level) hides
+`Eliminar usuario` and the active toggle (`Desactivar`) on Root 1 rows, because the backend answers
+409 protected account. The same helper decides whether the caller is a primary root.
+
+## Audit and Metrics
+
+### Audit list (`app/(app)/audit/page.tsx`)
+
+Below `md` each entry is a stacked card: time and result badge, `{method} {route}` with `break-all`
+(never truncated), and a `<details>` "Ver detalle" with request id, resource type and resource id in
+`font-mono text-xs break-all`. From `md` up the four-column grid is unchanged (truncated cells carry a
+`title`). The grid header and all labels use `text-xs`; the retry button is `type="button"`. The audit
+feature is EventiApp-only, so no product gate is needed.
+
+### DailyActivityChart (`metrics/daily-activity-chart.tsx`)
+
+```tsx
+<DailyActivityChart activity={[['2026-10-01T00:00:00Z', 120], ...]} accessible={shell?.accessibleShell} />
+```
+
+- `accessible` (EventiApp via `shell.accessibleShell`): bars inside `role="img"` with
+  `aria-label="Actividad diaria: {n} días; máximo {max} solicitudes el {fecha}"`, a Y axis (max at the
+  top, 0 at the bottom, `text-xs tabular-nums`), a dashed midline, an X axis with the first, middle and
+  last day, and an `sr-only` table (Día, Solicitudes). Days are UTC midnights, so they are formatted
+  with `timeZone: 'UTC'` (`formatUtcDay` in `src/lib/daily-activity-chart.ts`); in Mexico the old
+  formatting showed the previous day.
+- Without it (Cafetton House, which also has the metrics feature) the original markup renders
+  unchanged, including its local-time dates.
+
 ## Client Components
 
 ### ClientMembersModal (`clients/client-members-modal.tsx`)
@@ -558,9 +589,21 @@ Dialog for managing client team members (invite, change role, remove). Fetches `
 ```
 
 - **Invite form** (`InviteForm` sub-component): toggled inline; email + role select → `POST /clients/invite`
-  - Role options (excluding OWNER): `ADMIN` · `EDITOR` · `VIEWER`
+  - Role options come from `GET /catalogs/roles?client_id=` (the roles the caller may assign)
+- **Role names**: with `shell.localizedRoleLabels` (EventiApp) the options, the member badge and the
+  edit select show `organizationRoleLabel(code)` from `src/lib/role-labels.ts` (falling back to the
+  catalog name), and the CHECKIN guidance is `Opera el check-in.` (CHECKIN has `checkin:run`, not
+  `guest:manage`). Other products show the catalog name and the original guidance.
 - **Member list**: avatar + name + email + role badge
-  - OWNER role badge shows a shield icon; edit/remove actions are hidden for OWNERs
+  - OWNER role badge shows a shield icon
+  - Actions (applications, edit role, remove) use `canManageClientMember` from
+    `src/lib/member-management.ts`, which mirrors the backend guards: never an Owner (code or name),
+    never an `INHERITED_*` row, only members whose role is in the caller's assignable catalog (ranked
+    strictly below the caller), and never the caller's own row unless the caller is a platform root.
+    Platform-root targets cannot be detected from the member DTO; the backend still refuses them.
+- **403s**: the global interceptor in `src/lib/api.ts` shows `memberAccessDenialMessage(error)` (Spanish
+  copy for the backend's English hierarchy / owner / platform-root / grant reasons) and the modal does
+  not toast a 403 again (`toastMemberError`).
   - Edit role: inline Select + OK/cancel → `PUT /clients/members/:userId?client_id=:id`
   - Remove: opens an embedded Alert confirmation → `DELETE /clients/members/:userId?client_id=:id`
 - Roles color coding: `OWNER` → `indigo` · `ADMIN` → `blue` · `EDITOR` / `VIEWER` → `zinc`
