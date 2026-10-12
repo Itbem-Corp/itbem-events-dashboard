@@ -6,12 +6,13 @@ import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useScopedFetcherKey } from '@/hooks/useScopedFetcherKey'
-import { accessCan, createAccessProfile } from '@/lib/access-profile'
+import { accessCan } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { metricsPortfolioPath } from '@/lib/api-paths'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
+import { useAccessProfile } from '@/lib/use-access-profile'
 import type { ProductMetricSummary, ProductMetricsPortfolio } from '@/models/ProductMetrics'
 import { useStore } from '@/store/useStore'
 import {
@@ -124,14 +125,9 @@ function ProductCard({ row, index }: { row: ProductMetricSummary; index: number 
 
 export default function MetricsPage() {
   const [days, setDays] = useState(30)
-  const session = useStore((state) => state.applicationSession)
   const user = useStore((state) => state.user)
   const currentClient = useStore((state) => state.currentClient)
-  const workspaceMode = useStore((state) => state.workspaceMode)
-  const accessProfile = useMemo(
-    () => createAccessProfile(session, workspaceMode, currentClient?.id),
-    [currentClient?.id, session, workspaceMode]
-  )
+  const accessProfile = useAccessProfile()
   const canView = accessCan(accessProfile, 'metrics:view')
   const isRoot = Boolean(user?.is_root)
   const clientId = accessProfile.isOrganizationContext ? currentClient?.id : undefined

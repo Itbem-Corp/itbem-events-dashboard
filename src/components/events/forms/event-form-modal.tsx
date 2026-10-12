@@ -17,7 +17,6 @@ import { Textarea } from '@/components/textarea'
 import { useDebounce } from '@/hooks/useDebounce'
 import { eventTypeLabel } from '@/lib/event-type-label'
 
-import { createAccessProfile } from '@/lib/access-profile'
 import { api } from '@/lib/api'
 import { readApiData } from '@/lib/api-envelope'
 import { getApiErrorMessage } from '@/lib/api-error'
@@ -36,6 +35,7 @@ import { fetcher } from '@/lib/fetcher'
 import { beginNavigationProgress } from '@/lib/navigation-progress'
 import { trackProductEvent } from '@/lib/product-analytics'
 import { getEventPublicUrlPrefix } from '@/lib/public-urls'
+import { useAccessProfile } from '@/lib/use-access-profile'
 import { normalizeOptionalUuid } from '@/lib/uuid'
 import type { Client, ClientsPageResponse } from '@/models/Client'
 import type { Event } from '@/models/Event'
@@ -85,11 +85,9 @@ export function EventFormModal({ isOpen, setIsOpen, event, onSaved }: Props) {
 
   const currentClient = useStore((s) => s.currentClient)
   const user = useStore((s) => s.user)
-  const applicationSession = useStore((s) => s.applicationSession)
-  const workspaceMode = useStore((s) => s.workspaceMode)
   const eventPublicUrlPrefix = getEventPublicUrlPrefix()
   const isRoot = Boolean(user?.is_root)
-  const accessProfile = createAccessProfile(applicationSession, workspaceMode, currentClient?.id)
+  const accessProfile = useAccessProfile()
   const canChooseOrganization = isRoot && accessProfile.isPlatformContext
 
   // Root users search a bounded organization page instead of downloading the full catalog.

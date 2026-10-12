@@ -4,10 +4,13 @@ import { Avatar } from '@/components/avatar'
 import { Dialog, DialogBody, DialogDescription, DialogTitle } from '@/components/dialog'
 import type { OrganizationOption } from '@/components/workspace/organization-option'
 import type { AccessProfile } from '@/lib/access-profile'
+import { organizationRoleLabel } from '@/lib/role-labels'
 import type { DataErrorState } from '@/lib/swr-data-state'
 import type { TenantConfig } from '@/lib/tenant-config'
+import { useProductShell } from '@/products/core/product-context'
 import {
   BuildingOfficeIcon,
+  CalendarDaysIcon,
   CheckIcon,
   MagnifyingGlassIcon,
   Square2StackIcon,
@@ -33,6 +36,8 @@ interface OrganizationSwitcherProps {
   onPreloadOrganization: (clientId: string) => void
   onSelectOrganization: (client: OrganizationOption) => Promise<void>
   onSelectPlatform: () => void
+  /** Offered to Owner/Admin who also hold event grants: the caller-access list. */
+  onSelectPortfolio?: () => void
 }
 
 const CLIENT_TYPE_LABELS: Record<string, string> = {
@@ -58,9 +63,13 @@ export function OrganizationSwitcher({
   onPreloadOrganization,
   onSelectOrganization,
   onSelectPlatform,
+  onSelectPortfolio,
 }: OrganizationSwitcherProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const shell = useProductShell()
+  const localizedRoleLabels = Boolean(shell?.localizedRoleLabels)
+  const accessibleShell = Boolean(shell?.accessibleShell)
   const [switchingId, setSwitchingId] = useState<string | null>(null)
   const [switchError, setSwitchError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
@@ -71,7 +80,7 @@ export function OrganizationSwitcher({
     onSearchChange('')
   }
 
-  async function completeSwitch(action: () => void | Promise<void>, id: string) {
+  async function completeSwitch(action: () => void | Promise<void>, id: string, destination = '/') {
     if (switchingId) return
     setSwitchingId(id)
     setSwitchError(null)
@@ -87,12 +96,12 @@ export function OrganizationSwitcher({
     // The dashboard home already reacts to workspace state. Replacing the
     // same URL forces an unnecessary RSC navigation and made switching feel
     // several seconds slower on the first interaction.
-    if (pathname === '/') {
+    if (pathname === destination) {
       setSwitchingId(null)
       return
     }
     startTransition(() => {
-      router.replace('/')
+      router.replace(destination)
       setSwitchingId(null)
     })
   }
@@ -107,7 +116,7 @@ export function OrganizationSwitcher({
       <div className="border-b border-border-subtle px-5 pt-5 pb-4 sm:px-6 sm:pt-6">
         <div className="flex items-start justify-between gap-5">
           <div>
-            <p className="mb-2 text-[10px] font-semibold tracking-[0.16em] text-(--tenant-accent) uppercase">
+            <p className={`mb-2 ${accessibleShell ? 'text-xs' : 'text-[10px]'} font-semibold tracking-[0.16em] text-(--tenant-accent) uppercase`}>
               {tenant.name}
             </p>
             <DialogTitle className="text-xl! tracking-[-0.025em]">Cambiar espacio de trabajo</DialogTitle>
@@ -158,9 +167,27 @@ export function OrganizationSwitcher({
           </button>
         )}
 
+        {onSelectPortfolio && (
+          <button
+            type="button"
+            onClick={() => void completeSwitch(onSelectPortfolio, 'portfolio', '/events')}
+            disabled={Boolean(switchingId)}
+            className="flex min-h-16 w-full items-center gap-3 rounded-xl px-3 text-left transition-colors hover:bg-surface-interactive focus:outline-none focus-visible:ring-2 focus-visible:ring-(--tenant-accent) disabled:cursor-wait disabled:opacity-60"
+          >
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-(--tenant-accent)/12 text-(--tenant-accent)">
+              <CalendarDaysIcon className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-ink">Eventos asignados</span>
+              <span className="mt-0.5 block text-xs text-ink-muted">Eventos de tus organizaciones y los que te asignaron</span>
+            </span>
+            {accessProfile.isPortfolioContext && <CheckIcon className="size-5 text-(--tenant-accent)" />}
+          </button>
+        )}
+
         <div className="mt-2 flex items-center justify-between border-t border-border-subtle px-3 pt-4 pb-2">
-          <p className="text-[10px] font-semibold tracking-[0.15em] text-ink-muted uppercase">Organizaciones</p>
-          <p className="text-[11px] text-ink-muted" aria-live="polite">
+          <p className={`${accessibleShell ? 'text-xs' : 'text-[10px]'} font-semibold tracking-[0.15em] text-ink-muted uppercase`}>Organizaciones</p>
+          <p className={`${accessibleShell ? 'text-xs' : 'text-[11px]'} text-ink-muted`} aria-live="polite">
             {clients.length} de {clientsTotal}
           </p>
         </div>
@@ -224,7 +251,9 @@ export function OrganizationSwitcher({
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-ink-muted">
                     {type}
-                    {client.access_role ? ` · ${client.access_role}` : ''}
+                    {client.access_role
+                      ? ` · ${localizedRoleLabels ? organizationRoleLabel(client.access_role) : client.access_role}`
+                      : ''}
                   </span>
                 </span>
                 {selected && <CheckIcon className="size-5 shrink-0 text-(--tenant-accent)" />}

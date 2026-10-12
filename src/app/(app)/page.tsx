@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/product/page-header'
 import { PageTransition } from '@/components/ui/page-transition'
 import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
-import { accessCan, createAccessProfile, type AccessProfile } from '@/lib/access-profile'
+import { accessCan, type AccessProfile } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { scopedEventsDashboardPath } from '@/lib/api-paths'
 import { getCalendarDaysUntil } from '@/lib/date-time'
@@ -17,6 +17,7 @@ import { eventTypeLabel } from '@/lib/event-type-label'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
+import { useAccessProfile } from '@/lib/use-access-profile'
 import type { TenantCode } from '@/lib/tenant-config'
 import type { Event, EventDashboardOverview } from '@/models/Event'
 import { productSupportsFeature } from '@/products/core/product-manifest'
@@ -380,12 +381,8 @@ export default function Home() {
   const currentClient = useStore((state) => state.currentClient)
   const user = useStore((state) => state.user)
   const applicationSession = useStore((state) => state.applicationSession)
-  const workspaceMode = useStore((state) => state.workspaceMode)
   const isRoot = Boolean(user?.is_root)
-  const accessProfile = useMemo(
-    () => createAccessProfile(applicationSession, workspaceMode, currentClient?.id),
-    [applicationSession, currentClient?.id, workspaceMode]
-  )
+  const accessProfile = useAccessProfile()
   const hasEvents = applicationSession ? accessCan(accessProfile, 'events:view') : true
   const canCreateEvents = accessCan(accessProfile, 'events:create')
   const canEditEvents = accessCan(accessProfile, 'events:manage')

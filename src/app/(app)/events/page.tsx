@@ -15,7 +15,7 @@ import { StaleDataNotice } from '@/components/ui/stale-data-notice'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useListViewState } from '@/hooks/useListViewState'
 import { useScopedFetcherKey, useScopedFetcherScope } from '@/hooks/useScopedFetcherKey'
-import { accessCan, createAccessProfile } from '@/lib/access-profile'
+import { accessCan } from '@/lib/access-profile'
 import { readApiData } from '@/lib/api-envelope'
 import { scopedEventsPagePath } from '@/lib/api-paths'
 import { getCalendarDaysUntil } from '@/lib/date-time'
@@ -25,6 +25,7 @@ import { eventTypeLabel } from '@/lib/event-type-label'
 import { fetcher } from '@/lib/fetcher'
 import { responsiveListSwrOptions } from '@/lib/responsive-list-swr'
 import { getDataErrorState } from '@/lib/swr-data-state'
+import { useAccessProfile } from '@/lib/use-access-profile'
 import type { Event, EventListPage } from '@/models/Event'
 import { useStore } from '@/store/useStore'
 import {
@@ -123,13 +124,8 @@ export default function EventsPage() {
   const router = useRouter()
   const currentClient = useStore((s) => s.currentClient)
   const user = useStore((s) => s.user)
-  const applicationSession = useStore((s) => s.applicationSession)
-  const workspaceMode = useStore((s) => s.workspaceMode)
   const isRoot = Boolean(user?.is_root)
-  const accessProfile = useMemo(
-    () => createAccessProfile(applicationSession, workspaceMode, currentClient?.id),
-    [applicationSession, currentClient?.id, workspaceMode]
-  )
+  const accessProfile = useAccessProfile()
   const canCreateEvents = accessCan(accessProfile, 'events:create')
   const canEditEvents = accessCan(accessProfile, 'events:manage')
   const canDeleteEvents = accessCan(accessProfile, 'events:delete')
