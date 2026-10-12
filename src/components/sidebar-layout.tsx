@@ -9,8 +9,18 @@ import { NavbarItem } from './navbar'
 export function SidebarLayout({
   navbar,
   sidebar,
+  mobileNavigation,
   children,
-}: React.PropsWithChildren<{ navbar: React.ReactNode; sidebar: React.ReactNode }>) {
+}: React.PropsWithChildren<{
+  navbar: React.ReactNode
+  sidebar: React.ReactNode
+  /**
+   * Accessible shells report whether the bottom bar is shown. The root then
+   * carries data-mobile-nav, and the stylesheet sets --app-mobile-nav-offset
+   * (the bar's height below lg, otherwise 0px) for fixed overlays.
+   */
+  mobileNavigation?: 'visible' | 'hidden'
+}>) {
   const [showSidebar, setShowSidebar] = useState(false)
   const isDesktop = useMediaQuery('(min-width: 1024px)')
   const pathname = usePathname()
@@ -78,7 +88,10 @@ export function SidebarLayout({
         Saltar al contenido principal
       </a>
 
-      <div className="relative isolate flex min-h-svh w-full min-w-0 overflow-x-clip bg-transparent max-lg:flex-col">
+      <div
+        className="relative isolate flex min-h-svh w-full min-w-0 overflow-x-clip bg-transparent max-lg:flex-col"
+        data-mobile-nav={mobileNavigation}
+      >
         <button
           type="button"
           aria-label="Cerrar menú lateral"

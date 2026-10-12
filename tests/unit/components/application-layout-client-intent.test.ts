@@ -33,7 +33,9 @@ describe('application layout client intent', () => {
   it('warms the selected organization portfolio before switching', () => {
     expect(source).toContain('function preloadClientPortfolio(clientId: string)')
     expect(source).toContain("eventsPagePath(clientId, { page: 1, page_size: 12, filter: 'all' })")
-    expect(source).toContain('scopedEventsDashboardPath(clientId, isRoot)')
+    // The scope follows the access profile (platform roots and the
+    // caller-access workspace), not the raw is_root flag.
+    expect(source).toContain('scopedEventsDashboardPath(clientId, listsAcrossOrganizations)')
     expect(source).toContain('onPreloadOrganization={preloadClientPortfolio}')
     expect(switcherSource).toContain('onPointerEnter={() => onPreloadOrganization(client.id)}')
     expect(switcherSource).toContain('onFocus={() => onPreloadOrganization(client.id)}')
@@ -76,7 +78,7 @@ describe('application layout client intent', () => {
     expect(source).toContain('const prefetchedRoutesRef = useRef<Set<ApplicationRoute>>(new Set())')
     expect(source).toContain('if (prefetchedRoutesRef.current.has(href)) return')
     expect(source).toContain('prefetchedRoutesRef.current.clear()')
-    expect(source).toContain('applicationRoutePreloadPath({ href, clientId: currentClient?.id, isRoot })')
+    expect(source).toContain('applicationRoutePreloadPath({ href, clientId: currentClient?.id, listsAcrossOrganizations })')
     expect(navigationSource).toContain('metricsPortfolioPath(clientId, 30)')
     expect(navigationSource).toContain('auditLogsPath({ page: 1, page_size: 30 })')
   })

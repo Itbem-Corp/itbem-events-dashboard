@@ -72,22 +72,30 @@ export function ApplicationCommandPaletteController({
   clientId,
   enabled,
   isRoot,
+  listsAcrossOrganizations = isRoot,
+  showHome = true,
+  eventsLabel = 'Eventos',
 }: {
   clientId?: string
   enabled: boolean
+  /** Root-only palette entries (users). */
   isRoot: boolean
+  /** Event search may run without client_id (platform roots, caller access). */
+  listsAcrossOrganizations?: boolean
+  showHome?: boolean
+  eventsLabel?: string
 }) {
   const open = useSyncExternalStore(subscribePalette, () => paletteOpen, () => false)
   const scopeFetcherKey = useScopedFetcherScope()
 
   const preloadResources = useCallback(() => {
     const eventsPath = enabled
-      ? scopedEventsPagePath(clientId, isRoot, { page: 1, page_size: 6, filter: 'all' })
+      ? scopedEventsPagePath(clientId, listsAcrossOrganizations, { page: 1, page_size: 6, filter: 'all' })
       : null
     const tasks: Promise<unknown>[] = [loadCommandPalette()]
     if (eventsPath) tasks.push(Promise.resolve(preload(scopeFetcherKey(eventsPath), fetcher)))
     void Promise.all(tasks).catch(() => undefined)
-  }, [clientId, enabled, isRoot, scopeFetcherKey])
+  }, [clientId, enabled, listsAcrossOrganizations, scopeFetcherKey])
 
   useEffect(() => {
     function handle(event: KeyboardEvent) {
@@ -105,6 +113,14 @@ export function ApplicationCommandPaletteController({
   }, [enabled, preloadResources])
 
   return open ? (
-    <CommandPalette open onClose={() => setPaletteOpen(false)} isRoot={isRoot} clientId={clientId} />
+    <CommandPalette
+      open
+      onClose={() => setPaletteOpen(false)}
+      isRoot={isRoot}
+      listsAcrossOrganizations={listsAcrossOrganizations}
+      showHome={showHome}
+      eventsLabel={eventsLabel}
+      clientId={clientId}
+    />
   ) : null
 }

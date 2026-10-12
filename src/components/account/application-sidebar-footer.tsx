@@ -7,6 +7,7 @@ import { ThemeToggle } from '@/components/theme/theme-toggle'
 import { ApplicationSearchButton } from '@/components/ui/application-search-button'
 import { LazyNotificationButton } from '@/components/ui/lazy-notification-button'
 import UserAvatar, { type UserAvatarUser } from '@/components/ui/UserAvatar'
+import { useProductShell } from '@/products/core/product-context'
 import { ChevronUpIcon } from '@heroicons/react/16/solid'
 import { memo } from 'react'
 
@@ -17,12 +18,15 @@ export const ApplicationSidebarFooter = memo(function ApplicationSidebarFooter({
   onSearchIntent: () => void
   onSearchOpen: () => void
 }) {
+  // The accessible shell sizes the toggle itself (44px below lg); a second
+  // size class here would compete with it because clsx does not merge.
+  const accessibleShell = Boolean(useProductShell()?.accessibleShell)
   return (
     <SidebarFooter className="border-t border-border-subtle px-3 pt-3 max-lg:hidden dark:border-white/10">
       <div className="mb-2 flex items-center gap-2 px-1">
         <ApplicationSearchButton compact onOpen={onSearchOpen} onIntent={onSearchIntent} />
         <LazyNotificationButton />
-        <ThemeToggle className="size-8" />
+        <ThemeToggle className={accessibleShell ? undefined : 'size-8'} />
       </div>
       <Dropdown>
         <DropdownButton as={SidebarItem} aria-label="Abrir menú de cuenta" onFocus={onProfileIntent} onPointerDown={onProfileIntent} onPointerEnter={onProfileIntent}>
