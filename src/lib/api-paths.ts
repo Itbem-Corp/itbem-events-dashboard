@@ -94,6 +94,15 @@ export function eventClientPath(eventId: string | number, userId: string | numbe
   return eventApiPath(eventId, `clients/${encodePathSegment(userId)}`)
 }
 
+/**
+ * Re-sends the standard Cognito invitation to a client account that has not
+ * completed its first sign-in (FORCE_CHANGE_PASSWORD). Not in the first
+ * api_contract draft: the integration step confirms this path.
+ */
+export function eventClientResendInvitationPath(eventId: string | number, userId: string | number): string {
+  return eventApiPath(eventId, `clients/${encodePathSegment(userId)}/resend-invitation`)
+}
+
 export function eventClientCandidatesPath(eventId: string | number, search?: string | null): string {
   return eventApiPath(eventId, 'clients/candidates', { search: search?.trim() || null })
 }

@@ -17,6 +17,12 @@ export interface EventClient {
   last_name: string
   granted_at: string
   granted_by_user_id: string
+  /**
+   * The account has not completed its first sign-in (Cognito
+   * FORCE_CHANGE_PASSWORD). Optional: when absent the UI still offers
+   * 'Reenviar invitación' and the server answers 409 if it is not pending.
+   */
+  invitation_pending?: boolean
 }
 
 export interface EventClientCandidate {
@@ -103,6 +109,7 @@ export type EventClientErrorCode =
   | 'event_outside_organization'
   | 'event_client_invite_failed'
   | 'event_client_grant_failed'
+  | 'event_client_invitation_not_pending'
 
 const EVENT_CLIENT_ERROR_MESSAGES: Record<EventClientErrorCode, string> = {
   event_client_access_disabled: 'Esta función no está disponible.',
@@ -117,6 +124,7 @@ const EVENT_CLIENT_ERROR_MESSAGES: Record<EventClientErrorCode, string> = {
   event_outside_organization: 'Uno o más eventos no pertenecen a esta organización.',
   event_client_invite_failed: 'No se pudo crear la cuenta del cliente.',
   event_client_grant_failed: 'No se pudo asignar el evento al cliente.',
+  event_client_invitation_not_pending: 'Esta persona ya activó su cuenta; no hace falta reenviar la invitación.',
 }
 
 export const EVENT_CLIENT_RATE_LIMIT_MESSAGE = 'Demasiados intentos. Espera un momento.'
