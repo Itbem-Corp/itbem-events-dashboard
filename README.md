@@ -59,3 +59,4 @@ identity provider; see `docs/qa-agent.md` for the qualification workflow.
 
 See [the workspace workflow](../DEVELOPER_WORKFLOW.md) for the full
 cross-repository validation and release model.
+QA-AUTOTEST EV-9001: prueba e2e del flujo de Torre (no fusionar)
