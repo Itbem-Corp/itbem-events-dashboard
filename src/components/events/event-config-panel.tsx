@@ -135,7 +135,7 @@ export function EventConfigPanel({ eventId, eventTimezone, eventDateTime, initia
   const [allowMessages, setAllowMessages] = useState(false)
   const [shareUploadsEnabled, setShareUploadsEnabled] = useState(false)
   const [autoApproveUploads, setAutoApproveUploads] = useState(false)
-  const [maxUploadsPerGuest, setMaxUploadsPerGuest] = useState(30)
+  const [maxUploadsPerGuest, setMaxUploadsPerGuest] = useState(50)
 
   // Scheduling
   const [activeFrom, setActiveFrom] = useState('')
