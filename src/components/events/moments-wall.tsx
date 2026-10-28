@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { fetchMomentDownload, saveMomentDownload } from '@/lib/moment-download'
 import useSWR, { mutate as globalMutate } from 'swr'
 import useSWRInfinite from 'swr/infinite'
 
@@ -229,6 +230,7 @@ function Lightbox({
   onDelete,
 }: LightboxProps) {
   const [scale, setScale] = useState(1)
+  const [downloading, setDownloading] = useState(false)
   const [actioning, setActioning] = useState<'approve' | 'unapprove' | 'delete' | null>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -270,20 +272,20 @@ function Lightbox({
   }
 
   const handleDownload = async () => {
+    if (downloading) return
+    setDownloading(true)
+    const toastId = toast.loading('Descargando archivo…')
     try {
-      const response = await fetch(url)
-      const blob = await response.blob()
+      const blob = await fetchMomentDownload(url)
       const key = moment.content_url || moment.content_view_url || url
       const extMatch = key.match(/\.(\w{2,5})(?:\?|$)/)
-      const ext = extMatch?.[1] ?? 'jpg'
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = `momento-${moment.id}.${ext}`
-      a.click()
-      URL.revokeObjectURL(a.href)
+      const ext = extMatch?.[1] ?? (video ? 'mp4' : 'jpg')
+      saveMomentDownload(blob, `momento-${moment.id}.${ext}`)
+      toast.success('Archivo preparado para descargar', { id: toastId })
     } catch {
-      // Fallback: open in new tab
-      window.open(url, '_blank', 'noopener,noreferrer')
+      toast.error('No se pudo descargar el archivo. Intenta de nuevo.', { id: toastId })
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -390,6 +392,7 @@ function Lightbox({
 
           <button
             onClick={handleDownload}
+            disabled={downloading}
             className="rounded-lg bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
             title="Descargar"
           >
@@ -516,6 +519,7 @@ function Lightbox({
         <button
           type="button"
           onClick={handleDownload}
+          disabled={downloading}
           className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white transition-colors hover:bg-white/20"
           aria-label="Descargar"
         >
@@ -2113,34 +2117,33 @@ export function MomentsWall({
   }
 
   const handleDownloadZip = async (typeFilter: 'all' | 'photos' | 'videos' = 'all') => {
-    const JSZip = (await import('jszip')).default
-    const allMoments = await loadAllMoments()
-    const approved = allMoments.filter((m) => {
-      if (!m.is_approved || !resolveUrl(m)) return false
-      if (typeFilter === 'photos') return !isBackendVideoMedia(resolveUrl(m), m.content_type)
-      if (typeFilter === 'videos') return isBackendVideoMedia(resolveUrl(m), m.content_type)
-      return true
-    })
-    if (approved.length === 0) {
-      toast.info('No hay momentos aprobados para descargar')
-      return
-    }
+    if (downloadingZip) return
     setShowZipMenu(false)
     setDownloadingZip(true)
-    let succeeded = 0
-    let failed = 0
-    let processed = 0
-    const toastId = toast.loading(`Descargando 0 de ${approved.length} archivos…`)
+    const toastId = toast.loading('Preparando descarga…')
     try {
+      const JSZip = (await import('jszip')).default
+      const allMoments = await loadAllMoments()
+      const approved = allMoments.filter((m) => {
+        if (!m.is_approved || !resolveUrl(m)) return false
+        if (typeFilter === 'photos') return !isBackendVideoMedia(resolveUrl(m), m.content_type)
+        if (typeFilter === 'videos') return isBackendVideoMedia(resolveUrl(m), m.content_type)
+        return true
+      })
+      if (approved.length === 0) {
+        toast.info('No hay momentos aprobados para descargar', { id: toastId })
+        return
+      }
+      let succeeded = 0
+      let failed = 0
+      let processed = 0
+      toast.loading(`Descargando 0 de ${approved.length} archivos…`, { id: toastId })
       const zip = new JSZip()
       const folder = zip.folder('momentos') ?? zip
       const results = await mapSettledWithConcurrency(approved, 4, async (moment, index) => {
         try {
           const fileUrl = resolveUrl(moment)
-          const response = await fetch(fileUrl)
-          if (!response.ok) throw new Error(`HTTP ${response.status}`)
-          const blob = await response.blob()
-          if (!blob || blob.size === 0) throw new Error('Empty media response')
+          const blob = await fetchMomentDownload(fileUrl)
           const key = moment.content_url || moment.content_view_url || fileUrl
           const extMatch = key.match(/\.(\w{2,5})(?:\?|$)/)
           const extension = extMatch?.[1] ?? (isBackendVideoMedia(key, moment.content_type) ? 'mp4' : 'jpg')
@@ -2168,11 +2171,7 @@ export function MomentsWall({
         compressionOptions: { level: 3 },
       })
       const suffix = typeFilter === 'photos' ? '-fotos' : typeFilter === 'videos' ? '-videos' : ''
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(content)
-      a.download = `momentos-${eventIdentifier}${suffix}.zip`
-      a.click()
-      URL.revokeObjectURL(a.href)
+      saveMomentDownload(content, `momentos-${eventIdentifier}${suffix}.zip`)
       if (failed > 0) {
         toast.success(`${succeeded} archivos descargados (${failed} fallaron)`, { id: toastId })
       } else {
