@@ -1253,6 +1253,7 @@ describe('MomentsWall — ZIP split dropdown', () => {
     originalFetch = globalThis.fetch
     globalThis.fetch = vi.fn(function () {
       return Promise.resolve({
+        ok: true,
         blob: () => Promise.resolve(new Blob(['image'], { type: 'image/jpeg' })),
       } as Response)
     }) as unknown as typeof globalThis.fetch
@@ -1260,6 +1261,44 @@ describe('MomentsWall — ZIP split dropdown', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch
+  })
+
+  it('reports preparation errors and allows retrying the ZIP', async () => {
+    const { toast } = await import('sonner')
+    const JSZip = (await import('jszip')).default
+    vi.mocked(JSZip).mockImplementationOnce(function () { throw new Error('ZIP unavailable') })
+    await renderWall([makePhotoMoment({ is_approved: true })])
+    const button = screen.getByTitle('Descargar todos los momentos aprobados en un ZIP')
+    await act(async () => { fireEvent.click(button) })
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Error al generar el ZIP', { id: 'download-progress' }))
+    expect(toast.loading).toHaveBeenCalledWith('Preparando descarga…')
+    expect(button).not.toBeDisabled()
+  })
+
+  it('saves a ZIP containing the downloaded media', async () => {
+    const { toast } = await import('sonner')
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:zip-download')
+    await renderWall([makePhotoMoment({ is_approved: true })])
+    await act(async () => {
+      fireEvent.click(screen.getByTitle('Descargar todos los momentos aprobados en un ZIP'))
+    })
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('1 archivos descargados', { id: 'download-progress' }))
+    expect(click).toHaveBeenCalledOnce()
+    expect(globalThis.fetch).toHaveBeenCalledWith('https://cdn.example.com/photo.jpg', { cache: 'no-store', credentials: 'omit' })
+    click.mockRestore()
+  })
+
+  it('shows a visible error and re-enables ZIP when media cannot be fetched', async () => {
+    const { toast } = await import('sonner')
+    vi.mocked(globalThis.fetch).mockRejectedValue(new TypeError('Failed to fetch'))
+    await renderWall([makePhotoMoment({ is_approved: true })])
+    const button = screen.getByTitle('Descargar todos los momentos aprobados en un ZIP')
+    await act(async () => { fireEvent.click(button) })
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+      'No se pudo descargar ningún archivo. Intenta de nuevo.', { id: 'download-progress' }
+    ))
+    expect(button).not.toBeDisabled()
   })
 
   it('shows a dropdown arrow button next to the ZIP button when approved moments exist', async () => {
