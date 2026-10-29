@@ -88,6 +88,12 @@ export async function POST(request: NextRequest) {
       return privateJson({ error: 'Correo o contraseña incorrectos.' }, 401)
     }
     if (name === 'UserNotConfirmedException') return privateJson({ error: 'Confirma tu correo antes de entrar.' }, 409)
+    if (name === 'PasswordResetRequiredException') {
+      return privateJson({
+        code: 'PASSWORD_RESET_REQUIRED',
+        error: 'Para completar tu acceso, usa «Olvidé mi contraseña» y establece una nueva desde tu correo.',
+      }, 409)
+    }
     if (name === 'TooManyRequestsException' || name === 'LimitExceededException') {
       return privateJson({ error: 'Demasiados intentos. Espera un momento y vuelve a intentar.' }, 429)
     }
