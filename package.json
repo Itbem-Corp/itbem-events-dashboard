@@ -97,7 +97,7 @@
     "dotenv": "^17.3.1",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.8",
-    "happy-dom": "20.11.1",
+    "happy-dom": "21.0.4",
     "postcss": "8.5.25",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.2.0",
