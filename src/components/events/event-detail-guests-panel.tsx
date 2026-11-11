@@ -101,6 +101,7 @@ const GUEST_SORT_HEADERS: ReadonlyArray<{ column: GuestListSortColumn | null; la
 ]
 
 interface EventDetailGuestsPanelProps {
+  canManage: boolean
   event: Event
   summary: GuestSummary | null
   viewState: EventDetailGuestsViewState
@@ -131,7 +132,12 @@ function GuestStats({ summary }: { summary: GuestSummary }) {
   )
 }
 
-export function EventDetailGuestsPanel({
+export function EventDetailGuestsPanel(props: EventDetailGuestsPanelProps) {
+  if (!props.canManage) return null
+  return <GuestManagementPanel {...props} />
+}
+
+function GuestManagementPanel({
   event,
   summary,
   viewState,
@@ -176,6 +182,16 @@ export function EventDetailGuestsPanel({
   const totalGuests = guestsPage?.total ?? 0
   const guestsErrorState = getDataErrorState(guestsError, rawGuests)
   const isSearchPending = debouncedSearch !== viewState.search || isValidating
+  const hasActiveFilters = viewState.search.length > 0 || viewState.status !== 'ALL'
+  const isEmptyEvent = Boolean(
+    guestsPage && summary && summary.total === 0 && !guestsError && !isLoading &&
+      !isSearchPending && !hasActiveFilters && guests.length === 0
+  )
+  const [emptyAnnouncement, setEmptyAnnouncement] = useState('')
+  useEffect(() => {
+    if (isEmptyEvent) setEmptyAnnouncement('La lista de invitados está vacía.')
+    else if (guests.length > 0 || hasActiveFilters || summary?.total !== 0 || guestsError) setEmptyAnnouncement('')
+  }, [isEmptyEvent, guests.length, hasActiveFilters, summary?.total, guestsError])
 
   const { data: rawGuestStatuses } = useSWR<GuestStatus[] | { data?: GuestStatus[] }>(scopedStatusesKey, fetcher, {
     shouldRetryOnError: false,
@@ -428,8 +444,10 @@ export function EventDetailGuestsPanel({
     }
   }
 
-  if (guestsErrorState === 'fatal') {
-    return (
+  return (
+    <div>
+      <div role="status" aria-label="Estado de invitados" aria-atomic="true" className="sr-only">{emptyAnnouncement}</div>
+      {guestsErrorState === 'fatal' ? (
       <PageDataError
         title="No pudimos cargar los invitados"
         description="La colección permanece intacta. Reintenta para recuperar esta página."
@@ -437,12 +455,7 @@ export function EventDetailGuestsPanel({
         retrying={isValidating}
         icon={UsersIcon}
       />
-    )
-  }
-  if (isLoading) return <EventDetailPanelSkeleton tab="invitados" />
-
-  return (
-    <div>
+      ) : isLoading ? <EventDetailPanelSkeleton tab="invitados" /> : <>
       {effectiveSummary.total > 0 && <GuestStats summary={effectiveSummary} />}
       {guestsErrorState === 'stale' && (
         <div className="mb-4">
@@ -535,16 +548,31 @@ export function EventDetailGuestsPanel({
         ))}
       </div>
 
-      {guests.length === 0 ? (
+      {guests.length === 0 && isEmptyEvent ? (
+        <div className="flex min-h-[330px] flex-col items-center justify-center rounded-xl border border-border-subtle bg-surface px-5 py-10 text-center">
+          <div aria-hidden="true" className="mb-4 grid size-14 place-items-center rounded-full border border-border-subtle text-ink-secondary">
+            <UsersIcon className="size-7" />
+          </div>
+          <h3 className="text-xl font-semibold text-ink">Aún no hay invitados</h3>
+          <Button
+            className="mt-6 min-h-11 w-full transition-none focus-visible:outline-[3px] focus-visible:outline-offset-4 sm:w-auto"
+            onFocus={() => void preloadGuestFormModal().catch(() => undefined)}
+            onPointerEnter={() => void preloadGuestFormModal().catch(() => undefined)}
+            onClick={openNewGuest}
+          >
+            Agregar el primer invitado
+          </Button>
+        </div>
+      ) : guests.length === 0 ? (
         <EmptyState
           icon={UsersIcon}
-          title={effectiveSummary.total === 0 ? 'Sin invitados' : 'Sin resultados'}
-          description={
-            effectiveSummary.total === 0
-              ? 'Comienza agregando los primeros invitados a este evento.'
-              : 'Ningún invitado coincide con los filtros aplicados.'
-          }
-          action={effectiveSummary.total === 0 ? { label: 'Agregar invitado', onClick: openNewGuest } : undefined}
+          title={hasActiveFilters || effectiveSummary.total > 0 ? 'Sin resultados' : 'Sin invitados'}
+          description={hasActiveFilters || effectiveSummary.total > 0
+            ? 'Ningún invitado coincide con los filtros aplicados.'
+            : 'Comienza agregando los primeros invitados a este evento.'}
+          action={hasActiveFilters || effectiveSummary.total > 0
+            ? undefined
+            : { label: 'Agregar invitado', onClick: openNewGuest }}
         />
       ) : (
         <div className="relative">
@@ -893,6 +921,7 @@ export function EventDetailGuestsPanel({
         onClose={() => setIsBulkDeleteOpen(false)}
         onConfirm={bulkDeleteGuests}
       />
+      </>}
     </div>
   )
 }
