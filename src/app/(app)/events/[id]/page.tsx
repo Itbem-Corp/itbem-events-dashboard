@@ -739,7 +739,7 @@ export default function EventDetailPage() {
           {activeTab === 'invitados' && eventCapabilities?.['guest:manage'] && (
             <EventDetailGuestsPanel
               event={event}
-              summary={guestSummary}
+              summary={guestSummaryError || guestSummaryLoading ? null : guestSummary}
               viewState={guestsViewState}
               onViewStateChange={setGuestsViewState}
               onPublicContentChanged={handleGuestCollectionChanged}
